@@ -1,0 +1,69 @@
+################### NEW SNAKE
+import os
+import pandas as pd
+import csv
+from pathlib import Path
+
+
+configfile: "conf/config.yaml"
+pepfile: "conf/project_config.yaml"
+samples = pep.sample_table.sample_name
+peptable = pep.sample_table
+peptable.to_csv("conf/peptable.csv", index = False, quoting=csv.QUOTE_NONNUMERIC)
+
+
+def gref_rally():
+    return "make_star_index.out"
+
+def aref_rally():
+    paths = [
+        "annotations/repeatmasker.complete.gff3.gz.tbi",
+        "annotations/refseq.complete.gff3.gz.tbi",
+        "annotations/repeatmasker_refseq.complete.gtf",
+        "annotations/repeatmasker_refseq.complete.gff3",
+        "annotations/repeatmasker.complete.bed",
+        "annotations/refseq.complete.bed",
+        "annotations/rte_beds/outfile.txt",
+        "annotations/repeatmasker_refseq.complete.sqlite",
+        "annotations/cytobands.bed",
+        expand("annotations/{annot}.fa", annot = ["repeatmasker_refseq.complete", "repeatmasker.complete", "refseq.complete"])
+    ]
+    return paths
+
+def ldna_rally():
+    seqsummary = expand("qc/{sample}/{sample}.doradosummary.txt", sample = samples)
+    pycoQC = expand("qc/{sample}/{sample}pycoQC.html", sample = samples)
+    haplotaggedbam = expand("intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.haplotagged.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"], sample = samples)
+    m1 = "outfiles/methylartist_loci_of_interest.txt",
+    bedmethanalysis = "outfiles/bedmethylanalysis.txt"
+    return [m1, haplotaggedbam, bedmethanalysis]
+
+
+final_input = [eval(f"{pipeline}_rally") for pipeline in config["pipelines_to_deploy"]]
+
+rule all:
+    input:
+        [
+            
+            # final_input            
+            ]
+
+# for pipeline in config["pipelines_to_deploy"]:
+#     module f"{pipeline}":
+#         snakefile: f"./{pipeline}/snakefile"
+#         config: config[pipeline]
+#     use rule * from f"{pipline}" as f"{pipeline}"_*
+
+for pipeline in config["pipelines_to_deploy"]:
+    module f"{pipeline}":
+        snakefile: f"./{pipeline}/snakefile"
+        config: config[pipeline]
+        prefix: f"{pipeline}"
+    use rule * from eval(f"{pipline}") as eval(f"{pipeline}_*")
+
+# module ldna:
+#     snakefile:
+#         github("maxfieldk/pipeline", path="workflow/ldna/snakefile", tag="v0.1.0")
+#     config:
+#         config["ldna"]
+
