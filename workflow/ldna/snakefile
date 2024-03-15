@@ -3,28 +3,6 @@ import pandas as pd
 from pathlib import Path
 samples = config["samples"]
 
-#tag FILESTRUCTURE
-paths = [
-    "envs",
-    "report",
-    "qc",
-    "scripts",
-    "qc/{sample}",
-    "rawdata/{sample}",
-    "logs/{sample}",
-    "intermediates/{sample}/methylation",
-    "intermediates/{sample}/dorado",
-    "intermediates/{sample}/fastqs",
-    "intermediates/{sample}/alignments",
-    "results/{sample}",
-    "results/plots/objects",
-    "results/tables"
-    ]
-paths = paths + []
-for path in paths:
-    for sample in samples:
-        os.makedirs(path.format(sample=sample), exist_ok = True)
-
 #tag BASECALLING
 rule dorado:
     input:
@@ -549,7 +527,7 @@ rule modbamtools:
     input:
         sortedbam = "intermediates/{sample}/alignments/{sample}.sorted.bam",
     params:
-        refseq = config["genes"],
+        refseq = config["refseq"],
         outdir = "results/{sample}"
     output:
         outfile = "results/{sample}/outfile.txt"        
@@ -786,48 +764,48 @@ touch {output}
 #         locusextended = "outfiles/methylartistlocusplotexpandedview.txt"
 
 #tag MOTIF_ANALYSIS
-rule gimme:
-    input:
-        hypo = "Rintermediates/promoters_dmhyporegions.bed",
-        hyper = "Rintermediates/promoters_dmhyperregions.bed"
-    output:
-        "outfiles/gimme.txt"
-    resources:
-        cpus_per_task = 26,
-        mem_mb = 64000,
-        runtime = 300
-    log:
-        "logs/gimme.log"
-    conda:
-        "Rclusterprofiler"
-    shell:
-        """
-bedtools getfasta -fi /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/hs1.sorted.fa -bed Rintermediates/promoters.bed -fo Rintermediates/promoters.fa
-bedtools getfasta -fi /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/hs1.sorted.fa -bed Rintermediates/promoters_dmhyperregions.bed -fo Rintermediates/promoters_dmhyperregions.fa
-bedtools getfasta -fi /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/hs1.sorted.fa -bed Rintermediates/promoters_dmhyporegions.bed -fo Rintermediates/promoters_dmhyporegions.fa
-gimme motifs results/tables/dmrs_hyper.bed results/gimme/hyper --background gc -g /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/hs1.sorted.fa --known --nthreads 24 -p /oscar/data/jsedivy/mkelsey/ref/pwms/hocomoco_jasperformat.txt --size 500 --noreport
-gimme motifs results/tables/dmrs_hypo.bed results/gimme/hypo --background gc -g /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/hs1.sorted.fa --known --nthreads 24 -p /oscar/data/jsedivy/mkelsey/ref/pwms/hocomoco_jasperformat.txt --size 500 --noreport
-touch {output}
-        """
+# rule gimme:
+#     input:
+#         hypo = "Rintermediates/promoters_dmhyporegions.bed",
+#         hyper = "Rintermediates/promoters_dmhyperregions.bed"
+#     output:
+#         "outfiles/gimme.txt"
+#     resources:
+#         cpus_per_task = 26,
+#         mem_mb = 64000,
+#         runtime = 300
+#     log:
+#         "logs/gimme.log"
+#     conda:
+#         "Rclusterprofiler"
+#     shell:
+#         """
+# bedtools getfasta -fi /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/hs1.sorted.fa -bed Rintermediates/promoters.bed -fo Rintermediates/promoters.fa
+# bedtools getfasta -fi /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/hs1.sorted.fa -bed Rintermediates/promoters_dmhyperregions.bed -fo Rintermediates/promoters_dmhyperregions.fa
+# bedtools getfasta -fi /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/hs1.sorted.fa -bed Rintermediates/promoters_dmhyporegions.bed -fo Rintermediates/promoters_dmhyporegions.fa
+# gimme motifs results/tables/dmrs_hyper.bed results/gimme/hyper --background gc -g /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/hs1.sorted.fa --known --nthreads 24 -p /oscar/data/jsedivy/mkelsey/ref/pwms/hocomoco_jasperformat.txt --size 500 --noreport
+# gimme motifs results/tables/dmrs_hypo.bed results/gimme/hypo --background gc -g /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/hs1.sorted.fa --known --nthreads 24 -p /oscar/data/jsedivy/mkelsey/ref/pwms/hocomoco_jasperformat.txt --size 500 --noreport
+# touch {output}
+#         """
         
-rule homer_find_motifs:
-    input:
-        dmrs = "results/tables/dmrs.tsv"
-    params:
-        hs1 = config["hs1sorted"],
-        outputdir = "results/homer"
-    output:
-        "homeroutfile.txt"
-    conda:
-        "omics"
-    log:
-        "logs/homer_find_motifs.log"
-    shell:
-        r"""
-awk '{{IFS=OFS="\t"}}; {{print "DMR" NR, $1, $2, $3, "+"}}' {input.dmrs} > tempbed.bed
-findMotifsGenome.pl tempbed.bed {params.hs1} {params.outputdir} -size given
-touch {output}
-        """
+# rule homer_find_motifs:
+#     input:
+#         dmrs = "results/tables/dmrs.tsv"
+#     params:
+#         hs1 = config["hs1sorted"],
+#         outputdir = "results/homer"
+#     output:
+#         "homeroutfile.txt"
+#     conda:
+#         "omics"
+#     log:
+#         "logs/homer_find_motifs.log"
+#     shell:
+#         r"""
+# awk '{{IFS=OFS="\t"}}; {{print "DMR" NR, $1, $2, $3, "+"}}' {input.dmrs} > tempbed.bed
+# findMotifsGenome.pl tempbed.bed {params.hs1} {params.outputdir} -size given
+# touch {output}
+#         """
 
 #tag INSERT_ANALYSIS
 rule extractFastqs:
@@ -1106,7 +1084,7 @@ rule clair3:
     output:
         outfile = "intermediates/{sample}/clair3AF{sample}.outfile"
     params:
-        ref = config["ref"],
+        ref = config["reference"],
     threads: 32
     resources:
         runtime = 1000,
@@ -1133,7 +1111,7 @@ rule clair3ROI:
     output:
         outfile = "intermediates/{sample}/clair3ROIAF{sample}.outfile"
     params:
-        ref = config["ref"],
+        ref = config["reference"],
         roi = "/oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations4/hs1.repeatMasker.l1hs.bed"
     threads: 32
     resources:
@@ -1162,7 +1140,7 @@ rule sniffles:
     output:
         vcf = "intermediates/{sample}/sniffles/sniffles.vcf"
     params:
-        ref = config["ref"]
+        ref = config["reference"]
     resources:
         runtime = 1000,
         mem_mb = 128000,

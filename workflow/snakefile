@@ -6,47 +6,6 @@ from pathlib import Path
 
 
 configfile: "conf/config.yaml"
-pepfile: "conf/project_config.yaml"
-samples = pep.sample_table.sample_name
-peptable = pep.sample_table
-peptable.to_csv("conf/peptable.csv", index = False, quoting=csv.QUOTE_NONNUMERIC)
-
-
-def gref_rally():
-    return "make_star_index.out"
-
-def aref_rally():
-    paths = [
-        "annotations/repeatmasker.complete.gff3.gz.tbi",
-        "annotations/refseq.complete.gff3.gz.tbi",
-        "annotations/repeatmasker_refseq.complete.gtf",
-        "annotations/repeatmasker_refseq.complete.gff3",
-        "annotations/repeatmasker.complete.bed",
-        "annotations/refseq.complete.bed",
-        "annotations/rte_beds/outfile.txt",
-        "annotations/repeatmasker_refseq.complete.sqlite",
-        "annotations/cytobands.bed",
-        expand("annotations/{annot}.fa", annot = ["repeatmasker_refseq.complete", "repeatmasker.complete", "refseq.complete"])
-    ]
-    return paths
-
-def ldna_rally():
-    seqsummary = expand("qc/{sample}/{sample}.doradosummary.txt", sample = samples)
-    pycoQC = expand("qc/{sample}/{sample}pycoQC.html", sample = samples)
-    haplotaggedbam = expand("intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.haplotagged.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"], sample = samples)
-    m1 = "outfiles/methylartist_loci_of_interest.txt",
-    bedmethanalysis = "outfiles/bedmethylanalysis.txt"
-    return [m1, haplotaggedbam, bedmethanalysis]
-
-
-final_input = [eval(f"{pipeline}_rally") for pipeline in config["pipelines_to_deploy"]]
-
-rule all:
-    input:
-        [
-            
-            # final_input            
-            ]
 
 # for pipeline in config["pipelines_to_deploy"]:
 #     module f"{pipeline}":
@@ -54,16 +13,71 @@ rule all:
 #         config: config[pipeline]
 #     use rule * from f"{pipline}" as f"{pipeline}"_*
 
-for pipeline in config["pipelines_to_deploy"]:
-    module f"{pipeline}":
-        snakefile: f"./{pipeline}/snakefile"
-        config: config[pipeline]
-        prefix: f"{pipeline}"
-    use rule * from eval(f"{pipline}") as eval(f"{pipeline}_*")
+final_input = []
 
+
+for pipeline in config["pipelines_to_deploy"]:
+    if pipeline == "ldna":
+        module ldna:
+            snakefile: "ldna/snakefile"
+            config: config["ldna"]
+            prefix: "ldna"
+        use rule * from ldna as ldna_*
+        def ldna_rally():
+            seqsummary = expand("qc/{sample}/{sample}.doradosummary.txt", sample = config["ldna"]["samples"])
+            pycoQC = expand("qc/{sample}/{sample}pycoQC.html", sample = config["ldna"]["samples"])
+            haplotaggedbam = expand("intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.haplotagged.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = config["ldna"]["samples"])
+            m1 = "outfiles/methylartist_loci_of_interest.txt",
+            bedmethanalysis = "outfiles/bedmethylanalysis.txt"
+            return [m1, haplotaggedbam, bedmethanalysis]
+        final_input.append(ldna_rally())
+
+    if pipeline == "gref":
+        module gref:
+            snakefile: "gref/snakefile"
+            config: config["gref"]
+            prefix: "gref"
+        use rule * from gref as gref_*
+        def gref_rally():
+            return "make_star_index.out"
+        final_input.append(gref_rally())
+    if pipeline == "aref":
+        module aref:
+            snakefile: "aref/snakefile"
+            config: config["aref"]
+            prefix: "aref"
+        use rule * from aref as aref_*
+        def aref_rally():
+            paths = [
+                "annotations/repeatmasker.complete.gff3.gz.tbi",
+                "annotations/refseq.complete.gff3.gz.tbi",
+                "annotations/repeatmasker_refseq.complete.gtf",
+                "annotations/repeatmasker_refseq.complete.gff3",
+                "annotations/repeatmasker.complete.bed",
+                "annotations/refseq.complete.bed",
+                "annotations/rte_beds/outfile.txt",
+                "annotations/repeatmasker_refseq.complete.sqlite",
+                "annotations/cytobands.bed",
+                expand("annotations/{annot}.fa", annot = ["repeatmasker_refseq.complete", "repeatmasker.complete", "refseq.complete"])
+            ]
+            return paths
+        final_input.append(aref_rally())
+        
 # module ldna:
 #     snakefile:
 #         github("maxfieldk/pipeline", path="workflow/ldna/snakefile", tag="v0.1.0")
 #     config:
 #         config["ldna"]
 
+
+
+
+
+rule all:
+    input:
+        [
+            expand("ldna/qc/{sample}/{sample}pycoQC.html", sample = config["ldna"]["samples"])
+
+            # final_input            
+            ]
+    default_target: True
