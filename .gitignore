@@ -1,2 +1,4 @@
-\!workflow
-/!.gitignore
+*
+!/workflow/
+!/workflow/**
+!.gitignore
