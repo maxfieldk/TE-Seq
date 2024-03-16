@@ -195,12 +195,8 @@ rule alignSTAR_PE:
         r2 = "outs/{sample}/trimmedReads/{sample}_2.trimmed.fastq.gz"
     params:
         index = config["starindex"],
-        outdir = "outs/{sample}/star_output/"
     output:
         bam = temp("outs/{sample}/star_output/Aligned.out.sam")
-    log:
-        out = "logs/{sample}/STAR.out",
-        err = "logs/{sample}/STAR.err"
     threads: 8
     resources:
         mem_mb  = 60000
@@ -208,7 +204,7 @@ rule alignSTAR_PE:
         "star"
     shell:
         """
-STAR --genomeDir {params.index} --readFilesCommand zcat --readFilesIn {input.r1} {input.r2} --outFileNamePrefix {params.outdir} --runThreadN {threads} --winAnchorMultimapNmax 100 --outFilterMultimapNmax 100 > {log.out} 2> {log.err}
+STAR --genomeDir {params.index} --readFilesCommand zcat --readFilesIn {input.r1} {input.r2} --outFileNamePrefix $(dirname {output.bam}) --runThreadN {threads} --winAnchorMultimapNmax 100 --outFilterMultimapNmax 100
         """
 
 #tag COUNTS
@@ -275,8 +271,7 @@ rule alignSTAR_SE:
         r1 = "outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz",
         # r2 = "outs/{sample}/trimmedReads/{sample}_2.trimmed.fastq.gz"
     params:
-        index = config["starindex"],
-        outdir = "outs/{sample}/star_output/"
+        index = config["starindex"]
     output:
         bam = temp("outs/{sample}/star_output/Aligned.out.sam")
     threads: 8
@@ -286,7 +281,7 @@ rule alignSTAR_SE:
         "star"
     shell:
         """
-STAR --genomeDir {params.index} --readFilesCommand zcat --readFilesIn {input.r1} --outFileNamePrefix {params.outdir} --runThreadN {threads} --winAnchorMultimapNmax 100 --outFilterMultimapNmax 100
+STAR --genomeDir {params.index} --readFilesCommand zcat --readFilesIn {input.r1} --outFileNamePrefix $(dirname {output.bam}) --runThreadN {threads} --winAnchorMultimapNmax 100 --outFilterMultimapNmax 100
         """
 
 
