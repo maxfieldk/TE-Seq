@@ -5,21 +5,22 @@ def inputToMergeGTFs(wildcards):
                     chromosome=glob_wildcards(os.path.join(checkpoint_output, "ref.part_{chromosome}.fa")).chromosome)
 
 checkpoint split_genome_fasta:
-    input:
+    params:
         ref = config["ref"],
         ref_index = config["ref_index"]
-
     output:
-        directory("ref/split")
+        ref = "ref.fa",
+        ref_index = "ref.fa.fai",
+        outputdir = directory("ref/split")
     conda:
         "evo"
     shell:
         """
-cp {input.ref} ref.fa
-cp {input.ref_index} ref.fa.fai
-mkdir -p $(dirname {output})
-mkdir -p ref/split
-seqkit split --by-id ref.fa -O ref/split/
+mkdir -p $(dirname {output.ref})
+cp {params.ref} {output.ref}
+cp {params.ref_index} {output.ref_index}
+mkdir -p $(dirname {output.outputdir})
+seqkit split --by-id {output.ref} -O {output.outputdir}/
         """
 
 rule repeatmasker:

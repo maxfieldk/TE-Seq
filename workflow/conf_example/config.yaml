@@ -9,8 +9,9 @@ pipelines_to_deploy:
 #PIPELINE SETTINGS - Ignore settings for pipelines not being deployed
 gref:
   prefix: gref
-  starting_ref: /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/hs1.sorted.fa
-  tldr_input_bam: bampath
+  starting_ref: "/users/mkelsey/data/ref/generate/hs1/AnnotateReference/ref.fa"
+  tldr_input_bam: ldna/intermediates/NTERA1/alignments/5khz/NTERA1.hac.6mA-5mC_5hmC.sorted.filtered.bam
+  tldr_te_ref: /oscar/data/jsedivy/mkelsey/tools/tldr/ref/teref.ont.human.fa
 
 aref:
   prefix: aref

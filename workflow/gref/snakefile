@@ -1,10 +1,10 @@
 rule tldr:
-    input:
-        bam = lambda w: config["tldr_input_bam"]
     params:
-        starting_ref = lambda w: config["starting_ref"]
+        bam = lambda w: config["tldr_input_bam"],
+        starting_ref = lambda w: config["starting_ref"],
+        tldr_te_ref = config["tldr_te_ref"]
     output:
-        tldr = "tldr.table.txt"
+        tldr = "updated_ref/tldr.table.txt"
     resources:
         cpus_per_task = 24,
         mem_mb = 100000,
@@ -15,15 +15,15 @@ rule tldr:
         """
 mkdir -p tldr
 cd tldr
-tldr -b ../{input.bam} \
--e /oscar/data/jsedivy/mkelsey/tools/tldr/ref/teref.ont.human.fa \
+tldr -b ../{params.bam} \
+-e {params.tldr_te_ref} \
 -r {params.starting_ref} \
 -p 20 \
 --detail_output \
 --extend_consensus 4000 \
 --trdcol
 cd ..
-inputbam={input.bam}
+inputbam={params.bam}
 mv tldr/${{inputbam%.*}}.table.txt {output.tldr}
         """
 
