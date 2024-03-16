@@ -22,7 +22,7 @@ paths = [
     "results/agg/deseq_telescope/{tecounttype}/{contrast}",
     "results/agg/repeatanalysis_telescope"
     ]
-paths = paths + []
+paths = [config["prefix"] + "/" + path for path in paths]
 for path in paths:
     for sample in samples:
         for counttype in config["counttypes"]:
