@@ -1,0 +1,949 @@
+import os
+import pandas as pd
+from pathlib import Path
+samples = config["samples"]
+
+#tag FILESTRUCTURE
+paths = [
+    "envs",
+    "report",
+    "qc",
+    "scripts",
+    "qc/{sample}",
+    "rawdata/{sample}",
+    "logs/{sample}",
+    "intermediates/{sample}/methylation",
+    "intermediates/{sample}/dorado",
+    "intermediates/{sample}/fastqs",
+    "intermediates/{sample}/counts",
+    "intermediates/{sample}/counts/genome",
+    "intermediates/{sample}/counts/transcriptome",
+    "intermediates/{sample}/alignments",
+    "intermediates/{sample}/alignments/genome",
+    "intermediates/{sample}/alignments/transcriptome",
+    "results/{sample}",
+    "results/plots",
+    "results/tables"
+    ]
+paths = paths + []
+for path in paths:
+    for sample in samples:
+        os.makedirs(path.format(sample=sample), exist_ok = True)
+
+#tag FUNCTIONS
+def inferLibraryType():
+        try: 
+                with open("qc/library_type.txt") as f:
+                        data = f.read()
+                lines = re.findall('Fraction.*', data)
+                pctMapped = [float(line.split(": ")[1]) for line in lines]
+                if pctMapped[1] > 0.75:
+                        libraryType = "forward"
+                elif pctMapped[2] > 0.75:
+                        libraryType = "reverse"
+                else:
+                        libraryType = "unstranded"
+                return libraryType
+        except:
+                return "didn't run infer library type yet"
+
+def getFeatureCountsStrandParam():
+        libraryType = inferLibraryType()
+        if libraryType == "forward":
+                strandParam = "1"
+        elif libraryType == "reverse":
+                strandParam = "2"
+        elif libraryType == "unstranded":
+                strandParam = "0"
+        else:
+                strandParam = "didn't run infer library type yet"
+        return strandParam
+
+
+def getTelescopeStrandParam():
+        libraryType = inferLibraryType()
+        if libraryType == "forward":
+                if config["READ_TYPE"] == "PE":
+                        strandParam = "FR"
+                elif config["READ_TYPE"] == "SE":
+                        strandParam = "F"
+        elif libraryType == "reverse":
+                if config["READ_TYPE"] == "PE":
+                        strandParam = "RF"
+                elif config["READ_TYPE"] == "SE":
+                        strandParam = "R"
+        elif libraryType == "unstranded":
+                strandParam = "None"
+        else:
+                strandParam = "didn't run infer library type yet"
+        return strandParam
+
+rule pod5tofast5:
+    input:
+        dir = "rawdata/{sample}"
+    output:
+        dir = directory("rawdata/fast5/{sample}")
+    resources:
+        cpus_per_task = 10,
+        runtime = 800,
+        mem_mb = 128000,
+        disk_mb = 1000000
+    shell:
+        """
+mkdir -p {output.dir}
+pod5 convert to_fast5 --recursive --output {output.dir} -t 10 -f {input.dir}
+        """
+
+rule guppy:
+    input:
+        dir = "rawdata/fast5/{sample}"
+    params:
+        guppy = config["guppy"],
+        guppy_config = config["guppy_config"],
+        reference = config["reference"]
+    output:
+        summary = "intermediates/{sample}/guppy/sequencing_summary.txt"
+    resources:
+        cpus_per_task =8,
+        runtime = 5760,
+        slurm_partition="gpu-he",
+        mem_mb = 128000,
+        slurm_extra="--time=96:00:00 --gres=gpu:2 --mail-type=ALL --mail-user=maxfield_kelsey@brown.edu"
+    shell:
+        """
+mkdir -p $(dirname {output.summary})
+{params.guppy} \
+-i {input.dir} \
+-s $(dirname {output.summary}) \
+-c {params.guppy_config} \
+-x 'auto' \
+--recursive
+        """
+
+rule mergeGuppyFastqs:
+    input:
+        summary = "intermediates/{sample}/guppy/sequencing_summary.txt"
+    output:
+        fq = "intermediates/{sample}/fastqs/guppy/{sample}.fq.gz"
+    resources:
+        cpus_per_task = 8,
+        mem_mb = 64000
+    shell:
+        """
+rm -f {output.fq}
+for file in $(find $(dirname {input.summary})/pass -name "*.fastq" -type f)
+do
+cat $file >> {wildcards.sample}_temp_fq.txt
+done
+gzip {wildcards.sample}_temp_fq.txt
+mv {wildcards.sample}_temp_fq.txt.gz > {output.fq}
+        """
+
+rule gunzipfq:
+    input:
+        fqcalls = "intermediates/{sample}/fastqs/{alignmenttype}/{sample}.fq.gz",
+    output:
+        fq = "intermediates/{sample}/fastqs/{alignmenttype}/{sample}.fq",
+    resources:
+        cpus_per_task = 4,
+        mem_mb = 32000
+    shell:
+        """
+cp {input.fqcalls} {input.fqcalls}.temp.gz
+gunzip {input.fqcalls}.temp.gz
+mv {input.fqcalls}.temp {output.fq}
+        """
+
+rule nanopolishindex:
+    input:
+        fq = "intermediates/{sample}/fastqs/guppy/{sample}.fq",
+        dir = "rawdata/fast5/{sample}"
+    params:
+        guppy = config["guppy"],
+        guppy_config = config["guppy_config"],
+        reference = config["reference"]
+    output:
+        outfile = "outfiles/nanopolishindex_{sample}.txt"
+    resources:
+        cpus_per_task = 8,
+        runtime = 600,
+        mem_mb = 64000,
+    conda: "nanopolish"
+    shell:
+        """
+nanopolish index -d {input.dir} {input.fq}
+touch {output.outfile}
+        """
+
+rule eventalign:
+    input:
+        fq = "intermediates/{sample}/fastqs/guppy/{sample}.fq",
+        bam = "intermediates/{sample}/alignments/genome/{alignmenttype}/{sample}.sorted.bam",
+        nanopolishindex = "outfiles/nanopolishindex_{sample}.txt"
+    params:
+        reference = config["reference"]
+    output:
+        eventalign = "intermediates/{sample}/eventalign/{alignmenttype}/reads-ref.eventalign.txt"
+    resources:
+        cpus_per_task = 32,
+        runtime = 5760,
+        mem_mb = 156000,
+        disk_mb = 10000000
+
+    conda: "nanopolish"
+    shell:
+        """
+mkdir -p $(dirname {output.eventalign})
+nanopolish eventalign \
+    --reads {input.fq} \
+    --bam {input.bam} \
+    --genome {params.reference} \
+    --signal-index \
+    --threads 30 \
+    --scale-events > {output.eventalign}
+        """
+
+rule m6a_dataprep:
+    input:
+        eventalign = "intermediates/{sample}/eventalign/dorado/reads-ref.eventalign.txt"
+    output:
+        json = "intermediates/{sample}/m6a/prep/data.json"
+    resources:
+        cpus_per_task = 32,
+        runtime = 2000,
+        mem_mb = 128000,
+    conda: "m6anet"
+    shell:
+        """
+mkdir -p $(dirname {output.json})
+m6anet dataprep \
+--eventalign {input.eventalign} \
+--out_dir $(dirname {output.json}) \
+--n_processes 20
+        """
+
+rule m6a_inference:
+    input:
+        json = "intermediates/{sample}/m6a/prep/data.json"
+    output:
+        csv = "intermediates/{sample}/m6a/results/data.indiv_proba.csv"
+    resources:
+        cpus_per_task = 32,
+        runtime = 2000,
+        mem_mb = 128000,
+    conda: "m6anet"
+    shell:
+        """
+m6anet inference \
+--input_dir $(dirname {input.json}) \
+--out_dir $(dirname {output.csv})  \
+--n_processes 20 \
+--num_iterations 1000
+        """
+
+rule dorado:
+    input:
+        dir = "rawdata/{sample}"
+    params:
+        dorado = config["dorado"],
+        basecallingModel = config["basecallingModel"],
+        reference = config["reference"]
+    output:
+        fqcalls = "intermediates/{sample}/fastqs/dorado/{sample}.fq.gz"
+    resources:
+        cpus_per_task =8,
+        runtime = 5760,
+        slurm_partition="gpu-he",
+        mem_mb = 128000,
+        slurm_extra="--time=96:00:00 --gres=gpu:2 --mail-type=ALL --mail-user=maxfield_kelsey@brown.edu"
+    shell:
+        """
+{params.dorado} \
+basecaller \
+{params.basecallingModel} \
+{input.dir} \
+--recursive \
+--verbose \
+--emit-fastq | gzip > {output.fqcalls}
+        """
+# --constraint=a6000
+
+rule isoquant:
+    input:
+        fqcalls = expand("intermediates/{sample}/fastqs/{{alignmenttype}}/{sample}.fq.gz", sample = samples)
+    output:
+        "intermediates/isoquantNEW/{alignmenttype}_done.out"
+    priority: 100
+    params:
+        reference = config["reference"],
+        rtes_genes_gtf = config["rtes_genes_gtf"]
+    conda: "isoquant"
+    resources:
+        cpus_per_task =32,
+        runtime = 4000,
+        mem_mb = 128000,
+    shell:
+        """
+isoquant.py -d nanopore --stranded forward --fastq {input.fqcalls} \
+ --reference {params.reference} --genedb {params.rtes_genes_gtf} \
+ --output $(dirname {output}) --threads 30
+ touch {output}
+        """
+
+rule isoquantresume:
+    input:
+        fqcalls = expand("intermediates/{sample}/fastqs/{{alignmenttype}}/{sample}.fq.gz", sample = samples)
+    output:
+        "intermediates/isoquantNEW/{alignmenttype}_done.resume.out"
+    priority: 100
+    conda: "isoquant"
+    resources:
+        cpus_per_task =32,
+        runtime = 4000,
+        mem_mb = 128000,
+    shell:
+        """
+isoquant.py --resume --output $(dirname {output}) --threads 30
+touch {output}
+        """
+
+rule fq_to_DNA_fasta_for_repeatmasker:
+    input:
+        fq = "intermediates/{sample}/fastqs/{alignmenttype}/{sample}.fq.gz"
+    output:
+        fa = "intermediates/{sample}/fastqs/{alignmenttype}/{sample}.fa"
+    resources:
+        cpus_per_task =20,
+        runtime = 900,
+        mem_mb = 80000
+    conda:
+        "omics"
+    shell:
+        """
+seqkit fq2fa {input.fq} > {output.fa}.temp
+seqkit seq --rna2dna {output.fa}.temp > {output.fa}
+rm {output.fa}.temp
+        """
+
+def inputToMergeGTFs(wildcards):
+    checkpoint_output = checkpoints.split_reads_fasta.get(**wildcards).output[0]
+    sample = wildcards.sample
+    alignmenttype = wildcards.alignmenttype
+    part_nums=glob_wildcards(os.path.join(checkpoint_output, "%s.part_{part_num}.fa"%sample)).part_num
+    expand_call = expand("intermediates/{{wildcards.sample}}/fastqs/repeatmasker/{{wildcards.alignmenttype}}/{part_num}/{{wildcards.sample}}.part_{part_num}.fa.gtf",part_num = part_nums)
+    list_call = ["intermediates/%s/repeatmasker/%s/%s/%s.part_%s.fa.gtf"%(sample, alignmenttype, part_num, sample, part_num) for part_num in part_nums]
+    return(list_call)
+
+
+checkpoint split_reads_fasta:
+    input:
+        fa = "intermediates/{sample}/fastqs/{alignmenttype}/{sample}.fa"
+    output:
+        directory("intermediates/{sample}/fastqs/{alignmenttype}/split")
+    conda:
+        "omics"
+    shell:
+        """
+mkdir -p {output}
+seqkit split2 {input.fa} -p 4 -f --out-dir {output}
+        """
+
+rule repeatmasker:
+    input:
+        chr_fasta = "intermediates/{sample}/fastqs/{alignmenttype}/split/{sample}.part_{part_num}.fa"
+    output:
+        rmout = "intermediates/{sample}/repeatmasker/{alignmenttype}/{part_num}/{sample}.part_{part_num}.fa.out"
+    resources:
+        cpus_per_task =20,
+        runtime = 1200,
+        mem_mb = 50000
+    conda:
+        "omics"
+    shell:
+        """
+mkdir -p $(dirname {output})
+/oscar/data/jsedivy/mkelsey/tools/RepeatMasker/RepeatMasker -species human -pa {resources.cpus_per_task} -gff {input.chr_fasta} -dir $(dirname {output})
+        """
+
+
+rule getGtfs:
+    input:
+        rmout = "intermediates/{sample}/repeatmasker/{alignmenttype}/{part_num}/{sample}.part_{part_num}.fa.out"
+    output:
+        gtfout = "intermediates/{sample}/repeatmasker/{alignmenttype}/{part_num}/{sample}.part_{part_num}.fa.gtf"
+    conda:
+        "evo"
+    shell:
+        """
+scripts/outToGtf.sh {input.rmout} {output.gtfout}
+        """
+
+rule mergeGtfsandCleanupRM:
+    input:
+        inputToMergeGTFs
+    output:
+    conda:
+        "evo"
+    shell:
+        """
+cat {input} > {output.gtf}
+sort -k1,1V -k4,4n -k5,5n {output.gtf} > tmp.gtf
+ls -d RM_* | xargs rm -r || true
+mv tmp.gtf {output.gtf}
+        """
+
+rule analyzeRepeatMaskedReads:
+    input:
+        gtf = "intermediates/{sample}/repeatmasker/{alignmenttype}/{sample}_repeatmasker.gtf"
+    output:
+    conda:
+        "repeatanalysis"
+    script:
+        "scripts/maskedReadAnalysis.R"
+
+rule minimap2RNAGENOME:
+    input:
+        fq = "intermediates/{sample}/fastqs/{alignmenttype}/{sample}.fq.gz"
+    params:
+        reference = config["reference"],
+        junctionbed = config["junctionbed"]
+    output:
+        bam = "intermediates/{sample}/alignments/genome/{alignmenttype}/{sample}.sorted.bam"
+    resources:
+        cpus_per_task =20,
+        runtime = 900,
+        mem_mb = 80000
+    conda:
+        "minimap2"
+    shell:
+        """
+minimap2 -ax splice -uf -N 10 -k14 -t 12 --junc-bed {params.junctionbed} {params.reference} {input.fq} | \
+samtools sort -@4 -T {wildcards.sample} -O bam -o {output.bam}
+samtools index -@8 {output.bam}
+samtools stats {output.bam} > {output.bam}.stats.txt        
+        """
+
+
+rule minimap2RNATRANSCRIPTOME:
+    input:
+        fq = "intermediates/{sample}/fastqs/{sample}.fq.gz"
+    params:
+        referencetranscriptome = config["referencetranscriptome"]
+    output:
+        bam = "intermediates/{sample}/alignments/transcriptome/{sample}.sorted.bam"
+    resources:
+        cpus_per_task =20,
+        runtime = 900,
+        mem_mb = 80000
+    conda:
+        "minimap2"
+    shell:
+        """
+minimap2 -ax map-ont -uf -N 10 -k14 -t 12  {params.referencetranscriptome} {input.fq} | \
+samtools sort -@4 -T {wildcards.sample} -O bam -o {output.bam}
+samtools index -@8 {output.bam}
+samtools stats {output.bam} > {output.bam}.stats.txt        
+        """
+
+rule NanoCountgenesandRTEs:
+    input:
+        sortedbam = "intermediates/{sample}/alignments/transcriptome/{sample}.sorted.bam"
+    output:
+        counts = "intermediates/{sample}/counts/transcriptome/{sample}.nanocount.tsv",
+    conda:
+        "omics"
+    resources:
+        cpus_per_task =4,
+        runtime = 3000,
+        mem_mb = 32000,
+    shell: 
+        """
+NanoCount -i {input.sortedbam} -o {output.counts} --extra_tx_info
+        """
+
+rule fc_relaxed:
+    input:
+        sortedbam = "intermediates/{sample}/alignments/genome/{alignmenttype}/{sample}.sorted.bam",
+        libtype = "qc/library_type.txt"
+    output:
+        countsmessy = "intermediates/{sample}/counts/genome/{alignmenttype}/relaxed/{sample}rtesandgenes.counts_messy.txt",
+        counts = "intermediates/{sample}/counts/genome/{alignmenttype}/relaxed/{sample}rtesandgenes.counts.txt",
+    params: 
+        annotation_genesandrtes = config["annotation_genesandrtes"],
+        featureCountsstrandparam = getFeatureCountsStrandParam()
+    conda:
+        "omics"
+    resources:
+        cpus_per_task =4,
+        runtime = 3000,
+        mem_mb = 32000,
+    shell: 
+        """
+mkdir -p $(dirname {output.counts})
+featureCounts -s {params.featureCountsstrandparam} -L -O -M --primary --ignoreDup --largestOverlap -R CORE -a {params.annotation_genesandrtes} -o {output.countsmessy} {input.sortedbam}
+cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
+        """
+
+
+rule fc_stringent:
+    input:
+        sortedbam = "intermediates/{sample}/alignments/genome/{alignmenttype}/{sample}.filtered.bam",
+        libtype = "qc/library_type.txt"
+    output:
+        countsmessy = "intermediates/{sample}/counts/genome/{alignmenttype}/stringent/{sample}rtesandgenes.counts_messy.txt",
+        counts = "intermediates/{sample}/counts/genome/{alignmenttype}/stringent/{sample}rtesandgenes.counts.txt",
+    params: 
+        annotation_genesandrtes = config["annotation_genesandrtes"],
+        featureCountsstrandparam = getFeatureCountsStrandParam()
+    conda:
+        "omics"
+    resources:
+        cpus_per_task =10,
+        runtime = 3000,
+        mem_mb = 48000,
+    shell: 
+        """
+mkdir -p $(dirname {output.counts})
+featureCounts -s {params.featureCountsstrandparam} -L -O -M --primary --ignoreDup --largestOverlap --fracOverlapFeature 0.5 --fracOverlap 0.5 -R CORE -a {params.annotation_genesandrtes} -o {output.countsmessy} {input.sortedbam}
+cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
+        """
+
+rule deseq:
+    input:
+        counts = expand("intermediates/{sample}/counts/genome/{{alignmenttype}}/{{counttype}}/{sample}rtesandgenes.counts.txt", sample = samples)
+    params:
+        sample_table = config["sample_table"],
+        contrasts = config["contrasts"],
+        levels = config["levels"],
+        paralellize_bioc = config["paralellize_bioc"],
+        alignmenttype = lambda w: w.alignmenttype,
+        counttype = lambda w: w.counttype,
+        outputdir = lambda w: "results/agg/deseq/%s/%s"%(w.alignmenttype, w.counttype)
+    resources:
+        cpus_per_task =10,
+        mem_mb = 200000,
+        runtime = 1000
+    conda: "deseq"
+    wildcard_constraints:
+        counttype="[A-Za-z0-9]+"
+    output:
+        results_genes = expand("results/agg/deseq/{{alignmenttype}}/{{counttype}}/{contrast}/results_genes.csv", contrast = config["contrasts"]),
+        results_rtes = expand("results/agg/deseq/{{alignmenttype}}/{{counttype}}/{contrast}/results_rtes.csv", contrast = config["contrasts"]),
+        counts_normed = "results/agg/deseq/{alignmenttype}/{counttype}/counttablesizenormed.csv"
+    script:
+        "scripts/deseq.R"
+
+rule consolidateDeseqResults:
+    input:
+        results = expand("results/agg/deseq/{{alignmenttype}}/{{counttype}}/{contrast}/results_rtes.csv", contrast = config["contrasts"], alignmenttype = config["alignmenttypes"], counttype = config["counttypes"]),
+        counts_normed = expand("results/agg/deseq/{{alignmenttype}}/{{counttype}}/counttablesizenormed.csv", alignmenttype = config["alignmenttypes"], counttype = config["counttypes"])
+    params:
+        inputdir = lambda w: "results/agg/deseq/%s/%s"%(w.alignmenttype, w.counttype)
+    conda:
+        "repeatanalysis"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 164000,
+        runtime = 300
+    output:
+        resultsdf = "results/agg/deseq/{alignmenttype}/{counttype}/resultsdf.tsv"
+    script:
+        "scripts/consolidateDeseqResults.R"
+
+#tag ENRICHMENT ANALYSIS
+import os
+rule enrichment_analysis:
+    input:
+        resultsdf = "results/agg/deseq/{alignmenttype}/{counttype}/resultsdf.tsv"
+    params:
+        inputdir =lambda w, input: os.path.dirname(os.path.dirname(input.resultsdf[0])),
+        contrasts = config["contrasts"],
+        genesets_for_heatmaps = config["genesets_for_heatmaps"],
+        genesets_for_gsea = config["genesets_for_gsea"],
+        sample_table = config["sample_table"],
+        outputdir = lambda w, output: os.path.dirname(output.outfile)
+    conda:
+        "ea"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 164000,
+        runtime = 300
+    output:
+        outfile = "results/agg/enrichment_analysis/{alignmenttype}/{counttype}/outfile.txt"
+    script:
+        "scripts/ea.R"
+
+rule enrichment_analysis_repeats:
+    input:
+        resultsdf = "results/agg/deseq/{alignmenttype}/{counttype}/resultsdf.tsv"
+    params:
+        inputdir =lambda w, input: os.path.dirname(os.path.dirname(input.resultsdf[0])),
+        r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
+        r_repeatmasker_annotation = config["r_repeatmasker_annotation"],
+        contrasts = config["contrasts"],
+        sample_table = config["sample_table"],
+        outputdir = lambda w, output: os.path.dirname(output.outfile)
+    conda:
+        "ea"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 164000,
+        runtime = 300
+    output:
+        outfile = "results/agg/enrichment_analysis_repeats/{alignmenttype}/{counttype}/outfile.txt"
+    script:
+        "scripts/ea_repeats.R"
+
+
+#tag REPETITIVE ELEMENTS
+rule repeatanalysis_plots:
+    input:
+        resultsdf = "results/agg/deseq/{alignmenttype}/{counttype}/resultsdf.tsv"
+    params:
+        r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
+        r_repeatmasker_annotation = config["r_repeatmasker_annotation"],
+        contrasts = config["contrasts"],
+        levelslegendmap = config["levelslegendmap"],
+        outputdir = lambda w: "results/agg/repeatanalysis/%s/%s"%(w.alignmenttype, w.counttype)
+    conda:
+        "repeatanalysis"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 164000,
+        runtime = 300
+    output:
+        outfile = "results/agg/repeatanalysis/{alignmenttype}/{counttype}/plots.outfile.txt"
+    script:
+        "scripts/repeatanalysisPlots.R"
+
+
+#tag GENOMEBROWSER PLOTS
+
+rule getBigWigF:
+    input:
+        sortedbam = "intermediates/{sample}/alignments/genome/{alignmenttype}/{sample}.sorted.bam",
+    output:
+        bwF = "intermediates/{sample}/alignments/genome/{alignmenttype}/{sample}.F.bw"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 40000
+    conda:
+        "omics"
+    shell: "bamCoverage -b {input.sortedbam} -o {output.bwF} --numberOfProcessors max --normalizeUsing CPM --samFlagExclude 256 --filterRNAstrand reverse --binSize 10"
+#The --filterRNAstrand option assumes the sequencing library generated from ILLUMINA
+# dUTP/NSR/NNSR methods, which are the most commonly used method for library preparation, 
+#where Read 2 (R2) is in the direction of RNA strand (reverse-stranded library). 
+#However other methods exist, which generate read R1 in the direction of RNA strand 
+#(see this review). For these libraries, --filterRNAstrand will have an opposite behavior, 
+#i.e. --filterRNAstrand forward will give you reverse strand signal and vice-versa.
+rule getBigWigR:
+    input:
+        sortedbam = "intermediates/{sample}/alignments/genome/{alignmenttype}/{sample}.sorted.bam",
+    output:
+        bwR = "intermediates/{sample}/alignments/genome/{alignmenttype}/{sample}.R.bw"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 40000
+    conda:
+        "omics"
+    shell: "bamCoverage -b {input.sortedbam} -o {output.bwR} --numberOfProcessors max --normalizeUsing CPM --samFlagExclude 256 --filterRNAstrand forward --binSize 10"
+#The --filterRNAstrand option assumes the sequencing library generated from ILLUMINA
+# dUTP/NSR/NNSR methods, which are the most commonly used method for library preparation, 
+#where Read 2 (R2) is in the direction of RNA strand (reverse-stranded library). 
+#However other methods exist, which generate read R1 in the direction of RNA strand 
+#(see this review). For these libraries, --filterRNAstrand will have an opposite behavior, 
+#i.e. --filterRNAstrand forward will give you reverse strand signal and vice-versa.
+
+rule genomebrowserplots:
+    input:
+        rnasignalsF = expand("intermediates/{sample}/alignments/genome/{{alignmenttype}}/{sample}.F.bw", sample = samples),
+        rnasignalsR = expand("intermediates/{sample}/alignments/genome/{{alignmenttype}}/{sample}.R.bw", sample = samples)
+    params:
+        regions_of_interest = config["regions_of_interest"],
+        outputdir = lambda w: "results/agg/genomebrowserplots/%s"%w.alignmenttype
+    output:
+        "outfiles/genomebrowserplots{alignmenttype}.out"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 40000
+    conda:
+        "repeatanalysis"
+    script: "scripts/genomebrowserplots.R"
+
+
+#tag ALIGNMENT TOOLS
+rule sortbam:
+    input:
+        bam = "intermediates/{sample}/alignments/{alignmenttype}/{sample}.bam"
+    output:
+        sortedbam = "intermediates/{sample}/alignments/{alignmenttype}/{sample}.sorted.bam"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 128000
+    conda:
+        "omics"
+    shell: "samtools sort -@8 -m4g {input.bam} > {output.sortedbam} 2> {log}"
+    
+rule indexbam:
+    input:
+        sortedbam = "intermediates/{sample}/alignments/{alignmenttype}/{bamname}.bam"
+    output:
+        bai = "intermediates/{sample}/alignments/{alignmenttype}/{bamname}.bam.bai"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 128000
+    conda:
+        "minimap2"
+    shell: "samtools index  -@6 {input.sortedbam}"
+
+rule bamstats:
+    input:
+        sortedbam = "intermediates/{sample}/alignments/genome/{alignmenttype}/{sample}.sorted.bam",
+        bai = "intermediates/{sample}/alignments/genome/{alignmenttype}/{sample}.sorted.bam.bai"
+    output:
+        "qc/{sample}/{sample}.bamstats.txt"
+    conda:
+        "omics"
+    shell:
+        """
+samtools stats {input.sortedbam} > {output}
+        """
+
+rule filterbam:
+    input:
+        bam = "intermediates/{sample}/alignments/{alignmenttype}/{sample}.sorted.bam"
+    output:
+        bam = "intermediates/{sample}/alignments/{alignmenttype}/{sample}.filtered.bam",
+        bai = "intermediates/{sample}/alignments/{alignmenttype}/{sample}.filtered.bam.bai",
+        stats = "intermediates/{sample}/alignments/{alignmenttype}/{sample}.filtered.bam.stats.txt"
+    resources:
+        cpus_per_task =6,
+        mem_mb = 60000
+    conda:
+        "omics"
+    shell: "samtools view -b -F 0x100 -q 1 {input.bam} > {output.bam}; samtools index -@4 {output.bam}; samtools stats {output.bam} > {output.bam}.stats.txt"
+
+# rule mergeBams:
+#     input:
+#         expand("intermediates/{sample}/alignments/{sample}.sorted.bam", sample = samples)
+#     output:
+#         mergedbam = "intermediates/merged.sorted.bam"
+#     conda:
+#         "minimap2"
+#     resources:
+#         cpus_per_task =8,
+#         mem_mb = 128000,
+#         slurm_extra="--time=2:00:00 --constraint=cascade"
+#     log: "logs/mergeBams.log"
+#     shell: "samtools merge --threads 6 {output.mergedbam} {input} 2> {log}"
+
+#tag QC
+rule mycoplasmaCheck:
+    input:
+        fq = "intermediates/{sample}/fastqs/dorado/{sample}.fq.gz"
+    params:
+        reference = config["mycoplasma"]
+    output:
+        bam = "qc/mycoplasma/mycoplasma{sample}.bam"
+    resources:
+        cpus_per_task =20,
+        runtime = 900,
+        mem_mb = 80000
+    conda:
+        "minimap2"
+    shell:
+        """
+minimap2 -a -x map-ont -t 12 {params.reference} {input.fq} | \
+samtools sort -@4 -T {wildcards.sample} -O bam -o {output.bam}
+samtools index -@8 {output.bam}
+samtools stats {output.bam} > {output.bam}.stats.txt        
+        """
+
+
+rule dorado_seqsummary:
+    input:
+        sortedbam = "intermediates/{sample}/alignments/genome/{alignmenttype}/{sample}.sorted.bam",
+        bai = "intermediates/{sample}/alignments/genome/{alignmenttype}/{sample}.sorted.bam.bai"
+    params:
+        dorado = config["dorado"]
+    output:
+        "qc/{sample}/{sample}.doradosummary.txt"
+    conda:
+        "omics"
+    shell:
+        """
+{params.dorado} summary {input.sortedbam} > {output}
+        """
+
+rule pycoQC:
+    input:
+        seqsummary = "qc/{sample}/{sample}.doradosummary.txt",
+        sortedbam = "intermediates/{sample}/alignments/genome/{alignmenttype}/{sample}.sorted.bam",
+
+    output:
+        "qc/{sample}/{sample}pycoQC.html"
+    conda:
+        "pycoQC"
+    shell:
+        """
+pycoQC --summary_file {input.seqsummary} --bam_file {input.sortedbam} --html_outfile {output} --min_pass_qual 10 --sample
+        """
+
+
+rule inferLibraryType:
+    input:
+        bam = expand("intermediates/{sample}/alignments/genome/{alignmenttype}/{sample}.sorted.bam", sample = samples[0], alignmenttype = "dorado")
+    output:
+        librarytype = "qc/library_type.txt"
+    params:
+        gtf = config['annotation_genes_bed12'],
+    resources:
+        mem_mb  = 30000
+    conda:
+        "rseqc"
+    shell:
+        """
+infer_experiment.py -r {params.gtf} -i {input.bam} > {output.librarytype}
+        """
+
+rule multiqc:
+    input:
+        counts_normed = expand("results/agg/deseq/{alignmenttype}/{counttype}/counttablesizenormed.csv", alignmenttype = config["alignmenttypes"], counttype = config["counttypes"])     
+    conda:
+        "omics"
+    output:
+        report = "qc/multiqc_report.html",
+    shell:
+        """
+multiqc --force --filename {output.report} --export --ignore "*guppy_basecaller_log*" .
+        """
+
+
+#tag NANOSIM
+rule nanosimCharaceterization:
+    input:
+        reads = "intermediates/sen1/fastqs/sen1.fq.gz"
+    output:
+        outfile =  "nanosim/characterization/characterization/nanosimCharaceterization.out",
+    params:
+        reference = config["reference"],
+        annotation = config["rtes_genes_gtf"],
+        transcriptome = "/users/mkelsey/data/ref/generate/lf1/AnnotateReference/annotations/repeatmasker_refseq.complete.fa"
+    resources:
+        cpus_per_task =32,
+        mem_mb = 128000
+    conda:
+        "nanosim"
+    shell:
+        """
+mkdir -p $(dirname {output.outfile})
+read_analysis.py transcriptome -rg {params.reference} -rt {params.transcriptome} -annot {params.annotation} -i {input.reads} -o $(dirname {output.outfile}) -t 20 -c
+touch {output.outfile}
+        """
+
+rule nanosimSimulation:
+    input:
+        outfile =  "nanosim/characterization/characterization/nanosimCharaceterization.out"
+    output:
+        outfile =  "nanosim/nanosimSimulation.out",
+        nanosimtranscriptome = "nanosim/l1hs_intact.compatiblewithnanosim.fa",
+        reads = "nanosim/simulated_aligned_reads.fasta",
+        readsPerfect = "nanosim/simulated_perfect_aligned_reads.fasta"
+    params:
+        reference = config["reference"],
+        annotation = config["rtes_genes_gtf"],
+        transcriptome = "/users/mkelsey/data/ref/generate/lf1/AnnotateReference/RefAnalysis/l1hs_intact.fa"
+    resources:
+        cpus_per_task =32,
+        mem_mb = 128000
+    conda:
+        "nanosim"
+    shell:
+        """
+cd nanosim
+grep ">" {params.transcriptome} | sed 's/>//' | sed 's/_/-/g' | sed 's/\./-/g'  > l1hs_intact.fa.ids
+cat {params.transcriptome} | sed 's/_/-/g' | sed 's/\./-/g' > l1hs_intact.compatiblewithnanosim.fa
+num_seqs=$(wc -l {params.transcriptome}.ids | awk '{{print $1}}')
+num_seqs=150
+echo -e "target_id\ttest_counts\ttpm" > abundance.tsv
+tpm=$(expr 1000000 / $num_seqs)
+awk -v tpm=$tpm '{{print $1"\t"10"\t"tpm}}' l1hs_intact.fa.ids >> abundance.tsv
+mkdir -p $(dirname {output.outfile})
+simulator.py transcriptome -rt l1hs_intact.compatiblewithnanosim.fa -c characterization/characterization -e abundance.tsv -n 100000 -r dRNA --no_model_ir --seed 12 --output simulated
+simulator.py transcriptome -rt l1hs_intact.compatiblewithnanosim.fa -c characterization/characterization -e abundance.tsv -n 100000 -r dRNA --no_model_ir --seed 12 --perfect --output simulated_perfect
+cd ..
+touch {output.outfile}
+        """
+#Underscores in the geneID throw it off!
+
+rule nanosimAlignment:
+    input:
+        nanosimtranscriptome = "nanosim/l1hs_intact.compatiblewithnanosim.fa",
+        reads = "nanosim/simulated_aligned_reads.fasta",
+        readsPerfect = "nanosim/simulated_perfect_aligned_reads.fasta"
+    params:
+        reference = config["reference"],
+        junctionbed = config["junctionbed"]
+    output:
+        bam =  "nanosim/nanosimAlignment.bam",
+        bamp =  "nanosim/nanosimAlignment.perfect.bam",
+        bamgenome =  "nanosim/nanosimAlignment_genome.bam",
+        bampgenome =  "nanosim/nanosimAlignment_genome.perfect.bam"  
+    resources:
+        cpus_per_task =32,
+        mem_mb = 128000
+    conda:
+        "minimap2"
+    shell:
+        """
+minimap2 -ax map-ont -uf -N 10 -k14 -t 12 {input.nanosimtranscriptome} {input.reads} | samtools view -bS - | samtools sort -@ 12 -o {output.bam}
+samtools index {output.bam}
+
+minimap2 -ax map-ont -uf -N 10 -k14 -t 12 {input.nanosimtranscriptome} {input.readsPerfect} | samtools view -bS - | samtools sort -@ 12 -o {output.bamp}
+samtools index {output.bamp}
+
+minimap2 -ax map-ont -uf -N 10 -k14 -t 12 --junc-bed {params.junctionbed} {params.reference} {input.reads} | samtools view -bS - | samtools sort -@ 12 -o {output.bamgenome}
+samtools index {output.bamgenome}
+
+minimap2 -ax map-ont -uf -N 10 -k14 -t 12 --junc-bed {params.junctionbed} {params.reference} {input.readsPerfect} | samtools view -bS - | samtools sort -@ 12 -o {output.bampgenome}
+samtools index {output.bampgenome}
+        """
+
+rule filterForPrimaryAlignments:
+    input:
+        bam = "nanosim/nanosimAlignment.bam",
+        bamp = "nanosim/nanosimAlignment.perfect.bam",
+        bamgenome = "nanosim/nanosimAlignment_genome.bam",
+        bampgenome = "nanosim/nanosimAlignment_genome.perfect.bam"
+    output:
+        bam =  "nanosim/nanosimAlignment.primary.bam",
+        bamp =  "nanosim/nanosimAlignment.perfect.primary.bam",
+        bamgenome =  "nanosim/nanosimAlignment_genome.primary.bam",
+        bampgenome =  "nanosim/nanosimAlignment_genome.perfect.primary.bam"
+    threads: 4
+    conda:
+        "omics"
+    shell: 
+        """
+samtools view -b -F 256 {input.bam} > {output.bam}
+samtools index {output.bam}
+samtools view -b -F 256 {input.bamp} > {output.bamp}
+samtools index {output.bamp}
+samtools view -b -F 256 {input.bamgenome} > {output.bamgenome}
+samtools index {output.bamgenome}
+samtools view -b -F 256 {input.bampgenome} > {output.bampgenome}
+        """ 
+
+rule analyzeNanosim:
+    input:
+        bamgenome =  "nanosim/nanosimAlignment_genome.primary.bam",
+        bampgenome =  "nanosim/nanosimAlignment_genome.perfect.primary.bam"
+    params:
+        r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"]
+    output:
+        plot = "nanosim/plots/mapping_accuracy_by_read_length.png"
+    conda:
+        "repeatanalysis"
+    script: 
+        "scripts/analyzeNanosim.R"
+
