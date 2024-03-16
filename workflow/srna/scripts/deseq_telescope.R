@@ -23,10 +23,8 @@ library("dplyr")
 library(EnhancedVolcano)
 
 
-conf <- c(
-    confPrivate <- configr::read.config(file = "conf/config.yaml")["srna"],
-    confShared <- configr::read.config(file = "conf/config.yaml")["srna"]
-)
+conf <- configr::read.config(file = "conf/config.yaml")["srna"]
+
 
 
 tryCatch(
@@ -38,7 +36,7 @@ tryCatch(
     error = function(e) {
         assign("params", list(
             "sample_table" = conf$sample_table,
-            "counttype" = "telescope_multi",
+            "tecounttype" = "telescope_multi",
             "contrasts" = conf$contrasts,
             "levels" = conf$levels,
             "outputdir" = "results/agg/deseq_telescope",
@@ -54,8 +52,8 @@ tryCatch(
     }
 )
 
-counttype <- params[["counttype"]]
-print(counttype)
+tecounttype <- params[["tecounttype"]]
+print(tecounttype)
 contrasts <- params[["contrasts"]]
 levels <- params[["levels"]]
 outputdir <- params[["outputdir"]]
@@ -70,7 +68,7 @@ if (params$paralellize_bioc) {
 
 df <- read_delim(inputs[["rte_counts"]][1], comment = "#", col_names = FALSE)
 
-if (counttype == "telescope_multi") {
+if (tecounttype == "telescope_multi") {
     bounddf <- tibble(df[, 1]) %>% rename(gene_id = X1)
     for (sample in conf$samples) {
         bounddf <- full_join(bounddf, read_delim(sprintf("outs/%s/telescope/telescope-run_stats.tsv", sample), comment = "#", col_names = FALSE) %>% dplyr::select(X1, X3) %>% rename(gene_id = X1), by = "gene_id")
@@ -78,7 +76,7 @@ if (counttype == "telescope_multi") {
     colnames(bounddf) <- c("gene_id", conf$samples)
 }
 
-if (counttype == "telescope_unique") {
+if (tecounttype == "telescope_unique") {
     bounddf <- tibble(df[, 1]) %>% rename(gene_id = X1)
     for (sample in conf$samples) {
         bounddf <- full_join(bounddf, read_delim(sprintf("outs/%s/telescope/telescope-run_stats.tsv", sample), comment = "#", col_names = FALSE) %>% dplyr::select(X1, X6) %>% rename(gene_id = X1), by = "gene_id")
@@ -154,10 +152,10 @@ for (baselevel in baselevels) {
 counttablesizenormedrtes <- counts(ddsrteslist[[1]], normalized = TRUE)
 counttablesizenormedgenes <- counts(ddsgeneslist[[1]], normalized = TRUE)
 counttablesizenormed <- rbind(as.data.frame(counttablesizenormedrtes), as.data.frame(counttablesizenormedgenes))
-countspath <- paste(outputdir, counttype, "counttablesizenormed.csv", sep = "/")
+countspath <- paste(outputdir, tecounttype, "counttablesizenormed.csv", sep = "/")
 dir.create(dirname(countspath), recursive = TRUE, showWarnings = FALSE)
 write.csv(counttablesizenormed, file = countspath)
-# write.csv(as.data.frame(assay(vst_assaydf)), file = paste(outputdir, counttype, "vstcounts.csv", sep = "/"))
+# write.csv(as.data.frame(assay(vst_assaydf)), file = paste(outputdir, tecounttype, "vstcounts.csv", sep = "/"))
 
 # tag PLOTS
 deseq_plots <- list()
@@ -173,7 +171,7 @@ for (subset in c("rtes", "genes")) {
         colData(ddstemp)$condition
         res <- results(ddstemp, name = contrast)
         res <- res[order(res$pvalue), ]
-        respath <- paste(outputdir, counttype, contrast, sprintf("results_%s.csv", subset), sep = "/")
+        respath <- paste(outputdir, tecounttype, contrast, sprintf("results_%s.csv", subset), sep = "/")
         dir.create(dirname(respath), recursive = TRUE, showWarnings = FALSE)
         write.csv(as.data.frame(res), file = respath)
 
@@ -194,8 +192,8 @@ for (subset in c("rtes", "genes")) {
             xlim = c(-10, 10),
             ylim = c(-1, 15)
         ) + theme(axis.line = element_blank(), aspect.ratio = 1, panel.border = element_rect(color = "black", linetype = 1, linewidth = 1, fill = NA))
-        mysave(paste(outputdir, counttype, subset, contrast, "deplot.png", sep = "/"), 8, 8)
-        deseq_plots[[counttype]][[subset]][["volcano"]][[contrast]] <- p
+        mysave(paste(outputdir, tecounttype, subset, contrast, "deplot.png", sep = "/"), 8, 8)
+        deseq_plots[[tecounttype]][[subset]][["volcano"]][[contrast]] <- p
     }
 
     vst <- varianceStabilizingTransformation(ddstemp, blind = FALSE)
@@ -208,8 +206,8 @@ for (subset in c("rtes", "genes")) {
     p <- screeplot(pcaObj, title = "") +
         theme_cowplot() +
         mytheme
-    mysave(paste(outputdir, counttype, subset, "screeplot.png", sep = "/"), 4, 4)
-    deseq_plots[[counttype]][[subset]][["scree"]] <- p
+    mysave(paste(outputdir, tecounttype, subset, "screeplot.png", sep = "/"), 4, 4)
+    deseq_plots[[tecounttype]][[subset]][["scree"]] <- p
 
 
     p <- plotloadings(pcaObj,
@@ -218,8 +216,8 @@ for (subset in c("rtes", "genes")) {
     ) +
         theme(legend.position = "none") +
         mytheme
-    mysave(paste(outputdir, counttype, subset, "loadings.png", sep = "/"), 4, 4)
-    deseq_plots[[counttype]][[subset]][["loadings"]] <- p
+    mysave(paste(outputdir, tecounttype, subset, "loadings.png", sep = "/"), 4, 4)
+    deseq_plots[[tecounttype]][[subset]][["loadings"]] <- p
 
 
     p <- biplot(pcaObj,
@@ -229,8 +227,8 @@ for (subset in c("rtes", "genes")) {
     ) +
         theme_gray() +
         mytheme
-    mysave(paste(outputdir, counttype, subset, "pca.png", sep = "/"), 4, 4)
-    deseq_plots[[counttype]][[subset]][["pca"]] <- p
+    mysave(paste(outputdir, tecounttype, subset, "pca.png", sep = "/"), 4, 4)
+    deseq_plots[[tecounttype]][[subset]][["pca"]] <- p
 
 
     p <- biplot(pcaObj,
@@ -238,8 +236,8 @@ for (subset in c("rtes", "genes")) {
         colby = "condition", legendPosition = "right",
         labSize = 5, pointSize = 5, sizeLoadingsNames = 5
     ) + mytheme
-    mysave(paste(outputdir, counttype, subset, "pca34.png", sep = "/"), 4, 4)
-    deseq_plots[[counttype]][[subset]][["pca34"]] <- p
+    mysave(paste(outputdir, tecounttype, subset, "pca34.png", sep = "/"), 4, 4)
+    deseq_plots[[tecounttype]][[subset]][["pca34"]] <- p
 
 
 
@@ -253,9 +251,9 @@ for (subset in c("rtes", "genes")) {
         clustering_distance_cols = sampleDists,
         col = colors
     )
-    mysave(paste(outputdir, counttype, subset, "pheatmap.png", sep = "/"), 4, 4)
-    deseq_plots[[counttype]][[subset]][["dist_heatmap"]] <- p
+    mysave(paste(outputdir, tecounttype, subset, "pheatmap.png", sep = "/"), 4, 4)
+    deseq_plots[[tecounttype]][[subset]][["dist_heatmap"]] <- p
 }
-save(deseq_plots, file = paste(outputdir, counttype, "deseq_plots.RData", sep = "/"))
-save(ddsrteslist, file = paste(outputdir, counttype, "dds_rtes.RData", sep = "/"))
-save(ddsgeneslist, file = paste(outputdir, counttype, "dds_genes.RData", sep = "/"))
+save(deseq_plots, file = paste(outputdir, tecounttype, "deseq_plots.RData", sep = "/"))
+save(ddsrteslist, file = paste(outputdir, tecounttype, "dds_rtes.RData", sep = "/"))
+save(ddsgeneslist, file = paste(outputdir, tecounttype, "dds_genes.RData", sep = "/"))

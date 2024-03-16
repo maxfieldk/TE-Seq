@@ -21,10 +21,8 @@ library(circlize)
 
 # analysis parameters
 {
-    conf <- c(
-        confPrivate <- configr::read.config(file = "conf/config.yaml")["srna"],
-        confShared <- configr::read.config(file = "conf/config.yaml")["srna"]
-    )
+    conf <- configr::read.config(file = "conf/config.yaml")["srna"]
+
 
     tryCatch(
         {
@@ -56,7 +54,7 @@ library(circlize)
 # load results
 resultsdf1 <- read_delim(inputs$resultsdf, delim = "\t")
 resultsdf1 <- resultsdf1[resultsdf1$gene_id != "__no_feature", ]
-res <- resultsdf1 %>% filter(counttype == counttype[1])
+res <- resultsdf1 %>% filter(tecounttype == tecounttype[1])
 res <- res %>% filter(gene_or_te == "gene")
 res %>%
     filter(str_detect(gene_id, "CDKN1A")) %>%

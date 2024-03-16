@@ -29,10 +29,8 @@ plotSave <- function(path, plot, width = 6, height = 6) {
 }
 
 
-conf <- c(
-    confPrivate <- configr::read.config(file = "conf/config.yaml")["srna"],
-    confShared <- configr::read.config(file = "conf/config.yaml")["srna"]
-)
+conf <- configr::read.config(file = "conf/config.yaml")["srna"]
+
 
 
 tryCatch(

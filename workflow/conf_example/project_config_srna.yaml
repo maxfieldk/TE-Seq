@@ -1,0 +1,13 @@
+pep_version: 2.0.0
+sample_table: "sample_table_srna.csv"
+
+sample_modifiers:
+  append:
+    file_path_R1: "source1"
+    file_path_R2: "source2"
+
+  derive:
+    attributes: [file_path_R1, file_path_R2]
+    sources:
+      source1: "rawdata/{sample_name}_R1.fastq.gz"
+      source2: "rawdata/{sample_name}_R2.fastq.gz"

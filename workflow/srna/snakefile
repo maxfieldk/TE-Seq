@@ -6,7 +6,6 @@ samples = config["samples"]
 contrasts = config["contrasts"]
 counttypes = config["counttypes"]
 peptable = pd.read_csv("conf/peptable_srna.csv")
-prefix = config["prefix"]
 
 #tag FILESTRUCTURE
 paths = [
@@ -20,19 +19,16 @@ paths = [
     "results/{sample}/plots",
     "results/agg/clusterprofiler/{contrast}",
     "results/agg/deseq2/{counttype}/{contrast}",
-    "results/agg/deseq_telescope/{counttype}/{contrast}",
+    "results/agg/deseq_telescope/{tecounttype}/{contrast}",
     "results/agg/repeatanalysis_telescope"
     ]
-prefixprependedpaths = []
-for e in paths:
-    prefixprependedpaths.append(prefix + "/" + e)
-    
-prefixprependedpaths = prefixprependedpaths + []
-for path in prefixprependedpaths:
+paths = paths + []
+for path in paths:
     for sample in samples:
         for counttype in config["counttypes"]:
-            for contrast in config["contrasts"]:
-                os.makedirs(path.format(sample=sample, counttype=counttype,tecounttype=tecounttype, contrast=contrast), exist_ok = True)
+            for tecounttype in config["tecounttypes"]:
+                for contrast in config["contrasts"]:
+                    os.makedirs(path.format(sample=sample, counttype=counttype,tecounttype=tecounttype, contrast=contrast), exist_ok = True)
 #tag FUNCTIONS
 def inferLibraryType():
         try: 
@@ -569,7 +565,6 @@ rule repeatanalysis_plots:
 #         repeatanalysis = config["repeatanalysis"],
 #         contrasts = config["contrasts"],
 #         counttypes = config["counttypes"],
-#         telocaltypes = config["telocaltypes"],
 #         levelslegendmap = config["levelslegendmap"],
 #         lengthreq = config["lengthreq"],
 #         peptable = "conf/private/peptable.csv"

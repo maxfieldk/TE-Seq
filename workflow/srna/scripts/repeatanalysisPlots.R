@@ -24,10 +24,8 @@ library(purrr)
 library(ggpubr)
 library(GenomicRanges)
 
-conf <- c(
-    confPrivate <- configr::read.config(file = "conf/config.yaml")["srna"],
-    confShared <- configr::read.config(file = "conf/config.yaml")["srna"]
-)
+conf <- configr::read.config(file = "conf/config.yaml")["srna"]
+
 
 tryCatch(
     {
@@ -41,7 +39,7 @@ tryCatch(
         assign("params", list(
             "inputdir" = "results/agg/deseq_telescope",
             "outputdir" = "results/agg/repeatanalysis_telescope",
-            "counttypes" = c("telescope_multi"),
+            "tecounttypes" = c("telescope_multi"),
             "r_annotation_fragmentsjoined" = conf$r_annotation_fragmentsjoined,
             "r_repeatmasker_annotation" = conf$r_repeatmasker_annotation
         ), env = globalenv())
@@ -58,7 +56,7 @@ outputdir <- params$outputdir
 contrasts <- conf$contrasts
 levelslegendmap <- conf$levelslegendmap
 peptable <- read.csv(conf$peptable)
-counttype <- "telescope_multi"
+tecounttype <- "telescope_multi"
 
 
 ## Load Data and add annotations
@@ -100,7 +98,7 @@ annotations <- c("length", colnames(r_repeatmasker_annotation))
 strictly_annotations <- annotations[!(annotations %in% c("gene_id", "family"))]
 colsToKeep <- c("gene_id", "family", pvals, l2fc, strictly_annotations)
 tidydf <- resultsdf %>%
-    filter(counttype == counttype) %>%
+    filter(tecounttype == tecounttype) %>%
     select(all_of(colnames(resultsdf)[(colnames(resultsdf) %in% peptable$sample_name) | (colnames(resultsdf) %in% colsToKeep)])) %>%
     pivot_longer(cols = -colsToKeep) %>%
     rename(sample = name, counts = value) %>%
@@ -355,11 +353,11 @@ myheatmap <- function(df, facet_var = "ALL", filter_var = "ALL", DEvar = "ALL", 
 }
 
 # group <- "L1HS"
-# counttype <- "telescope_multi"
+# tecounttype <- "telescope_multi"
 
 # groupframe <- resultsdf %>%
 #     filter(rte_subfamily == group) %>%
-#     filter(counttype == counttype)
+#     filter(tecounttype == tecounttype)
 # p <- myheatmap(groupframe, facet_var = "genic_loc", filter_var = "rte_length_req", DEvar = "DE", scaled = "notscaled", contrast_samples = contrast_samples, condition_vec = condition_vec)
 # mysave("temp1.png", 8, 8)
 
@@ -439,11 +437,11 @@ for (contrast in contrasts) {
                                     plot_title <- group
                                 }
                                 p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var) + ggtitle(plot_title)
-                                mysave(sprintf("%s/%s/%s/%s/%s_%s_%s.png", outputdir, counttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height)
-                                plots[[counttype]][[contrast]][[group]][[function_name]][[filter_var]][[facet_var]] <- p
+                                mysave(sprintf("%s/%s/%s/%s/%s_%s_%s.png", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height)
+                                plots[[tecounttype]][[contrast]][[group]][[function_name]][[filter_var]][[facet_var]] <- p
                             },
                             error = function(e) {
-                                print(sprintf("Error with  %s %s %s %s %s %s", counttype, contrast, group, function_name, filter_var, facet_var))
+                                print(sprintf("Error with  %s %s %s %s %s %s", tecounttype, contrast, group, function_name, filter_var, facet_var))
                                 print(e)
                                 tryCatch(
                                     {
@@ -527,11 +525,11 @@ for (contrast in contrasts) {
                                     {
                                         function_current <- get(function_name)
                                         p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, DEvar = DEvar, scaled = scaled, contrast_samples = contrast_samples, condition_vec = condition_vec)
-                                        mysave(sprintf("%s/%s/%s/%s/%s_%s_%s_%s_%s.png", outputdir, counttype, contrast, function_name, group, filter_var, facet_var, DEvar, scaled), plot_width, plot_height)
-                                        plots[[counttype]][[contrast]][[group]][[function_name]][[filter_var]][[facet_var]][[DEvar]][[scaled]] <- p
+                                        mysave(sprintf("%s/%s/%s/%s/%s_%s_%s_%s_%s.png", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var, DEvar, scaled), plot_width, plot_height)
+                                        plots[[tecounttype]][[contrast]][[group]][[function_name]][[filter_var]][[facet_var]][[DEvar]][[scaled]] <- p
                                     },
                                     error = function(e) {
-                                        print(sprintf("Error with  %s %s %s %s %s %s %s %s %s", counttype, contrast, group, function_name, ontology, filter_var, facet_var, DEvar, scaled))
+                                        print(sprintf("Error with  %s %s %s %s %s %s %s %s %s", tecounttype, contrast, group, function_name, ontology, filter_var, facet_var, DEvar, scaled))
                                         print(e)
                                         tryCatch(
                                             {
@@ -561,8 +559,8 @@ tryCatch(
     {
         vennplots <- list()
         for (direction in c("UP", "DOWN")) {
-            for (counttype in params$counttypes) {
-                results <- resultsdf %>% filter(counttype == counttype)
+            for (tecounttype in params$tecounttypes) {
+                results <- resultsdf %>% filter(tecounttype == tecounttype)
                 ggvenn <- list()
                 for (ontology in ontologies) {
                     for (group in r_repeatmasker_annotation %>%
@@ -611,11 +609,11 @@ tryCatch(
                             scale_x_continuous(expand = expansion(mult = .2)) +
                             ggtitle(paste(group, direction, sep = " "))
                         if (!is.null(filter_var)) {
-                            mysave(sprintf("%s/%s/%s/ggVenn_%s_%s_%s.png", outputdir, counttype, modifier, group, modifier, direction), 6, 6)
-                            vennplots[[counttype]][[group]][[modifier]][[direction]] <- p
+                            mysave(sprintf("%s/%s/%s/ggVenn_%s_%s_%s.png", outputdir, tecounttype, modifier, group, modifier, direction), 6, 6)
+                            vennplots[[tecounttype]][[group]][[modifier]][[direction]] <- p
                         }
-                        mysave(sprintf("%s/%s/ggVenn_%s_%s.png", outputdir, counttype, group, direction), 6, 6)
-                        vennplots[[counttype]][[group]][["unmodified"]][[direction]] <- p
+                        mysave(sprintf("%s/%s/ggVenn_%s_%s.png", outputdir, tecounttype, group, direction), 6, 6)
+                        vennplots[[tecounttype]][[group]][["unmodified"]][[direction]] <- p
                     }
                 }
             }
@@ -658,7 +656,7 @@ tryCatch(
             GRanges()
 
         t2t_updated <- resultsdf %>%
-            filter(counttype == "telescope_multi") %>%
+            filter(tecounttype == "telescope_multi") %>%
             filter(rte_subfamily == "L1HS" | rte_subfamily == "L1PA2") %>%
             GRanges()
 
@@ -787,12 +785,12 @@ tryCatch(
                         # first plots without any modifiers
                         if (vst == "VST") {
                             audrey_res <- left_join(audrey_annotations, vstresultsdf %>%
-                                filter(counttype == "telescope_multi") %>%
+                                filter(tecounttype == "telescope_multi") %>%
                                 filter(rte_subfamily == "L1HS" | rte_subfamily == "L1PA2"))
                             groupframe <- audrey_res
                         } else {
                             audrey_res <- left_join(audrey_annotations, resultsdf %>%
-                                filter(counttype == "telescope_multi") %>%
+                                filter(tecounttype == "telescope_multi") %>%
                                 filter(rte_subfamily == "L1HS" | rte_subfamily == "L1PA2"))
                             groupframe <- audrey_res
                         }
@@ -815,11 +813,11 @@ tryCatch(
                                             {
                                                 function_current <- get(function_name)
                                                 p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, DEvar = DEvar, scaled = scaled, contrast_samples = contrast_samples, condition_vec = condition_vec)
-                                                mysave(sprintf("%s/%s/%s/%s/%s/%s/%s_%s_%s_%s_%s.png", outputdir, "select_elements", vst, counttype, contrast, function_name, group, filter_var, facet_var, DEvar, scaled), plot_width, plot_height)
-                                                select_plots[[vst]][[counttype]][[contrast]][[group]][[function_name]][[filter_var]][[facet_var]][[DEvar]][[scaled]] <- p
+                                                mysave(sprintf("%s/%s/%s/%s/%s/%s/%s_%s_%s_%s_%s.png", outputdir, "select_elements", vst, tecounttype, contrast, function_name, group, filter_var, facet_var, DEvar, scaled), plot_width, plot_height)
+                                                select_plots[[vst]][[tecounttype]][[contrast]][[group]][[function_name]][[filter_var]][[facet_var]][[DEvar]][[scaled]] <- p
                                             },
                                             error = function(e) {
-                                                print(sprintf("Error with  %s %s %s %s %s %s %s %s %s", counttype, contrast, group, function_name, ontology, filter_var, facet_var, DEvar, scaled))
+                                                print(sprintf("Error with  %s %s %s %s %s %s %s %s %s", tecounttype, contrast, group, function_name, ontology, filter_var, facet_var, DEvar, scaled))
                                                 print(e)
                                                 tryCatch(
                                                     {
@@ -839,12 +837,12 @@ tryCatch(
 
                         if (vst == "VST") {
                             audrey_tidyres <- left_join(audrey_annotations, vsttidydf %>%
-                                filter(counttype == "telescope_multi") %>%
+                                filter(tecounttype == "telescope_multi") %>%
                                 filter(rte_subfamily == "L1HS" | rte_subfamily == "L1PA2"))
                             groupframe <- audrey_tidyres
                         } else {
                             audrey_tidyres <- left_join(audrey_annotations, tidydf %>%
-                                filter(counttype == "telescope_multi") %>%
+                                filter(tecounttype == "telescope_multi") %>%
                                 filter(rte_subfamily == "L1HS" | rte_subfamily == "L1PA2"))
                             groupframe <- audrey_tidyres
                         }
@@ -875,11 +873,11 @@ tryCatch(
                                         }
                                         p <- function_current(groupframetemp, filter_var = filter_var, facet_var = facet_var) + ggtitle(plot_title)
 
-                                        mysave(sprintf("%s/%s/%s/%s/%s/%s/%s_%s_%s.png", outputdir, "select_elements", vst, counttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height)
-                                        select_plots[[vst]][[counttype]][[contrast]][[group]][[function_name]][[filter_var]][[facet_var]] <- p
+                                        mysave(sprintf("%s/%s/%s/%s/%s/%s/%s_%s_%s.png", outputdir, "select_elements", vst, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height)
+                                        select_plots[[vst]][[tecounttype]][[contrast]][[group]][[function_name]][[filter_var]][[facet_var]] <- p
                                     },
                                     error = function(e) {
-                                        print(sprintf("Error with  %s %s %s %s %s %s", counttype, contrast, group, function_name, filter_var, facet_var))
+                                        print(sprintf("Error with  %s %s %s %s %s %s", tecounttype, contrast, group, function_name, filter_var, facet_var))
                                         tryCatch(
                                             {
                                                 dev.off()
@@ -923,7 +921,7 @@ tryCatch(
         condition_vec <- peptable %>% filter(sample_name %in% contrast_samples) %$% condition
 
         audrey_tidyres <- left_join(audrey_annotations, tidydf %>%
-            filter(counttype == "telescope_multi") %>%
+            filter(tecounttype == "telescope_multi") %>%
             filter(rte_subfamily == "L1HS" | rte_subfamily == "L1PA2"))
         groupframe <- audrey_tidyres
 

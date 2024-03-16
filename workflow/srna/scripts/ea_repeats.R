@@ -21,10 +21,8 @@ library(circlize)
 
 # analysis parameters
 {
-    conf <- c(
-        confPrivate <- configr::read.config(file = "conf/config.yaml")["srna"],
-        confShared <- configr::read.config(file = "conf/config.yaml")["srna"]
-    )
+    conf <- configr::read.config(file = "conf/config.yaml")["srna"]
+
 
     tryCatch(
         {
@@ -39,7 +37,7 @@ library(circlize)
                 "contrasts" = conf$contrasts,
                 "inputdir" = "results/agg/repeatanalysis_telescope",
                 "outputdir" = "results/agg/enrichment_analysis_repeats",
-                "counttypes" = c("telescope_multi"),
+                "tecounttypes" = c("telescope_multi"),
                 "r_annotation_fragmentsjoined" = conf$r_annotation_fragmentsjoined,
                 "r_repeatmasker_annotation" = conf$r_repeatmasker_annotation
             ), env = globalenv())
@@ -115,9 +113,9 @@ for (contrast in params[["contrasts"]]) {
         pull(sample_name)
     condition_vec <- peptable %>% filter(sample_name %in% contrast_samples) %$% condition
 
-    for (counttype in resultsdf$counttype %>% unique()) {
+    for (tecounttype in resultsdf$tecounttype %>% unique()) {
         res <- resultsdf %>%
-            filter(counttype == counttype) %>%
+            filter(tecounttype == tecounttype) %>%
             arrange(-!!sym(contrast_stat)) %>%
             filter(gene_or_te == "repeat")
         ordered_by_stat <- setNames(res %>% pull(!!sym(contrast_stat)), res$gene_id) %>% na.omit()
@@ -159,15 +157,15 @@ for (contrast in params[["contrasts"]]) {
                         }
 
                         gse <- GSEA(ordered_by_stat, TERM2GENE = genesets, maxGSSize = 10000, minGSSize = 1)
-                        gse_results[[contrast]][[counttype]][[ontology]][[filter_var]] <- gse
+                        gse_results[[contrast]][[tecounttype]][[ontology]][[filter_var]] <- gse
                         genesettheme <- theme_gray() + theme(axis.text.y = element_text(colour = "black"))
                         p <- dotplot(gse, showCategory = 20) + ggtitle(paste("GSEA", contrast, sep = " ")) + genesettheme + mytheme
-                        mysave(sprintf("%s/%s/%s/gsea/%s/%s/dotplot.png", params[["outputdir"]], counttype, contrast, ontology, filter_var), w = 4, h = 6, res = 300)
-                        EARTEplots[[contrast]][[counttype]][[ontology]][[filter_var]][["dot"]] <- p
+                        mysave(sprintf("%s/%s/%s/gsea/%s/%s/dotplot.png", params[["outputdir"]], tecounttype, contrast, ontology, filter_var), w = 4, h = 6, res = 300)
+                        EARTEplots[[contrast]][[tecounttype]][[ontology]][[filter_var]][["dot"]] <- p
 
                         p <- ridgeplot(gse, core_enrichment = FALSE) + ggtitle(paste("GSEA", contrast, sep = " ")) + xlab("Log2 FC") + xlim(c(-4, 4)) + genesettheme + mytheme
-                        mysave(sprintf("%s/%s/%s/gsea/%s/%s/ridgeplot.png", params[["outputdir"]], counttype, contrast, ontology, filter_var), w = 4, h = 6, res = 300)
-                        EARTEplots[[contrast]][[counttype]][[ontology]][[filter_var]][["ridge"]] <- p
+                        mysave(sprintf("%s/%s/%s/gsea/%s/%s/ridgeplot.png", params[["outputdir"]], tecounttype, contrast, ontology, filter_var), w = 4, h = 6, res = 300)
+                        EARTEplots[[contrast]][[tecounttype]][[ontology]][[filter_var]][["ridge"]] <- p
 
 
                         tryCatch(
@@ -185,8 +183,8 @@ for (contrast in params[["contrasts"]]) {
                                         theme(axis.text.y = element_text(colour = "black")) +
                                         ylab(NULL)
 
-                                    mysave(sprintf("%s/%s/%s/gsea/%s/%s/nes%s.png", params[["outputdir"]], counttype, contrast, ontology, filter_var, num), w = 4, h = min(num, 7), res = 300)
-                                    EARTEplots[[contrast]][[counttype]][[ontology]][[filter_var]][["nes"]][[num]] <- p
+                                    mysave(sprintf("%s/%s/%s/gsea/%s/%s/nes%s.png", params[["outputdir"]], tecounttype, contrast, ontology, filter_var, num), w = 4, h = min(num, 7), res = 300)
+                                    EARTEplots[[contrast]][[tecounttype]][[ontology]][[filter_var]][["nes"]][[num]] <- p
                                 }
                             },
                             error = function(e) {
