@@ -3,7 +3,7 @@ import os
 import pandas as pd
 import csv
 from pathlib import Path
-
+from pandas.core.common import flatten
 
 configfile: "conf/config.yaml"
 
@@ -29,7 +29,7 @@ for pipeline in config["pipelines_to_deploy"]:
             haplotaggedbam = expand("intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.haplotagged.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = config["ldna"]["samples"])
             m1 = "outfiles/methylartist_loci_of_interest.txt",
             bedmethanalysis = "outfiles/bedmethylanalysis.txt"
-            return [m1, haplotaggedbam, bedmethanalysis]
+            return list(flatten([m1, haplotaggedbam, bedmethanalysis]))
         for e in ldna_rally():
             final_input.append("ldna/" + e)
 
@@ -40,76 +40,79 @@ for pipeline in config["pipelines_to_deploy"]:
             prefix: "lrna"
         use rule * from lrna as lrna_*
         def lrna_rally():
-            seqsummary = expand("qc/{sample}/{sample}.doradosummary.txt", sample = config["ldna"]["samples"])
-            pycoQC = expand("qc/{sample}/{sample}pycoQC.html", sample = config["ldna"]["samples"])
-            haplotaggedbam = expand("intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.haplotagged.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = config["ldna"]["samples"])
-            m1 = "outfiles/methylartist_loci_of_interest.txt",
-            bedmethanalysis = "outfiles/bedmethylanalysis.txt"
-            return [m1, haplotaggedbam, bedmethanalysis]
+            deseq = expand("results/agg/deseq/{alignmenttype}/{counttype}/{contrast}/results_genes.csv", alignmenttype = config["lrna"]["alignmenttypes"], counttype = config["lrna"]["counttypes"], contrast = config["lrna"]["contrasts"])
+            enrichment_analysis = expand("results/agg/enrichment_analysis/{alignmenttype}/{counttype}/outfile.txt", alignmenttype = config["lrna"]["alignmenttypes"], counttype = config["lrna"]["counttypes"])
+            enrichment_analysis_repeats = expand("results/agg/enrichment_analysis_repeats/{alignmenttype}/{counttype}/outfile.txt", alignmenttype = config["lrna"]["alignmenttypes"], counttype = config["lrna"]["counttypes"])
+            repeatanalysisplots = expand("results/agg/repeatanalysis/{alignmenttype}/{counttype}/plots.outfile.txt", alignmenttype = config["lrna"]["alignmenttypes"], counttype = config["lrna"]["counttypes"])
+            qc = [expand("qc/mycoplasma/mycoplasma{sample}.bam", sample = samples), "qc/multiqc_report.html"]
+            bw = [expand("intermediates/{sample}/alignments/genome/{alignmenttype}/{sample}.F.bw", alignmenttype = config["lrna"]["alignmenttypes"], sample = samples), expand("intermediates/{sample}/alignments/genome/{alignmenttype}/{sample}.R.bw", alignmenttype = config["lrna"]["alignmenttypes"], sample = config["lrna"]["samples"])],
+            genomebrowserplots = expand("outfiles/genomebrowserplots{alignmenttype}.out", alignmenttype = config["lrna"]["alignmenttypes"])
+            m6a = expand("intermediates/{sample}/m6a/results/data.indiv_proba.csv", sample = config["lrna"]["samples"])
+            return list(flatten([m6a, genomebrowserplots, bw, deseq, enrichment_analysis, enrichment_analysis_repeats, qc]))
+
         for e in lrna_rally():
             final_input.append("lrna/" + e)
 
-
-    if pipeline == "gref":
-        module gref:
-            snakefile: "gref/snakefile"
-            config: config["gref"]
-            prefix: "gref"
-        use rule * from gref as gref_*
-        def gref_rally():
-            return "make_star_index.out"
-        for e in gref_rally():
-            final_input.append("gref/" + e)
-    if pipeline == "aref":
-        module aref:
-            snakefile: "aref/snakefile"
-            config: config["aref"]
-            prefix: "aref"
-        use rule * from aref as aref_*
-        def aref_rally():
-            paths = [
-                "annotations/repeatmasker.complete.gff3.gz.tbi",
-                "annotations/refseq.complete.gff3.gz.tbi",
-                "annotations/repeatmasker_refseq.complete.gtf",
-                "annotations/repeatmasker_refseq.complete.gff3",
-                "annotations/repeatmasker.complete.bed",
-                "annotations/refseq.complete.bed",
-                "annotations/rte_beds/outfile.txt",
-                "annotations/repeatmasker_refseq.complete.sqlite",
-                "annotations/cytobands.bed",
-                expand("annotations/{annot}.fa", annot = ["repeatmasker_refseq.complete", "repeatmasker.complete", "refseq.complete"])
-            ]
-            return paths
-        for e in aref_rally():
-            final_input.append("aref/" + e)
-    if pipeline == "srna":
-        module srna:
-            snakefile: "srna/snakefile"
-            config: config["srna"]
-            prefix: "srna"
-        if config["srna"]["library_type"] == "PE":
-                use rule * from srna exclude fastp_SE,alignSTAR_SE,featurecounts_genes_SE,featurecounts_genesandrtes_SE as srna_*
-        else:
-                use rule * from srna exclude fastp_PEalignSTAR_PE,featurecounts_genes_PE,featurecounts_genesandrtes_PE as srna_*
-
-        pepfile: "conf/project_config_srna.yaml"
-        peptable = pep.sample_table
-        peptable.to_csv("conf/peptable_srna.csv", index = False, quoting=csv.QUOTE_NONNUMERIC)
-
-        #workflow parameters
-        samples = config["srna"]["samples"]
-        contrasts = config["srna"]["contrasts"]
-        counttypes = config["srna"]["counttypes"]
-
-        def srna_rally():
-                deseq = expand("results/agg/deseq_telescope/{counttype}/{contrast}/results_genes.csv", counttype = config["counttypes"], contrast = config["contrasts"])
-                enrichment_analysis = "results/agg/enrichment_analysis/outfile.txt"
-                enrichment_analysis_repeats = expand("results/agg/enrichment_analysis_repeats/{counttype}/outfile.txt", counttype = config["counttypes"])
-                repeatanalysisplots = "results/agg/repeatanalysis_telescope/plots.outfile.txt",
-                qc = [expand("qc/mycoplasma/mycoplasma{sample}.sam", sample = samples), "qc/multiqc/multiqc_report.html"]
-                return [deseq, enrichment_analysis, enrichment_analysis_repeats, repeatanalysisplots, qc]
-        for e in srna_rally():
-            final_input.append("srna/" + e)
+        if pipeline == "gref":
+            module gref:
+                snakefile: "gref/snakefile"
+                config: config["gref"]
+                prefix: "gref"
+            use rule * from gref as gref_*
+            def gref_rally():
+                return ["make_star_index.out"]
+            for e in gref_rally():
+                final_input.append("gref/" + e)
+        if pipeline == "aref":
+            module aref:
+                snakefile: "aref/snakefile"
+                config: config["aref"]
+                prefix: "aref"
+            use rule * from aref as aref_*
+            def aref_rally():
+                paths = [
+                    "annotations/repeatmasker.complete.gff3.gz.tbi",
+                    "annotations/refseq.complete.gff3.gz.tbi",
+                    "annotations/repeatmasker_refseq.complete.gtf",
+                    "annotations/repeatmasker_refseq.complete.gff3",
+                    "annotations/repeatmasker.complete.bed",
+                    "annotations/refseq.complete.bed",
+                    "annotations/rte_beds/outfile.txt",
+                    "annotations/repeatmasker_refseq.complete.sqlite",
+                    "annotations/cytobands.bed",
+                    expand("annotations/{annot}.fa", annot = ["repeatmasker_refseq.complete", "repeatmasker.complete", "refseq.complete"])
+                ]
+                return list(flatten(paths))
+            for e in aref_rally():
+                final_input.append("aref/" + e)
+        if pipeline == "srna":
+            module srna:
+                snakefile: "srna/snakefile"
+                config: config["srna"]
+                prefix: "srna"
+            if config["srna"]["library_type"] == "PE":
+                    use rule * from srna exclude fastp_SE,alignSTAR_SE,featurecounts_genes_SE,featurecounts_genesandrtes_SE as srna_*
+            else:
+                    use rule * from srna exclude fastp_PEalignSTAR_PE,featurecounts_genes_PE,featurecounts_genesandrtes_PE as srna_*
+    
+            pepfile: "conf/project_config_srna.yaml"
+            peptable = pep.sample_table
+            peptable.to_csv("conf/peptable_srna.csv", index = False, quoting=csv.QUOTE_NONNUMERIC)
+    
+            #workflow parameters
+            samples = config["srna"]["samples"]
+            contrasts = config["srna"]["contrasts"]
+            counttypes = config["srna"]["counttypes"]
+    
+            def srna_rally():
+                    deseq = expand("results/agg/deseq_telescope/{counttype}/{contrast}/results_genes.csv", counttype = config["counttypes"], contrast = config["contrasts"])
+                    enrichment_analysis = "results/agg/enrichment_analysis/outfile.txt"
+                    enrichment_analysis_repeats = expand("results/agg/enrichment_analysis_repeats/{counttype}/outfile.txt", counttype = config["counttypes"])
+                    repeatanalysisplots = "results/agg/repeatanalysis_telescope/plots.outfile.txt",
+                    qc = [expand("qc/mycoplasma/mycoplasma{sample}.sam", sample = samples), "qc/multiqc/multiqc_report.html"]
+                    returnlist(flatten([deseq, enrichment_analysis, enrichment_analysis_repeats, repeatanalysisplots, qc]))
+            for e in srna_rally():
+                final_input.append("srna/" + e)
 
 
 
