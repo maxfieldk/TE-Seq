@@ -568,6 +568,7 @@ rule methylartistlocusplot_loci_of_interest:
         refseqbgz = config["refseqbgz"],
         methylartist_bam_config = config["methylartist_bam_config"],
         methylartist_loci_of_interest = config["methylartist_loci_of_interest"],
+        module_prefix = config["prefix"],
         outputprefix = lambda w: "results/plots/methylartist/locus/loci_of_interest_",
     output:
         "results/plots/methylartist/locus/methylartistlocusplot_loci_of_interest.outfile"
@@ -586,12 +587,12 @@ mapfile -t coords_array <<< "$coords"
 for coord in "${{coords_array[@]}}"
 do
 coordfnsafe=$(echo $coord | sed 's/:/-/')
-if /users/mkelsey/data/tools/methylartist/methylartist locus --bams {params.methylartist_bam_config} -o ${{outputprefix}}${{coordfnsafe}}.png -i $coord --ref {params.ref} --motif CG -m m --highlight_bed {config[prefix]}/results/tables/dmrs.bed -p 1,6,1,3,4 --labelgenes >> {log} 2>> {log}; then
+if /users/mkelsey/data/tools/methylartist/methylartist locus --bams {params.methylartist_bam_config} -o ${{outputprefix}}${{coordfnsafe}}.png -i $coord --ref {params.ref} --motif CG -m m --highlight_bed {params.module_prefix}/results/tables/dmrs.bed -p 1,6,1,3,4 --labelgenes >> {log} 2>> {log}; then
 echo "worked"
 else
 echo "failed"
 fi
-if /users/mkelsey/data/tools/methylartist/methylartist locus --bams {params.methylartist_bam_config} -o ${{outputprefix}}${{coordfnsafe}}.png -i $coord --ref {params.ref} --motif CG -m m --highlight_bed {config[prefix]}/results/tables/dmrs.bed -p 1,6,1,3,4 --labelgenes --svg >> {log} 2>> {log}; then
+if /users/mkelsey/data/tools/methylartist/methylartist locus --bams {params.methylartist_bam_config} -o ${{outputprefix}}${{coordfnsafe}}.png -i $coord --ref {params.ref} --motif CG -m m --highlight_bed {params.module_prefix}/results/tables/dmrs.bed -p 1,6,1,3,4 --labelgenes --svg >> {log} 2>> {log}; then
 echo "worked"
 else
 echo "failed"

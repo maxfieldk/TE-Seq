@@ -27,7 +27,7 @@ for pipeline in config["pipelines_to_deploy"]:
             seqsummary = expand("qc/{sample}/{sample}.doradosummary.txt", sample = config["ldna"]["samples"])
             pycoQC = expand("qc/{sample}/{sample}pycoQC.html", sample = config["ldna"]["samples"])
             haplotaggedbam = expand("intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.haplotagged.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = config["ldna"]["samples"])
-            m1 = "outfiles/methylartist_loci_of_interest.txt",
+            m1 = "results/plots/methylartist/locus/methylartistlocusplot_loci_of_interest.outfile",
             bedmethanalysis = "outfiles/bedmethylanalysis.txt"
             return list(flatten([m1, haplotaggedbam, bedmethanalysis]))
         for e in ldna_rally():
