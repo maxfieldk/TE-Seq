@@ -204,7 +204,7 @@ rule alignSTAR_PE:
         "star"
     shell:
         """
-STAR --genomeDir {params.index} --readFilesCommand zcat --readFilesIn {input.r1} {input.r2} --outFileNamePrefix $(dirname {output.bam}) --runThreadN {threads} --winAnchorMultimapNmax 100 --outFilterMultimapNmax 100
+STAR --genomeDir {params.index} --readFilesCommand zcat --readFilesIn {input.r1} {input.r2} --outFileNamePrefix $(dirname {output.bam})/ --runThreadN {threads} --winAnchorMultimapNmax 100 --outFilterMultimapNmax 100
         """
 
 #tag COUNTS
@@ -408,7 +408,7 @@ rule deseq_telescope:
         levels = config["levels"],
         paralellize_bioc = config["paralellize_bioc"],
         tecounttype = lambda w: w.tecounttype,
-        outputdir = "results/agg/deseq_telescope"
+        outputdir = lambda w: "%s/results/agg/deseq_telescope"%(config["prefix"])
     resources:
         cpus_per_task =10,
         mem_mb = 200000,
@@ -428,8 +428,8 @@ rule consolidateDeseqResults:
         results = expand("results/agg/deseq_telescope/{tecounttype}/{contrast}/results_rtes.csv", contrast = config["contrasts"], tecounttype = config["tecounttypes"]),
         counts_normed = expand("results/agg/deseq_telescope/{tecounttype}/counttablesizenormed.csv", tecounttype = config["tecounttypes"])
     params:
-        inputdir = "results/agg/deseq_telescope",
-        outputdir = "results/agg/deseq_telescope"
+        inputdir = "%s/results/agg/deseq_telescope"%(config["prefix"]),
+        outputdir = "%s/results/agg/deseq_telescope"%(config["prefix"])
     conda:
         "repeatanalysis"
     resources:
@@ -452,7 +452,7 @@ rule enrichment_analysis:
         genesets_for_heatmaps = config["genesets_for_heatmaps"],
         genesets_for_gsea = config["genesets_for_gsea"],
         sample_table = config["sample_table"],
-        outputdir = "results/agg/enrichment_analysis"
+        outputdir = "%s/results/agg/enrichment_analysis"%(config["prefix"])
     conda:
         "ea"
     resources:
@@ -539,8 +539,8 @@ rule repeatanalysis_plots:
         contrasts = config["contrasts"],
         tecounttypes = config["tecounttypes"],
         levelslegendmap = config["levelslegendmap"],
-        inputdir = "results/agg/deseq_telescope",
-        outputdir = "results/agg/repeatanalysis_telescope"
+        inputdir = "%s/results/agg/deseq_telescope"%(config["prefix"]),
+        outputdir = "%s/results/agg/repeatanalysis_telescope"%(config["prefix"])
     conda:
         "repeatanalysis"
     resources:

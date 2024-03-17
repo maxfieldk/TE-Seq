@@ -3,7 +3,7 @@ library(BiocParallel)
 library(readr)
 require(bsseq)
 
-conf <- configr::read.config(file = "conf/config.yaml")["ldna"]
+conf <- configr::read.config(file = "conf/config.yaml")[["ldna"]]
 
 tryCatch(
     {

@@ -24,7 +24,7 @@ library(purrr)
 library(ggpubr)
 library(GenomicRanges)
 
-conf <- configr::read.config(file = "conf/config.yaml")["srna"]
+conf <- configr::read.config(file = "conf/config.yaml")[["srna"]]
 
 
 tryCatch(

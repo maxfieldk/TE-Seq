@@ -29,7 +29,7 @@ library(AnnotationDbi)
 library(zoo)
 library(rtracklayer)
 
-conf <- configr::read.config(file = "conf/config.yaml")["lrna"]
+conf <- configr::read.config(file = "conf/config.yaml")[["lrna"]]
 
 
 tryCatch(

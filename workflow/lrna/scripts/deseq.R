@@ -22,7 +22,7 @@ library(stringr)
 library("dplyr")
 library(EnhancedVolcano)
 
-conf <- configr::read.config(file = "conf/config.yaml")["lrna"]
+conf <- configr::read.config(file = "conf/config.yaml")[["lrna"]]
 
 
 tryCatch(

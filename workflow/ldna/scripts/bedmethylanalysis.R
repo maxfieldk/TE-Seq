@@ -18,7 +18,7 @@ library(ggbeeswarm)
 # library(msigdbr)
 library(Biostrings)
 
-conf <- read.config(file = "conf/config.yaml")["ldna"]
+conf <- read.config(file = "conf/config.yaml")[["ldna"]]
 samples <- conf$samples
 sample_table <- read_csv(sprintf("conf/sample_table_%s.csv", conf$prefix))
 sample_table <- sample_table[match(samples, sample_table$sample_name), ]
