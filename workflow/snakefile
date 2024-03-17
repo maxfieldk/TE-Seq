@@ -60,7 +60,7 @@ for pipeline in config["pipelines_to_deploy"]:
             prefix: "gref"
         use rule * from gref as gref_*
         def gref_rally():
-            return ["make_star_index.out"]
+            return ["updated_ref/updated_ref.fa.fai"]
         for e in gref_rally():
             final_input.append("gref/" + e)
     if pipeline == "aref":
