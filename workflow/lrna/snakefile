@@ -25,7 +25,7 @@ paths = [
     "results/plots",
     "results/tables"
     ]
-paths = paths + []
+paths = [config["prefix"] + "/" + path for path in paths]
 for path in paths:
     for sample in samples:
         os.makedirs(path.format(sample=sample), exist_ok = True)
@@ -653,22 +653,6 @@ rule getBigWigR:
 #However other methods exist, which generate read R1 in the direction of RNA strand 
 #(see this review). For these libraries, --filterRNAstrand will have an opposite behavior, 
 #i.e. --filterRNAstrand forward will give you reverse strand signal and vice-versa.
-
-rule genomebrowserplots:
-    input:
-        rnasignalsF = expand("intermediates/{sample}/alignments/genome/{{alignmenttype}}/{sample}.F.bw", sample = samples),
-        rnasignalsR = expand("intermediates/{sample}/alignments/genome/{{alignmenttype}}/{sample}.R.bw", sample = samples)
-    params:
-        regions_of_interest = config["regions_of_interest"],
-        outputdir = lambda w: "results/agg/genomebrowserplots/%s"%w.alignmenttype
-    output:
-        "outfiles/genomebrowserplots{alignmenttype}.out"
-    resources:
-        cpus_per_task =10,
-        mem_mb = 40000
-    conda:
-        "repeatanalysis"
-    script: "scripts/genomebrowserplots.R"
 
 
 #tag ALIGNMENT TOOLS

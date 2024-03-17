@@ -29,7 +29,7 @@ library(AnnotationDbi)
 library(zoo)
 library(rtracklayer)
 
-conf <- configr::read.config(file = "conf/config.yaml")[["lrna"]]
+conf <- configr::read.config(file = "conf/config.yaml")
 
 
 tryCatch(
@@ -42,33 +42,33 @@ tryCatch(
     error = function(e) {
         print("not sourced snake variables")
         assign("params", list(
-            "outputdir" = "results/agg/genomebrowserplots/dorado",
-            "regions_of_interest" = "conf/regions_of_interest.bed",
-            "r_annotation_fragmentsjoined" = conf$r_annotation_fragmentsjoined,
-            "r_repeatmasker_annotation" = conf$r_repeatmasker_annotation,
-            "txdb" = conf$txdb
+            "outputdir" = "integrated/genomebrowserplots/dorado",
+            "regions_of_interest" = "conf/integrated_regions_of_interest.bed",
+            "r_annotation_fragmentsjoined" = conf[["lrna"]]$r_annotation_fragmentsjoined,
+            "r_repeatmasker_annotation" = conf[["lrna"]]$r_repeatmasker_annotation,
+            "txdb" = conf[["lrna"]]$txdb
         ), env = globalenv())
         assign("inputs", list(
             "resultsdf" = "results/agg/deseq/dorado/relaxed/resultsdf.tsv",
             "rnasignalsF" = list(
-                "/users/mkelsey/data/Nanopore/dRNALF1/intermediates/pro1/alignments/genome/guppy/pro1.F.bw",
-                "/users/mkelsey/data/Nanopore/dRNALF1/intermediates/pro2/alignments/genome/guppy/pro2.F.bw",
-                "/users/mkelsey/data/Nanopore/dRNALF1/intermediates/pro3/alignments/genome/guppy/pro3.F.bw",
-                "/users/mkelsey/data/Nanopore/dRNALF1/intermediates/sen1/alignments/genome/guppy/sen1.F.bw",
-                "/users/mkelsey/data/Nanopore/dRNALF1/intermediates/sen2/alignments/genome/guppy/sen2.F.bw",
-                "/users/mkelsey/data/Nanopore/dRNALF1/intermediates/sen3/alignments/genome/guppy/sen3.F.bw"
+                "lrna/intermediates/pro1/alignments/genome/guppy/pro1.F.bw",
+                "lrna/intermediates/pro2/alignments/genome/guppy/pro2.F.bw",
+                "lrna/intermediates/pro3/alignments/genome/guppy/pro3.F.bw",
+                "lrna/intermediates/sen1/alignments/genome/guppy/sen1.F.bw",
+                "lrna/intermediates/sen2/alignments/genome/guppy/sen2.F.bw",
+                "lrna/intermediates/sen3/alignments/genome/guppy/sen3.F.bw"
             ),
             "rnasignalsR" = list(
-                "/users/mkelsey/data/Nanopore/dRNALF1/intermediates/pro1/alignments/genome/guppy/pro1.R.bw",
-                "/users/mkelsey/data/Nanopore/dRNALF1/intermediates/pro2/alignments/genome/guppy/pro2.R.bw",
-                "/users/mkelsey/data/Nanopore/dRNALF1/intermediates/pro3/alignments/genome/guppy/pro3.R.bw",
-                "/users/mkelsey/data/Nanopore/dRNALF1/intermediates/sen1/alignments/genome/guppy/sen1.R.bw",
-                "/users/mkelsey/data/Nanopore/dRNALF1/intermediates/sen2/alignments/genome/guppy/sen2.R.bw",
-                "/users/mkelsey/data/Nanopore/dRNALF1/intermediates/sen3/alignments/genome/guppy/sen3.R.bw"
+                "lrna/intermediates/pro1/alignments/genome/guppy/pro1.R.bw",
+                "lrna/intermediates/pro2/alignments/genome/guppy/pro2.R.bw",
+                "lrna/intermediates/pro3/alignments/genome/guppy/pro3.R.bw",
+                "lrna/intermediates/sen1/alignments/genome/guppy/sen1.R.bw",
+                "lrna/intermediates/sen2/alignments/genome/guppy/sen2.R.bw",
+                "lrna/intermediates/sen3/alignments/genome/guppy/sen3.R.bw"
             ),
             "dnamethylation" = list(
-                "/users/mkelsey/data/Nanopore/p2_1/intermediates/PRO1/methylation/PRO1_CG_m_dss.tsv",
-                "/users/mkelsey/data/Nanopore/p2_1/intermediates/SEN1/methylation/SEN1_CG_m_dss.tsv"
+                "ldna/intermediates/PRO1/methylation/PRO1_CG_m_dss.tsv",
+                "ldna/intermediates/SEN1/methylation/SEN1_CG_m_dss.tsv"
             )
         ), env = globalenv())
         assign("outputs", list(
@@ -76,18 +76,18 @@ tryCatch(
         ), env = globalenv())
     }
 )
-samples <- conf$samples
-sample_table <- read_csv("conf/sample_table.csv")
+samples <- conf[["lrna"]]$samples
+sample_table <- read_csv("conf/sample_table_lrna.csv")
 sample_table <- sample_table[match(samples, sample_table$sample_name), ]
 
 outputdir <- params$outputdir
 dir.create(outputdir, showWarnings = FALSE, recursive = TRUE)
-contrasts <- conf$contrasts
-levelslegendmap <- conf$levelslegendmap
+contrasts <- conf[["lrna"]]$contrasts
+levelslegendmap <- conf[["lrna"]]$levelslegendmap
 
 
-roi <- import("conf/regions_of_interest.bed")
-dertes <- list.files(path = "./results/agg/repeatanalysis/dorado/relaxed/tables/differentially_expressed_elements/condition_SEN_vs_PRO", pattern = "\\.bed$", full.names = TRUE)
+roi <- import("conf/integrated_regions_of_interest.bed")
+dertes <- list.files(path = "lrna/results/agg/repeatanalysis/dorado/relaxed/tables/differentially_expressed_elements/condition_SEN_vs_PRO", pattern = "\\.bed$", full.names = TRUE)
 
 grs <- GRanges()
 grs <- c(grs, roi)
@@ -116,8 +116,8 @@ txdb <- loadDb(params$txdb)
 library(BSgenome.Hsapiens.NCBI.T2T.CHM13v2.0)
 assembly <- assembly(Genome = "custom", TxDb = txdb, OrgDb = "org.Hs.eg.db", BSgenome = BSgenome.Hsapiens.NCBI.T2T.CHM13v2.0, gene.id.column = "GENEID", display.column = "GENEID")
 
-condition_colors <- conf$condition_colors
-conditions_to_plot <- conf$levels
+condition_colors <- conf[["lrna"]]$condition_colors
+conditions_to_plot <- conf[["lrna"]]$levels
 dnamethylationlist <- list()
 for (condition in conditions_to_plot) {
     path <- grep(sprintf("%s", condition), inputs$dnamethylation, value = TRUE)
@@ -136,7 +136,7 @@ methdif1 <- left_join(dnamethylationlist[[condition1]] %>% dplyr::rename(conditi
 methdif <- methdif1 %>%
     mutate(dif = condition2 - condition1)
 
-samples_to_plot <- conf$samples
+samples_to_plot <- conf[["lrna"]]$samples
 
 rnasignallistF <- list()
 for (sample in samples_to_plot) {
