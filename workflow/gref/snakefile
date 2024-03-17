@@ -24,7 +24,9 @@ tldr -b ../{params.bam} \
 --trdcol
 cd ..
 inputbam={params.bam}
-mv tldr/${{inputbam%.*}}.table.txt {output.tldr}
+mkdir -p $(dirname {output.tldr})
+mv tldr/*.table.txt {output.tldr}
+mv tldr $(dirname {output.tldr})/
         """
 
 rule update_reference:

@@ -5,7 +5,7 @@ library(rtracklayer)
 library(ORFik)
 
 conf <- c(
-    conf <- configr::read.config(file = "conf/config.yaml")
+    conf <- configr::read.config(file = "conf/config.yaml")[["aref"]]
 )
 tryCatch(
     {
@@ -264,12 +264,15 @@ rmfragments_nonref$insert_start <- insert_start
 rmfragments_nonref$insert_end <- insert_end
 
 rmfragmentsgr_properinsertloc <- rmfragments_refgr
-tryCatch({
-    rmfragments_nonrefgr <- GRanges(rmfragments_nonref %>% dplyr::select(-seqnames, -start, -end) %>% dplyr::relocate(gene_id, insert_seqnames, source, type, insert_start, insert_end, strand) %>% dplyr::rename(seqnames = insert_seqnames, start = insert_start, end = insert_end))
-    rmfragments_refgr <- GRanges(rmfragments_ref)
-    rmfragmentsgr_properinsertloc <- c(rmfragments_refgr, rmfragments_nonrefgr)
-}, error = function(e) {
-})
+tryCatch(
+    {
+        rmfragments_nonrefgr <- GRanges(rmfragments_nonref %>% dplyr::select(-seqnames, -start, -end) %>% dplyr::relocate(gene_id, insert_seqnames, source, type, insert_start, insert_end, strand) %>% dplyr::rename(seqnames = insert_seqnames, start = insert_start, end = insert_end))
+        rmfragments_refgr <- GRanges(rmfragments_ref)
+        rmfragmentsgr_properinsertloc <- c(rmfragments_refgr, rmfragments_nonrefgr)
+    },
+    error = function(e) {
+    }
+)
 
 
 # genes, centromere and telomere
