@@ -213,9 +213,9 @@ rule whatshap:
         sortedbams = expand("intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"], sample = samples),
         sortedbamsindex = expand("intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["rate"], type = config["type"], modification_string = config["modification_string"], sample = samples)
     params:
-        shortreadsbam = "../../freebayes/alignment/lf1.sorted.bam",
-        shortreadsbamindex = "../../freebayes/alignment/lf1.sorted.bam.bai",
-        vcf = "../../freebayes/results/variants.vcf",
+        shortreadsbam = "/oscar/data/jsedivy/mkelsey/freebayes/alignment/lf1.sorted.bam",
+        shortreadsbamindex = "/oscar/data/jsedivy/mkelsey/freebayes/alignment/lf1.sorted.bam.bai",
+        vcf = "/oscar/data/jsedivy/mkelsey/freebayes/variants.vcf",
         ref = config["reference"]
     output:
         phasedvcf = "intermediates/phased.vcf"

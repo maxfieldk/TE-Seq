@@ -1,8 +1,8 @@
 #META PIPELINE SETTINGS
 pipelines_to_deploy:
-  - srna
-  # - gref
-  # - aref
+  # - srna
+  - gref
+  - aref
   # - ldna
   # - lrna
 
@@ -23,6 +23,9 @@ aref:
   ref_telomere: /users/mkelsey/data/ref/genomes/hs1/annotations7/chm13v2.0_telomere.bed
   ref_cpgislands: /users/mkelsey/data/ref/genomes/hs1/annotations/hs1_CpG_Island_sorted
   l13fasta: /oscar/data/jsedivy/mkelsey/ref/sequences/l1.3.fa
+  repeatmaskerpath: /oscar/data/jsedivy/mkelsey/tools/RepeatMasker/RepeatMasker
+  species: human
+  #The species name must be a valid NCBI Taxonomy Database species name and be contained in the RepeatMasker repeat database.
 
 ldna:
   ##      ANALYSIS PARAMETERES       ##

@@ -3,7 +3,7 @@ library(GenomicRanges)
 library(rtracklayer)
 
 conf <- c(
-    conf <- configr::read.config(file = "conf/config.yaml")
+    conf <- configr::read.config(file = "conf/config.yaml")[["aref"]]
 )
 
 tryCatch(

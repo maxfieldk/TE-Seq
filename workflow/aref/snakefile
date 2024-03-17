@@ -1,7 +1,8 @@
 def inputToMergeGTFs(wildcards):
-      checkpoint_output = checkpoints.split_genome_fasta.get(**wildcards).output[0]
-      return expand("{module_prefix}/repeatmasker/ref/{chromosome}/ref.part_{chromosome}.fa.gtf",
-                    module_prefix = config["prefix"],
+      checkpoint_output = checkpoints.split_genome_fasta.get(**wildcards).output[2]
+    #   print(expand("repeatmasker/ref/{chromosome}/ref.part_{chromosome}.fa.gtf",
+    #                 chromosome=glob_wildcards(os.path.join(checkpoint_output, "ref.part_{chromosome}.fa")).chromosome))
+      return expand("repeatmasker/ref/{chromosome}/ref.part_{chromosome}.fa.gtf",
                     chromosome=glob_wildcards(os.path.join(checkpoint_output, "ref.part_{chromosome}.fa")).chromosome)
 
 checkpoint split_genome_fasta:
@@ -23,9 +24,13 @@ mkdir -p $(dirname {output.outputdir})
 seqkit split --by-id {output.ref} -O {output.outputdir}/
         """
 
+#NOTE THAT I LOAD A CLUSTER MODULE, ELSE REPEATMASKER DOES NOT LOAD A COMPILER DEPENDENCY
 rule repeatmasker:
     input:
         chr_fasta = "ref/split/ref.part_{chromosome}.fa"
+    params:
+        repeatmaskerpath = config["repeatmaskerpath"],
+        species = config["species"]
     output:
         rmout = "repeatmasker/ref/{chromosome}/ref.part_{chromosome}.fa.out"
     resources:
@@ -36,8 +41,9 @@ rule repeatmasker:
         "omics"
     shell:
         """
-mkdir -p $(dirname {output})
-/oscar/data/jsedivy/mkelsey/tools/RepeatMasker/RepeatMasker -species human -pa {resources.cpus_per_task} -gff {input.chr_fasta} -dir repeatmasker/ref/{wildcards.chromosome}
+module load libnsl
+mkdir -p $(dirname $(dirname {output}))
+{params.repeatmaskerpath} -species {params.species} -pa {resources.cpus_per_task} -gff {input.chr_fasta} -dir $(dirname $(dirname {output}))/{wildcards.chromosome}
         """
 
 rule getGtfs:
@@ -57,6 +63,8 @@ workflow/{params.module_prefix}/scripts/outToGtf.sh {input.rmout} {output}
 rule mergeGtfsandCleanupRM:
     input:
         inputToMergeGTFs
+    params:
+        module_prefix = config["prefix"]
     output:
         gtf = "repeatmasker/repeatmasker.gtf"
     conda:
@@ -65,7 +73,7 @@ rule mergeGtfsandCleanupRM:
         """
 cat {input} > {output.gtf}
 sort -k1,1V -k4,4n -k5,5n {output.gtf} > tmp.gtf
-ls -d RM_* | xargs rm -r
+ls -d {params.module_prefix}/RM_* | xargs rm -r
 mv tmp.gtf {output.gtf}
         """
 

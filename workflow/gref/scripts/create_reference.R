@@ -1,6 +1,6 @@
 source("/users/mkelsey/data/UpdateRef/defaultsToSource.r")
 
-conf <- configr::read.config(file = "conf/config.yaml")["gref"]
+conf <- configr::read.config(file = "conf/config.yaml")[["gref"]]
 tryCatch(
     {
         inputs <- snakemake@input

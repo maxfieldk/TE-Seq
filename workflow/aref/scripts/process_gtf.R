@@ -5,7 +5,7 @@ library(rtracklayer)
 library(dtplyr)
 
 conf <- c(
-    conf <- configr::read.config(file = "conf/config.yaml")
+    conf <- configr::read.config(file = "conf/config.yaml")[["aref"]]
 )
 tryCatch(
     {
