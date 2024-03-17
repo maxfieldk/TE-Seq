@@ -21,7 +21,7 @@ library(circlize)
 
 # analysis parameters
 {
-    conf <- configr::read.config(file = "conf/config.yaml")["lrna"]
+    conf <- configr::read.config(file = "conf/config.yaml")[["lrna"]]
 
 
     tryCatch(

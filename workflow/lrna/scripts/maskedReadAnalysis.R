@@ -4,7 +4,7 @@ library(Rsamtools)
 library(rtracklayer)
 
 conf <- c(
-    configr::read.config(file = "conf/config.yaml")["lrna"]
+    configr::read.config(file = "conf/config.yaml")[["lrna"]]
 )
 
 tryCatch(

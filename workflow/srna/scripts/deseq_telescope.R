@@ -23,7 +23,7 @@ library("dplyr")
 library(EnhancedVolcano)
 
 
-conf <- configr::read.config(file = "conf/config.yaml")["srna"]
+conf <- configr::read.config(file = "conf/config.yaml")[["srna"]]
 
 
 
@@ -39,15 +39,15 @@ tryCatch(
             "tecounttype" = "telescope_multi",
             "contrasts" = conf$contrasts,
             "levels" = conf$levels,
-            "outputdir" = "results/agg/deseq_telescope",
+            "outputdir" = sprintf("%s/results/agg/deseq_telescope", conf$prefix),
             "r_annotation_fragmentsjoined" = conf$r_annotation_fragmentsjoined,
             "r_repeatmasker_annotation" = conf$r_repeatmasker_annotation,
             "paralellize_bioc" = 8
         ), env = globalenv())
 
         assign("inputs", list(
-            counts = "outs/agg/featurecounts_genes/counts.txt",
-            rte_counts = sprintf("outs/%s/telescope/telescope-run_stats.tsv", conf$samples)
+            counts = sprintf("%s/outs/agg/featurecounts_genes/counts.txt", conf$prefix),
+            rte_counts = sprintf("%s/outs/%s/telescope/telescope-run_stats.tsv", conf$prefix, conf$samples)
         ), env = globalenv())
     }
 )
@@ -70,16 +70,16 @@ df <- read_delim(inputs[["rte_counts"]][1], comment = "#", col_names = FALSE)
 
 if (tecounttype == "telescope_multi") {
     bounddf <- tibble(df[, 1]) %>% rename(gene_id = X1)
-    for (sample in conf$samples) {
-        bounddf <- full_join(bounddf, read_delim(sprintf("outs/%s/telescope/telescope-run_stats.tsv", sample), comment = "#", col_names = FALSE) %>% dplyr::select(X1, X3) %>% rename(gene_id = X1), by = "gene_id")
+    for (path in inputs$rte_counts) {
+        bounddf <- full_join(bounddf, read_delim(path, comment = "#", col_names = FALSE) %>% dplyr::select(X1, X3) %>% rename(gene_id = X1), by = "gene_id")
     }
     colnames(bounddf) <- c("gene_id", conf$samples)
 }
 
 if (tecounttype == "telescope_unique") {
     bounddf <- tibble(df[, 1]) %>% rename(gene_id = X1)
-    for (sample in conf$samples) {
-        bounddf <- full_join(bounddf, read_delim(sprintf("outs/%s/telescope/telescope-run_stats.tsv", sample), comment = "#", col_names = FALSE) %>% dplyr::select(X1, X6) %>% rename(gene_id = X1), by = "gene_id")
+    for (path in inputs$rte_counts) {
+        bounddf <- full_join(bounddf, read_delim(path, comment = "#", col_names = FALSE) %>% dplyr::select(X1, X6) %>% rename(gene_id = X1), by = "gene_id")
     }
     colnames(bounddf) <- c("gene_id", conf$samples)
 }
