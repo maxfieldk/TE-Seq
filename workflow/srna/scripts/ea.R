@@ -222,6 +222,7 @@ for (contrast in params[["contrasts"]]) {
     }
 }
 
+EAheatmaps <- list()
 for (geneset in names(params[["genesets_for_heatmaps"]])) {
     # geneset <- geneset
     genestoplot <- read_csv(params[["genesets_for_heatmaps"]][[geneset]], col_names = FALSE) %>% pull(X1)

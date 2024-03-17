@@ -10,15 +10,10 @@ peptable = pd.read_csv("conf/peptable_srna.csv")
 #tag FILESTRUCTURE
 paths = [
     "qc",
-    "qc/{sample}",
     "rawdata/{sample}",
-    "logs/{sample}",
     "outs/{sample}/trimmedReads",
     "outs/{sample}/{counttype}",
     "outs/agg/{counttype}",
-    "results/{sample}/plots",
-    "results/agg/clusterprofiler/{contrast}",
-    "results/agg/deseq2/{counttype}/{contrast}",
     "results/agg/deseq_telescope/{tecounttype}/{contrast}",
     "results/agg/repeatanalysis_telescope"
     ]
@@ -548,7 +543,8 @@ rule repeatanalysis_plots:
         mem_mb = 164000,
         runtime = 300
     output:
-        outfile = "results/agg/repeatanalysis_telescope/plots.outfile.txt"
+        outfile = "results/agg/repeatanalysis_telescope/plots.outfile.txt",
+        plots = "results/agg/repeatanalysis_telescope/repeatanalysisplots_plots.RData"
     script:
         "scripts/repeatanalysisPlots.R"
     
