@@ -1,6 +1,7 @@
+#ensure tldr_input_bams are a full path, not relative paths
 rule tldr:
     params:
-        bam = lambda w: config["tldr_input_bam"],
+        bam = lambda w: config["tldr_input_bams"],
         starting_ref = lambda w: config["starting_ref"],
         tldr_te_ref = config["tldr_te_ref"]
     output:
@@ -15,7 +16,7 @@ rule tldr:
         """
 mkdir -p tldr
 cd tldr
-tldr -b ../{params.bam} \
+tldr -b {params.bam} \
 -e {params.tldr_te_ref} \
 -r {params.starting_ref} \
 -p 20 \
