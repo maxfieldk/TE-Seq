@@ -184,8 +184,8 @@ rule multiqc:
         "qc"
     shell:
         """
-mkdir -p qc/multiqc
-multiqc -f -o qc/multiqc --export ./
+mkdir -p $(dirname {output})
+multiqc -f -o $(dirname {output}) --export ./
         """
 
 #tag ALIGNMENT
