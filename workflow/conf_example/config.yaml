@@ -39,6 +39,9 @@ ldna:
     - "PRO"
     - "SEN"
 
+  contrasts:
+    - "condition_SEN_vs_PRO"
+
   condition_colors:
     PRO: "#3C5488FF"
     SEN: "#F39B7FFF"
@@ -59,10 +62,12 @@ ldna:
   ##            TOOL PATHS           ##
   dorado: "/users/mkelsey/data/tools/dorado-0.5.1-linux-x64/bin/dorado"
   ##      ANALYSIS PATHS       ##
-
+  MINIMUM_COVERAGE_FOR_METHYLATION_ANALYSIS: 7
+  SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS: "chrY"
   reference_annotation_dir: "aref"
   reference: "aref/ref.fa"
   annotation: "aref/annotations/repeatmasker_refseq.complete.gtf"
+  refseq_unaltered: "aref/annotations/refseq.gff3"
   refseq: "aref/annotations/refseq.complete.gtf"
   refseqbgz: "aref/annotations/refseq.complete.gff3.gz"
   repeatmasker: "aref/annotations/repeatmasker.complete.gtf"

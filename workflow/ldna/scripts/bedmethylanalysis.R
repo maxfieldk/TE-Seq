@@ -23,7 +23,7 @@ samples <- conf$samples
 sample_table <- read_csv(sprintf("conf/sample_table_%s.csv", conf$prefix))
 sample_table <- sample_table[match(samples, sample_table$sample_name), ]
 
-
+{
 genome_lengths <- fasta.seqlengths(conf$reference)
 chromosomesAll <- names(genome_lengths)
 nonrefchromosomes <- grep("nonref", chromosomesAll, value = TRUE)
@@ -31,10 +31,24 @@ refchromosomes <- grep("^chr", chromosomesAll, value = TRUE)
 autosomes <- grep("^chr[1-9]", refchromosomes, value = TRUE)
 chrX <- c("chrX")
 chrY <- c("chrY")
-##################### ANALYSIS PARAMETRS
-MINIMUMCOVERAGE <- 7
-CHROMOSOMESINCLUDEDINANALYSIS <- c(autosomes, chrX, nonrefchromosomes)
-CHROMOSOMESINCLUDEDINANALYSIS_REF <- c(autosomes, chrX, nonrefchromosomes)
+
+MINIMUMCOVERAGE <- conf$MINIMUM_COVERAGE_FOR_METHYLATION_ANALYSIS
+if ("chrY" %in% conf$SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS) {
+    if ("chrX" %in% conf$SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS) {
+        CHROMOSOMESINCLUDEDINANALYSIS <- c(autosomes, grep("_chrX_|_chrY_", nonrefchromosomes, invert = TRUE, value = TRUE))
+        CHROMOSOMESINCLUDEDINANALYSIS_REF <- c(autosomes)
+    } else {
+        CHROMOSOMESINCLUDEDINANALYSIS <- c(autosomes, chrX, grep("_chrY_", nonrefchromosomes, invert = TRUE, value = TRUE))
+        CHROMOSOMESINCLUDEDINANALYSIS_REF <- c(autosomes, chrX)
+    }
+} else if ("chrX" %in% conf$SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS) {
+    CHROMOSOMESINCLUDEDINANALYSIS <- c(autosomes, chrY, grep("_chrX_", nonrefchromosomes, invert = TRUE, value = TRUE))
+    CHROMOSOMESINCLUDEDINANALYSIS_REF <- c(autosomes, chrY)
+} else {
+        CHROMOSOMESINCLUDEDINANALYSIS <- c(autosomes, chrX, chrY, nonrefchromosomes)
+        CHROMOSOMESINCLUDEDINANALYSIS_REF <- c(autosomes, chrX, chrY)
+}
+}
 #################### functions and themes
 
 {

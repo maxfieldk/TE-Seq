@@ -18,3 +18,21 @@ rule genomebrowserplots:
 rule callgenomebrowserplots:
     input:
         expand("integrated/genomebrowserplots_{alignmenttype}.{type}.out", alignmenttype = ["dorado"], type = ["CG_m"])
+
+
+rule epigenome_transcriptome_correlation:
+    input:
+        srna_results = "srna/results/agg/deseq_telescope/resultsdf.tsv",
+        lrna_results = "lrna/results/agg/deseq/dorado/relaxed/resultsdf.tsv",
+        ldna_methylation = expand("ldna/intermediates/{sample}/methylation/{sample}_CG_m_dss.tsv", sample = config["ldna"]["samples"]),
+        rteprommeth = "ldna/Rintermediates/perelementdf_promoters.tsv",
+        dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
+        dmls = "ldna/results/tables/dmls.CG_m.tsv"
+    output:
+        plots = "integrated/epigenome_transcriptome_correlation/objects/plots.rda"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 60000
+    conda:
+        "ds"
+    script: "scripts/epigenome_transcriptome_correlation.R" 
