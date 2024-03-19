@@ -17,6 +17,30 @@ final_input = []
 
 
 for pipeline in config["pipelines_to_deploy"]:
+    if pipeline == "aref":
+        module aref:
+            snakefile: "aref/snakefile"
+            config: config["aref"]
+            prefix: "aref"
+        use rule * from aref as aref_*
+        def aref_rally():
+            paths = [
+                "annotations/repeatmasker.complete.gff3.gz.tbi",
+                "annotations/refseq.complete.gff3.gz.tbi",
+                "annotations/repeatmasker_refseq.complete.gtf",
+                "annotations/repeatmasker_refseq.complete.gff3",
+                "annotations/repeatmasker.complete.bed",
+                "annotations/refseq.complete.bed",
+                "annotations/rte_beds/outfile.txt",
+                "annotations/repeatmasker_refseq.complete.sqlite",
+                "annotations/cytobands.bed",
+                "ref_indeces/make_star_index.out",
+                expand("annotations/{annot}.fa", annot = ["repeatmasker_refseq.complete", "repeatmasker.complete", "refseq.complete"])
+            ]
+            return list(flatten(paths))
+        for e in aref_rally():
+            final_input.append("aref/" + e)
+
     if pipeline == "ldna":
         module ldna:
             snakefile: "ldna/snakefile"
@@ -53,38 +77,6 @@ for pipeline in config["pipelines_to_deploy"]:
         for e in lrna_rally():
             final_input.append("lrna/" + e)
 
-    if pipeline == "gref":
-        module gref:
-            snakefile: "gref/snakefile"
-            config: config["gref"]
-            prefix: "gref"
-        use rule * from gref as gref_*
-        def gref_rally():
-            return ["updated_ref/updated_ref.fa.fai"]
-        for e in gref_rally():
-            final_input.append("gref/" + e)
-    if pipeline == "aref":
-        module aref:
-            snakefile: "aref/snakefile"
-            config: config["aref"]
-            prefix: "aref"
-        use rule * from aref as aref_*
-        def aref_rally():
-            paths = [
-                "annotations/repeatmasker.complete.gff3.gz.tbi",
-                "annotations/refseq.complete.gff3.gz.tbi",
-                "annotations/repeatmasker_refseq.complete.gtf",
-                "annotations/repeatmasker_refseq.complete.gff3",
-                "annotations/repeatmasker.complete.bed",
-                "annotations/refseq.complete.bed",
-                "annotations/rte_beds/outfile.txt",
-                "annotations/repeatmasker_refseq.complete.sqlite",
-                "annotations/cytobands.bed",
-                expand("annotations/{annot}.fa", annot = ["repeatmasker_refseq.complete", "repeatmasker.complete", "refseq.complete"])
-            ]
-            return list(flatten(paths))
-        for e in aref_rally():
-            final_input.append("aref/" + e)
     if pipeline == "srna":
         module srna:
             snakefile: "srna/snakefile"
@@ -117,10 +109,6 @@ for pipeline in config["pipelines_to_deploy"]:
 #         github("maxfieldk/pipeline", path="workflow/ldna/snakefile", tag="v0.1.0")
 #     config:
 #         config["ldna"]
-
-
-
-
 
 print("final_input")
 print(final_input)
