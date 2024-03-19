@@ -11,6 +11,7 @@ gref:
   prefix: gref
   starting_ref: /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/hs1.sorted.fa
   tldr_input_bams: bampath
+  tldr_te_ref: /oscar/data/jsedivy/mkelsey/tools/tldr/ref/teref.ont.human.fa
 
 aref:
   prefix: aref
@@ -357,3 +358,6 @@ srna:
   L1HSoutgroup: "/users/mkelsey/data/ref/sequences/L1HSconsensus.fa"
   AluYoutgroup: "/users/mkelsey/data/ref/sequences/AluJbconsensus.fa"
   HERVK-intoutgroup: "/users/mkelsey/data/ref/sequences/HERVL-intconsensus.fa"
+
+integrated:
+  regions_of_interest: "conf/integrated_regions_of_interest.bed"

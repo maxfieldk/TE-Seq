@@ -1,3 +1,59 @@
+#ensure tldr_input_bams are a full path, not relative paths
+rule tldr:
+    params:
+        bam = lambda w: config["tldr_input_bams"],
+        tldr_input_bam_ref = lambda w: config["tldr_input_bam_ref"],
+        tldr_te_ref = config["tldr_te_ref"]
+    output:
+        tldr = "updated_ref/tldr.table.txt"
+    resources:
+        cpus_per_task = 24,
+        mem_mb = 100000,
+        runtime = 300
+    conda:
+        "tldr"
+    shell:
+        """
+mkdir -p tldr
+cd tldr
+tldr -b {params.bam} \
+-e {params.tldr_te_ref} \
+-r {params.tldr_input_bam_ref} \
+-p 20 \
+--detail_output \
+--extend_consensus 4000 \
+--trdcol
+cd ..
+inputbam={params.bam}
+mkdir -p $(dirname {output.tldr})
+mv tldr/*.table.txt {output.tldr}
+mv tldr $(dirname {output.tldr})/
+        """
+
+rule update_reference:
+    input:
+        reference = lambda w: config["tldr_input_bam_ref"],
+        tldroutput = "updated_ref/tldr.table.txt"
+    output:
+        updated_reference = "updated_ref/updated_ref.fa"
+    conda:
+        "omics"
+    script:
+        "scripts/create_reference.R"
+
+rule index_reference:
+    input:
+        reference = "updated_ref/updated_ref.fa"
+    output:
+        reference_index = "updated_ref/updated_ref.fa.fai"
+    conda:
+        "omics"
+    shell:
+        """
+samtools faidx {input.reference}
+        """
+
+
 def inputToMergeGTFs(wildcards):
       checkpoint_output = checkpoints.split_genome_fasta.get(**wildcards).output[2]
     #   print(expand("repeatmasker/ref/{chromosome}/ref.part_{chromosome}.fa.gtf",
@@ -6,7 +62,7 @@ def inputToMergeGTFs(wildcards):
                     chromosome=glob_wildcards(os.path.join(checkpoint_output, "ref.part_{chromosome}.fa")).chromosome)
 
 checkpoint split_genome_fasta:
-    params:
+    input:
         ref = config["ref"],
         ref_index = config["ref_index"]
     output:
@@ -18,8 +74,8 @@ checkpoint split_genome_fasta:
     shell:
         """
 mkdir -p $(dirname {output.ref})
-cp {params.ref} {output.ref}
-cp {params.ref_index} {output.ref_index}
+cp {input.ref} {output.ref}
+cp {input.ref_index} {output.ref_index}
 mkdir -p $(dirname {output.outputdir})
 seqkit split --by-id {output.ref} -O {output.outputdir}/
         """
