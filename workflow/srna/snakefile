@@ -9,15 +9,14 @@ peptable = pd.read_csv("conf/peptable_srna.csv")
 
 #tag FILESTRUCTURE
 paths = [
-    "qc",
-    "rawdata/{sample}",
-    "outs/{sample}/trimmedReads",
-    "outs/{sample}/{counttype}",
-    "outs/agg/{counttype}",
-    "results/agg/deseq_telescope/{tecounttype}/{contrast}",
-    "results/agg/repeatanalysis_telescope"
+    "srna/qc",
+    "srna/rawdata/{sample}",
+    "srna/outs/{sample}/trimmedReads",
+    "srna/outs/{sample}/{counttype}",
+    "srna/outs/agg/{counttype}",
+    "srna/results/agg/deseq_telescope/{tecounttype}/{contrast}",
+    "srna/results/agg/repeatanalysis_telescope"
     ]
-paths = [config["prefix"] + "/" + path for path in paths]
 for path in paths:
     for sample in samples:
         for counttype in config["counttypes"]:
@@ -27,7 +26,7 @@ for path in paths:
 #tag FUNCTIONS
 def inferLibraryType():
         try: 
-                with open("qc/library_type.txt") as f:
+                with open("srna/qc/library_type.txt") as f:
                         data = f.read()
                 lines = re.findall('Fraction.*', data)
                 pctMapped = [float(line.split(": ")[1]) for line in lines]
@@ -51,15 +50,6 @@ def getFeatureCountsStrandParam():
                 strandParam = "0"
         return strandParam
 
-def getTElocalStrandParam():
-        libraryType = inferLibraryType()
-        if libraryType == "forward":
-                strandParam = "forward"
-        elif libraryType == "reverse":
-                strandParam = "reverse"
-        else:
-                strandParam = "no"
-        return strandParam
 
 def getTelescopeStrandParam():
         libraryType = inferLibraryType()
@@ -75,14 +65,14 @@ def getTelescopeStrandParam():
 #tag PREPROCESSING
 rule prefetch:
     output:
-        sra = temp("rawdata/{sample}/{sample}.sra")
+        sra = temp("srna/rawdata/{sample}/{sample}.sra")
     threads: 4
     conda:
         "omics"
     shell: "prefetch {wildcards.sample} --output-directory rawdata"
 
 rule fastqdump:
-    input: "rawdata/{sample}/{sample}.sra"
+    input: "srna/rawdata/{sample}/{sample}.sra"
     threads: 4
     params:
         outdir = "rawdata/{sample}"
@@ -101,10 +91,10 @@ rule fastp_PE:
     priority: 100
     threads: 6
     output:
-        r1 = "outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz",
-        r2 = "outs/{sample}/trimmedReads/{sample}_2.trimmed.fastq.gz",
-        json = "outs/{sample}/trimmedReads/fastp.json",
-        html = "outs/{sample}/trimmedReads/fastp.html"
+        r1 = "srna/outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz",
+        r2 = "srna/outs/{sample}/trimmedReads/{sample}_2.trimmed.fastq.gz",
+        json = "srna/outs/{sample}/trimmedReads/fastp.json",
+        html = "srna/outs/{sample}/trimmedReads/fastp.html"
     conda:
         "qc"
     shell:
@@ -118,12 +108,11 @@ rule fastp_SE:
         # r2=lambda wildcards: peptable.loc[peptable["sample_name"] == wildcards.sample, "R2"].iloc[0]
     priority: 100
     threads: 6
-    log: "logs/{sample}/fastp.log"
     output:
-        r1 = "outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz",
+        r1 = "srna/outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz",
         # r2 = "outs/{sample}/trimmedReads/{sample}_2.trimmed.fastq.gz",
-        json = "outs/{sample}/trimmedReads/fastp.json",
-        html = "outs/{sample}/trimmedReads/fastp.html"
+        json = "srna/outs/{sample}/trimmedReads/fastp.json",
+        html = "srna/outs/{sample}/trimmedReads/fastp.html"
     conda:
         "qc"
     shell:
@@ -136,10 +125,10 @@ fastp -i {input.r1} -o {output.r1} --json {output.json} --html {output.html} --t
 
 rule mycoplasmaCheck:
     input:
-        r1 = "outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz",
-        r2 = "outs/{sample}/trimmedReads/{sample}_2.trimmed.fastq.gz"
+        r1 = "srna/outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz",
+        r2 = "srna/outs/{sample}/trimmedReads/{sample}_2.trimmed.fastq.gz"
     output:
-        sam = "qc/mycoplasma/mycoplasma{sample}.sam"
+        sam = "srna/qc/mycoplasma/mycoplasma{sample}.sam"
     threads: 12
     resources:
         mem_mb  = 30000
@@ -155,9 +144,9 @@ samtools stats {output.sam} > {output.sam}.stats.txt
 
 checkpoint inferLibraryType:
     input:
-        bam = expand("outs/{sample}/star_output/{sample}.sorted.primary.bam", sample = samples[0])
+        bam = expand("srna/outs/{sample}/star_output/{sample}.sorted.primary.bam", sample = samples[0])
     output:
-        librarytype = "qc/library_type.txt"
+        librarytype = "srna/qc/library_type.txt"
     params:
         gtf = config['annotation_genes_bed12'],
     resources:
@@ -171,10 +160,10 @@ infer_experiment.py -r {params.gtf} -i {input.bam} > {output.librarytype}
 
 rule multiqc:
     input:
-        bams = expand("outs/{sample}/star_output/{sample}.sorted.bam.stats.txt", sample = samples),
-        deseq = expand("results/agg/deseq_telescope/{tecounttype}/counttablesizenormed.csv", tecounttype = config["tecounttypes"])
+        bams = expand("srna/outs/{sample}/star_output/{sample}.sorted.bam.stats.txt", sample = samples),
+        deseq = expand("srna/results/agg/deseq_telescope/{tecounttype}/counttablesizenormed.csv", tecounttype = config["tecounttypes"])
     output:
-        "qc/multiqc/multiqc_report.html"
+        "srna/qc/multiqc/multiqc_report.html"
     conda:
         "qc"
     shell:
@@ -186,12 +175,12 @@ multiqc -f -o $(dirname {output}) --export ./
 #tag ALIGNMENT
 rule alignSTAR_PE:
     input:
-        r1 = "outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz",
-        r2 = "outs/{sample}/trimmedReads/{sample}_2.trimmed.fastq.gz"
+        r1 = "srna/outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz",
+        r2 = "srna/outs/{sample}/trimmedReads/{sample}_2.trimmed.fastq.gz"
     params:
         index = config["starindex"],
     output:
-        bam = temp("outs/{sample}/star_output/Aligned.out.sam")
+        bam = temp("srna/outs/{sample}/star_output/Aligned.out.sam")
     threads: 8
     resources:
         mem_mb  = 60000
@@ -205,12 +194,12 @@ STAR --genomeDir {params.index} --readFilesCommand zcat --readFilesIn {input.r1}
 #tag COUNTS
 rule featurecounts_genes_PE:
     input:
-        primaryBams = expand("outs/{sample}/star_output/{sample}.sorted.primary.bam", sample = samples),
-        libtype = "qc/library_type.txt",
+        primaryBams = expand("srna/outs/{sample}/star_output/{sample}.sorted.primary.bam", sample = samples),
+        libtype = "srna/qc/library_type.txt",
     output:
-        countsmessy = "outs/agg/featurecounts_genes/counts_messy.txt",
-        counts = "outs/agg/featurecounts_genes/counts.txt",
-        readassignment = expand("outs/agg/featurecounts_genes/{sample}.sorted.primary.bam.featureCounts", sample = samples)
+        countsmessy = "srna/outs/agg/featurecounts_genes/counts_messy.txt",
+        counts = "srna/outs/agg/featurecounts_genes/counts.txt",
+        readassignment = expand("srna/outs/agg/featurecounts_genes/{sample}.sorted.primary.bam.featureCounts", sample = samples)
     params: 
         gtf = config['annotation_genes'],
         featureCountsstrandparam = getFeatureCountsStrandParam()
@@ -241,11 +230,11 @@ cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
 rule featurecounts_genesandrtes_PE:
 #for non-telocal based counts for RTEs
     input:
-        sortedSTARbams = expand("outs/{sample}/star_output/{sample}.sorted.primary.bam", sample = samples),
-        libtype = "qc/library_type.txt"
+        sortedSTARbams = expand("srna/outs/{sample}/star_output/{sample}.sorted.primary.bam", sample = samples),
+        libtype = "srna/qc/library_type.txt"
     output:
-        countsmessy = "outs/agg/featurecounts_genesandrtes/counts_messy.txt",
-        counts = "outs/agg/featurecounts_genesandrtes/counts.txt",
+        countsmessy = "srna/outs/agg/featurecounts_genesandrtes/counts_messy.txt",
+        counts = "srna/outs/agg/featurecounts_genesandrtes/counts.txt",
     params: 
         gtf = "/oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations4/hs1.repMask.refseq.sorted.gtf",
         featureCountsstrandparam = getFeatureCountsStrandParam()
@@ -263,12 +252,12 @@ cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
 
 rule alignSTAR_SE:
     input:
-        r1 = "outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz",
+        r1 = "srna/outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz",
         # r2 = "outs/{sample}/trimmedReads/{sample}_2.trimmed.fastq.gz"
     params:
         index = config["starindex"]
     output:
-        bam = temp("outs/{sample}/star_output/Aligned.out.sam")
+        bam = temp("srna/outs/{sample}/star_output/Aligned.out.sam")
     threads: 8
     resources:
         mem_mb  = 60000
@@ -283,14 +272,14 @@ STAR --genomeDir {params.index} --readFilesCommand zcat --readFilesIn {input.r1}
 
 rule featurecounts_genes_SE:
     input:
-        sortedSTARbams = expand("outs/{sample}/star_output/{sample}.sorted.primary.bam", sample = samples),
-        libtype = "qc/library_type.txt"
+        sortedSTARbams = expand("srna/outs/{sample}/star_output/{sample}.sorted.primary.bam", sample = samples),
+        libtype = "srna/qc/library_type.txt"
     output:
-        countsmessy = "outs/agg/featurecounts_genes/counts_messy.txt",
-        counts = "outs/agg/featurecounts_genes/counts.txt",
-        countsstrandnonspecificmessy = "outs/agg/featurecounts_genes/countsstrandnonspecific_messy.txt",
-        countsstrandnonspecific = "outs/agg/featurecounts_genes/countsstrandnonspecific.txt",
-        metafeaturecounts = "outs/agg/featurecounts_genes/metafeature.counts.txt"
+        countsmessy = "srna/outs/agg/featurecounts_genes/counts_messy.txt",
+        counts = "srna/outs/agg/featurecounts_genes/counts.txt",
+        countsstrandnonspecificmessy = "srna/outs/agg/featurecounts_genes/countsstrandnonspecific_messy.txt",
+        countsstrandnonspecific = "srna/outs/agg/featurecounts_genes/countsstrandnonspecific.txt",
+        metafeaturecounts = "srna/outs/agg/featurecounts_genes/metafeature.counts.txt"
     params: 
         gtf = config['annotation_genes'],
         featureCountsstrandparam = getFeatureCountsStrandParam()
@@ -311,11 +300,11 @@ featureCounts -T {threads} -B -O -a {params.gtf} -o {output.metafeaturecounts} {
 rule featurecounts_genesandrtes_SE:
 #for non-telocal based counts for RTEs
     input:
-        sortedSTARbams = expand("outs/{sample}/star_output/{sample}.sorted.primary.bam", sample = samples),
-        libtype = "qc/library_type.txt"
+        sortedSTARbams = expand("srna/outs/{sample}/star_output/{sample}.sorted.primary.bam", sample = samples),
+        libtype = "srna/qc/library_type.txt"
     output:
-        countsmessy = "outs/agg/featurecounts_genesandrtes/counts_messy.txt",
-        counts = "outs/agg/featurecounts_genesandrtes/counts.txt",
+        countsmessy = "srna/outs/agg/featurecounts_genesandrtes/counts_messy.txt",
+        counts = "srna/outs/agg/featurecounts_genesandrtes/counts.txt",
     params: 
         gtf = "/oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations4/hs1.repMask.refseq.sorted.gtf",
         featureCountsstrandparam = getFeatureCountsStrandParam()
@@ -334,11 +323,11 @@ cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
 #tag ALIGNMENT UTILITIES
 rule common_sortIndexBam:
     input:
-        sam = "outs/{sample}/star_output/Aligned.out.sam"
+        sam = "srna/outs/{sample}/star_output/Aligned.out.sam"
     output:
-        sortedbam =  "outs/{sample}/star_output/{sample}.sorted.bam",
-        stats =  "outs/{sample}/star_output/{sample}.sorted.bam.stats.txt",
-        index = "outs/{sample}/star_output/{sample}.sorted.bam.bai"
+        sortedbam =  "srna/outs/{sample}/star_output/{sample}.sorted.bam",
+        stats =  "srna/outs/{sample}/star_output/{sample}.sorted.bam.stats.txt",
+        index = "srna/outs/{sample}/star_output/{sample}.sorted.bam.bai"
     resources:
         cpus_per_task =10,
         mem_mb = 64000
@@ -355,10 +344,10 @@ samtools stats {output.sortedbam} > {output.stats}
 
 rule common_filterForPrimaryAlignments:
     input:
-        "{path}.sorted.bam"
+        "srna/{path}.sorted.bam"
     output:
-        bam =  "{path}.sorted.primary.bam",
-        bamindex = "{path}.sorted.primary.bam.bai"
+        bam =  "srna/{path}.sorted.primary.bam",
+        bamindex = "srna/{path}.sorted.primary.bam.bai"
     threads: 4
     conda:
         "omics"
@@ -395,15 +384,15 @@ samtools index {output.bam}
 
 rule deseq_telescope:
     input:
-        counts = "outs/agg/featurecounts_genes/counts.txt",
-        rte_counts = expand("outs/{sample}/telescope/telescope-run_stats.tsv", sample = samples)
+        counts = "srna/outs/agg/featurecounts_genes/counts.txt",
+        rte_counts = expand("srna/outs/{sample}/telescope/telescope-run_stats.tsv", sample = samples)
     params:
         sample_table = config["sample_table"],
         contrasts = config["contrasts"],
         levels = config["levels"],
         paralellize_bioc = config["paralellize_bioc"],
         tecounttype = lambda w: w.tecounttype,
-        outputdir = lambda w: "%s/results/agg/deseq_telescope"%(config["prefix"])
+        outputdir =lambda w, output: os.path.dirname(os.path.dirname(output.counts_normed[0])),
     resources:
         cpus_per_task =10,
         mem_mb = 200000,
@@ -412,19 +401,19 @@ rule deseq_telescope:
     wildcard_constraints:
         tecounttype="[A-Za-z0-9_]+"
     output:
-        results_genes = expand("results/agg/deseq_telescope/{{tecounttype}}/{contrast}/results_genes.csv", contrast = config["contrasts"]),
-        results_rtes = expand("results/agg/deseq_telescope/{{tecounttype}}/{contrast}/results_rtes.csv", contrast = config["contrasts"]),
-        counts_normed = "results/agg/deseq_telescope/{tecounttype}/counttablesizenormed.csv"
+        results_genes = expand("srna/results/agg/deseq_telescope/{{tecounttype}}/{contrast}/results_genes.csv", contrast = config["contrasts"]),
+        results_rtes = expand("srna/results/agg/deseq_telescope/{{tecounttype}}/{contrast}/results_rtes.csv", contrast = config["contrasts"]),
+        counts_normed = "srna/results/agg/deseq_telescope/{tecounttype}/counttablesizenormed.csv"
     script:
         "scripts/deseq_telescope.R"
 
 rule consolidateDeseqResults:
     input:
-        results = expand("results/agg/deseq_telescope/{tecounttype}/{contrast}/results_rtes.csv", contrast = config["contrasts"], tecounttype = config["tecounttypes"]),
-        counts_normed = expand("results/agg/deseq_telescope/{tecounttype}/counttablesizenormed.csv", tecounttype = config["tecounttypes"])
+        results = expand("srna/results/agg/deseq_telescope/{tecounttype}/{contrast}/results_rtes.csv", contrast = config["contrasts"], tecounttype = config["tecounttypes"]),
+        counts_normed = expand("srna/results/agg/deseq_telescope/{tecounttype}/counttablesizenormed.csv", tecounttype = config["tecounttypes"])
     params:
-        inputdir = "%s/results/agg/deseq_telescope"%(config["prefix"]),
-        outputdir = "%s/results/agg/deseq_telescope"%(config["prefix"])
+        inputdir = "srna/results/agg/deseq_telescope",
+        outputdir = "srna/results/agg/deseq_telescope"
     conda:
         "repeatanalysis"
     resources:
@@ -432,7 +421,7 @@ rule consolidateDeseqResults:
         mem_mb = 164000,
         runtime = 300
     output:
-        resultsdf = "results/agg/deseq_telescope/resultsdf.tsv"
+        resultsdf = "srna/results/agg/deseq_telescope/resultsdf.tsv"
     script:
         "scripts/consolidateDeseqResults.R"
 
@@ -440,14 +429,14 @@ rule consolidateDeseqResults:
 import os
 rule enrichment_analysis:
     input:
-        resultsdf ="results/agg/deseq_telescope/resultsdf.tsv"
+        resultsdf ="srna/results/agg/deseq_telescope/resultsdf.tsv"
     params:
         inputdir =lambda w, input: os.path.dirname(os.path.dirname(input.resultsdf[0])),
         contrasts = config["contrasts"],
         genesets_for_heatmaps = config["genesets_for_heatmaps"],
         genesets_for_gsea = config["genesets_for_gsea"],
         sample_table = config["sample_table"],
-        outputdir = "%s/results/agg/enrichment_analysis"%(config["prefix"])
+        outputdir =lambda w, output: os.path.dirname(os.path.dirname(output.outfile[0])),
     conda:
         "ea"
     resources:
@@ -455,13 +444,13 @@ rule enrichment_analysis:
         mem_mb = 164000,
         runtime = 300
     output:
-        outfile = "results/agg/enrichment_analysis/outfile.txt"
+        outfile = "srna/results/agg/enrichment_analysis/outfile.txt"
     script:
         "scripts/ea.R"
 
 rule enrichment_analysis_repeats:
     input:
-        resultsdf ="results/agg/deseq_telescope/resultsdf.tsv"
+        resultsdf ="srna/results/agg/deseq_telescope/resultsdf.tsv"
     params:
         inputdir =lambda w, input: os.path.dirname(os.path.dirname(input.resultsdf[0])),
         r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
@@ -469,7 +458,7 @@ rule enrichment_analysis_repeats:
         contrasts = config["contrasts"],
         tecounttypes = config["tecounttypes"],
         sample_table = config["sample_table"],
-        outputdir = lambda w, output: os.path.dirname(output.outfile)
+        outputdir = lambda w, output: os.path.dirname(output.outfile[0])
     conda:
         "ea"
     resources:
@@ -477,16 +466,16 @@ rule enrichment_analysis_repeats:
         mem_mb = 164000,
         runtime = 300
     output:
-        outfile = "results/agg/enrichment_analysis_repeats/{tecounttype}/outfile.txt"
+        outfile = "srna/results/agg/enrichment_analysis_repeats/{tecounttype}/outfile.txt"
     script:
         "scripts/ea_repeats.R"
 
 #tag REPETITIVE ELEMENTS
 rule collateBam:
     input:
-        sortedBam = "outs/{sample}/star_output/{sample}.sorted.bam"
+        sortedBam = "srna/outs/{sample}/star_output/{sample}.sorted.bam"
     output:
-        collatedbam = "outs/{sample}/star_output/{sample}.collated.bam",
+        collatedbam = "srna/outs/{sample}/star_output/{sample}.collated.bam",
     conda:
         "omics"
     resources:
@@ -499,13 +488,13 @@ samtools collate -o {output.collatedbam} {input.sortedBam}
 
 rule telescope:
     input:
-        collatedbam = "outs/{sample}/star_output/{sample}.collated.bam",
-        libtype = "qc/library_type.txt"
+        collatedbam = "srna/outs/{sample}/star_output/{sample}.collated.bam",
+        libtype = "srna/qc/library_type.txt"
     params:
         gtf = config["annotation_rtes"],
         strandparam = getTelescopeStrandParam(),
     output:
-        counts = "outs/{sample}/telescope/telescope-run_stats.tsv"
+        counts = "srna/outs/{sample}/telescope/telescope-run_stats.tsv"
     threads: 4
     conda:
         "telescope3"
@@ -527,15 +516,15 @@ telescope assign \
 
 rule repeatanalysis_plots:
     input:
-        resultsdf = "results/agg/deseq_telescope/resultsdf.tsv"
+        resultsdf = "srna/results/agg/deseq_telescope/resultsdf.tsv"
     params:
         r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
         r_repeatmasker_annotation = config["r_repeatmasker_annotation"],
         contrasts = config["contrasts"],
         tecounttypes = config["tecounttypes"],
         levelslegendmap = config["levelslegendmap"],
-        inputdir = "%s/results/agg/deseq_telescope"%(config["prefix"]),
-        outputdir = "%s/results/agg/repeatanalysis_telescope"%(config["prefix"])
+        inputdir = lambda w, input: os.path.dirname(input.resultsdf[0])
+        outputdir = lambda w, output: os.path.dirname(output.outfile[0])
     conda:
         "repeatanalysis"
     resources:
@@ -543,8 +532,8 @@ rule repeatanalysis_plots:
         mem_mb = 164000,
         runtime = 300
     output:
-        outfile = "results/agg/repeatanalysis_telescope/plots.outfile.txt",
-        plots = "results/agg/repeatanalysis_telescope/repeatanalysisplots_plots.RData"
+        outfile = "srna/results/agg/repeatanalysis_telescope/plots.outfile.txt",
+        plots = "srna/results/agg/repeatanalysis_telescope/repeatanalysisplots_plots.RData"
     script:
         "scripts/repeatanalysisPlots.R"
     

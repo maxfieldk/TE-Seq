@@ -1,9 +1,9 @@
 #tag BASECALLING
 rule dorado:
     input:
-        dir = "rawdata/{rate}/{sample}"
+        dir = "ldna/rawdata/{rate}/{sample}"
     output:
-        calls = "intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.bam"
+        calls = "aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.bam"
     wildcard_constraints:
         sample="[0-9A-Za-z]+",
         type = "[0-9A-Za-z]+",
@@ -36,12 +36,13 @@ basecaller \
 
 #ensure tldr_input_bams are a full path, not relative paths
 rule tldr:
+    input:
+        bam = lambda w: config["tldr_input_bams"]
     params:
-        bam = lambda w: config["tldr_input_bams"],
         tldr_input_bam_ref = lambda w: config["tldr_input_bam_ref"],
         tldr_te_ref = config["tldr_te_ref"]
     output:
-        tldr = "updated_ref/tldr.table.txt"
+        tldr = "aref/updated_ref/tldr.table.txt"
     resources:
         cpus_per_task = 24,
         mem_mb = 100000,
@@ -68,9 +69,9 @@ mv tldr $(dirname {output.tldr})/
 
 rule analyze_insertions:
     input:
-        tldroutput = "updated_ref/tldr.table.txt"
+        tldroutput = "aref/updated_ref/tldr.table.txt"
     output:
-        plots = "RefAnalysis/tldr_plots/tldr_plots.rds"
+        plots = "aref/RefAnalysis/tldr_plots/tldr_plots.rds"
     conda:
         "repeatanalysis"
     script:
@@ -79,9 +80,9 @@ rule analyze_insertions:
 rule update_reference:
     input:
         reference = lambda w: config["tldr_input_bam_ref"],
-        tldroutput = "updated_ref/tldr.table.txt"
+        tldroutput = "aref/updated_ref/tldr.table.txt"
     output:
-        updated_reference = "updated_ref/updated_ref.fa"
+        updated_reference = "aref/updated_ref/updated_ref.fa"
     conda:
         "repeatanalysis"
     script:
@@ -89,9 +90,9 @@ rule update_reference:
 
 rule index_reference:
     input:
-        reference = "updated_ref/updated_ref.fa"
+        reference = "aref/updated_ref/updated_ref.fa"
     output:
-        reference_index = "updated_ref/updated_ref.fa.fai"
+        reference_index = "aref/updated_ref/updated_ref.fa.fai"
     conda:
         "omics"
     shell:
@@ -104,7 +105,7 @@ def inputToMergeGTFs(wildcards):
       checkpoint_output = checkpoints.split_genome_fasta.get(**wildcards).output[2]
     #   print(expand("repeatmasker/ref/{chromosome}/ref.part_{chromosome}.fa.gtf",
     #                 chromosome=glob_wildcards(os.path.join(checkpoint_output, "ref.part_{chromosome}.fa")).chromosome))
-      return expand("repeatmasker/ref/{chromosome}/ref.part_{chromosome}.fa.gtf",
+      return expand("aref/repeatmasker/ref/{chromosome}/ref.part_{chromosome}.fa.gtf",
                     chromosome=glob_wildcards(os.path.join(checkpoint_output, "ref.part_{chromosome}.fa")).chromosome)
 
 checkpoint split_genome_fasta:
@@ -112,9 +113,9 @@ checkpoint split_genome_fasta:
         ref = config["ref"],
         ref_index = config["ref_index"]
     output:
-        ref = "ref.fa",
-        ref_index = "ref.fa.fai",
-        outputdir = directory("ref/split")
+        ref = "aref/ref.fa",
+        ref_index = "aref/ref.fa.fai",
+        outputdir = directory("aref/ref/split")
     conda:
         "evo"
     shell:
@@ -129,12 +130,12 @@ seqkit split --by-id {output.ref} -O {output.outputdir}/
 #NOTE THAT I LOAD A CLUSTER MODULE, ELSE REPEATMASKER DOES NOT LOAD A COMPILER DEPENDENCY
 rule repeatmasker:
     input:
-        chr_fasta = "ref/split/ref.part_{chromosome}.fa"
+        chr_fasta = "aref/ref/split/ref.part_{chromosome}.fa"
     params:
         repeatmaskerpath = config["repeatmaskerpath"],
         species = config["species"]
     output:
-        rmout = "repeatmasker/ref/{chromosome}/ref.part_{chromosome}.fa.out"
+        rmout = "aref/repeatmasker/ref/{chromosome}/ref.part_{chromosome}.fa.out"
     resources:
         cpus_per_task =20,
         runtime = 1200,
@@ -150,11 +151,11 @@ mkdir -p $(dirname $(dirname {output}))
 
 rule getGtfs:
     input:
-        rmout = "repeatmasker/ref/{chromosome}/ref.part_{chromosome}.fa.out"
+        rmout = "aref/repeatmasker/ref/{chromosome}/ref.part_{chromosome}.fa.out"
     params:
         module_prefix = config["prefix"]
     output:
-        "repeatmasker/ref/{chromosome}/ref.part_{chromosome}.fa.gtf"
+        "aref/repeatmasker/ref/{chromosome}/ref.part_{chromosome}.fa.gtf"
     conda:
         "evo"
     shell:
@@ -168,7 +169,7 @@ rule mergeGtfsandCleanupRM:
     params:
         module_prefix = config["prefix"]
     output:
-        gtf = "repeatmasker/repeatmasker.gtf"
+        gtf = "aref/repeatmasker/repeatmasker.gtf"
     conda:
         "evo"
     shell:
@@ -182,13 +183,13 @@ find aref/ -type d -name 'RM_*' -exec rm -r {} +
 
 rule process_gtf:
     input:
-        gtf = "repeatmasker/repeatmasker.gtf",
-        ref_cytobands = "annotations/cytobands.bed"
+        gtf = "aref/repeatmasker/repeatmasker.gtf",
+        ref_cytobands = "aref/annotations/cytobands.bed"
     output:
-        repmask_gff2 = "annotations/repeatmasker.gff2",
-        repmask_gff3 = "annotations/repeatmasker.gff3",
-        r_annotation = "annotations/repeatmasker.gtf.rformatted.csv",
-        r_annotation_fragmentsjoined = "annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv"
+        repmask_gff2 = "aref/annotations/repeatmasker.gff2",
+        repmask_gff3 = "aref/annotations/repeatmasker.gff3",
+        r_annotation = "aref/annotations/repeatmasker.gtf.rformatted.csv",
+        r_annotation_fragmentsjoined = "aref/annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv"
     conda:
         "evo2"
     script:
@@ -198,7 +199,7 @@ rule move_refseq:
     input:
         ref_refseq_gff3 = config["ref_refseq_gff3"]
     output:
-        refseq_gff3 = "annotations/refseq.gff3"
+        refseq_gff3 = "aref/annotations/refseq.gff3"
     shell:
         """
 cp {input.ref_refseq_gff3} {output.refseq_gff3}
@@ -207,9 +208,9 @@ cp {input.ref_refseq_gff3} {output.refseq_gff3}
 
 rule complete_gff3:
     input:
-        gff3 = "annotations/{annotation}.gff3",
+        gff3 = "aref/annotations/{annotation}.gff3",
     output:
-        complete_gff3 = "annotations/{annotation}.complete.gff3",
+        complete_gff3 = "aref/annotations/{annotation}.complete.gff3",
     resources:
         mem_mb = 128000,
         runtime = 300
@@ -225,9 +226,9 @@ rm  {output.complete_gff3}.temp
 
 rule gff_to_gtf:
     input:
-        complete_gff3 = "annotations/{annotation}.complete.gff3",
+        complete_gff3 = "aref/annotations/{annotation}.complete.gff3",
     output:
-        gtf = "annotations/{annotation}.complete.gtf",
+        gtf = "aref/annotations/{annotation}.complete.gtf",
     conda:
         "omics"
     resources:
@@ -242,9 +243,9 @@ rm {output.gtf}.temp
 
 rule gff_to_bed12:
     input:
-        complete_gff3 = "annotations/{annotation}.complete.gff3",
+        complete_gff3 = "aref/annotations/{annotation}.complete.gff3",
     output:
-        bed12 = "annotations/{annotation}.complete.bed"
+        bed12 = "aref/annotations/{annotation}.complete.bed"
     resources:
         mem_mb = 128000,
         runtime = 300
@@ -259,10 +260,10 @@ rm {output.bed12}.temp
 
 rule merge_genes_and_repeats_gff:
     input:
-        complete_repeat_gff3 = "annotations/repeatmasker.complete.gff3",
-        complete_refseq_gff3 = "annotations/refseq.complete.gff3"
+        complete_repeat_gff3 = "aref/annotations/repeatmasker.complete.gff3",
+        complete_refseq_gff3 = "aref/annotations/refseq.complete.gff3"
     output:
-        merged_gff3 = "annotations/repeatmasker_refseq.complete.gff3"
+        merged_gff3 = "aref/annotations/repeatmasker_refseq.complete.gff3"
     resources:
         mem_mb = 128000,
         runtime = 300
@@ -277,10 +278,10 @@ rm {output.merged_gff3}.temp
 
 rule merge_OG_genes_and_repeats_gff3:
     input:
-        repeatmasker = "annotations/repeatmasker.gff3",
-        refseq = "annotations/refseq.gff3"
+        repeatmasker = "aref/annotations/repeatmasker.gff3",
+        refseq = "aref/annotations/refseq.gff3"
     output:
-        merged_gff3 = "annotations/repeatmasker_refseq.gff3"
+        merged_gff3 = "aref/annotations/repeatmasker_refseq.gff3"
     resources:
         mem_mb = 128000,
         runtime = 300
@@ -297,10 +298,10 @@ rm {output.merged_gff3}.temp
 
 rule merge_genes_and_repeats_gtf:
     input:
-        complete_repeat_gtf = "annotations/repeatmasker.complete.gtf",
-        complete_refseq_gtf = "annotations/refseq.complete.gtf"
+        complete_repeat_gtf = "aref/annotations/repeatmasker.complete.gtf",
+        complete_refseq_gtf = "aref/annotations/refseq.complete.gtf"
     output:
-        merged_gtf = "annotations/repeatmasker_refseq.complete.gtf"
+        merged_gtf = "aref/annotations/repeatmasker_refseq.complete.gtf"
     resources:
         mem_mb = 128000,
         runtime = 300
@@ -315,10 +316,10 @@ rm {output.merged_gtf}.temp
 
 rule tabixindex:
     input:
-        annot = "annotations/{annot}"
+        annot = "aref/annotations/{annot}"
     output:
-        gz = "annotations/{annot}.gz",
-        index = "annotations/{annot}.gz.tbi"
+        gz = "aref/annotations/{annot}.gz",
+        index = "aref/annotations/{annot}.gz.tbi"
     resources:
         mem_mb = 60000,
         runtime = 300
@@ -333,9 +334,9 @@ tabix -p gff {input.annot}.gz
 
 rule get2bitgenome:
     input:
-        ref = "ref.fa"
+        ref = "aref/ref.fa"
     output:
-        genome2bit = "ref.2bit"
+        genome2bit = "aref/ref.2bit"
     conda:
         "omics"
     shell:
@@ -346,13 +347,13 @@ faToTwoBit {input.ref} {output.genome2bit}
 
 rule makeTxDB:
     input:
-        refseq = "annotations/refseq.gff3",
-        repeatmasker = "annotations/repeatmasker.complete.gff3",
-        genome2bit = "ref.2bit"
+        refseq = "aref/annotations/refseq.gff3",
+        repeatmasker = "aref/annotations/repeatmasker.complete.gff3",
+        genome2bit = "aref/ref.2bit"
     output:
-        txdb = "annotations/repeatmasker_refseq.complete.sqlite",
-        txdbrefseq = "annotations/refseq.sqlite",
-        txdbrepeatmasker = "annotations/repeatmasker.complete.sqlite"
+        txdb = "aref/annotations/repeatmasker_refseq.complete.sqlite",
+        txdbrefseq = "aref/annotations/refseq.sqlite",
+        txdbrepeatmasker = "aref/annotations/repeatmasker.complete.sqlite"
     resources:
         mem_mb = 40000
     conda:
@@ -362,9 +363,9 @@ rule makeTxDB:
 
 rule get_transcriptome:
     input:
-        gtf = "annotations/{annot}.gtf",
+        gtf = "aref/annotations/{annot}.gtf",
     output:
-        fa = "annotations/{annot}.fa"
+        fa = "aref/annotations/{annot}.fa"
     params:
         genome = "ref.fa"
     resources:
@@ -379,9 +380,9 @@ agat_sp_extract_sequences.pl -g {input.gtf} -f {params.genome} -t exon --merge -
 
 rule annotate_rtes:
     input:
-        r_annotation_fragmentsjoined = "annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv",
+        r_annotation_fragmentsjoined = "aref/annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv",
     output:
-        r_repeatmasker_annotation = "annotations/repeatmasker_annotation.csv",
+        r_repeatmasker_annotation = "aref/annotations/repeatmasker_annotation.csv",
     conda:
         "evo2"
     script:
@@ -389,8 +390,8 @@ rule annotate_rtes:
 
 rule getRTEbeds:
     input:
-        r_annotation_fragmentsjoined = "annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv",
-        r_repeatmasker_annotation = "annotations/repeatmasker_annotation.csv",
+        r_annotation_fragmentsjoined = "aref/annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv",
+        r_repeatmasker_annotation = "aref/annotations/repeatmasker_annotation.csv",
     output:
         outfile = "annotations/rte_beds/outfile.txt"
     conda:
@@ -400,11 +401,11 @@ rule getRTEbeds:
 
 rule element_analysis:
     input:
-        r_annotation_fragmentsjoined = "annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv"
+        r_annotation_fragmentsjoined = "aref/annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv"
     params:
         l13 = config["l13fasta"]
     output:
-        outfile = "RefAnalysis/l1element_evo.outfile"
+        outfile = "aref/RefAnalysis/l1element_evo.outfile"
     conda:
         "evo2"
     script:
@@ -413,9 +414,9 @@ rule element_analysis:
 
 rule make_star_index:
     input:
-        reference = "ref.fa"
+        reference = "aref/ref.fa"
     output:
-        outfile = "ref_indeces/make_star_index.out"
+        outfile = "aref/ref_indeces/make_star_index.out"
     resources:
         cpus_per_task = 32,
         mem_mb = 128000,
@@ -433,10 +434,10 @@ rule cpgIslandFun:
     params:
         ref_cpgislands = config["ref_cpgislands"]
     output:
-        cpg_islands_fullinfo = "annotations/cpg_islands.tsv",
-        cpg_islands = "annotations/cpg_islands.bed",
-        cpgi_shores = "annotations/cpgi_shores.bed",
-        cpgi_shelves = "annotations/cpgi_shelves.bed"
+        cpg_islands_fullinfo = "aref/annotations/cpg_islands.tsv",
+        cpg_islands = "aref/annotations/cpg_islands.bed",
+        cpgi_shores = "aref/annotations/cpgi_shores.bed",
+        cpgi_shelves = "aref/annotations/cpgi_shelves.bed"
     resources:
         cpus_per_task = 2,
         mem_mb = 20000,
@@ -452,9 +453,9 @@ rule copySelectAnnotations:
         ref_telomere = config["ref_telomere"],
         ref_ccres = config["ref_ccres"]
     output:
-        ref_cytobands = "annotations/cytobands.bed",
-        ref_telomere = "annotations/telomeres.bed",
-        ref_ccres = "annotations/ccres.bed"
+        ref_cytobands = "aref/annotations/cytobands.bed",
+        ref_telomere = "aref/annotations/telomeres.bed",
+        ref_ccres = "aref/annotations/ccres.bed"
     shell:
         """
 cp {params.ref_cytobands} {output.ref_cytobands}
