@@ -46,7 +46,11 @@ for pipeline in config["pipelines_to_deploy"]:
             snakefile: "ldna/snakefile"
             config: config["ldna"]
             prefix: "ldna"
-        use rule * from ldna as ldna_*
+        use rule * from ldna exclude dorado align_to_updated_ref as ldna_*
+        if config["ldna"]["use_aref_basecalls"] == True:
+            use rule align_to_updated_ref from ldna as ldna_align_to_updated_ref
+        else:
+            use rule dorado from ldna as ldna_dorado
         def ldna_rally():
             seqsummary = expand("qc/{sample}/{sample}.doradosummary.txt", sample = config["ldna"]["samples"])
             pycoQC = expand("qc/{sample}/{sample}pycoQC.html", sample = config["ldna"]["samples"])
@@ -77,17 +81,6 @@ for pipeline in config["pipelines_to_deploy"]:
         for e in lrna_rally():
             final_input.append("lrna/" + e)
 
-<<<<<<< HEAD
-    if pipeline == "gref":
-        module gref:
-            snakefile: "gref/snakefile"
-            config: config["gref"]
-            prefix: "gref"
-        use rule * from gref as gref_*
-        def gref_rally():
-            return ["updated_ref/updated_ref.fa.fai"]
-        for e in gref_rally():
-            final_input.append("gref/" + e)
     if pipeline == "aref":
         module aref:
             snakefile: "aref/snakefile"
@@ -112,8 +105,6 @@ for pipeline in config["pipelines_to_deploy"]:
             return list(flatten(paths))
         for e in aref_rally():
             final_input.append("aref/" + e)
-=======
->>>>>>> refs/remotes/origin/main
     if pipeline == "srna":
         module srna:
             snakefile: "srna/snakefile"
@@ -158,5 +149,6 @@ rule all:
             final_input            
             ]
     default_target: True
+
 
 include: "rules.smk"
