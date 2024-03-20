@@ -80,6 +80,8 @@ for pipeline in config["pipelines_to_deploy"]:
                 "annotations/rte_beds/outfile.txt",
                 "annotations/repeatmasker_refseq.complete.sqlite",
                 "annotations/cytobands.bed",
+                "RefAnalysis/l1element_evo.outfile",
+                "RefAnalysis/tldr_plots/tldr_plots.rds",
                 expand("annotations/{annot}.fa", annot = ["repeatmasker_refseq.complete", "repeatmasker.complete", "refseq.complete"])
             ]
             return list(flatten(paths))

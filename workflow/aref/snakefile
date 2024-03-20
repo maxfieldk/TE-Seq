@@ -30,6 +30,16 @@ mv tldr/*.table.txt {output.tldr}
 mv tldr $(dirname {output.tldr})/
         """
 
+rule analyze_insertions:
+    input:
+        tldroutput = "updated_ref/tldr.table.txt"
+    output:
+        plots = "RefAnalysis/tldr_plots/tldr_plots.rds"
+    conda:
+        "repeatanalysis"
+    script:
+        "scripts/analyze_insertions.R"
+
 rule update_reference:
     input:
         reference = lambda w: config["tldr_input_bam_ref"],
@@ -37,7 +47,7 @@ rule update_reference:
     output:
         updated_reference = "updated_ref/updated_ref.fa"
     conda:
-        "omics"
+        "repeatanalysis"
     script:
         "scripts/create_reference.R"
 
@@ -129,8 +139,8 @@ rule mergeGtfsandCleanupRM:
         """
 cat {input} > {output.gtf}
 sort -k1,1V -k4,4n -k5,5n {output.gtf} > tmp.gtf
-ls -d {params.module_prefix}/RM_* | xargs rm -r
 mv tmp.gtf {output.gtf}
+find aref/ -type d -name 'RM_*' -exec rm -r {} +
         """
 
 
