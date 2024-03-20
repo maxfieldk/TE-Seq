@@ -104,7 +104,6 @@ new_id_mapping <- new_id_mapping %>%
     dplyr::select(gene_id, new_id) %>%
     dplyr::rename(GiesmaID = new_id)
 
-new_id_mapping %>% write_csv("annotations/giesmaidmapping.csv")
 
 
 rmgr <- GRanges(rm %>% full_join(new_id_mapping) %>% relocate(GiesmaID, .after = gene_id) %>% dplyr::select(-gene_id) %>% dplyr::rename(gene_id = GiesmaID))

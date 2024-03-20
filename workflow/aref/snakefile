@@ -146,7 +146,8 @@ find aref/ -type d -name 'RM_*' -exec rm -r {} +
 
 rule process_gtf:
     input:
-        gtf = "repeatmasker/repeatmasker.gtf"
+        gtf = "repeatmasker/repeatmasker.gtf",
+        ref_cytobands = "annotations/cytobands.bed"
     output:
         repmask_gff2 = "annotations/repeatmasker.gff2",
         repmask_gff3 = "annotations/repeatmasker.gff3",

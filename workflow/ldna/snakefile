@@ -38,6 +38,38 @@ basecaller \
 --reference {params.reference} > {output.calls}
         """
 
+
+
+
+rule dorado_bam_to_fastq:
+    input:
+        calls = "intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.bam"
+    output:
+        fastq = "intermediates/{sample}/fastqs/dorado/{sample}.fq.gz"
+    resources:
+        cpus_per_task =12
+    shell:
+        """
+samtools fastq -T "*" {input.bam} | gzip > {output.fastq}
+        """
+
+# rule align_to_updated_ref:
+#     input:
+#         fastq = "intermediates/{sample}/fastqs/dorado/{sample}.fq.gz"
+#     output:
+#         bam = "intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.bam"
+#     params:
+#         ref = config["reference"]
+#     resources:
+#         cpus_per_task =12,
+#         threads = 12,
+#         runtime = 5760,
+#         mem_mb = 128000,
+#         slurm_partition="gpu-he",
+#         slurm_extra="--time=96:00:00 --constraint=a6000 --gres=gpu:2"
+#     shell:
+#         """
+
 rule dorado_barcode:
     input:
         dir = "rawdata/"
