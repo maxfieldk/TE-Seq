@@ -14,7 +14,8 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            r_annotation_fragmentsjoined = "annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv"
+            r_annotation_fragmentsjoined = "annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv",
+            ref = "aref/ref.fa"
         ), env = globalenv())
         assign("outputs", list(
             r_repeatmasker_annotation = "annotations/repeatmasker_annotation.csv"
@@ -138,7 +139,7 @@ rmlengthreq <- rmfragments %>%
 
 
 # Annotate Intactness
-fa <- Rsamtools::FaFile("ref.fa")
+fa <- Rsamtools::FaFile(inputs$ref)
 
 ranges <- GRanges(rmfragments)
 l1hsranges <- ranges[grepl("L1HS", ranges$gene_id)]
@@ -263,11 +264,11 @@ rmfragments_nonref$insert_seqnames <- insert_seqnames
 rmfragments_nonref$insert_start <- insert_start
 rmfragments_nonref$insert_end <- insert_end
 
+rmfragments_refgr <- GRanges(rmfragments_ref)
 rmfragmentsgr_properinsertloc <- rmfragments_refgr
 tryCatch(
     {
         rmfragments_nonrefgr <- GRanges(rmfragments_nonref %>% dplyr::select(-seqnames, -start, -end) %>% dplyr::relocate(gene_id, insert_seqnames, source, type, insert_start, insert_end, strand) %>% dplyr::rename(seqnames = insert_seqnames, start = insert_start, end = insert_end))
-        rmfragments_refgr <- GRanges(rmfragments_ref)
         rmfragmentsgr_properinsertloc <- c(rmfragments_refgr, rmfragments_nonrefgr)
     },
     error = function(e) {

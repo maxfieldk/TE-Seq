@@ -12,7 +12,7 @@ rule dorado:
     params:
         dorado = config["dorado"],
         basecallingModel = lambda w: config["basecallingModel"][w.rate][w.type],
-        reference = config["reference"]
+        reference = config["tldr_input_bam_ref"]
     resources:
         cpus_per_task =12,
         threads = 12,
@@ -42,7 +42,7 @@ rule tldr:
         tldr_input_bam_ref = lambda w: config["tldr_input_bam_ref"],
         tldr_te_ref = config["tldr_te_ref"]
     output:
-        tldr = "aref/updated_ref/tldr.table.txt"
+        tldr = "aref/tldr/tldr.table.txt"
     resources:
         cpus_per_task = 24,
         mem_mb = 100000,
@@ -69,7 +69,7 @@ mv tldr $(dirname {output.tldr})/
 
 rule analyze_insertions:
     input:
-        tldroutput = "aref/updated_ref/tldr.table.txt"
+        tldroutput = "aref/tldr/tldr.table.txt"
     output:
         plots = "aref/RefAnalysis/tldr_plots/tldr_plots.rds"
     conda:
@@ -80,19 +80,29 @@ rule analyze_insertions:
 rule update_reference:
     input:
         reference = lambda w: config["tldr_input_bam_ref"],
-        tldroutput = "aref/updated_ref/tldr.table.txt"
+        tldroutput = "aref/tldr/tldr.table.txt"
     output:
-        updated_reference = "aref/updated_ref/updated_ref.fa"
+        updated_reference = "aref/ref.fa"
     conda:
         "repeatanalysis"
     script:
         "scripts/create_reference.R"
 
+rule move_starting_reference:
+    params:
+        ref = config["starting_ref"]
+    output:
+        ref = "aref/ref.fa"
+    shell:
+        """
+cp {params.ref} {output.ref}
+        """
+
 rule index_reference:
     input:
-        reference = "aref/updated_ref/updated_ref.fa"
+        reference = "aref/ref.fa"
     output:
-        reference_index = "aref/updated_ref/updated_ref.fa.fai"
+        reference_index = "aref/ref.fa.fai"
     conda:
         "omics"
     shell:
@@ -364,10 +374,9 @@ rule makeTxDB:
 rule get_transcriptome:
     input:
         gtf = "aref/annotations/{annot}.gtf",
+        ref = "aref/ref.fa"
     output:
         fa = "aref/annotations/{annot}.fa"
-    params:
-        genome = "ref.fa"
     resources:
         mem_mb = 128000,
         runtime = 300
@@ -375,12 +384,13 @@ rule get_transcriptome:
         "omics"
     shell:
         """
-agat_sp_extract_sequences.pl -g {input.gtf} -f {params.genome} -t exon --merge -o {output.fa}
+agat_sp_extract_sequences.pl -g {input.gtf} -f {input.ref} -t exon --merge -o {output.fa}
         """
 
 rule annotate_rtes:
     input:
         r_annotation_fragmentsjoined = "aref/annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv",
+        ref = "aref/ref.fa"
     output:
         r_repeatmasker_annotation = "aref/annotations/repeatmasker_annotation.csv",
     conda:
@@ -393,7 +403,7 @@ rule getRTEbeds:
         r_annotation_fragmentsjoined = "aref/annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv",
         r_repeatmasker_annotation = "aref/annotations/repeatmasker_annotation.csv",
     output:
-        outfile = "annotations/rte_beds/outfile.txt"
+        outfile = "aref/annotations/rte_beds/outfile.txt"
     conda:
         "evo2"
     script:
@@ -401,7 +411,8 @@ rule getRTEbeds:
 
 rule element_analysis:
     input:
-        r_annotation_fragmentsjoined = "aref/annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv"
+        r_annotation_fragmentsjoined = "aref/annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv",
+        ref = "aref/ref.fa"
     params:
         l13 = config["l13fasta"]
     output:

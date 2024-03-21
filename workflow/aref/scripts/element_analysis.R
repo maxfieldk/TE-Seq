@@ -39,7 +39,8 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            r_annotation_fragmentsjoined = "annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv"
+            r_annotation_fragmentsjoined = "annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv",
+            ref = "aref/ref.fa"
         ), env = globalenv())
         assign("params", list(l13 = conf$l13fasta), env = globalenv())
         assign("outputs", list(outfile = "RefAnalysis/element_analysis.outfile"), env = globalenv())
@@ -51,7 +52,7 @@ dir.create(outputdir, recursive = TRUE, showWarnings = FALSE)
 
 options(scipen = 999)
 
-fa <- FaFile("ref.fa")
+fa <- FaFile(inputs$ref)
 
 rmfragments <- read_csv(inputs$r_annotation_fragmentsjoined, col_names = TRUE)
 
@@ -183,16 +184,16 @@ for (element in pass) {
         dplyr::select(start, end) %>%
         mutate(gene_id = element) %>%
         mutate(feature = "ORF2")
-    enrow <- tibble(start = secondorfdf$start, end = secondorfdf$start + ENcoordsnt[2]) %>%
+    enrow <- tibble(start = secondorfrow$start, end = secondorfrow$start + ENcoordsnt[2]) %>%
         mutate(gene_id = element) %>%
         mutate(feature = "EN")
-    rtrow <- tibble(start = secondorfdf$start + RTcoordsnt[1], end = secondorfdf$start + RTcoordsnt[2]) %>%
+    rtrow <- tibble(start = secondorfrow$start + RTcoordsnt[1], end = secondorfrow$start + RTcoordsnt[2]) %>%
         mutate(gene_id = element) %>%
         mutate(feature = "RT")
-    X5UTRrow <- tibble(start = 1, end = firstorfdf$start - 1) %>%
+    X5UTRrow <- tibble(start = 1, end = firstorfrow$start - 1) %>%
         mutate(gene_id = element) %>%
         mutate(feature = "5UTR")
-    X3UTRrow <- tibble(start = secondorfdf$end + 1, end = length(flsspass[[element]])) %>%
+    X3UTRrow <- tibble(start = secondorfrow$end + 1, end = length(flsspass[[element]])) %>%
         mutate(gene_id = element) %>%
         mutate(feature = "3UTR")
 

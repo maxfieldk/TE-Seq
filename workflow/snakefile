@@ -59,7 +59,12 @@ for pipeline in config["pipelines_to_deploy"]:
         module aref:
             snakefile: "aref/snakefile"
             config: config["aref"]
-        use rule * from aref as aref_*
+        if config["aref"]["update_ref_with_tldr"] == "yes":
+                use rule * from aref exclude move_starting_reference as aref_*
+        else:
+               use rule * from aref exclude update_reference as aref_*
+
+
         def aref_rally():
             paths = [
                 "aref/annotations/repeatmasker.complete.gff3.gz.tbi",
