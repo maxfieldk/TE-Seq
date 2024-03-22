@@ -1,4 +1,6 @@
 source("~/data/common/myDefaults.r")
+library(configr)
+library(Biostrings)
 
 conf <- configr::read.config(file = "conf/config.yaml")[["aref"]]
 tryCatch(
@@ -19,8 +21,7 @@ df <- read_delim(inputs$tldroutput) %>%
     mutate(faName = paste0("nonrefins_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>%
     filter(!is.na(Family)) %>%
     filter(!is.na(StartTE)) %>%
-    filter(Filter == "PASS") %>%
-    filter(NumSamples > 1)
+    filter(Filter == "PASS")
 
 df <- df[!(df %$% faName %>% duplicated()), ]
 

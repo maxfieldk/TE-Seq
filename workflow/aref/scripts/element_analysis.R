@@ -39,33 +39,70 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            r_annotation_fragmentsjoined = "annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv"
+            r_annotation_fragmentsjoined = "aref/annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv",
+            r_repeatmasker_annotation = "aref/annotations/repeatmasker_annotation.csv",
+            ref = "aref/ref.fa"
         ), env = globalenv())
         assign("params", list(l13 = conf$l13fasta), env = globalenv())
-        assign("outputs", list(outfile = "RefAnalysis/element_analysis.outfile"), env = globalenv())
+        assign("outputs", list(outfile = "aref/RefAnalysis/element_analysis.outfile"), env = globalenv())
     }
 )
 
+fa <- FaFile(inputs$ref)
+rmfragments <- read_csv(inputs$r_annotation_fragmentsjoined, col_names = TRUE)
+rmfamilies <- read_csv(inputs$r_repeatmasker_annotation, col_names = TRUE)
+rmann <- left_join(rmfragments, rmfamilies)
 outputdir <- dirname(outputs$outfile)
 dir.create(outputdir, recursive = TRUE, showWarnings = FALSE)
+setwd(outputdir)
 
 options(scipen = 999)
 
-fa <- FaFile("ref.fa")
 
-rmfragments <- read_csv(inputs$r_annotation_fragmentsjoined, col_names = TRUE)
-
-gtf <- GRanges(rmfragments)
+gtf <- GRanges(rmann)
 l1hsgtf <- gtf[grepl("L1HS", gtf$gene_id)]
 l1pa2gtf <- gtf[grepl("L1PA2", gtf$gene_id)]
 l1pa3gtf <- gtf[grepl("L1PA3", gtf$gene_id)]
 
-l1hspa2gtf <- c(c(l1hsgtf, l1pa2gtf), l1pa3gtf)
-gene_ids <- l1hspa2gtf$gene_id
-l1hspa2ss <- getSeq(fa, l1hspa2gtf)
-mcols(l1hspa2ss) <- mcols(l1hspa2gtf)
-names(l1hspa2ss) <- mcols(l1hspa2ss)$gene_id
-flss <- l1hspa2ss[width(l1hspa2ss) > 5999]
+l1hspa23gtf <- c(c(l1hsgtf, l1pa2gtf), l1pa3gtf)
+l1hspa23df <- as.data.frame(l1hspa23gtf) %>% tibble()
+
+# plot number of l1 sequences
+pf <- rmann %>%
+    filter(grepl("L1PA|L1HS", rte_subfamily)) %>%
+    group_by(rte_subfamily, refstatus) %>%
+    summarise(n = n()) %>%
+    ungroup()
+p <- pf %>% ggplot() +
+    geom_bar(aes(x = rte_subfamily, y = n), color = "black", stat = "identity") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    labs(title = "Number of L1 Elements per Subfamily", x = "Family", y = "Number of Elements", fill = "Reference Status") +
+    facet_wrap(~refstatus, scales = "free") +
+    mytheme +
+    anchorbar
+mysave("l1familycount.png", w = 8, h = 5)
+
+p <- rmann %>%
+    filter(grepl("L1PA|L1HS", rte_subfamily)) %>%
+    filter(length > 5999) %>%
+    group_by(rte_subfamily, refstatus, l1_intactness_req) %>%
+    summarise(n = n()) %>%
+    ungroup() %>%
+    ggplot() +
+    geom_bar(aes(x = rte_subfamily, y = n, fill = l1_intactness_req), color = "black", stat = "identity") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    labs(title = "Number of Full Length L1 Elements per Subfamily", x = "Family", y = "Number of Elements", fill = "Reference Status") +
+    facet_wrap(~refstatus, scales = "free") +
+    mytheme +
+    anchorbar
+mysave("l1FLfamilycount.png", w = 8, h = 5)
+
+
+gene_ids <- l1hspa23gtf$gene_id
+l1hspa2ss <- getSeq(fa, l1hspa23gtf)
+mcols(l1hspa23ss) <- mcols(l1hspa23gtf)
+names(l1hspa23ss) <- mcols(l1hspa23ss)$gene_id
+flss <- l1hspa23ss[width(l1hspa23ss) > 5999]
 
 
 # last_n <- 20
@@ -102,51 +139,32 @@ for (element in names(pos)) {
         pass <- c(pass, element)
     }
 }
-gtfpass <- l1hspa2gtf[l1hspa2gtf$gene_id %in% pass]
+gtfpass <- l1hspa23gtf[l1hspa23gtf$gene_id %in% pass]
 flsspass <- flss[pass]
 
 pos[["L1HS_17p12_2"]]
 pos[["L1PA3_22p13_1"]]
 pos[["L1PA3_15p13_2"]]
 
+
+gtfpassdf <- as.data.frame(gtfpass) %>% tibble()
+gtfpassdf %$% refstatus %>% table()
+gtfpassdf %>%
+    filter(refstatus == "NonRef") %$% family %>%
+    table()
+p <- gtfpassdf %>% ggplot() +
+    geom_bar(aes(x = family, fill = refstatus))
+mysave("l1_intact_refstatus.png")
 ###### WRITE PASS ELEMENTS IN VARIOUS FILE FORMATS
 # gtf
-export(gtfpass, paste0(outputdir, "l1hspa2_orfsintact.gtf"))
+export(gtfpass, "l1hspa23_orfsintact.gtf")
 # dataframe
 element_annotation <- tibble(gene_id = pass, intactness = "ORFs_Intact")
 
 # location genic vs nongenic for all elements
 # centromeric vs non centromeriuc for all elements
 
-writeXStringSet(flsspass, paste0(outputdir, "l1hspa2intact.fa"))
-
-###### WRITE ALL NONREF ELEMENTS IN VARIOUS FILE FORMATS
-# gtf
-
-
-
-# system("conda activate omics; liftOver /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations6TldrDerived/refnonrefl1hspa2intact.bed4 \
-# /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/liftOver/hs1ToHg38.over.chain \
-# /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations6TldrDerived/refnonrefl1hspa2intact.hg38.bed4 /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations6TldrDerived/refnonrefl1hspa2intact.hg38.unmapped")
-
-
-# system("liftOver /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations6TldrDerived/repeats.bed4 \
-# /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/liftOver/hs1ToHg38.over.chain \
-# /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations6TldrDerived/repeats.hg38.bed4 /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations6TldrDerived/repeats.hg38.unmapped")
-
-# dd <- dfm %>%
-#     mutate(program = "TLDR") %>%
-#     mutate(feature = "exon") %>%
-#     mutate(frame = ".") %>%
-#     mutate(FamilyRMstyle = ifelse(Family == "L1", "LINE/L1", ifelse(Family == "ALU", "SINE/Alu", ifelse(Family == "SVA", "Retroposon/SVA", ifelse(Family == "ERV", "LTR/ERVK", NA))))) %>%
-#     mutate(SubFamilyRMstyle = ifelse(Subfamily %in% c("L1Ta", "L1preTa"), "L1HS", Subfamily)) %>%
-#     mutate(rmid = paste0(FamilyRMstyle, "/", SubFamilyRMstyle, "/", UUID)) %>%
-#     relocate(rmid) %>%
-#     mutate(geneid = paste0("gene_id \"", rmid, "\"")) %>%
-#     mutate(transcriptid = paste0("transcript_id \"", rmid, "\"")) %>%
-#     mutate(target = paste0("Target \"", FamilyRMstyle, "/", SubFamilyRMstyle, " ", StartTE, " ", EndTE, "\"", "; ")) %>%
-#     mutate(description = paste(geneid, transcriptid, target, sep = "; ")) %>%
-#     dplyr::select(faName, program, feature, element_start, element_end, TEMatch, Strand, frame, description)
+writeXStringSet(flsspass, "/l1hspa23intact.fa")
 
 
 # A_freq <- letterFrequency(subseq(flsspass, -last_n, -1), "A") / last_n
@@ -183,16 +201,16 @@ for (element in pass) {
         dplyr::select(start, end) %>%
         mutate(gene_id = element) %>%
         mutate(feature = "ORF2")
-    enrow <- tibble(start = secondorfdf$start, end = secondorfdf$start + ENcoordsnt[2]) %>%
+    enrow <- tibble(start = secondorfrow$start, end = secondorfrow$start + ENcoordsnt[2]) %>%
         mutate(gene_id = element) %>%
         mutate(feature = "EN")
-    rtrow <- tibble(start = secondorfdf$start + RTcoordsnt[1], end = secondorfdf$start + RTcoordsnt[2]) %>%
+    rtrow <- tibble(start = secondorfrow$start + RTcoordsnt[1], end = secondorfrow$start + RTcoordsnt[2]) %>%
         mutate(gene_id = element) %>%
         mutate(feature = "RT")
-    X5UTRrow <- tibble(start = 1, end = firstorfdf$start - 1) %>%
+    X5UTRrow <- tibble(start = 1, end = firstorfrow$start - 1) %>%
         mutate(gene_id = element) %>%
         mutate(feature = "5UTR")
-    X3UTRrow <- tibble(start = secondorfdf$end + 1, end = length(flsspass[[element]])) %>%
+    X3UTRrow <- tibble(start = secondorfrow$end + 1, end = length(flsspass[[element]])) %>%
         mutate(gene_id = element) %>%
         mutate(feature = "3UTR")
 
@@ -201,7 +219,11 @@ for (element in pass) {
     orf2[[element]] <- flss[[element]][secondorf]
 }
 
-write_delim(element_ann_df %>% dplyr::select(gene_id, start, end, feature), paste0(outputdir, "/intact_l1_anatomy_coordinates.tsv"), delim = "\t", col_names = TRUE)
+write_delim(element_ann_df %>% dplyr::select(gene_id, start, end, feature), "intact_l1_anatomy_coordinates.tsv", delim = "\t", col_names = TRUE)
+
+
+
+
 
 
 orf1ss <- DNAStringSet(orf1)
@@ -219,7 +241,7 @@ system("echo $(pwd); mafft --auto orf1ps.fa > orf1ps.aln.fa")
 aln <- read.alignment("orf1ps.aln.fa", format = "fasta")
 d <- dist.alignment(aln, "identity")
 orf1Tree <- nj(d)
-png(paste0(outputdir, "orf1Tree.png"), width = 10, height = 30, units = "in", res = 300)
+png(paste0("orf1Tree.png"), width = 10, height = 30, units = "in", res = 300)
 plot(orf1Tree, main = "Phylogenetic Tree of ORF1 Sequences")
 dev.off()
 
@@ -244,26 +266,44 @@ system("mkdir -p blastdb; cd blastdb; makeblastdb -in ../l1.3.seqs.fa -dbtype nu
 ## without the extension)
 
 bl <- blast(db = "./blastdb/l1.3.seqs")
-short <- l1hspa2ss[width(l1hspa2ss) < 3000]
-long <- l1hspa2ss[width(l1hspa2ss) > 5999]
-bres <- tibble(predict(bl, l1hspa2ss))
+short <- l1hspa23ss[width(l1hspa23ss) < 3000]
+long <- l1hspa23ss[width(l1hspa23ss) > 5999]
+bres <- tibble(predict(bl, l1hspa23ss)) %>% left_join(rmfragments, by = c("QueryID" = "gene_id"))
+
 l1.3aln <- bres %>%
+    filter(SubjectID == "l1.3") %>%
+    filter(refstatus == "NonRef") %>%
+    rowwise() %>%
+    mutate(minIget = min(S.start, S.end)) %>%
+    mutate(maxIget = max(S.start, S.end))
+
+l13aln <- bres %>%
     filter(SubjectID == "l1.3") %>%
     rowwise() %>%
     mutate(minIget = min(S.start, S.end)) %>%
     mutate(maxIget = max(S.start, S.end))
+
+
 
 grs <- GRanges(seqnames = "l1.3", ranges = IRanges(start = l1.3aln$minIget, end = l1.3aln$maxIget, name = l1.3aln$QueryID))
 
 library(ggbio)
 # needed but cannot be loaded with orfik
 {
+    notsplitnonrefl1hs <- bres %>%
+        filter(SubjectID == "l1.3") %>%
+        filter(refstatus == "NonRef") %>%
+        filter(family == "LINE/L1/L1HS") %>%
+        group_by(QueryID) %>%
+        mutate(n = n()) %>%
+        filter(n < 2)
+
     # non full length cov
     nflgrs <- grs[width(grs) < 6000]
     p <- autoplot(coverage(nflgrs)$l1.3) + mytheme + labs(x = "Position in L1.3 (bp)", y = "Coverage", title = "L1HS(>6000 bp) Blast to L1.3")
     mysave("l13covnotfulllength.png")
-    p <- autoplot(coverage(grs)$l1.3) + mytheme + labs(x = "Position in L1.3 (bp)", y = "Coverage", title = "L1HS Blast to L1.3")
-    mysave("l13cov.png")
+    p <- autoplot(coverage(grs)$l1.3) + mytheme + labs(x = "Position in L1.3 (bp)", y = "Coverage", title = "NonRef L1HS Blast to L1.3")
+    mysave("nonref_l13cov.png")
     p <- autoplot(grs, aes(color = width)) + mytheme + labs(x = "Position in L1.3 (bp)", y = "Coverage", title = "L1HS Blast to L1.3")
     mysave("l13aln.png")
     p <- autoplot(nflgrs, aes(color = width)) + mytheme + labs(x = "Position in L1.3 (bp)", y = "Coverage", title = "L1HS Blast to L1.3")
@@ -332,12 +372,13 @@ mysave("orf2identHist.png")
 
 ##### ggtree
 start_dir <- getwd()
-setwd(outputdir)
 writeXStringSet(flsspass, "flsspass.fa")
 l1hs_intact <- flsspass[grepl("L1HS", names(flsspass))]
 writeXStringSet(l1hs_intact, "l1hs_intact.fa")
 l1pa2_intact <- flsspass[grepl("L1PA2", names(flsspass))]
 writeXStringSet(l1pa2_intact, "l1pa2_intact.fa")
+l1pa3_intact <- flsspass[grepl("L1PA3", names(flsspass))]
+writeXStringSet(l1pa3_intact, "l1pa3_intact.fa")
 system("echo $(pwd); mafft --auto flsspass.fa > flss.aln.fa")
 system("echo $(pwd); mafft --auto l1hs_intact.fa > l1hs_intact.aln.fa")
 
@@ -356,27 +397,27 @@ ttibble_raw <- as_tibble(tree_raw)
 ttibblegapped_raw <- as_tibble(treegapped_raw)
 
 ttibble_raw <- ttibble_raw %>%
+    left_join(gtfpassdf, by = c("label" = "gene_id")) %>%
     mutate(group = str_extract(label, "L1HS|L1PA2")) %>%
-    mutate(group = factor(group, levels = c("L1HS", "L1PA2"))) %>%
-    mutate(ref_status = ifelse(grepl("-", label), "nonref", "ref"))
+    mutate(group = factor(group, levels = c("L1HS", "L1PA2")))
 
 ttibblegapped_raw <- ttibblegapped_raw %>%
+    left_join(gtfpassdf, by = c("label" = "gene_id")) %>%
     mutate(group = str_extract(label, "L1HS|L1PA2")) %>%
-    mutate(group = factor(group, levels = c("L1HS", "L1PA2"))) %>%
-    mutate(ref_status = ifelse(grepl("-", label), "nonref", "ref"))
+    mutate(group = factor(group, levels = c("L1HS", "L1PA2")))
 
 l1hs_intact_tree <- as.treedata(ttibble_raw)
 l1hs_intact_tree_gapped <- as.treedata(ttibblegapped_raw)
 
 p <- ggtree(l1hs_intact_tree, layout = "fan") +
     geom_treescale() +
-    geom_tippoint(aes(color = group)) +
+    geom_tippoint(aes(color = refstatus)) +
     ggtitle("L1HS ORF1&2 Intact Phylogeny")
 mysave("l1hs_intact_tree_fan.png", w = 7, h = 7)
 
 p <- ggtree(l1hs_intact_tree) +
     geom_treescale() +
-    geom_tippoint(aes(color = group)) +
+    geom_tippoint(aes(color = refstatus)) +
     geom_tiplab(aes(label = label)) +
     theme_tree2() +
     xlab("% Mutation") +
@@ -385,7 +426,7 @@ mysave("l1hs_intact_tree.png", w = 5, h = 20)
 
 p <- ggtree(l1hs_intact_tree_gapped) +
     geom_treescale() +
-    geom_tippoint(aes(color = group)) +
+    geom_tippoint(aes(color = refstatus)) +
     geom_tiplab(aes(label = label)) +
     theme_tree2() +
     xlab("% Mutation") +
@@ -413,8 +454,8 @@ p <- simplot("l1hs_intact_alnWconensus.fa", "consensus", window = 1, group = TRU
 mysave("l1hs_intact_alnWconensus_similarity_ONTdRNAerror.png", w = 10, h = 5)
 
 
-data <- tidy_msa(aln1, 1, 100)
-p <- ggtree(tree1) +
+data <- tidy_msa(l1hs_intact_aln_ss, 1, 100)
+p <- ggtree(data) +
     geom_treescale() +
     group
 geom_tippoint(aes(color = group)) +
@@ -429,17 +470,6 @@ mysave("flsspasstreemsa.png", w = 10, h = 20)
 # brestidy
 # mapping <- aes(xmin = start, xmax = end, fill = gene, forward = direction)
 # my_pal <- colorRampPalette(rev(brewer.pal(n = 10, name = "Set3")))
-
-data <- tidy_msa(aln1, 1, 100)
-
-aln1
-alnSubset <- as(
-    DNAMultipleAlignment(unmasked(aln1)[1:3]),
-    "DNAMultipleAlignment"
-)
-
-aln1
-
 
 
 # datagenes <- brestidy %>%
