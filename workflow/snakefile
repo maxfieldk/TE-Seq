@@ -30,9 +30,11 @@ for pipeline in config["pipelines_to_deploy"]:
             seqsummary = expand("ldna/qc/{sample}/{sample}.doradosummary.txt", sample = config["ldna"]["samples"])
             pycoQC = expand("ldna/qc/{sample}/{sample}pycoQC.html", sample = config["ldna"]["samples"])
             haplotaggedbam = expand("ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.haplotagged.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = config["ldna"]["samples"])
-            m1 = "ldna/results/plots/methylartist/locus/methylartistlocusplot_loci_of_interest.outfile",
+            m1 = "ldna/results/plots/methylartist/locus/methylartistlocusplot_loci_of_interest.outfile"
             bedmethanalysis = "ldna/outfiles/bedmethylanalysis.txt"
-            return list(flatten([m1, haplotaggedbam, bedmethanalysis]))
+            sniffles = expand("ldna/intermediates/{sample}/sniffles/sniffles.vcf", sample = config["ldna"]["samples"])
+            clair3 = expand("ldna/intermediates/{sample}/clair3AF{sample}.outfile", sample = config["ldna"]["samples"])
+            return list(flatten([m1, haplotaggedbam, bedmethanalysis, sniffles, clair3, pycoQC, seqsummary]))
         for e in ldna_rally():
             final_input.append(e)
 

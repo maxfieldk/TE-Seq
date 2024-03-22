@@ -8,12 +8,12 @@ rule dorado:
     input:
         dir = "ldna/rawdata/{rate}/{sample}"
     output:
-        calls = "ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.bam"
+        calls = "ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.bam"
     wildcard_constraints:
         sample="[0-9A-Za-z]+",
         type = "[0-9A-Za-z]+",
         rate = "[0-9A-Za-z]+",
-        modifications_string = "[0-9A-Za-z_-]+"
+        modification_string = "[0-9A-Za-z_-]+"
     params:
         dorado = config["dorado"],
         basecallingModel = lambda w: config["basecallingModel"][w.rate][w.type],
@@ -27,7 +27,7 @@ rule dorado:
     shell:
         """
 mkdir -p $(dirname {output.calls})
-mod_string=$(echo {wildcards.modifications_string} | tr "-" ",")
+mod_string=$(echo {wildcards.modification_string} | tr "-" ",")
 
 {params.dorado} \
 basecaller \
@@ -38,34 +38,35 @@ basecaller \
 --reference {params.reference} > {output.calls}
         """
 
-rule dorado_bam_to_fastq:
+rule updated_bam_to_fastq:
     input:
-        calls = "ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.bam"
+        calls = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
     output:
-        fastq = "ldna/intermediates/{sample}/fastqs/dorado/{sample}.fq.gz"
+        fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq.gz"
     resources:
         cpus_per_task =12
     shell:
         """
+mkdir -p $(dirname {output.fastq})
 samtools fastq -T "*" {input.bam} | gzip > {output.fastq}
         """
 
-# rule align_to_updated_ref:
-#     input:
-#         fastq = "intermediates/{sample}/fastqs/dorado/{sample}.fq.gz"
-#     output:
-#         bam = "intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.bam"
-#     params:
-#         ref = config["reference"]
-#     resources:
-#         cpus_per_task =12,
-#         threads = 12,
-#         runtime = 5760,
-#         mem_mb = 128000,
-#         slurm_partition="gpu-he",
-#         slurm_extra="--time=96:00:00 --constraint=a6000 --gres=gpu:2"
-#     shell:
-#         """
+rule align_to_updated_ref:
+    input:
+        fastq = "intermediates/{sample}/fastqs/dorado/{sample}.fq.gz"
+    output:
+        bam = "intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.bam"
+    params:
+        ref = config["reference"]
+    resources:
+        cpus_per_task =20,
+        runtime = 300,
+        mem_mb = 128000
+    conda: "minimap2"
+    shell:
+        """
+minimap2 -a -x map-ont -t 14 {params.reference} {input.fastq} > {output.bam}
+        """
 
 rule dorado_barcode:
     input:
@@ -161,7 +162,7 @@ rule pycoQC:
     shell:
         """
 mkdir -p $(dirname {output})
-pycoQC --summary_file {input.seqsummary} --bam_file {input.sortedbam} --html_outfile {output} --min_pass_qual 10 --sample
+pycoQC --summary_file {input.seqsummary} --bam_file {input.sortedbam} --html_outfile {output} --min_pass_qual 10
         """
 
 # rule multiqc:
@@ -244,7 +245,7 @@ rule whatshap:
     params:
         shortreadsbam = "/oscar/data/jsedivy/mkelsey/freebayes/alignment/lf1.sorted.bam",
         shortreadsbamindex = "/oscar/data/jsedivy/mkelsey/freebayes/alignment/lf1.sorted.bam.bai",
-        vcf = "/oscar/data/jsedivy/mkelsey/freebayes/variants.vcf",
+        vcf = "/oscar/data/jsedivy/mkelsey/freebayes/results/variants.vcf",
         ref = config["reference"]
     output:
         phasedvcf = "ldna/intermediates/phased.vcf"
@@ -262,8 +263,8 @@ whatshap phase \
 -o {output.phasedvcf} \
 --reference={params.ref} \
 {params.vcf} \
-{params.shortreadsbam} \
-{input.sortedbams}
+# {params.shortreadsbam} \
+# {input.sortedbams}
         """
 
 rule bgzipandindexphased:
@@ -1108,12 +1109,13 @@ flye --nano-raw {input.fq} --out-dir $(dirname {output.outfile}) --threads 30
 #tag VARIANT_CALLING
 rule clair3:
     input:
-        bam = "ldna/intermediates/{sample}/alignments/{sample}.sorted.filtered.bam",
-        bai = "ldna/intermediates/{sample}/alignments/{sample}.sorted.filtered.bam.bai"
+        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
+        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
     output:
-        outfile = "ldna/intermediates/{sample}/clair3AF{sample}.outfile"
+        vcf = "ldna/intermediates/{sample}/clair3/full_alignment.vcf.gz"
     params:
         ref = config["reference"],
+        clair3model = config["clair3model"]
     threads: 32
     resources:
         runtime = 1000,
@@ -1125,23 +1127,23 @@ wd=$(pwd)
 mkdir -p $(dirname {output})
 run_clair3.sh \
 --indel_min_af=0.05 \
---bam_fn="{input.bam}" \
+--bam_fn="{input.sortedbam}" \
 --ref_fn="{params.ref}" \
 --threads=24 \
 --platform="ont" \
---model_path="/oscar/data/jsedivy/mkelsey/tools/remoraModels/r1041_e82_400bps_hac_v420" --output=${{wd}}/$(dirname {output.outfile})
-touch {output.outfile}
+--model_path={params.clair3model} --output=${{wd}}/$(dirname {output.outfile})
         """
 
 rule clair3ROI:
     input:
-        bam = "ldna/intermediates/{sample}/alignments/{sample}.sorted.filtered.bam",
-        bai = "ldna/intermediates/{sample}/alignments/{sample}.sorted.filtered.bam.bai"
+        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
+        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
     output:
         outfile = "ldna/intermediates/{sample}/clair3ROIAF{sample}.outfile"
     params:
         ref = config["reference"],
-        roi = "/oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations4/hs1.repeatMasker.l1hs.bed"
+        roi = "/oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations4/hs1.repeatMasker.l1hs.bed",
+        clair3model = config["clair3model"]
     threads: 32
     resources:
         runtime = 1000,
@@ -1154,18 +1156,19 @@ mkdir -p $(dirname {output})
 run_clair3.sh \
 --indel_min_af=0.05 \
 --bed_fn="{params.roi}" \
---bam_fn="{input.bam}" \
+--bam_fn="{input.sortedbam}" \
 --ref_fn="{params.ref}" \
 --threads=24 \
 --platform="ont" \
---model_path="/oscar/data/jsedivy/mkelsey/tools/remoraModels/r1041_e82_400bps_hac_v420" --output=${{wd}}/$(dirname {output})
+--model_path={params.clair3model} --output=${{wd}}/$(dirname {output})
 
 touch {output.outfile}
         """
 
 rule sniffles:
     input:
-        bam = "ldna/intermediates/{sample}/alignments/{sample}.sorted.bam"
+        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
+        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
     output:
         vcf = "ldna/intermediates/{sample}/sniffles/sniffles.vcf"
     params:
@@ -1178,7 +1181,48 @@ rule sniffles:
     shell:
         """
 mkdir -p $(dirname {output})
-sniffles -i {input.bam} -v {output.vcf} --threads 28 --mosaic --reference {params.ref}
+sniffles -i {input.sortedbam} -v {output.vcf} --threads 28 --mosaic --reference {params.ref}
         """
 
 
+rule snpeff:
+    input: 
+        vcf = "ldna/intermediates/{sample}/clair3/full_alignment.vcf.gz",
+        clinvar_bgz = config["clinvar_bgz"]
+    output:
+        csvStats = "ldna/intermediates/{sample}/snpeff/csvStats.csv",
+        htmlStats = "ldna/intermediates/{sample}/snpeff/snpeffStats.html",
+        annvcf = "ldna/intermediates/{sample}/snpeff/snpeff.vcf"
+    shell:
+        """
+snpEff -v -noGenome -interval {input.clinvar_bgz} -chr 'chr' -csvStats {output.csvStats} -htmlStats {output.htmlStats} {input.vcf} > {output.annvcf}
+        """
+
+    
+rule pepper:
+    input:
+        sortedbam = expand("ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"], sample = samples),
+        sortedbamindex = expand("ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["rate"], type = config["type"], modification_string = config["modification_string"], sample = samples)
+    params:
+        ref = config["reference"]
+    output:
+        outfile = "ldna/intermediates/{sample}/pepper/out.outfile"
+    resources:
+        cpus_per_task =10,
+        runtime = 1200,
+        mem_mb = 80000
+    container:
+        "docker://kishwars/pepper_deepvariant:r0.8"
+    shell:	
+        """
+mkdir -p $(dirname {output})
+run_pepper_margin_deepvariant --help
+run_pepper_margin_deepvariant call_variant \
+-b {input.sortedbam} \
+-f {params.ref} \
+-o $(dirname {output.outfile}) \
+-t {resources.cpus_per_task} \
+--ont_r10_q20
+
+touch {output.outfile}
+        """

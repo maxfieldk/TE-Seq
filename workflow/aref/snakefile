@@ -412,6 +412,7 @@ rule getRTEbeds:
 rule element_analysis:
     input:
         r_annotation_fragmentsjoined = "aref/annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv",
+        r_repeatmasker_annotation = "aref/annotations/repeatmasker_annotation.csv",
         ref = "aref/ref.fa"
     params:
         l13 = config["l13fasta"]
@@ -462,14 +463,20 @@ rule copySelectAnnotations:
     params:
         ref_cytobands = config["ref_cytobands"],
         ref_telomere = config["ref_telomere"],
-        ref_ccres = config["ref_ccres"]
+        ref_ccres = config["ref_ccres"],
+        ref_clinvar_bgz = config["ref_clinvar_bgz"],
+        ref_clinvar_tbi = config["ref_clinvar_tbi"]
     output:
         ref_cytobands = "aref/annotations/cytobands.bed",
         ref_telomere = "aref/annotations/telomeres.bed",
-        ref_ccres = "aref/annotations/ccres.bed"
+        ref_ccres = "aref/annotations/ccres.bed",
+        ref_clinvar_bgz = "aref/annotations/clinvar.vcf.gz",
+        ref_clinvar_tbi = "aref/annotations/clinvar.vcf.gz.tbi"
     shell:
         """
 cp {params.ref_cytobands} {output.ref_cytobands}
 cp {params.ref_telomere} {output.ref_telomere}
 cp {params.ref_ccres} {output.ref_ccres}
+cp {params.ref_clinvar_bgz} {output.ref_clinvar_bgz}
+cp {params.ref_clinvar_tbi} {output.ref_clinvar_tbi}
         """
