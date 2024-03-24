@@ -10,7 +10,7 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            tldroutput = "updated_ref/tldr.table.txt",
+            tldroutput = "aref/tldr/tldr.table.txt",
             reference = "/oscar/data/jsedivy/mkelsey/ref/genomes/hs1/hs1.sorted.fa"
         ), env = globalenv())
         assign("outputs", list(updated_reference = "updated_reference/hs1_lf1.fa"), env = globalenv())
@@ -28,7 +28,7 @@ df <- df[!(df %$% faName %>% duplicated()), ]
 # fasta
 ss <- DNAStringSet(df %>% dplyr::arrange(faName) %$% Consensus)
 names(ss) <- df %>% dplyr::arrange(faName) %$% faName
-writeXStringSet(ss, paste0(dirname(outputs$updated_reference), "/nonrefcontigs.fa"), append = FALSE, format = "fasta")
+# writeXStringSet(ss, paste0(dirname(outputs$updated_reference), "/nonrefcontigs.fa"), append = FALSE, format = "fasta")
 
 dir.create(dirname(outputs$updated_reference), recursive = TRUE, showWarnings = FALSE)
 system(sprintf("cp %s %s", inputs$reference, outputs$updated_reference))

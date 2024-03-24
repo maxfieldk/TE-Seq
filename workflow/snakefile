@@ -21,11 +21,10 @@ for pipeline in config["pipelines_to_deploy"]:
         module ldna:
             snakefile: "ldna/snakefile"
             config: config["ldna"]
-        use rule * from ldna exclude dorado align_to_updated_ref as ldna_*
         if config["ldna"]["use_aref_basecalls"] == True:
-            use rule align_to_updated_ref from ldna as ldna_align_to_updated_ref
+            use rule * from ldna exclude dorado as ldna_*
         else:
-            use rule dorado from ldna as ldna_dorado
+            use rule * from ldna exclude align_to_updated_ref as ldna_*
         def ldna_rally():
             seqsummary = expand("ldna/qc/{sample}/{sample}.doradosummary.txt", sample = config["ldna"]["samples"])
             pycoQC = expand("ldna/qc/{sample}/{sample}pycoQC.html", sample = config["ldna"]["samples"])
@@ -64,7 +63,7 @@ for pipeline in config["pipelines_to_deploy"]:
         if config["aref"]["update_ref_with_tldr"] == "yes":
                 use rule * from aref exclude move_starting_reference as aref_*
         else:
-               use rule * from aref exclude update_reference as aref_*
+               use rule * from aref exclude cleanup_updated_ref as aref_*
 
 
         def aref_rally():

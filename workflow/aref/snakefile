@@ -69,9 +69,14 @@ mv tldr $(dirname {output.tldr})/
 
 rule analyze_insertions:
     input:
-        tldroutput = "aref/tldr/tldr.table.txt"
+        tldroutput = "aref/tldr/tldr.table.txt",
+        r_annotation_fragmentsjoined = "aref/annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv",
+        r_repeatmasker_annotation = "aref/annotations/repeatmasker_annotation.csv",
+        ref = "aref/ref_pre_ins_filtering.fa"
     output:
-        plots = "aref/RefAnalysis/tldr_plots/tldr_plots.rds"
+        plots = "aref/RefAnalysis/tldr_plots/tldr_plots.rds",
+        contigs_to_keep = "aref/contigs_to_keep.txt",
+        filtered_tldr = "aref/tldr/tldr.table.kept_in_updated_ref.txt"
     conda:
         "repeatanalysis"
     script:
@@ -82,11 +87,28 @@ rule update_reference:
         reference = lambda w: config["tldr_input_bam_ref"],
         tldroutput = "aref/tldr/tldr.table.txt"
     output:
-        updated_reference = "aref/ref.fa"
+        updated_reference = "aref/ref_pre_ins_filtering.fa"
     conda:
         "repeatanalysis"
     script:
         "scripts/create_reference.R"
+
+
+# rule cleanup_updated_ref:
+#     input:
+#         updated_reference = "aref/ref_pre_ins_filtering.fa",
+#         contigs_to_keep = "aref/contigs_to_keep.txt"
+#     output:
+#         filtered_ref = "aref/ref.fa"
+#     conda:
+#         "omics"
+#     shell:
+#         """
+# seqkit grep --by-name -f {input.contigs_to_keep} {input.updated_reference} > {output.filtered_ref}
+# samtools faidx {output.filtered_ref}
+#         """
+
+rule call_transductions:
 
 rule move_starting_reference:
     params:
@@ -179,7 +201,7 @@ rule mergeGtfsandCleanupRM:
     params:
         module_prefix = config["prefix"]
     output:
-        gtf = "aref/repeatmasker/repeatmasker.gtf"
+        gtf = "aref/repeatmasker/repeatmasker_pre_ins_filtered.gtf"
     conda:
         "evo"
     shell:
@@ -190,20 +212,21 @@ mv tmp.gtf {output.gtf}
 find aref/ -type d -name 'RM_*' -exec rm -r {} +
         """
 
-
-rule process_gtf:
-    input:
-        gtf = "aref/repeatmasker/repeatmasker.gtf",
-        ref_cytobands = "aref/annotations/cytobands.bed"
-    output:
-        repmask_gff2 = "aref/annotations/repeatmasker.gff2",
-        repmask_gff3 = "aref/annotations/repeatmasker.gff3",
-        r_annotation = "aref/annotations/repeatmasker.gtf.rformatted.csv",
-        r_annotation_fragmentsjoined = "aref/annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv"
-    conda:
-        "evo2"
-    script:
-        "scripts/process_gtf.R"
+# rule process_gtf:
+#     input:
+#         gtf = "aref/repeatmasker/repeatmasker_pre_ins_filtered.gtf",
+#         ref_cytobands = "aref/annotations/cytobands.bed",
+#         contigs_to_keep = "aref/contigs_to_keep.txt",
+#         ref = "aref/ref.fa"
+#     output:
+#         repmask_gff2 = "aref/annotations/repeatmasker.gff2",
+#         repmask_gff3 = "aref/annotations/repeatmasker.gff3",
+#         r_annotation = "aref/annotations/repeatmasker.gtf.rformatted.csv",
+#         r_annotation_fragmentsjoined = "aref/annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv"
+#     conda:
+#         "evo2"
+#     script:
+#         "scripts/process_gtf.R"
 
 rule move_refseq:
     input:
@@ -417,7 +440,7 @@ rule element_analysis:
     params:
         l13 = config["l13fasta"]
     output:
-        outfile = "aref/RefAnalysis/l1element_evo.outfile"
+        outfile = "aref/RefAnalysis/l1element_analysis.outfile"
     conda:
         "evo2"
     script:

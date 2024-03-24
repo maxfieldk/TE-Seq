@@ -3,6 +3,8 @@ library(GenomicFeatures)
 library(GenomicRanges)
 library(rtracklayer)
 library(dtplyr)
+library(Biostrings)
+library(Rsamtools)
 
 conf <- c(
     conf <- configr::read.config(file = "conf/config.yaml")[["aref"]]
@@ -14,7 +16,10 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            gtf = conf$repeatmasker_gtf
+            gtf = "aref/repeatmasker/repeatmasker_pre_ins_filtered.gtf",
+            contigs_to_keep = "aref/contigs_to_keep.txt",
+            ref_cytobands = "aref/annotations/cytobands.bed",
+            ref = "aref/ref.fa"
         ), env = globalenv())
         assign("outputs", list(
             repmask_gff2 = "annotations/repeatmasker.gff2",
@@ -26,15 +31,44 @@ tryCatch(
     }
 )
 
-
+contigs_to_keep <- read_delim(inputs$contigs_to_keep, col_names = FALSE, delim = "\t")
 rmgr <- import(inputs$gtf)
 rm <- rmgr %>%
     as.data.frame() %>%
     tibble()
+
 # filter out mitochondrial repeats
 rm <- rm %>% filter(seqnames != "chrM")
 
-# rmold <- read_delim("/users/mkelsey/data/ref/genomes/hs1/annotations4/hs1.repeatMasker.gtf", col_names = FALSE, delim = "\t")
+rmref <- rm %>% filter(seqnames %>% str_detect("nonref") %>% `!`())
+rmnonref <- rm %>% filter(seqnames %>% str_detect("nonref"))
+# filter out contigs that are not in the contigs_to_keep list
+rmnonrefkeep <- rmnonref %>% filter(seqnames %in% contigs_to_keep$X1)
+
+# determine which of these is the bona fide nonref ins, and which are just ref ins which are on a nonref contig
+a <- rmnonrefkeep %>%
+    mutate(seqname_ins_type = gsub("_chr.*", "", gsub("nonrefins_", "", seqnames))) %>%
+    mutate(seqname_ins_type = gsub("L1Ta", "L1HS", gsub("L1preTa", "L1HS", seqname_ins_type))) %>%
+    mutate(ins_type = gsub("^.*/", "", gsub("/nonrefins_.*", "", gene_id))) %>%
+    filter(ins_type == seqname_ins_type)
+
+# bonafide element should be the center of the contig, so select the central element
+genome_lengths <- fasta.seqlengths(inputs$ref)
+genome_lengths_df <- data.frame(seqnames = names(genome_lengths), contig_length = genome_lengths) %>% tibble()
+a <- a %>%
+    left_join(genome_lengths_df) %>%
+    mutate(center = contig_length / 2) %>%
+    mutate(dist = abs(center - (end - start) / 2))
+
+rmnonrefkeep_central_element <- a %>%
+    group_by(seqnames) %>%
+    filter(dist == min(dist)) %>%
+    ungroup() %>%
+    dplyr::select(-center, -dist, -seqname_ins_type, -ins_type, -contig_length)
+
+rm <- rbind(rmref, rmnonrefkeep_central_element)
+
+
 rm %$% Target %>% head()
 rm1 <- rm %>% separate(Target, into = c("family", "element_start", "element_end"), sep = " ")
 rm2 <- rm1 %>%
