@@ -1209,7 +1209,7 @@ rule pepper:
         outfile = "ldna/intermediates/{sample}/pepper/out.outfile"
     resources:
         cpus_per_task =10,
-        runtime = 1200,
+        runtime = 2000,
         mem_mb = 80000
     container:
         "docker://kishwars/pepper_deepvariant:r0.8"
