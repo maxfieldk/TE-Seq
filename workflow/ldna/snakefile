@@ -53,9 +53,9 @@ samtools fastq -T "*" {input.bam} | gzip > {output.fastq}
 
 rule align_to_updated_ref:
     input:
-        fastq = "intermediates/{sample}/fastqs/dorado/{sample}.fq.gz"
+        fastq = "ldna/intermediates/{sample}/fastqs/dorado/{sample}.fq.gz"
     output:
-        bam = "intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.bam"
+        bam = "ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.bam"
     params:
         ref = config["reference"]
     resources:
@@ -178,63 +178,63 @@ pycoQC --summary_file {input.seqsummary} --bam_file {input.sortedbam} --html_out
 #         """
 
 #tag ALIGNMENT_UTILITIES
-rule sortBam:
-    input:
-        bam = "ldna/{bampath}.bam"
-    output:
-        sortedbam =  "ldna/{bampath}.sorted.bam",
-    resources:
-        cpus_per_task =10,
-        mem_mb = 64000
-    conda:
-        "omics"
-    shell:
-        """
-mkdir -p $(dirname {output})
-samtools sort -@8 -m4g {input.bam} > {output.sortedbam}
-        """
+# rule sortBam:
+#     input:
+#         bam = "ldna/{bampath}.bam"
+#     output:
+#         sortedbam =  "ldna/{bampath}.sorted.bam",
+#     resources:
+#         cpus_per_task =10,
+#         mem_mb = 64000
+#     conda:
+#         "omics"
+#     shell:
+#         """
+# mkdir -p $(dirname {output})
+# samtools sort -@8 -m4g {input.bam} > {output.sortedbam}
+#         """
 
-rule IndexBam:
-    input:
-        bam = "ldna/{bampath}.bam"
-    output:
-        index = "ldna/{bampath}.bam.bai"
-    resources:
-        cpus_per_task =10,
-        mem_mb = 64000
-    conda:
-        "omics"
-    shell:
-        """
-samtools index  -@6 {input.bam}
-        """
+# rule IndexBam:
+#     input:
+#         bam = "ldna/{bampath}.bam"
+#     output:
+#         index = "ldna/{bampath}.bam.bai"
+#     resources:
+#         cpus_per_task =10,
+#         mem_mb = 64000
+#     conda:
+#         "omics"
+#     shell:
+#         """
+# samtools index  -@6 {input.bam}
+#         """
 
-rule mergeBams:
-    input:
-        expand("ldna/intermediates/{sample}/alignments/{sample}.sorted.bam", sample = samples)
-    output:
-        mergedbam = "ldna/intermediates/merged.sorted.bam"
-    conda:
-        "minimap2"
-    resources:
-        cpus_per_task =8,
-        mem_mb = 128000,
-        slurm_extra="--time=2:00:00 --constraint=cascade"
-    log: "logs/mergeBams.log"
-    shell: "samtools merge --threads 6 {output.mergedbam} {input} 2> {log}"
+# rule mergeBams:
+#     input:
+#         expand("ldna/intermediates/{sample}/alignments/{sample}.sorted.bam", sample = samples)
+#     output:
+#         mergedbam = "ldna/intermediates/merged.sorted.bam"
+#     conda:
+#         "minimap2"
+#     resources:
+#         cpus_per_task =8,
+#         mem_mb = 128000,
+#         slurm_extra="--time=2:00:00 --constraint=cascade"
+#     log: "logs/mergeBams.log"
+#     shell: "samtools merge --threads 6 {output.mergedbam} {input} 2> {log}"
 
-#tag ALIGNMENT_FILTERING
-rule filterbam:
-    input:
-        bam = "ldna/{path}.sorted.bam"
-    output:
-        bam = "ldna/{path}.sorted.filtered.bam"
-    resources:
-        cpus_per_task =6,
-        mem_mb = 40000
-    conda:
-        "omics"
-    shell: "samtools view -b -F 0x100 -q 10 -e '[qs] > 10' {input.bam} > {output.bam}"
+# #tag ALIGNMENT_FILTERING
+# rule filterbam:
+#     input:
+#         bam = "ldna/{path}.sorted.bam"
+#     output:
+#         bam = "ldna/{path}.sorted.filtered.bam"
+#     resources:
+#         cpus_per_task =6,
+#         mem_mb = 40000
+#     conda:
+#         "omics"
+#     shell: "samtools view -b -F 0x100 -q 10 -e '[qs] > 10' {input.bam} > {output.bam}"
 
 #tag PHASING
 
