@@ -45,7 +45,7 @@ tryCatch(
         ), env = globalenv())
         assign("params", list(l13 = conf$l13fasta), env = globalenv())
         assign("outputs", list(
-            outfile = "aref/RefAnalysis/element_analysis.outfile",
+            outfile = "aref/RefAnalysis/l1element_analysis.outfile",
             plots = "aref/RefAnalysis/plots.Rda"
         ), env = globalenv())
     }

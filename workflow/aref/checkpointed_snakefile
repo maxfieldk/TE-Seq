@@ -81,14 +81,12 @@ rule update_reference:
 
 rule move_starting_reference:
     params:
-        ref = config["starting_ref"],
-        repeatmasker = config["starting_ref_repeatmasker"]
+        ref = config["starting_ref"]
     output:
         ref = "aref/ref.fa"
     shell:
         """
 cp {params.ref} {output.ref}
-cp {params.repeatmasker} aref/repeatmasker/repeatmasker_raw.gtf
         """
 
 rule index_reference:
@@ -104,20 +102,48 @@ samtools faidx {input.reference}
         """
 
 
-def repeatmasker_input(wildcards):
+def inputToMergeGTFs(wildcards):
+      checkpoint_output = checkpoints.split_genome_fasta.get(**wildcards).output[0]
+    #   print(expand("repeatmasker/ref/{chromosome}/ref.part_{chromosome}.fa.gtf",
+    #                 chromosome=glob_wildcards(os.path.join(checkpoint_output, "ref.part_{chromosome}.fa")).chromosome))
+      return expand("aref/repeatmasker/ref/{chromosome}/ref_for_split.part_{chromosome}.fa.gtf",
+                    chromosome=glob_wildcards(os.path.join(checkpoint_output, "ref_for_split.part_{chromosome}.fa")).chromosome)
+
+
+
+def split_genome_fasta_input(wildcards):
     if config["update_ref_with_tldr"] == "yes":
         return "aref/ref_pre_ins_filtering.fa"
     else:
         return config["ref"]
+
+
+checkpoint split_genome_fasta:
+    input:
+        ref = split_genome_fasta_input
+    output:
+        outputdir = directory("aref/ref/split"),
+        outfile = "aref/ref/split_genome_fasta.out"
+    conda:
+        "evo"
+    shell:
+        """
+cp {input.ref} ref_for_split.fa
+mkdir -p $(dirname {output.outputdir})
+seqkit split --by-id ref_for_split.fa -O {output.outputdir}/
+touch {output.outfile}
+rm ref_for_split.fa
+        """
+
 #NOTE THAT I LOAD A CLUSTER MODULE, ELSE REPEATMASKER DOES NOT LOAD A COMPILER DEPENDENCY
 rule repeatmasker:
     input:
-        chr_fasta = repeatmasker_input
+        chr_fasta = "aref/ref/split/ref_for_split.part_{chromosome}.fa"
     params:
         repeatmaskerpath = config["repeatmaskerpath"],
         species = config["species"]
     output:
-        rmout = "aref/repeatmasker/ref.fa.out"
+        rmout = "aref/repeatmasker/ref/{chromosome}/ref_for_split.part_{chromosome}.fa.out"
     resources:
         cpus_per_task =20,
         runtime = 1200,
@@ -128,16 +154,16 @@ rule repeatmasker:
         """
 module load libnsl
 mkdir -p $(dirname $(dirname {output}))
-{params.repeatmaskerpath} -species {params.species} -pa {resources.cpus_per_task} -gff {input.chr_fasta} -dir $(dirname $(dirname {output}))/ref
+{params.repeatmaskerpath} -species {params.species} -pa {resources.cpus_per_task} -gff {input.chr_fasta} -dir $(dirname $(dirname {output}))/{wildcards.chromosome}
         """
 
 rule getGtfs:
     input:
-        rmout = "aref/repeatmasker/ref.fa.out"
+        rmout = "aref/repeatmasker/ref/{chromosome}/ref_for_split.part_{chromosome}.fa.out"
     params:
         module_prefix = config["prefix"]
     output:
-       "aref/repeatmasker/repeatmasker_raw.gtf"
+        "aref/repeatmasker/ref/{chromosome}/ref_for_split.part_{chromosome}.fa.gtf"
     conda:
         "evo"
     shell:
@@ -145,9 +171,26 @@ rule getGtfs:
 workflow/{params.module_prefix}/scripts/outToGtf.sh {input.rmout} {output}
         """
 
+rule mergeGtfsandCleanupRM:
+    input:
+        gtfs = inputToMergeGTFs
+    params:
+        module_prefix = config["prefix"]
+    output:
+        gtf = "aref/repeatmasker/repeatmasker_pre_ins_filtered.gtf"
+    conda:
+        "evo"
+    shell:
+        """
+cat {input.gtfs} > {output.gtf}
+sort -k1,1V -k4,4n -k5,5n {output.gtf} > tmp.gtf
+mv tmp.gtf {output.gtf}
+find aref/ -type d -name 'RM_*' -exec rm -r {{}} +
+        """
+
 rule process_gtf:
     input:
-        gtf = "aref/repeatmasker/repeatmasker_raw.gtf",
+        gtf = "aref/repeatmasker/repeatmasker_pre_ins_filtered.gtf",
         ref_cytobands = "aref/annotations/cytobands.bed",
         ref = "aref/ref_pre_ins_filtering.fa",
         tldroutput = "aref/tldr/tldr.table.txt"
