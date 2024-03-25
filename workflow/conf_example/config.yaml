@@ -1,17 +1,14 @@
 #META PIPELINE SETTINGS
 pipelines_to_deploy:
   # - srna
-  # - gref
   - aref
-  - ldna
+  # - ldna
   # - lrna
 
 #PIPELINE SETTINGS - Ignore settings for pipelines not being deployed
 aref:
   prefix: aref
 
-  #MODULE LOGIC
-  update_ref_with_tldr: yes
   #MODULE PATHS
   dorado: "/users/mkelsey/data/tools/dorado-0.5.1-linux-x64/bin/dorado"
   basecallingModel:
@@ -21,14 +18,17 @@ aref:
     5khz:
       hac: "/users/mkelsey/data/tools/dorado-0.5.1-linux-x64/models/dna_r10.4.1_e8.2_400bps_hac@v4.2.0"
 
+  #MODULE LOGIC
+  update_ref_with_tldr: "yes"
   #IF updating reference with tldr inserts; else NULL
   tldr_input_bam_ref: /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/hs1.sorted.fa
   #ensure tldr_input_bams are a full path, not relative paths
-  tldr_input_bams: intermediates/N2102EP1/alignments/5khz/N2102EP1.hac.6mA-5mC_5hmC.sorted.filtered.bam
+  tldr_input_bams: /users/mkelsey/data/LF1/RTE/ldna/intermediates/PRO1/alignments/5khz/PRO1.hac.6mA-5mC_5hmC.sorted.filtered.bam /users/mkelsey/data/LF1/RTE/ldna/intermediates/SEN1/alignments/5khz/SEN1.hac.6mA-5mC_5hmC.sorted.filtered.bam
   tldr_te_ref: /oscar/data/jsedivy/mkelsey/tools/tldr/ref/teref.ont.human.fa
 
-  #IF annotating existing reference
+  #IF annotating existing reference, else NULL
   starting_ref: NULL
+  starting_ref_repeatmasker: NULL
 
   #IMPORTANT if using the reference which is updated by tldr, use: updated_ref/updated_ref.fa
   ref: aref/ref.fa
@@ -49,20 +49,21 @@ aref:
 ldna:
   ##      ANALYSIS PARAMETERES       ##
   prefix: ldna
-  use_aref_basecalls: yes
+  use_aref_basecalls: no
   tldr_input_bams:
   samples:
-    - "N2102EP1"
+    - "PRO1"
+    - "SEN1"
 
   #order with base comparator as first (dss will have 2 - 1)
   conditions:
-    - "N2102EP"
-
+    - "PRO"
+    - "SEN"
   contrasts:
-    - ""
-
+    - "condition_SEN_vs_PRO"
   condition_colors:
-    N2102EP: "#3C5488FF"
+    PRO: "#3C5488FF"
+    SEN: "#F39B7FFF"
 
   barcoding: "inactive"
   barcodingKit: ""
