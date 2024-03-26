@@ -61,9 +61,9 @@ for pipeline in config["pipelines_to_deploy"]:
             snakefile: "aref/snakefile"
             config: config["aref"]
         if config["aref"]["update_ref_with_tldr"] == "yes":
-                use rule * from aref exclude move_starting_reference as aref_*
+                use rule * from aref exclude move_starting_reference,process_gtf as aref_*
         else:
-               use rule * from aref exclude cleanup_updated_ref,repeatmasker,getGtfs as aref_*
+               use rule * from aref exclude process_gtf_tldr,cleanup_updated_ref,repeatmasker,getGtfs as aref_*
 
 
         def aref_rally():
@@ -76,9 +76,10 @@ for pipeline in config["pipelines_to_deploy"]:
                 "aref/annotations/rte_beds/outfile.txt",
                 "aref/annotations/repeatmasker_refseq.complete.sqlite",
                 "aref/annotations/cytobands.bed",
-                "aref/RefAnalysis/l1element_analysis.outfile",
-                "aref/RefAnalysis/tldr_plots/tldr_plots.rds",
+                "aref/RefAnalysis/l1element_analysis.outfile"
             ]
+            if config["aref"]["update_ref_with_tldr"] == "yes":
+                paths.append("aref/RefAnalysis/tldr_plots/tldr_plots.rds")
             return list(flatten(paths))
         for e in aref_rally():
             final_input.append(e)

@@ -151,7 +151,7 @@ cp {input.rmref} {output.ref}
 cat {output.ref} {output.nonref} > {output.merged}
         """
 
-rule process_gtf:
+rule process_gtf_tldr:
     input:
         gtf = "aref/repeatmasker/repeatmasker_raw.gtf",
         ref_cytobands = "aref/annotations/cytobands.bed",
@@ -166,8 +166,7 @@ rule process_gtf:
     conda:
         "evo2"
     script:
-        "scripts/process_gtf.R"
-
+        "scripts/process_gtf_tldr.R"
 
 rule analyze_insertions:
     input:
@@ -196,6 +195,20 @@ rule cleanup_updated_ref:
 seqkit grep --by-name -f {input.contigs_to_keep} {input.updated_reference} > {output.filtered_ref}
 samtools faidx {output.filtered_ref}
         """
+
+rule process_gtf:
+    input:
+        gtf = "aref/repeatmasker/repeatmasker_raw.gtf",
+        ref_cytobands = "aref/annotations/cytobands.bed",
+        ref = "aref/ref.fa"
+    output:
+        repmask_gff2 = "aref/annotations/repeatmasker.gff2",
+        repmask_gff3 = "aref/annotations/repeatmasker.gff3",
+        r_annotation_fragmentsjoined = "aref/annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv"
+    conda:
+        "evo2"
+    script:
+        "scripts/process_gtf.R"
 
 rule move_refseq:
     input:
