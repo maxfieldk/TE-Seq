@@ -73,13 +73,11 @@ for pipeline in config["pipelines_to_deploy"]:
                 "aref/annotations/repeatmasker_refseq.complete.gtf",
                 "aref/annotations/repeatmasker_refseq.complete.gff3",
                 "aref/annotations/repeatmasker.complete.bed",
-                "aref/annotations/refseq.complete.bed",
                 "aref/annotations/rte_beds/outfile.txt",
                 "aref/annotations/repeatmasker_refseq.complete.sqlite",
                 "aref/annotations/cytobands.bed",
                 "aref/RefAnalysis/l1element_analysis.outfile",
                 "aref/RefAnalysis/tldr_plots/tldr_plots.rds",
-                expand("aref/annotations/{annot}.fa", annot = ["repeatmasker_refseq.complete", "repeatmasker.complete", "refseq.complete"])
             ]
             return list(flatten(paths))
         for e in aref_rally():

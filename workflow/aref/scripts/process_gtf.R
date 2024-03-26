@@ -166,6 +166,9 @@ write_delim(df_filtered, outputs$filtered_tldr, delim = "\t")
 
 # now determine which of the nonref inserts are the bona fide nonref inserts for annotation in the gtf
 rmref <- rmfragments %>% filter(!grepl("nonref", seqnames))
+rmnonref <- rmfragments %>%
+    filter(grepl("nonref", seqnames)) %>%
+    filter(seqnames %in% contigs_to_keep)
 rmnonrefkeep <- nonrefelementspass
 # determine which of these is the bona fide nonref ins, and which are just ref ins which are on a nonref contig
 a <- rmnonrefkeep %>%
@@ -185,8 +188,13 @@ rmnonrefkeep_central_element <- a %>%
     filter(dist == min(dist)) %>%
     ungroup() %>%
     dplyr::select(-center, -dist, -seqname_ins_type, -ins_type, -contig_length, -seqnames_element_type, -family_element_type)
+rmnonref_noncentral_elements <- rmnonref %>%
+    anti_join(rmnonrefkeep_central_element) %>%
+    mutate(refstatus = "NonCentral")
 
-rm <- rbind(rmref, rmnonrefkeep_central_element)
+
+
+rm <- rbind(rmref, rmnonrefkeep_central_element, rmnonref_noncentral_elements)
 write_csv(rm, outputs$r_annotation_fragmentsjoined)
 
 contigs_to_keep <- rm %$% seqnames %>% unique()

@@ -72,7 +72,8 @@ rule update_reference:
         reference = lambda w: config["tldr_input_bam_ref"],
         tldroutput = "aref/tldr/tldr.table.txt"
     output:
-        updated_reference = "aref/ref_pre_ins_filtering.fa"
+        updated_reference = "aref/ref_pre_ins_filtering.fa",
+        non_ref_contigs = "aref/ref_pre_ins_filtering_nonrefcontigs.fa"
     conda:
         "repeatanalysis"
     script:
@@ -106,13 +107,13 @@ samtools faidx {input.reference}
 
 def repeatmasker_input(wildcards):
     if config["update_ref_with_tldr"] == "yes":
-        return "aref/ref_pre_ins_filtering.fa"
+        return "aref/ref_pre_ins_filtering_nonrefcontigs.fa"
     else:
         return config["ref"]
 #NOTE THAT I LOAD A CLUSTER MODULE, ELSE REPEATMASKER DOES NOT LOAD A COMPILER DEPENDENCY
 rule repeatmasker:
     input:
-        chr_fasta = repeatmasker_input
+        fasta = repeatmasker_input
     params:
         repeatmaskerpath = config["repeatmaskerpath"],
         species = config["species"]
@@ -128,21 +129,26 @@ rule repeatmasker:
         """
 module load libnsl
 mkdir -p $(dirname $(dirname {output}))
-{params.repeatmaskerpath} -species {params.species} -pa {resources.cpus_per_task} -gff {input.chr_fasta} -dir $(dirname $(dirname {output}))/ref
+{params.repeatmaskerpath} -species {params.species} -pa {resources.cpus_per_task} -gff {input.fasta} -dir $(dirname $(dirname {output}))/ref
         """
 
 rule getGtfs:
     input:
-        rmout = "aref/repeatmasker/ref.fa.out"
+        rmout = "aref/repeatmasker/ref.fa.out",
+        rmref = config["starting_ref_repeatmasker"]
     params:
         module_prefix = config["prefix"]
     output:
-       "aref/repeatmasker/repeatmasker_raw.gtf"
+       ref = "aref/repeatmasker/repeatmasker_ref_raw.gtf",
+       nonref = "aref/repeatmasker/repeatmasker_nonref_raw.gtf",
+       merged = "aref/repeatmasker/repeatmasker_raw.gtf"
     conda:
-        "evo"
+        "evo2"
     shell:
         """
-workflow/{params.module_prefix}/scripts/outToGtf.sh {input.rmout} {output}
+workflow/{params.module_prefix}/scripts/outToGtf.sh {input.rmout} {output.nonref}
+cp {input.rmref} {output.ref}
+cat {output.ref} {output.nonref} > {output.merged}
         """
 
 rule process_gtf:
@@ -156,7 +162,6 @@ rule process_gtf:
         filtered_tldr = "aref/tldr/tldr.table.kept_in_updated_ref.txt",
         repmask_gff2 = "aref/annotations/repeatmasker.gff2",
         repmask_gff3 = "aref/annotations/repeatmasker.gff3",
-        r_annotation = "aref/annotations/repeatmasker.gtf.rformatted.csv",
         r_annotation_fragmentsjoined = "aref/annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv"
     conda:
         "evo2"
@@ -404,7 +409,8 @@ rule element_analysis:
     params:
         l13 = config["l13fasta"]
     output:
-        outfile = "aref/RefAnalysis/l1element_analysis.outfile"
+        outfile = "aref/RefAnalysis/l1element_analysis.outfile",
+        plots = "aref/RefAnalysis/l1element_analysis.rds"
     conda:
         "evo2"
     script:
@@ -478,7 +484,7 @@ rule create_blast_db:
         "repeatanalysis"
     shell:
         """
-makeblastdb -in {input.ref} -dbtype nucl -out aref/ref"
+makeblastdb -in {input.ref} -dbtype nucl -out aref/ref
         """
 
 

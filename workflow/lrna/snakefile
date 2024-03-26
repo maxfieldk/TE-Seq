@@ -370,7 +370,7 @@ rule getGtfs:
     output:
         gtfout = "lrna/intermediates/{sample}/repeatmasker/{alignmenttype}/{part_num}/{sample}.part_{part_num}.fa.gtf"
     conda:
-        "evo"
+        "evo2"
     shell:
         """
 scripts/outToGtf.sh {input.rmout} {output.gtfout}
