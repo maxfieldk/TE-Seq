@@ -21,7 +21,7 @@ for pipeline in config["pipelines_to_deploy"]:
         module ldna:
             snakefile: "ldna/snakefile"
             config: config["ldna"]
-        if config["ldna"]["use_aref_basecalls"] == True:
+        if config["ldna"]["use_aref_basecalls"] == "yes":
             use rule * from ldna exclude dorado as ldna_*
         else:
             use rule * from ldna exclude align_to_updated_ref as ldna_*

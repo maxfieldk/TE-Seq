@@ -49,7 +49,7 @@ aref:
 ldna:
   ##      ANALYSIS PARAMETERES       ##
   prefix: ldna
-  use_aref_basecalls: no
+  use_aref_basecalls: "yes"
   tldr_input_bams:
   samples:
     - "PRO1"

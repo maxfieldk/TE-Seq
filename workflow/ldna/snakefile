@@ -40,22 +40,24 @@ basecaller \
 
 rule updated_bam_to_fastq:
     input:
-        calls = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
+        bam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
     output:
-        fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq.gz"
+        fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq"
+    conda: 
+        "omics"
     resources:
         cpus_per_task =12
     shell:
         """
 mkdir -p $(dirname {output.fastq})
-samtools fastq -T "*" {input.bam} | gzip > {output.fastq}
+samtools fastq -T "*" {input.bam} > {output.fastq}
         """
 
 rule align_to_updated_ref:
     input:
-        fastq = "ldna/intermediates/{sample}/fastqs/dorado/{sample}.fq.gz"
+        fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq"
     output:
-        bam = "ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.bam"
+        bam =  expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.NEW.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
     params:
         ref = config["reference"]
     resources:
@@ -65,8 +67,12 @@ rule align_to_updated_ref:
     conda: "minimap2"
     shell:
         """
-minimap2 -a -x map-ont -t 14 {params.reference} {input.fastq} > {output.bam}
+minimap2 -a -x map-ont -t 14 {params.ref} {input.fastq} > {output.bam}
         """
+
+rule call_align_updated:
+    input:
+        bam =  expand("ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.NEW.bam",sample = config["samples"], rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
 
 rule dorado_barcode:
     input:
