@@ -1,4 +1,15 @@
 #tag BASECALLING
+rule sym_link:
+    input:
+        aref_dir = config["symlink_aref"]["aref_dir"]
+    output:
+        sym_link_outfile = "aref.symlinked.outfile"
+    shell:
+        """
+ln -s {input.aref_dir} aref
+touch {output.sym_link_outfile}
+        """
+
 rule dorado:
     input:
         dir = "ldna/rawdata/{rate}/{sample}"

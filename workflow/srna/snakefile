@@ -1,6 +1,15 @@
+container: "docker://maxfieldkelsey/rtedocker"
+
 import os
 import pandas as pd
 from pathlib import Path
+import csv
+
+pepfile: "conf/project_config_srna.yaml"
+peptable = pep.sample_table
+peptable.to_csv("conf/peptable_srna.csv", index = False, quoting=csv.QUOTE_NONNUMERIC)
+
+
 #need to use the config["samples"] and not sample_table["sample_name"], deseq order matters and is based on conf$samples
 samples = config["samples"]
 contrasts = config["contrasts"]
@@ -252,8 +261,7 @@ cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
 
 rule alignSTAR_SE:
     input:
-        r1 = "srna/outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz",
-        # r2 = "outs/{sample}/trimmedReads/{sample}_2.trimmed.fastq.gz"
+        r1 = "srna/outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz"
     params:
         index = config["starindex"]
     output:
@@ -267,8 +275,6 @@ rule alignSTAR_SE:
         """
 STAR --genomeDir {params.index} --readFilesCommand zcat --readFilesIn {input.r1} --outFileNamePrefix $(dirname {output.bam}) --runThreadN {threads} --winAnchorMultimapNmax 100 --outFilterMultimapNmax 100
         """
-
-
 
 rule featurecounts_genes_SE:
     input:
@@ -523,7 +529,7 @@ rule repeatanalysis_plots:
         contrasts = config["contrasts"],
         tecounttypes = config["tecounttypes"],
         levelslegendmap = config["levelslegendmap"],
-        inputdir = lambda w, input: os.path.dirname(input.resultsdf[0])
+        inputdir = lambda w, input: os.path.dirname(input.resultsdf[0]),
         outputdir = lambda w, output: os.path.dirname(output.outfile[0])
     conda:
         "repeatanalysis"
