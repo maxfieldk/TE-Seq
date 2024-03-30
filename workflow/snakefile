@@ -19,8 +19,11 @@ for pipeline in config["pipelines_to_deploy"]:
             use rule sym_link from aref as aref_*
             final_input.append("aref.symlinked.outfile")
         else:
-            if config["aref"]["update_ref_with_tldr"] == "yes":
-                    use rule * from aref exclude move_starting_reference,process_gtf as aref_*
+            if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
+                if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
+                    use rule * from aref exclude move_starting_reference,process_gtf,tldr_aggregate_multiple_samples as aref_*
+                else: 
+                    use rule * from aref exclude move_starting_reference,process_gtf,tldr_per_sample as aref_*
             else:
                 use rule * from aref exclude process_gtf_tldr,cleanup_updated_ref,repeatmasker,getGtfs as aref_*
 
@@ -49,6 +52,7 @@ for pipeline in config["pipelines_to_deploy"]:
             use rule * from ldna exclude dorado as ldna_*
         else:
             use rule * from ldna exclude align_to_updated_ref as ldna_*
+            tldr_analysis_per_sample = expand("ldna/tldr/{sample}.table.txt", sample = config["ldna"]["samples"])
         def ldna_rally():
             seqsummary = expand("ldna/qc/{sample}/{sample}.doradosummary.txt", sample = config["ldna"]["samples"])
             pycoQC = expand("ldna/qc/{sample}/{sample}pycoQC.html", sample = config["ldna"]["samples"])

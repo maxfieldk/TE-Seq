@@ -38,6 +38,7 @@ basecaller \
 --reference {params.reference} > {output.calls}
         """
 
+
 rule updated_bam_to_fastq:
     input:
         bam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
@@ -396,6 +397,24 @@ awk -v s=1 '$4=="h" {{OFS = "\t"; print $1, $2+s, $10, $12}}' {output.bed} >> {o
 awk -v s=1 '$4=="a" {{OFS = "\t"; print $1, $2+s, $10, $12}}' {output.bed} >> {output.dssInput_a}
         """
 
+rule modbamtobedTLDRinsertions:
+    input:
+        tldr = "ldna/tldr/{sample}.table.txt"
+    params:
+        ref = config["tldr_te_ref"],
+        indir = "ldna/tldr/{sample}"
+    resources:
+        cpus_per_task = 4,
+        mem_mb = 30000
+    output:
+        outfile = "outfiles/{sample}.bedmethyltldr.txt"
+    conda:
+        "omics"
+    shell: 
+        """
+bash scripts/bedmethtldr.sh {params.indir}
+touch {output.outfile}
+        """
 
 rule dss:
     input:
@@ -516,24 +535,7 @@ rule bedmethylanalysis:
     script:
         "scripts/bedmethylanalysis.R"
 
-# rule modbamtobedTLDRinsertions:
-#     input:
-#         tldr = "tldr/{sample}.filtered.table.txt"
-#     params:
-#         ref = config["hs1sorted"],
-#         indir = "tldr/{sample}.filtered"
-#     resources:
-#         cpus_per_task = 4,
-#         mem_mb = 30000
-#     output:
-#         outfile = "outfiles/{sample}.bedmethyltldr.txt"
-#     conda:
-#         "omics"
-#     shell: 
-#         """
-# bash scripts/bedmethtldr.sh {params.indir}
-# touch {output.outfile}
-#         """
+
 
 # rule modbamtobedTLDRinsertionsCombinedCall:
 #     input:
@@ -1044,73 +1046,6 @@ mkdir -p $(dirname {output.outfile})
 flye --nano-raw {input.fq} --out-dir $(dirname {output.outfile}) --threads 30
         """
 
-#tag TLDR
-# rule tldr:
-#     input:
-#         bam = "intermediates/{sample}/alignments/{sample}.sorted.filtered.bam",
-#         bai = "intermediates/{sample}/alignments/{sample}.sorted.filtered.bam.bai"
-#     output:
-#         outfile = "outfiles/tldr.{sample}.outfile.txt"
-#     resources:
-#         cpus_per_task = 28,
-#         mem_mb = 100000,
-#         runtime = 300
-#     conda:
-#         "tldr"
-#     shell:
-#         """
-# mkdir -p tldr
-# cd tldr
-# tldr -b ../{input.bam} \
-# -e /oscar/data/jsedivy/mkelsey/tools/tldr/ref/teref.ont.human.fa \
-# -r /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/hs1.sorted.fa \
-# -p 24 \
-# --detail_output \
-# --extend_consensus 4000 \
-# --trdcol \
-# --color_consensus \
-# --flanksize 500 \
-# --keep_pickles \
-# --methylartist
-# cd ..
-# touch {output.outfile}
-#         """
-
-
-# rule tldrALLSAMPLES:
-#     input:
-#         bam = expand("intermediates/{sample}/alignments/{sample}.sorted.filtered.bam", sample = samples),
-#         bai = expand("intermediates/{sample}/alignments/{sample}.sorted.filtered.bam.bai", sample = samples)
-#     output:
-#         outfile = "outfiles/tldrall.outfile.txt"
-#     resources:
-#         cpus_per_task = 28,
-#         mem_mb = 100000,
-#         runtime = 300
-
-#     conda:
-#         "tldr"
-#     shell:
-#         """
-# mkdir -p tldr
-# cd tldr
-# bams1=({input.bam})
-# bams2=$(printf "\"../%s\"," "${{bams1[@]}}")
-# bams=${{bams2%?}}
-# tldr -b $bams \
-# -e /oscar/data/jsedivy/mkelsey/tools/tldr/ref/teref.ont.human.fa \
-# -r /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/hs1.sorted.fa \
-# -p 24 \
-# --detail_output \
-# --extend_consensus 500 \
-# --trdcol \
-# --color_consensus \
-# --flanksize 500 \
-# --keep_pickles \
-# --methylartist
-# cd ..
-# touch {output.outfile}
-#         """
 
 #tag VARIANT_CALLING
 rule clair3:
