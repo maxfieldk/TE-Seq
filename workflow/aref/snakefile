@@ -223,12 +223,15 @@ rule process_gtf:
 
 rule move_refseq:
     input:
-        ref_refseq_gff3 = config["ref_refseq_gff3"]
+        ref_refseq_gff3 = config["ref_refseq_gff3"],
+        ref_refseq_gtf = config["ref_refseq_gtf"]
     output:
-        refseq_gff3 = "aref/annotations/refseq.gff3"
+        refseq_gff3 = "aref/annotations/refseq.gff3",
+        refseq_gtf = "aref/annotations/refseq.gtf"
     shell:
         """
 cp {input.ref_refseq_gff3} {output.refseq_gff3}
+cp {input.ref_refseq_gtf} {output.refseq_gtf}
         """
 
 

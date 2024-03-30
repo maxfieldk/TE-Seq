@@ -18,6 +18,8 @@ library(forcats)
 library(ggstance)
 library(enrichplot)
 library(circlize)
+library(ComplexHeatmap)
+
 
 # analysis parameters
 {

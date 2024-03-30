@@ -398,7 +398,7 @@ rule deseq_telescope:
         levels = config["levels"],
         paralellize_bioc = config["paralellize_bioc"],
         tecounttype = lambda w: w.tecounttype,
-        outputdir =lambda w, output: os.path.dirname(os.path.dirname(output.counts_normed[0])),
+        outputdir =lambda w, output: os.path.dirname(os.path.dirname(output.counts_normed)),
     resources:
         cpus_per_task =10,
         mem_mb = 200000,
@@ -437,12 +437,12 @@ rule enrichment_analysis:
     input:
         resultsdf ="srna/results/agg/deseq_telescope/resultsdf.tsv"
     params:
-        inputdir =lambda w, input: os.path.dirname(os.path.dirname(input.resultsdf[0])),
+        inputdir =lambda w, input: os.path.dirname(os.path.dirname(input.resultsdf)),
         contrasts = config["contrasts"],
         genesets_for_heatmaps = config["genesets_for_heatmaps"],
         genesets_for_gsea = config["genesets_for_gsea"],
         sample_table = config["sample_table"],
-        outputdir =lambda w, output: os.path.dirname(os.path.dirname(output.outfile[0])),
+        outputdir =lambda w, output: os.path.dirname(os.path.dirname(output.outfile)),
     conda:
         "ea"
     resources:
@@ -458,13 +458,13 @@ rule enrichment_analysis_repeats:
     input:
         resultsdf ="srna/results/agg/deseq_telescope/resultsdf.tsv"
     params:
-        inputdir =lambda w, input: os.path.dirname(os.path.dirname(input.resultsdf[0])),
+        inputdir =lambda w, input: os.path.dirname(os.path.dirname(input.resultsdf)),
         r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
         r_repeatmasker_annotation = config["r_repeatmasker_annotation"],
         contrasts = config["contrasts"],
         tecounttypes = config["tecounttypes"],
         sample_table = config["sample_table"],
-        outputdir = lambda w, output: os.path.dirname(output.outfile[0])
+        outputdir = lambda w, output: os.path.dirname(output.outfile)
     conda:
         "ea"
     resources:
@@ -529,8 +529,8 @@ rule repeatanalysis_plots:
         contrasts = config["contrasts"],
         tecounttypes = config["tecounttypes"],
         levelslegendmap = config["levelslegendmap"],
-        inputdir = lambda w, input: os.path.dirname(input.resultsdf[0]),
-        outputdir = lambda w, output: os.path.dirname(output.outfile[0])
+        inputdir = lambda w, input: os.path.dirname(input.resultsdf),
+        outputdir = lambda w, output: os.path.dirname(output.outfile)
     conda:
         "repeatanalysis"
     resources:
