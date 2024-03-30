@@ -123,9 +123,80 @@ rmfragments <- rmfragments %>%
     dplyr::select(-gene_id) %>%
     dplyr::rename(gene_id = GiesmaID)
 
+# now determine which nonref contigs should be kept in the reference
+df <- read_delim(inputs$tldroutput) %>%
+    mutate(faName = paste0("nonrefins_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>%
+    filter(!is.na(Family)) %>%
+    filter(!is.na(StartTE)) %>%
+    filter(Filter == "PASS")
 
 
-write_csv(rmfragments, outputs$r_annotation_fragmentsjoined)
+ss <- DNAStringSet(df %>% dplyr::arrange(faName) %$% Consensus)
+names(ss) <- df %>% dplyr::arrange(faName) %$% faName
+writeXStringSet(ss, paste0(dirname(inputs$ref), "/nonrefcontigs.fa"), append = FALSE, format = "fasta")
 
+
+
+genome_lengths <- fasta.seqlengths(inputs$ref)
+genome_lengths_df <- data.frame(seqnames = names(genome_lengths), contig_length = genome_lengths) %>% tibble()
+refcontigs <- genome_lengths_df %>%
+    filter(!grepl("nonref", seqnames)) %>%
+    pull(seqnames)
+nonrefcontigs <- rmfragments %>% filter(grepl("nonref", seqnames))
+# this will ensure that 1) only elements which are actually picked up by repeat masker (as opposed to 3p transductions with a tiny bit of TE sequence, are retainined in the reference
+# and that 2) I can make a gtf with only those elements which inserted, and not elements which are merely contained in the nonref contig (but which are also present in the reference).
+nonrefelementspass <- nonrefcontigs %>%
+    mutate(seqnames_element_type = gsub("_chr.*", "", gsub("nonrefins_", "", seqnames))) %>%
+    mutate(seqnames_element_type = gsub("L1Ta", "L1HS", seqnames_element_type)) %>%
+    mutate(seqnames_element_type = gsub("L1preTa", "L1HS", seqnames_element_type)) %>%
+    mutate(family_element_type = gsub("^.*/", "", family)) %>%
+    filter(seqnames_element_type == family_element_type)
+
+sum(nonrefelementspass %$% seqnames %>% table() > 1)
+
+
+
+contigs_to_keep <- c(refcontigs, nonrefelementspass$seqnames %>% unique() %>% as.character())
+write_delim(as.data.frame(contigs_to_keep), outputs$contigs_to_keep, delim = "\n", col_names = FALSE)
+
+df_filtered <- df %>%
+    filter(faName %in% contigs_to_keep)
+write_delim(df_filtered, outputs$filtered_tldr, delim = "\t")
+
+
+# now determine which of the nonref inserts are the bona fide nonref inserts for annotation in the gtf
+rmref <- rmfragments %>% filter(!grepl("nonref", seqnames))
+rmnonref <- rmfragments %>%
+    filter(grepl("nonref", seqnames)) %>%
+    filter(seqnames %in% contigs_to_keep)
+rmnonrefkeep <- nonrefelementspass
+# determine which of these is the bona fide nonref ins, and which are just ref ins which are on a nonref contig
+a <- rmnonrefkeep %>%
+    mutate(seqname_ins_type = gsub("_chr.*", "", gsub("nonrefins_", "", seqnames))) %>%
+    mutate(seqname_ins_type = gsub("L1Ta", "L1HS", gsub("L1preTa", "L1HS", seqname_ins_type))) %>%
+    mutate(ins_type = gsub("^.*/", "", gsub("/nonrefins_.*", "", family))) %>%
+    filter(ins_type == seqname_ins_type)
+
+# bonafide element should be the center of the contig, so select the central element
+a <- a %>%
+    left_join(genome_lengths_df) %>%
+    mutate(center = contig_length / 2) %>%
+    mutate(dist = abs(center - (end - start) / 2))
+
+rmnonrefkeep_central_element <- a %>%
+    group_by(seqnames) %>%
+    filter(dist == min(dist)) %>%
+    ungroup() %>%
+    dplyr::select(-center, -dist, -seqname_ins_type, -ins_type, -contig_length, -seqnames_element_type, -family_element_type)
+rmnonref_noncentral_elements <- rmnonref %>%
+    anti_join(rmnonrefkeep_central_element) %>%
+    mutate(refstatus = "NonCentral")
+
+
+
+rm <- rbind(rmref, rmnonrefkeep_central_element, rmnonref_noncentral_elements)
+write_csv(rm, outputs$r_annotation_fragmentsjoined)
+
+contigs_to_keep <- rm %$% seqnames %>% unique()
 rtracklayer::export(rmgr[seqnames(rmgr) %in% contigs_to_keep], con = outputs$repmask_gff2, format = "GFF2")
 rtracklayer::export(rmgr[seqnames(rmgr) %in% contigs_to_keep], con = outputs$repmask_gff3, format = "GFF3")

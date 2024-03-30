@@ -18,6 +18,7 @@ library(forcats)
 library(ggstance)
 library(enrichplot)
 library(circlize)
+library(ComplexHeatmap)
 
 # analysis parameters
 {
@@ -38,13 +39,13 @@ library(circlize)
                 "SenMayoHuman" = conf$SenMayoHuman,
                 "genesets_for_heatmaps" = conf$genesets_for_heatmaps,
                 "genesets_for_gsea" = conf$genesets_for_gsea,
-                "inputdir" = "results/agg/deseq2/featurecounts_genes",
-                "outputdir" = "results/agg/enrichment_analysis"
+                "inputdir" = "srna/results/agg/deseq2/featurecounts_genes",
+                "outputdir" = "srna/results/agg/enrichment_analysis"
             ), env = globalenv())
             assign("inputs", list(
-                resultsdf = paste0("results/agg/repeatanalysis_telescope/resultsdf.tsv")
+                resultsdf = paste0("srna/results/agg/deseq_telescope/resultsdf.tsv")
             ), env = globalenv())
-            assign("outputs", list(outfile = "results/agg/enrichment_analysis/outfile.txt"), env = globalenv())
+            assign("outputs", list(outfile = "srna/results/agg/enrichment_analysis/outfile.txt"), env = globalenv())
         }
     )
 
@@ -64,6 +65,7 @@ genecollections <- names(params[["genesets_for_gsea"]])
 gse_results <- list()
 core_enrichments_for_plot <- list()
 EAplots <- list()
+rm(gse_df)
 for (contrast in params[["contrasts"]]) {
     # PREP RESULTS FOR GSEA
     contrast_stat <- paste0("stat_", contrast)
@@ -73,14 +75,21 @@ for (contrast in params[["contrasts"]]) {
     ordered_by_stat <- setNames(res[[contrast_stat]], res$gene_id) %>% na.omit()
     resl2fc <- res %>% arrange(-!!sym(contrast_l2fc))
     ordered_by_l2fc <- setNames(resl2fc[[contrast_l2fc]], resl2fc$gene_id) %>% na.omit()
-
-
     for (collection in genecollections) {
         tryCatch(
             {
                 genesets <- read.gmt(params[["genesets_for_gsea"]][[collection]])
                 gse <- GSEA(ordered_by_stat, TERM2GENE = genesets, maxGSSize = 100000, minGSSize = 1)
-                genesettheme <- theme_gray() + theme(axis.text.y = element_text(colour = "black"))
+                df <- gse@result 
+                df$collection <- collection
+                df$contrast <- contrast
+                # gse_results[[contrast]][[collection]] <- as.data.frame(df) %>% tibble()
+                if (!exists("gse_df")) {
+                    gse_df <<- df
+                } else {
+                    gse_df <<- rbind(gse_df, df)
+                }
+                genesettheme <- theme_gray() + theme(axis.text.x = element_text(colour = "black"), axis.text.y = element_text(colour = "black"))
                 p <- dotplot(gse, showCategory = 20) + ggtitle(paste("GSEA", contrast, sep = " ")) + genesettheme + mytheme
                 mysave(sprintf("%s/%s/gsea/%s/dotplot.png", params[["outputdir"]], contrast, collection), w = 6, h = 6, res = 300)
                 EAplots[[contrast]][[collection]][["dot"]] <- p
@@ -137,7 +146,6 @@ for (contrast in params[["contrasts"]]) {
                         print("")
                     }
                 )
-                gse_results[[contrast]][[collection]] <- gse
             },
             error = function(e) {
                 print("probably no enrichments in this collection")
@@ -145,6 +153,25 @@ for (contrast in params[["contrasts"]]) {
         )
     }
 }
+contrast_labels <- conf$contrast_labels
+contrast_label_map <- tibble(contrast = names(contrast_labels), label = unlist(contrast_labels))
+gres <- gse_df %>% tibble()
+for (collec in genecollections) {
+    grestemp <- gres %>% filter(collection == collec) %>% left_join(contrast_label_map)
+    sigIDs <- grestemp %>% group_by(contrast) %>% arrange(p.adjust) %>% slice_head(n = 10) %$% ID %>% unique()
+    p <- grestemp %>% dplyr::filter(ID %in% sigIDs) %>% mutate(sig = ifelse(p.adjust < 0.05, "*", "")) %>% ggplot(aes(x = label, y = ID)) + 
+        geom_tile(aes(fill = NES), color = "black") + 
+        geom_text(aes(label = sig), color = "white", size = 4) +
+        theme(legend.position = "none") + 
+        scale_fill_paletteer_c("ggthemes::Red-Blue Diverging") + 
+        mtclosed + 
+        theme(axis.text.x = element_text(colour = "black"), axis.text.y = element_text(colour = "black", hjust = 1)) +
+        labs(x = "", y = "", title = collec) +
+        theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+        coord_equal()
+    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/gsea_top_%s.png", collec), 8,5)
+}
+
 # plot core enrichments
 n_top_sets <- 5
 for (contrast in params[["contrasts"]]) {

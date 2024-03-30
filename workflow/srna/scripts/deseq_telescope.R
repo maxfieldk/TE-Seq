@@ -53,10 +53,14 @@ tryCatch(
 )
 
 tecounttype <- params[["tecounttype"]]
+
 print(tecounttype)
 contrasts <- params[["contrasts"]]
 levels <- params[["levels"]]
 outputdir <- params[["outputdir"]]
+countspath <- paste(outputdir, tecounttype, "counttablesizenormed.csv", sep = "/")
+print("countspath")
+print(countspath)
 coldata <- read.csv(params[["sample_table"]])
 samples <- conf$samples
 coldata <- coldata[match(conf$samples, coldata$sample_name), ]

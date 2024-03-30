@@ -1,6 +1,15 @@
+container: "docker://maxfieldkelsey/rtedocker"
+
 import os
 import pandas as pd
 from pathlib import Path
+import csv
+
+pepfile: "conf/project_config_srna.yaml"
+peptable = pep.sample_table
+peptable.to_csv("conf/peptable_srna.csv", index = False, quoting=csv.QUOTE_NONNUMERIC)
+
+
 #need to use the config["samples"] and not sample_table["sample_name"], deseq order matters and is based on conf$samples
 samples = config["samples"]
 contrasts = config["contrasts"]
@@ -252,8 +261,7 @@ cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
 
 rule alignSTAR_SE:
     input:
-        r1 = "srna/outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz",
-        # r2 = "outs/{sample}/trimmedReads/{sample}_2.trimmed.fastq.gz"
+        r1 = "srna/outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz"
     params:
         index = config["starindex"]
     output:
@@ -267,8 +275,6 @@ rule alignSTAR_SE:
         """
 STAR --genomeDir {params.index} --readFilesCommand zcat --readFilesIn {input.r1} --outFileNamePrefix $(dirname {output.bam}) --runThreadN {threads} --winAnchorMultimapNmax 100 --outFilterMultimapNmax 100
         """
-
-
 
 rule featurecounts_genes_SE:
     input:
@@ -392,7 +398,7 @@ rule deseq_telescope:
         levels = config["levels"],
         paralellize_bioc = config["paralellize_bioc"],
         tecounttype = lambda w: w.tecounttype,
-        outputdir =lambda w, output: os.path.dirname(os.path.dirname(output.counts_normed[0])),
+        outputdir =lambda w, output: os.path.dirname(os.path.dirname(output.counts_normed)),
     resources:
         cpus_per_task =10,
         mem_mb = 200000,
@@ -431,12 +437,12 @@ rule enrichment_analysis:
     input:
         resultsdf ="srna/results/agg/deseq_telescope/resultsdf.tsv"
     params:
-        inputdir =lambda w, input: os.path.dirname(os.path.dirname(input.resultsdf[0])),
+        inputdir =lambda w, input: os.path.dirname(os.path.dirname(input.resultsdf)),
         contrasts = config["contrasts"],
         genesets_for_heatmaps = config["genesets_for_heatmaps"],
         genesets_for_gsea = config["genesets_for_gsea"],
         sample_table = config["sample_table"],
-        outputdir =lambda w, output: os.path.dirname(os.path.dirname(output.outfile[0])),
+        outputdir =lambda w, output: os.path.dirname(os.path.dirname(output.outfile)),
     conda:
         "ea"
     resources:
@@ -452,13 +458,13 @@ rule enrichment_analysis_repeats:
     input:
         resultsdf ="srna/results/agg/deseq_telescope/resultsdf.tsv"
     params:
-        inputdir =lambda w, input: os.path.dirname(os.path.dirname(input.resultsdf[0])),
+        inputdir =lambda w, input: os.path.dirname(os.path.dirname(input.resultsdf)),
         r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
         r_repeatmasker_annotation = config["r_repeatmasker_annotation"],
         contrasts = config["contrasts"],
         tecounttypes = config["tecounttypes"],
         sample_table = config["sample_table"],
-        outputdir = lambda w, output: os.path.dirname(output.outfile[0])
+        outputdir = lambda w, output: os.path.dirname(output.outfile)
     conda:
         "ea"
     resources:
@@ -523,8 +529,8 @@ rule repeatanalysis_plots:
         contrasts = config["contrasts"],
         tecounttypes = config["tecounttypes"],
         levelslegendmap = config["levelslegendmap"],
-        inputdir = lambda w, input: os.path.dirname(input.resultsdf[0])
-        outputdir = lambda w, output: os.path.dirname(output.outfile[0])
+        inputdir = lambda w, input: os.path.dirname(input.resultsdf),
+        outputdir = lambda w, output: os.path.dirname(output.outfile)
     conda:
         "repeatanalysis"
     resources:
