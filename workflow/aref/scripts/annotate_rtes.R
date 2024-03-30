@@ -277,7 +277,7 @@ tryCatch(
 
 
 # genes, centromere and telomere
-refseq <- import(conf$ref_refseq)
+refseq <- import(conf$ref_refseq_gtf)
 refseqdf <- as.data.frame(refseq) %>% tibble()
 coding_transcripts <- refseq[(mcols(refseq)$type == "transcript" & grepl("^NM", mcols(refseq)$transcript_id))]
 

@@ -40,7 +40,7 @@ basecaller \
 
 rule updated_bam_to_fastq:
     input:
-        bam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
+        bam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
     output:
         fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq"
     conda: 
@@ -50,7 +50,7 @@ rule updated_bam_to_fastq:
     shell:
         """
 mkdir -p $(dirname {output.fastq})
-samtools fastq -T "*" {input.bam} > {output.fastq}
+samtools fastq -TMM,ML {input.bam} > {output.fastq}
         """
 
 rule align_to_updated_ref:
@@ -62,12 +62,12 @@ rule align_to_updated_ref:
         ref = config["reference"]
     resources:
         cpus_per_task =20,
-        runtime = 300,
+        runtime = 1200,
         mem_mb = 128000
     conda: "minimap2"
     shell:
         """
-minimap2 -a -x map-ont -t 14 {params.ref} {input.fastq} > {output.bam}
+minimap2 -a -x map-ont -t 14 -y {params.ref} {input.fastq} > {output.bam}
         """
 
 rule call_align_updated:

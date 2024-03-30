@@ -33,7 +33,7 @@ aref:
   #IMPORTANT if using the reference which is updated by tldr, use: updated_ref/updated_ref.fa
   ref: aref/ref.fa
   ref_index: aref/ref.fa.fai
-  ref_refseq: /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/refseq_2023_10/GCF_009914755.1_T2T-CHM13v2.0_genomic.ucscnames.gtf
+  ref_refseq_gtf: /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/refseq_2023_10/GCF_009914755.1_T2T-CHM13v2.0_genomic.ucscnames.gtf
   ref_refseq_gff3: /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/refseq_2023_10/GCF_009914755.1_T2T-CHM13v2.0_genomic.ucscnames.gff
   ref_cytobands: /users/mkelsey/data/ref/genomes/hs1/annotations7/chm13v2.0_cytobands_allchrs.bed
   ref_ccres: /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations3/cCREs/hs1-imr90-cCREsCuratedWithClosestGene.bed
