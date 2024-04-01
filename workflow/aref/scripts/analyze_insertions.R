@@ -53,7 +53,7 @@ df <- read_delim(inputs$tldroutput) %>%
     filter(!is.na(StartTE)) %>%
     filter(Filter == "PASS")
 
-df_filtered <- read_delim("aref/tldr/tldr.table.kept_in_updated_ref.txt")
+df_filtered <- read_delim(inputs$filtered_tldr)
 
 
 df %$% Subfamily %>% table()

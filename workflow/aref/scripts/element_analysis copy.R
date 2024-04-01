@@ -41,7 +41,7 @@ tryCatch(
         assign("inputs", list(
             r_annotation_fragmentsjoined = "aref/annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv",
             r_repeatmasker_annotation = "aref/annotations/repeatmasker_annotation.csv",
-            ref = "aref/ref.fa"
+            ref = "aref/A.REF.fa"
         ), env = globalenv())
         assign("params", list(l13 = conf$l13fasta), env = globalenv())
         assign("outputs", list(outfile = "aref/RefAnalysis/element_analysis.outfile"), env = globalenv())

@@ -31,8 +31,8 @@ tryCatch(
             filtered_tldr = "aref/tldr/tldr.table.kept_in_updated_ref.txt",
             r_annotation_fragmentsjoined = "aref/annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv",
             r_repeatmasker_annotation = "aref/annotations/repeatmasker_annotation.csv",
-            ref = "aref/ref.fa",
-            blast_njs = "aref/ref.njs"
+            ref = "aref/A.REF.fa",
+            blast_njs = "aref/A.REF.njs"
         ), env = globalenv())
         assign("outputs", list(
             plots = "aref/RefAnalysis/tldr_plots/transduction_mapping.rds",

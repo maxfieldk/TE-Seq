@@ -16,14 +16,14 @@ rule dorado:
     output:
         calls = "aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.bam"
     wildcard_constraints:
-        sample="[0-9A-Za-z]+",
+        sample="[0-9A-Za-z_]+",
         type = "[0-9A-Za-z]+",
         rate = "[0-9A-Za-z]+",
         modifications_string = "[0-9A-Za-z_-]+"
     params:
         dorado = config["dorado"],
         basecallingModel = lambda w: config["basecallingModel"][w.rate][w.type],
-        reference = config["tldr_input_bam_ref"]
+        reference = config["update_ref_with_tldr"]["tldr_input_bam_ref"]
     resources:
         cpus_per_task =12,
         threads = 12,
@@ -43,15 +43,46 @@ basecaller \
 --verbose \
 --reference {params.reference} > {output.calls}
         """
+#tag ALIGNMENT_UTILITIES
+rule sortBam:
+    input:
+        bam = "aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.bam"
+    output:
+        sortedbam = "aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.sorted.bam"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 64000
+    conda:
+        "omics"
+    shell:
+        """
+mkdir -p $(dirname {output})
+samtools sort -@8 -m4g {input.bam} > {output.sortedbam}
+        """
+
+rule IndexBam:
+    input:
+        bam = "aref/{bampath}.bam"
+    output:
+        index = "aref/{bampath}.bam.bai"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 64000
+    conda:
+        "omics"
+    shell:
+        """
+samtools index  -@6 {input.bam}
+        """
 
 rule tldr_aggregate_multiple_samples:
     input:
         bams = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam", sample = config["samples"], rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
     params:
-        tldr_input_bam_ref = lambda w: config["tldr_input_bam_ref"],
-        tldr_te_ref = config["tldr_te_ref"]
+        tldr_input_bam_ref = lambda w: config["update_ref_with_tldr"]["tldr_input_bam_ref"],
+        tldr_te_ref = config["update_ref_with_tldr"]["tldr_te_ref"]
     output:
-        tldr = "aref/tldr/ref.table.txt"
+        tldr = "aref/tldr/A.REF.table.txt"
     resources:
         cpus_per_task = 24,
         mem_mb = 100000,
@@ -70,7 +101,7 @@ tldr -b {input.bams} \
 --trdcol
 
 mkdir -p $(dirname {output.tldr})
-mv ref.table.txt {output.tldr}
+mv A.REF.table.txt {output.tldr}
 mv ref $(dirname {output.tldr})/
         """
 
@@ -78,8 +109,8 @@ rule tldr_per_sample:
     input:
         bam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
     params:
-        tldr_input_bam_ref = lambda w: config["tldr_input_bam_ref"],
-        tldr_te_ref = config["tldr_te_ref"]
+        tldr_input_bam_ref = lambda w: config["update_ref_with_tldr"]["tldr_input_bam_ref"],
+        tldr_te_ref = config["update_ref_with_tldr"]["tldr_te_ref"]
     output:
         tldr = "aref/tldr/{sample}.table.txt"
     resources:
@@ -105,11 +136,11 @@ mv {wildcards.sample} $(dirname {output.tldr})/
 
 rule update_reference:
     input:
-        reference = lambda w: config["tldr_input_bam_ref"],
+        reference = lambda w: config["update_ref_with_tldr"]["tldr_input_bam_ref"],
         tldroutput = "aref/tldr/{sample_or_ref}.table.txt"
     output:
-        updated_reference = "aref/{sample_or_ref}_pre_ins_filtering.fa",
-        non_ref_contigs = "aref/{sample_or_ref}_pre_ins_filtering_nonrefcontigs.fa"
+        updated_reference = "aref/{sample_or_ref}-pre-ins-filtering.fa",
+        non_ref_contigs = "aref/{sample_or_ref}-pre-ins-filtering_nonrefcontigs.fa"
     conda:
         "repeatanalysis"
     script:
@@ -118,14 +149,22 @@ rule update_reference:
 
 rule move_starting_reference:
     params:
-        ref = config["starting_ref"],
-        repeatmasker = config["starting_ref_repeatmasker"]
+        ref = config["starting_ref"]
     output:
-        ref = "aref/ref.fa"
+        ref = "aref/A.REF.fa"
     shell:
         """
 cp {params.ref} {output.ref}
-cp {params.repeatmasker} aref/repeatmasker/repeatmasker_raw.gtf
+        """
+
+rule get_repeatmasker_raw:
+    params:
+        repeatmasker = config["starting_ref_repeatmasker"]
+    output:
+        repeatmasker = "aref/repeatmasker/A.REF_repeatmasker_raw.gtf"
+    shell:
+        """
+cp {params.repeatmasker} aref/repeatmasker/A.REF_repeatmasker_raw.gtf
         """
 
 rule index_reference:
@@ -143,7 +182,7 @@ samtools faidx {input.reference}
 
 def repeatmasker_input(wildcards):
     if config["update_ref_with_tldr"] == "yes":
-        return expand("aref/{sample_or_ref}_pre_ins_filtering_nonrefcontigs.fa", sample_or_ref = wildcards.sample_or_ref)
+        return expand("aref/{sample_or_ref}-pre-ins-filtering_nonrefcontigs.fa", sample_or_ref = wildcards.sample_or_ref)
     else:
         return config["ref"]
 #NOTE THAT I LOAD A CLUSTER MODULE, ELSE REPEATMASKER DOES NOT LOAD A COMPILER DEPENDENCY
@@ -191,14 +230,14 @@ rule process_gtf_tldr:
     input:
         gtf = "aref/repeatmasker/{sample_or_ref}_repeatmasker_raw.gtf",
         ref_cytobands = "aref/annotations/cytobands.bed",
-        ref = "aref/{sample_or_ref}_pre_ins_filtering.fa",
+        ref = "aref/{sample_or_ref}-pre-ins-filtering.fa",
         tldroutput = "aref/tldr/{sample_or_ref}.table.txt"
     output:
         contigs_to_keep = "aref/{sample_or_ref}_contigs_to_keep.txt",
         filtered_tldr = "aref/tldr/{sample_or_ref}.table.kept_in_updated_ref.txt",
         repmask_gff2 = "aref/annotations/{sample_or_ref}_repeatmasker.gff2",
         repmask_gff3 = "aref/annotations/{sample_or_ref}_repeatmasker.gff3",
-        r_annotation_fragmentsjoined = "aref/annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv"
+        r_annotation_fragmentsjoined = "aref/annotations/{sample_or_ref}_repeatmasker.gtf.rformatted.fragmentsjoined.csv"
     conda:
         "evo2"
     script:
@@ -210,7 +249,7 @@ rule analyze_insertions:
         filtered_tldr = "aref/tldr/{sample_or_ref}.table.kept_in_updated_ref.txt",
         r_annotation_fragmentsjoined = "aref/annotations/{sample_or_ref}_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
         r_repeatmasker_annotation = "aref/annotations/{sample_or_ref}_repeatmasker_annotation.csv",
-        ref = "aref/{sample_or_ref}_pre_ins_filtering.fa"
+        ref = "aref/{sample_or_ref}-pre-ins-filtering.fa"
     output:
         plots = "aref/{sample_or_ref}_Analysis/tldr_plots/tldr_plots.rds",
     conda:
@@ -220,10 +259,26 @@ rule analyze_insertions:
         
 rule cleanup_updated_ref:
     input:
-        updated_reference = "aref/{sample_or_ref}_pre_ins_filtering.fa",
-        contigs_to_keep = "aref/{sample_or_ref}_contigs_to_keep.txt"
+        updated_reference = "aref/A.REF-pre-ins-filtering.fa",
+        contigs_to_keep = "aref/A.REF_contigs_to_keep.txt"
     output:
-        filtered_ref = "aref/{sample_or_ref}.fa"
+        filtered_ref = "aref/A.REF.fa"
+    conda:
+        "omics"
+    shell:
+        """
+seqkit grep --by-name -f {input.contigs_to_keep} {input.updated_reference} > {output.filtered_ref}
+samtools faidx {output.filtered_ref}
+        """
+
+rule cleanup_updated_sample_ref:
+    input:
+        updated_reference = "aref/{sample}-pre-ins-filtering.fa",
+        contigs_to_keep = "aref/{sample}_contigs_to_keep.txt"
+    output:
+        filtered_ref = "aref/{sample}.fa"
+    wildcard_constraints:
+        sample = "[A-Za-z0-9_]+"
     conda:
         "omics"
     shell:
@@ -234,13 +289,13 @@ samtools faidx {output.filtered_ref}
 
 rule process_gtf:
     input:
-        gtf = "aref/repeatmasker/ref_repeatmasker_raw.gtf",
+        gtf = "aref/repeatmasker/A.REF_repeatmasker_raw.gtf",
         ref_cytobands = "aref/annotations/cytobands.bed",
-        ref = "aref/ref.fa"
+        ref = "aref/A.REF.fa"
     output:
-        repmask_gff2 = "aref/annotations/ref_repeatmasker.gff2",
-        repmask_gff3 = "aref/annotations/ref_repeatmasker.gff3",
-        r_annotation_fragmentsjoined = "aref/annotations/ref_repeatmasker.gtf.rformatted.fragmentsjoined.csv"
+        repmask_gff2 = "aref/annotations/A.REF_repeatmasker.gff2",
+        repmask_gff3 = "aref/annotations/A.REF_repeatmasker.gff3",
+        r_annotation_fragmentsjoined = "aref/annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv"
     conda:
         "evo2"
     script:
@@ -314,10 +369,10 @@ rm {output.bed12}.temp
 
 rule merge_genes_and_repeats_gff:
     input:
-        complete_repeat_gff3 = "aref/annotations/ref_repeatmasker.complete.gff3",
+        complete_repeat_gff3 = "aref/annotations/A.REF_repeatmasker.complete.gff3",
         complete_refseq_gff3 = "aref/annotations/refseq.complete.gff3"
     output:
-        merged_gff3 = "aref/annotations/ref_repeatmasker_refseq.complete.gff3"
+        merged_gff3 = "aref/annotations/A.REF_repeatmasker_refseq.complete.gff3"
     resources:
         mem_mb = 128000,
         runtime = 300
@@ -332,10 +387,10 @@ rm {output.merged_gff3}.temp
 
 rule merge_OG_genes_and_repeats_gff3:
     input:
-        repeatmasker = "aref/annotations/ref_repeatmasker.gff3",
+        repeatmasker = "aref/annotations/A.REF_repeatmasker.gff3",
         refseq = "aref/annotations/refseq.gff3"
     output:
-        merged_gff3 = "aref/annotations/ref_repeatmasker_refseq.gff3"
+        merged_gff3 = "aref/annotations/A.REF_repeatmasker_refseq.gff3"
     resources:
         mem_mb = 128000,
         runtime = 300
@@ -352,10 +407,10 @@ rm {output.merged_gff3}.temp
 
 rule merge_genes_and_repeats_gtf:
     input:
-        complete_repeat_gtf = "aref/annotations/ref_repeatmasker.complete.gtf",
+        complete_repeat_gtf = "aref/annotations/A.REF_repeatmasker.complete.gtf",
         complete_refseq_gtf = "aref/annotations/refseq.complete.gtf"
     output:
-        merged_gtf = "aref/annotations/ref_repeatmasker_refseq.complete.gtf"
+        merged_gtf = "aref/annotations/A.REF_repeatmasker_refseq.complete.gtf"
     resources:
         mem_mb = 128000,
         runtime = 300
@@ -388,9 +443,9 @@ tabix -p gff {input.annot}.gz
 
 rule get2bitgenome:
     input:
-        ref = "aref/ref.fa"
+        ref = "aref/A.REF.fa"
     output:
-        genome2bit = "aref/ref.2bit"
+        genome2bit = "aref/A.REF.2bit"
     conda:
         "omics"
     shell:
@@ -402,12 +457,12 @@ faToTwoBit {input.ref} {output.genome2bit}
 rule makeTxDB:
     input:
         refseq = "aref/annotations/refseq.gff3",
-        repeatmasker = "aref/annotations/ref_repeatmasker.complete.gff3",
-        genome2bit = "aref/ref.2bit"
+        repeatmasker = "aref/annotations/A.REF_repeatmasker.complete.gff3",
+        genome2bit = "aref/A.REF.2bit"
     output:
-        txdb = "aref/annotations/ref_repeatmasker_refseq.complete.sqlite",
+        txdb = "aref/annotations/A.REF_repeatmasker_refseq.complete.sqlite",
         txdbrefseq = "aref/annotations/refseq.sqlite",
-        txdbrepeatmasker = "aref/annotations/ref_repeatmasker.complete.sqlite"
+        txdbrepeatmasker = "aref/annotations/A.REF_repeatmasker.complete.sqlite"
     resources:
         mem_mb = 40000
     conda:
@@ -418,7 +473,7 @@ rule makeTxDB:
 rule get_transcriptome:
     input:
         gtf = "aref/annotations/{annot}.gtf",
-        ref = "aref/ref.fa"
+        ref = "aref/A.REF.fa"
     output:
         fa = "aref/annotations/{annot}.fa"
     resources:
@@ -538,7 +593,6 @@ rule create_blast_db:
         """
 makeblastdb -in {input.ref} -dbtype nucl -out aref/{wildcards.sample_or_ref}
         """
-
 
 rule transduction_mapping:
     input:

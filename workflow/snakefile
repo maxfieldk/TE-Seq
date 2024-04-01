@@ -21,7 +21,7 @@ for pipeline in config["pipelines_to_deploy"]:
         else:
             if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
                 if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
-                    use rule * from aref exclude move_starting_reference,process_gtf,tldr_aggregate_multiple_samples as aref_*
+                    use rule * from aref exclude tldr_aggregate_multiple_samples as aref_*
                 else: 
                     use rule * from aref exclude move_starting_reference,process_gtf,tldr_per_sample as aref_*
             else:
@@ -29,25 +29,34 @@ for pipeline in config["pipelines_to_deploy"]:
 
             def aref_rally():
                 paths = [
-                    "aref/annotations/repeatmasker.complete.gff3.gz.tbi",
+                    "aref/annotations/A.REF_repeatmasker.complete.gff3.gz.tbi",
                     "aref/annotations/refseq.complete.gff3.gz.tbi",
-                    "aref/annotations/repeatmasker_refseq.complete.gtf",
-                    "aref/annotations/repeatmasker_refseq.complete.gff3",
-                    "aref/annotations/repeatmasker.complete.bed",
-                    "aref/annotations/rte_beds/outfile.txt",
-                    "aref/annotations/repeatmasker_refseq.complete.sqlite",
-                    "aref/annotations/cytobands.bed",
-                    "aref/RefAnalysis/l1element_analysis.outfile"
+                    "aref/annotations/A.REF_repeatmasker_refseq.complete.gtf",
+                    "aref/annotations/A.REF_repeatmasker_refseq.complete.gff3",
+                    "aref/annotations/A.REF_repeatmasker.complete.bed",
+                    "aref/annotations/A.REF_rte_beds/outfile.txt",
+                    "aref/annotations/A.REF_repeatmasker_refseq.complete.sqlite",
+                    "aref/annotations/cytobands.bed"
                 ]
-                if config["aref"]["update_ref_with_tldr"] == "yes":
-                    paths.append("aref/RefAnalysis/tldr_plots/tldr_plots.rds")
+                if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
+                    if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
+                        paths.append(expand("aref/{sample_or_ref}_Analysis/tldr_plots/tldr_plots.rds", sample_or_ref = config["aref"]["samples"]))
+                        paths.append(expand("aref/{sample_or_ref}_Analysis/tldr_plots/transduction_mapping.rds", sample_or_ref = config["aref"]["samples"]))
+                        paths.append(expand("aref/{sample_or_ref}_Analysis/l1element_analysis.outfile", sample_or_ref = config["aref"]["samples"]))
+
+                    else:
+                        paths.append(expand("aref/{sample_or_ref}_Analysis/tldr_plots/tldr_plots.rds", sample_or_ref = "A.REF"))
+                        paths.append(expand("aref/{sample_or_ref}_Analysis/tldr_plots/transduction_mapping.rds", sample_or_ref = "A.REF"))
+                        paths.append(expand("aref/{sample_or_ref}_Analysis/l1element_analysis.outfile", sample_or_ref = "A.REF"))
+
+
                 return list(flatten(paths))
             for e in aref_rally():
                 final_input.append(e)
     if pipeline == "ldna":
         module ldna:
             snakefile: "ldna/snakefile"
-            config: config["ldna"]
+            config: config
         if config["ldna"]["use_aref_basecalls"] == "yes":
             use rule * from ldna exclude dorado as ldna_*
         else:
@@ -60,7 +69,7 @@ for pipeline in config["pipelines_to_deploy"]:
             m1 = "ldna/results/plots/methylartist/locus/methylartistlocusplot_loci_of_interest.outfile"
             bedmethanalysis = "ldna/outfiles/bedmethylanalysis.txt"
             sniffles = expand("ldna/intermediates/{sample}/sniffles/sniffles.vcf", sample = config["ldna"]["samples"])
-            clair3 = expand("ldna/intermediates/{sample}/clair3AF{sample}.outfile", sample = config["ldna"]["samples"])
+            clair3 = expand("ldna/intermediates/{sample}/clair3/full_alignment.vcf.gz", sample = config["ldna"]["samples"])
             return list(flatten([m1, haplotaggedbam, bedmethanalysis, sniffles, clair3, pycoQC, seqsummary]))
         for e in ldna_rally():
             final_input.append(e)
