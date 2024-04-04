@@ -636,6 +636,7 @@ rule getBigWigF:
 #However other methods exist, which generate read R1 in the direction of RNA strand 
 #(see this review). For these libraries, --filterRNAstrand will have an opposite behavior, 
 #i.e. --filterRNAstrand forward will give you reverse strand signal and vice-versa.
+
 rule getBigWigR:
     input:
         sortedbam = "lrna/intermediates/{sample}/alignments/genome/{alignmenttype}/{sample}.sorted.bam",

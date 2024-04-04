@@ -1,4 +1,8 @@
 source("~/data/common/myDefaults.r")
+module_name <- "srna"
+load(sprintf("conf/colors_%s.RData", module_name))
+conf <- configr::read.config(file = "conf/config.yaml")[["srna"]]
+
 library(knitr)
 library(rmarkdown)
 library(circlize)
@@ -24,10 +28,6 @@ library(purrr)
 library(ggpubr)
 library(GenomicRanges)
 library(paletteer)
-
-
-conf <- configr::read.config(file = "conf/config.yaml")[["srna"]]
-
 
 tryCatch(
     {
@@ -92,23 +92,6 @@ resultsdf <- resultsdf1 %>%
     element_req_modifiers <- modifiers[str_detect(modifiers, "_req$")]
 }
 
-
-
-mythemeconditions <- list(
-    scale_colour_paletteer_d("dutchmasters::milkmaid", direction = -1),
-    scale_fill_paletteer_d("dutchmasters::milkmaid", direction = -1),
-    theme(panel.border = element_rect(color = "black", fill = NA, size = 1))
-)
-mythemecontrast <- list(
-    scale_colour_paletteer_d("ggsci::default_aaas", direction = 1),
-    scale_fill_paletteer_d("ggsci::default_aaas", direction = 1),
-    theme(panel.border = element_rect(color = "black", fill = NA, size = 1))
-)
-mythemecontrastrev <- list(
-    scale_colour_paletteer_d("ggsci::default_aaas", direction = 1),
-    scale_fill_paletteer_d("ggsci::default_aaas", direction = 1),
-    theme(panel.border = element_rect(color = "black", fill = NA, size = 1))
-)
 
 
 #### PLOTTING FUNCTIONS
@@ -260,7 +243,7 @@ stripp <- function(df, stats = "yes", extraGGoptions = NULL, facet_var = "ALL", 
         extraGGoptions +
         theme(legend.position = "none") +
         mtclosedgridh +
-        mypalette +
+        scale_conditions +
         anchorbar +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         guides(fill = "none")
@@ -275,8 +258,8 @@ stripp <- function(df, stats = "yes", extraGGoptions = NULL, facet_var = "ALL", 
     return(p)
 }
 
-p <- stripp(tidydf %>% filter(rte_subfamily == "L1HS"), filter_var = "ALL", facet_var = "genic_loc") + ggtitle("L1HS")
-mysave("temp1.png")
+# p <- stripp(tidydf %>% filter(rte_subfamily == "L1HS"), filter_var = "ALL", facet_var = "genic_loc") + ggtitle("L1HS")
+# mysave("temp1.png")
 
 
 myheatmap <- function(df, facet_var = "ALL", filter_var = "ALL", DEvar = "ALL", scaled = "notscaled", contrast_samples, condition_vec) {
@@ -320,7 +303,7 @@ myheatmap <- function(df, facet_var = "ALL", filter_var = "ALL", DEvar = "ALL", 
         pull(split_annot)
     split_annot[is.na(split_annot)] <- "NOT DE"
 
-    topAnn <- HeatmapAnnotation(Condition = condition_vec, col = list(Condition = unlist(conf$condition_colors[condition_vec])))
+    topAnn <- HeatmapAnnotation(Condition = condition_vec, col = list(Condition = unlist(condition_palette[condition_vec])))
     colors_for_de <- c("UP DE" = "red", "DOWN DE" = "blue", "NOT DE" = "lightgray")
     if (facet_var != "ALL") {
         facet_var_values <- group_res %>%
@@ -372,14 +355,14 @@ myheatmap <- function(df, facet_var = "ALL", filter_var = "ALL", DEvar = "ALL", 
     return(p)
 }
 
-group <- "L1HS"
-tecounttype <- "telescope_multi"
+# group <- "L1HS"
+# tecounttype <- "telescope_multi"
 
-groupframe <- resultsdf %>%
-    filter(rte_subfamily == group) %>%
-    filter(tecounttype == tecounttype)
-p <- myheatmap(groupframe, facet_var = "genic_loc", filter_var = "rte_length_req", DEvar = "DE", scaled = "notscaled", contrast_samples = contrast_samples, condition_vec = condition_vec)
-mysave("temp1.png", 8, 8)
+# groupframe <- resultsdf %>%
+#     filter(rte_subfamily == group) %>%
+#     filter(tecounttype == tecounttype)
+# p <- myheatmap(groupframe, facet_var = "genic_loc", filter_var = "rte_length_req", DEvar = "DE", scaled = "notscaled", contrast_samples = contrast_samples, condition_vec = condition_vec)
+# mysave("temp1.png", 8, 8)
 
 
 for (tecounttype in params$tecounttypes) {
@@ -558,8 +541,7 @@ for (contrast in contrasts) {
                                     {
                                         function_current <- get(function_name)
                                         p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, DEvar = DEvar, scaled = scaled, contrast_samples = contrast_samples, condition_vec = condition_vec)
-                                        mysave(sprintf("%s/%s/%s/%s/%s_%s_%s_%s_%s.png", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var, DEvar, scaled), plot_width, plot_height)
-                                        plots[[tecounttype]][[contrast]][[group]][[function_name]][[filter_var]][[facet_var]][[DEvar]][[scaled]] <- p
+                                        mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_%s_%s.png", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var, DEvar, scaled), plot_width, plot_height)
                                     },
                                     error = function(e) {
                                         print(sprintf("Error with  %s %s %s %s %s %s %s %s %s", tecounttype, contrast, group, function_name, ontology, filter_var, facet_var, DEvar, scaled))
@@ -642,11 +624,9 @@ tryCatch(
                             scale_x_continuous(expand = expansion(mult = .2)) +
                             ggtitle(paste(group, direction, sep = " "))
                         if (!is.null(filter_var)) {
-                            mysave(sprintf("%s/%s/%s/ggVenn_%s_%s_%s.png", outputdir, tecounttype, modifier, group, modifier, direction), 6, 6)
-                            vennplots[[tecounttype]][[group]][[modifier]][[direction]] <- p
+                            mysaveandstore(sprintf("%s/%s/%s/ggVenn_%s_%s_%s.png", outputdir, tecounttype, modifier, group, modifier, direction), 6, 6)
                         }
-                        mysave(sprintf("%s/%s/ggVenn_%s_%s.png", outputdir, tecounttype, group, direction), 6, 6)
-                        vennplots[[tecounttype]][[group]][["unmodified"]][[direction]] <- p
+                        mysaveandstore(sprintf("%s/%s/ggVenn_%s_%s.png", outputdir, tecounttype, group, direction), 6, 6)
                     }
                 }
             }
@@ -667,16 +647,5 @@ tryCatch(
 )
 
 save(mysaveandstoreplots, file = outputs$plots)
-
-tryCatch(
-    {
-        save(vennplots, file = sprintf("%s/repeatanalysisplots_vennplots.RData", params$outputdir))
-    },
-    error = function(e) {
-        print(e)
-        message("Venn diagrams failed - do you only have one contrast?")
-    }
-)
-
 x <- data.frame()
 write.table(x, file = outputs$outfile, col.names = FALSE)

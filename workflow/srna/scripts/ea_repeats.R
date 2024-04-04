@@ -161,13 +161,11 @@ for (contrast in params[["contrasts"]]) {
                         gse <- GSEA(ordered_by_stat, TERM2GENE = genesets, maxGSSize = 10000, minGSSize = 1)
                         gse_results[[contrast]][[tecounttype]][[ontology]][[filter_var]] <- gse
                         genesettheme <- theme_gray() + theme(axis.text.y = element_text(colour = "black"))
-                        p <- dotplot(gse, showCategory = 20) + ggtitle(paste("GSEA", contrast, sep = " ")) + genesettheme + mytheme
-                        mysave(sprintf("%s/%s/%s/gsea/%s/%s/dotplot.png", params[["outputdir"]], tecounttype, contrast, ontology, filter_var), w = 4, h = 6, res = 300)
-                        EARTEplots[[contrast]][[tecounttype]][[ontology]][[filter_var]][["dot"]] <- p
+                        p <- dotplot(gse, showCategory = 20) + ggtitle(paste("GSEA", contrast, sep = " ")) + genesettheme + mtopen
+                        mysaveandstore(sprintf("%s/%s/%s/gsea/%s/%s/dotplot.png", params[["outputdir"]], tecounttype, contrast, ontology, filter_var), w = 3, h = 4, res = 300)
 
-                        p <- ridgeplot(gse, core_enrichment = FALSE) + ggtitle(paste("GSEA", contrast, sep = " ")) + xlab("Log2 FC") + xlim(c(-4, 4)) + genesettheme + mytheme
-                        mysave(sprintf("%s/%s/%s/gsea/%s/%s/ridgeplot.png", params[["outputdir"]], tecounttype, contrast, ontology, filter_var), w = 4, h = 6, res = 300)
-                        EARTEplots[[contrast]][[tecounttype]][[ontology]][[filter_var]][["ridge"]] <- p
+                        p <- ridgeplot(gse, core_enrichment = FALSE) + ggtitle(paste("GSEA", contrast, sep = " ")) + xlab("Log2 FC") + xlim(c(-4, 4)) + genesettheme + mtopen
+                        mysaveandstore(sprintf("%s/%s/%s/gsea/%s/%s/ridgeplot.png", params[["outputdir"]], tecounttype, contrast, ontology, filter_var), w = 3, h = 4, res = 300)
 
 
                         tryCatch(
@@ -181,12 +179,11 @@ for (contrast in params[["contrasts"]]) {
                                     p <- ggplot(df, aes(NES, fct_reorder(Description, NES), fill = p.adjust)) +
                                         geom_col(orientation = "y") +
                                         scale_fill_continuous(low = "red", high = "blue", guide = guide_colorbar(reverse = TRUE)) +
-                                        mytheme +
+                                        mtopen +
                                         theme(axis.text.y = element_text(colour = "black")) +
                                         ylab(NULL)
 
-                                    mysave(sprintf("%s/%s/%s/gsea/%s/%s/nes%s.png", params[["outputdir"]], tecounttype, contrast, ontology, filter_var, num), w = 4, h = min(num, 7), res = 300)
-                                    EARTEplots[[contrast]][[tecounttype]][[ontology]][[filter_var]][["nes"]][[num]] <- p
+                                    mysaveandstore(sprintf("%s/%s/%s/gsea/%s/%s/nes%s.png", params[["outputdir"]], tecounttype, contrast, ontology, filter_var, num), w = 3, h = min(num/2, 7), res = 300)
                                 }
                             },
                             error = function(e) {
@@ -203,8 +200,6 @@ for (contrast in params[["contrasts"]]) {
     }
 }
 
-save(EARTEplots, file = sprintf("%s/EARTEplots.RData", params[["outputdir"]]))
-save(gse_results, file = sprintf("%s/gse_results.RData", params[["outputdir"]]))
-
+save(mysaveandstoreplots, file = outputs$plots)
 x <- data.frame()
 write.table(x, file = outputs[["outfile"]], col.names = FALSE)
