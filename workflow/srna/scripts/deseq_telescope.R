@@ -111,7 +111,7 @@ cts[rownames(cts) == "CDKN1A", ]
 dds <- DESeqDataSetFromMatrix(
     countData = cts,
     colData = coldata,
-    design = ~condition
+    design = ~batch + condition
 )
 
 colData(dds)

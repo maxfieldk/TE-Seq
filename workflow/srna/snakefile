@@ -391,6 +391,8 @@ samtools index {output.bam}
 rule generate_colors:
     output:
         "conf/colors_srna.RData"
+    conda:
+        "evo2"
     script:
         "scripts/generate_colors.R"
 
@@ -621,7 +623,7 @@ rule getBigWigR:
 
 rule deeptools_l1hs_profile:
     input:
-        bwF = "srna/outs/{sample}/star_output/{sample}.F.bw"
+        bwF = "srna/outs/{sample}/star_output/{sample}.F.bw",
         bwR = "srna/outs/{sample}/star_output/{sample}.R.bw"
     output:
         bwR = "srna/outs/{sample}/star_output/{sample}.R.bw"

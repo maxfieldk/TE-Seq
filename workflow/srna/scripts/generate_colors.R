@@ -1,3 +1,23 @@
+source("~/data/common/myDefaults.r")
+library(paletteer)
+
+
+{
+    tryCatch(
+        {
+            outputs <- snakemake@output
+        },
+        error = function(e) {
+            assign("outputs", list(outfile = "srna/results/agg/enrichment_analysis/outfile.txt"), env = globalenv())
+        }
+    )
+
+}
+
+sample_table <- read_csv(params[["sample_table"]])
+
+
+
 module_name <- "srna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
 
