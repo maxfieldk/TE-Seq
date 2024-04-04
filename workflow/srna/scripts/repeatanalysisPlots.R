@@ -1,6 +1,6 @@
 source("~/data/common/myDefaults.r")
 module_name <- "srna"
-load(sprintf("conf/colors_%s.RData", module_name))
+source("workflow/srna/scripts/generate_colors_to_source.R")
 conf <- configr::read.config(file = "conf/config.yaml")[["srna"]]
 
 library(knitr)
@@ -384,7 +384,6 @@ tidydf$condition <- factor(tidydf$condition, levels = conf$levels)
 
 
 #### PLOTTING
-plots <- list()
 for (contrast in contrasts) {
     contrast_of_interest <- contrast
     contrast_level_2 <- contrast_of_interest %>%
@@ -455,6 +454,11 @@ for (contrast in contrasts) {
                                 }
                                 p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var) + ggtitle(plot_title)
                                 mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s.png", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height)
+                                
+                                if (function_name == "stripp") {
+                                    p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, stats = "no") + ggtitle(plot_title)
+                                    mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_no_stats.png", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height)
+                                }
                             },
                             error = function(e) {
                                 print(sprintf("Error with  %s %s %s %s %s %s", tecounttype, contrast, group, function_name, filter_var, facet_var))
@@ -572,7 +576,6 @@ for (contrast in contrasts) {
 
 tryCatch(
     {
-        vennplots <- list()
         for (direction in c("UP", "DOWN")) {
             for (tecounttype in params$tecounttypes) {
                 results <- resultsdf %>% filter(tecounttype == tecounttype)

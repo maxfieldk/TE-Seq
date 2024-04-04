@@ -1,6 +1,6 @@
 source("~/data/common/myDefaults.r")
 module_name <- "srna"
-load(sprintf("conf/colors_%s.RData", module_name))
+source("workflow/srna/scripts/generate_colors_to_source.R")
 conf <- configr::read.config(file = "conf/config.yaml")[["srna"]]
 
 library(magrittr)

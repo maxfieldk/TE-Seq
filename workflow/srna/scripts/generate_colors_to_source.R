@@ -1,24 +1,7 @@
-source("~/data/common/myDefaults.r")
 library(paletteer)
-
+library(colorspace)
 
 {
-    tryCatch(
-        {
-            outputs <- snakemake@output
-        },
-        error = function(e) {
-            assign("outputs", list(outfile = "srna/results/agg/enrichment_analysis/outfile.txt"), env = globalenv())
-        }
-    )
-
-}
-
-sample_table <- read_csv(params[["sample_table"]])
-
-
-
-module_name <- "srna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
 
 sample_table <- read_csv(conf[["sample_table"]])
@@ -40,7 +23,7 @@ methylation_palette <- setNames(c("red", "blue", "grey"), c("Hypo", "Hyper", "NS
 
 contrast_base <- gsub(".*_vs_", "", contrasts)
 contrast_level <- gsub("condition_", "", gsub("_vs_.*", "", contrasts))
-contrasts_with_same_base <- contrast_base == levels[1]
+contrasts_with_same_base <- contrast_base == conf$levels[1]
 contrasts_without_same_base <- !contrasts_with_same_base
 tojoin <- tibble(contrast = contrasts, base = contrast_base, condition = contrast_level)[contrasts_with_same_base,]
 toappend <- tibble(contrast = contrasts, base = contrast_base, condition = contrast_level)[contrasts_without_same_base,]
@@ -59,7 +42,7 @@ scale_samples <- list(scale_fill_manual(values = sample_palette), scale_color_ma
 scale_conditions <- list(scale_fill_manual(values = condition_palette), scale_color_manual(values = condition_palette))
 scale_directions <- list(scale_fill_manual(values = direction_palette), scale_color_manual(values = direction_palette))
 scale_contrasts <- list(scale_fill_manual(values = contrast_palette), scale_color_manual(values = contrast_palette))
-
+}
 
 
 save(condition_palette, contrast_palette, sample_palette,sample_unique_palette, direction_palette,

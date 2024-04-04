@@ -388,13 +388,6 @@ samtools index {output.bam}
 #     script:
 #         "scripts/DESeq2.R"
 
-rule generate_colors:
-    output:
-        "conf/colors_srna.RData"
-    conda:
-        "evo2"
-    script:
-        "scripts/generate_colors.R"
 
 rule deseq_telescope:
     input:
