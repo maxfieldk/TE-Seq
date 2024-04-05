@@ -7,24 +7,61 @@ from pandas.core.common import flatten
 
 configfile: "conf/config.yaml"
 
-# for pipeline in config["pipelines_to_deploy"]:
-#     module f"{pipeline}":
-#         snakefile: f"./{pipeline}/snakefile"
-#         config: config[pipeline]
-#     use rule * from f"{pipline}" as f"{pipeline}"_*
-
 final_input = []
 
 
 for pipeline in config["pipelines_to_deploy"]:
+    if pipeline == "aref":
+        module aref:
+            snakefile: "aref/snakefile"
+            config: config["aref"]
+        if config["aref"]["symlink_aref"]["response"] == "yes":
+            use rule sym_link from aref as aref_*
+            final_input.append("aref.symlinked.outfile")
+        else:
+            if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
+                if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
+                    use rule * from aref exclude tldr_aggregate_multiple_samples as aref_*
+                else: 
+                    use rule * from aref exclude move_starting_reference,process_gtf,tldr_per_sample as aref_*
+            else:
+                use rule * from aref exclude process_gtf_tldr,cleanup_updated_ref,repeatmasker,getGtfs as aref_*
+
+            def aref_rally():
+                paths = [
+                    "aref/annotations/A.REF_repeatmasker.complete.gff3.gz.tbi",
+                    "aref/annotations/refseq.complete.gff3.gz.tbi",
+                    "aref/annotations/A.REF_repeatmasker_refseq.complete.gtf",
+                    "aref/annotations/A.REF_repeatmasker_refseq.complete.gff3",
+                    "aref/annotations/A.REF_repeatmasker.complete.bed",
+                    "aref/annotations/A.REF_rte_beds/outfile.txt",
+                    "aref/annotations/A.REF_repeatmasker_refseq.complete.sqlite",
+                    "aref/annotations/cytobands.bed"
+                ]
+                if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
+                    if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
+                        paths.append(expand("aref/{sample_or_ref}_Analysis/tldr_plots/tldr_plots.rds", sample_or_ref = config["aref"]["samples"]))
+                        paths.append(expand("aref/{sample_or_ref}_Analysis/tldr_plots/transduction_mapping.rds", sample_or_ref = config["aref"]["samples"]))
+                        paths.append(expand("aref/{sample_or_ref}_Analysis/l1element_analysis.outfile", sample_or_ref = config["aref"]["samples"]))
+
+                    else:
+                        paths.append(expand("aref/{sample_or_ref}_Analysis/tldr_plots/tldr_plots.rds", sample_or_ref = "A.REF"))
+                        paths.append(expand("aref/{sample_or_ref}_Analysis/tldr_plots/transduction_mapping.rds", sample_or_ref = "A.REF"))
+                        paths.append(expand("aref/{sample_or_ref}_Analysis/l1element_analysis.outfile", sample_or_ref = "A.REF"))
+
+
+                return list(flatten(paths))
+            for e in aref_rally():
+                final_input.append(e)
     if pipeline == "ldna":
         module ldna:
             snakefile: "ldna/snakefile"
-            config: config["ldna"]
-        if config["ldna"]["use_aref_basecalls"] == True:
+            config: config
+        if config["ldna"]["use_aref_basecalls"] == "yes":
             use rule * from ldna exclude dorado as ldna_*
         else:
             use rule * from ldna exclude align_to_updated_ref as ldna_*
+            tldr_analysis_per_sample = expand("ldna/tldr/{sample}.table.txt", sample = config["ldna"]["samples"])
         def ldna_rally():
             seqsummary = expand("ldna/qc/{sample}/{sample}.doradosummary.txt", sample = config["ldna"]["samples"])
             pycoQC = expand("ldna/qc/{sample}/{sample}pycoQC.html", sample = config["ldna"]["samples"])
@@ -32,7 +69,7 @@ for pipeline in config["pipelines_to_deploy"]:
             m1 = "ldna/results/plots/methylartist/locus/methylartistlocusplot_loci_of_interest.outfile"
             bedmethanalysis = "ldna/outfiles/bedmethylanalysis.txt"
             sniffles = expand("ldna/intermediates/{sample}/sniffles/sniffles.vcf", sample = config["ldna"]["samples"])
-            clair3 = expand("ldna/intermediates/{sample}/clair3AF{sample}.outfile", sample = config["ldna"]["samples"])
+            clair3 = expand("ldna/intermediates/{sample}/clair3/full_alignment.vcf.gz", sample = config["ldna"]["samples"])
             return list(flatten([m1, haplotaggedbam, bedmethanalysis, sniffles, clair3, pycoQC, seqsummary]))
         for e in ldna_rally():
             final_input.append(e)
@@ -56,34 +93,6 @@ for pipeline in config["pipelines_to_deploy"]:
         for e in lrna_rally():
             final_input.append(e)
 
-    if pipeline == "aref":
-        module aref:
-            snakefile: "aref/snakefile"
-            config: config["aref"]
-        if config["aref"]["update_ref_with_tldr"] == "yes":
-                use rule * from aref exclude move_starting_reference as aref_*
-        else:
-               use rule * from aref exclude cleanup_updated_ref as aref_*
-
-
-        def aref_rally():
-            paths = [
-                "aref/annotations/repeatmasker.complete.gff3.gz.tbi",
-                "aref/annotations/refseq.complete.gff3.gz.tbi",
-                "aref/annotations/repeatmasker_refseq.complete.gtf",
-                "aref/annotations/repeatmasker_refseq.complete.gff3",
-                "aref/annotations/repeatmasker.complete.bed",
-                "aref/annotations/refseq.complete.bed",
-                "aref/annotations/rte_beds/outfile.txt",
-                "aref/annotations/repeatmasker_refseq.complete.sqlite",
-                "aref/annotations/cytobands.bed",
-                "aref/RefAnalysis/l1element_evo.outfile",
-                "aref/RefAnalysis/tldr_plots/tldr_plots.rds",
-                expand("aref/annotations/{annot}.fa", annot = ["repeatmasker_refseq.complete", "repeatmasker.complete", "refseq.complete"])
-            ]
-            return list(flatten(paths))
-        for e in aref_rally():
-            final_input.append(e)
     if pipeline == "srna":
         module srna:
             snakefile: "srna/snakefile"
@@ -116,8 +125,6 @@ for pipeline in config["pipelines_to_deploy"]:
 #     config:
 #         config["ldna"]
 
-print("final_input")
-print(final_input)
 
 rule all:
     input:

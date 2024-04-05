@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 from pathlib import Path
-samples = config["samples"]
+samples = config["ldna"]["samples"]
 
 #tag BASECALLING
 rule dorado:
@@ -10,14 +10,14 @@ rule dorado:
     output:
         calls = "ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.bam"
     wildcard_constraints:
-        sample="[0-9A-Za-z]+",
+        sample="[0-9A-Za-z_]+",
         type = "[0-9A-Za-z]+",
         rate = "[0-9A-Za-z]+",
         modification_string = "[0-9A-Za-z_-]+"
     params:
-        dorado = config["dorado"],
-        basecallingModel = lambda w: config["basecallingModel"][w.rate][w.type],
-        reference = config["reference"]
+        dorado = config["ldna"]["dorado"],
+        basecallingModel = lambda w: config["ldna"]["basecallingModel"][w.rate][w.type],
+        reference = config["ldna"]["reference"]
     resources:
         cpus_per_task =12,
         threads = 12,
@@ -38,35 +38,42 @@ basecaller \
 --reference {params.reference} > {output.calls}
         """
 
+
 rule updated_bam_to_fastq:
     input:
-        calls = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
+        bam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
     output:
-        fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq.gz"
+        fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq"
+    conda: 
+        "omics"
     resources:
         cpus_per_task =12
     shell:
         """
 mkdir -p $(dirname {output.fastq})
-samtools fastq -T "*" {input.bam} | gzip > {output.fastq}
+samtools fastq -TMM,ML {input.bam} > {output.fastq}
         """
 
 rule align_to_updated_ref:
     input:
-        fastq = "ldna/intermediates/{sample}/fastqs/dorado/{sample}.fq.gz"
+        fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq"
     output:
-        bam = "ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.bam"
+        bam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
     params:
-        ref = config["reference"]
+        ref = config["ldna"]["reference"]
     resources:
         cpus_per_task =20,
-        runtime = 300,
+        runtime = 1200,
         mem_mb = 128000
     conda: "minimap2"
     shell:
         """
-minimap2 -a -x map-ont -t 14 {params.reference} {input.fastq} > {output.bam}
+minimap2 -a -x map-ont -t 14 -y {params.ref} {input.fastq} > {output.bam}
         """
+
+rule call_align_updated:
+    input:
+        bam =  expand("ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.NEW.bam",sample = config["ldna"]["samples"], rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
 
 rule dorado_barcode:
     input:
@@ -74,7 +81,7 @@ rule dorado_barcode:
     output:
         calls = "ldna/intermediates/calls.bam"
     params:
-        reference = config["reference"]
+        reference = config["ldna"]["reference"]
     resources:
         cpus_per_task =8,
         threads = 8,
@@ -118,7 +125,7 @@ touch {output.outfile}
 #     input:
 #         fq = "intermediates/{sample}/fastqs/dorado/{sample}.fq.gz"
 #     params:
-#         reference = config["mycoplasma"]
+#         reference = config["ldna"]["mycoplasma"]
 #     output:
 #         bam = "qc/mycoplasma/mycoplasma{sample}.bam"
 #     resources:
@@ -138,10 +145,10 @@ touch {output.outfile}
 
 rule dorado_seqsummary:
     input:
-        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
-        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
+        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
     params:
-        dorado = config["dorado"]
+        dorado = config["ldna"]["dorado"]
     output:
         "ldna/qc/{sample}/{sample}.doradosummary.txt"
     conda:
@@ -154,7 +161,7 @@ rule dorado_seqsummary:
 rule pycoQC:
     input:
         seqsummary = "ldna/qc/{sample}/{sample}.doradosummary.txt",
-        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
+        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
     output:
         "ldna/qc/{sample}/{sample}pycoQC.html"
     conda:
@@ -167,7 +174,7 @@ pycoQC --summary_file {input.seqsummary} --bam_file {input.sortedbam} --html_out
 
 # rule multiqc:
 #     input:
-#         counts_normed = expand("results/agg/deseq/{alignmenttype}/{counttype}/counttablesizenormed.csv", alignmenttype = config["alignmenttypes"], counttype = config["counttypes"])     
+#         counts_normed = expand("results/agg/deseq/{alignmenttype}/{counttype}/counttablesizenormed.csv", alignmenttype = config["ldna"]["alignmenttypes"], counttype = config["ldna"]["counttypes"])     
 #     conda:
 #         "omics"
 #     output:
@@ -177,37 +184,37 @@ pycoQC --summary_file {input.seqsummary} --bam_file {input.sortedbam} --html_out
 # multiqc --force --filename {output.report} --export --ignore "*guppy_basecaller_log*" .
 #         """
 
-#tag ALIGNMENT_UTILITIES
-# rule sortBam:
-#     input:
-#         bam = "ldna/{bampath}.bam"
-#     output:
-#         sortedbam =  "ldna/{bampath}.sorted.bam",
-#     resources:
-#         cpus_per_task =10,
-#         mem_mb = 64000
-#     conda:
-#         "omics"
-#     shell:
-#         """
-# mkdir -p $(dirname {output})
-# samtools sort -@8 -m4g {input.bam} > {output.sortedbam}
-#         """
+# tag ALIGNMENT_UTILITIES
+rule sortBam:
+    input:
+        bam = "ldna/{bampath}.bam"
+    output:
+        sortedbam =  "ldna/{bampath}.sorted.bam",
+    resources:
+        cpus_per_task =10,
+        mem_mb = 64000
+    conda:
+        "omics"
+    shell:
+        """
+mkdir -p $(dirname {output})
+samtools sort -@8 -m4g {input.bam} > {output.sortedbam}
+        """
 
-# rule IndexBam:
-#     input:
-#         bam = "ldna/{bampath}.bam"
-#     output:
-#         index = "ldna/{bampath}.bam.bai"
-#     resources:
-#         cpus_per_task =10,
-#         mem_mb = 64000
-#     conda:
-#         "omics"
-#     shell:
-#         """
-# samtools index  -@6 {input.bam}
-#         """
+rule IndexBam:
+    input:
+        bam = "ldna/{bampath}.bam"
+    output:
+        index = "ldna/{bampath}.bam.bai"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 64000
+    conda:
+        "omics"
+    shell:
+        """
+samtools index  -@6 {input.bam}
+        """
 
 # rule mergeBams:
 #     input:
@@ -224,29 +231,29 @@ pycoQC --summary_file {input.seqsummary} --bam_file {input.sortedbam} --html_out
 #     shell: "samtools merge --threads 6 {output.mergedbam} {input} 2> {log}"
 
 # #tag ALIGNMENT_FILTERING
-# rule filterbam:
-#     input:
-#         bam = "ldna/{path}.sorted.bam"
-#     output:
-#         bam = "ldna/{path}.sorted.filtered.bam"
-#     resources:
-#         cpus_per_task =6,
-#         mem_mb = 40000
-#     conda:
-#         "omics"
-#     shell: "samtools view -b -F 0x100 -q 10 -e '[qs] > 10' {input.bam} > {output.bam}"
+rule filterbam:
+    input:
+        bam = "ldna/{path}.sorted.bam"
+    output:
+        bam = "ldna/{path}.sorted.filtered.bam"
+    resources:
+        cpus_per_task =6,
+        mem_mb = 40000
+    conda:
+        "omics"
+    shell: "samtools view -b -F 0x100 -q 10 -e '[qs] > 10' {input.bam} > {output.bam}"
 
 #tag PHASING
 
 rule whatshap:
     input:
-        sortedbams = expand("ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"], sample = samples),
-        sortedbamsindex = expand("ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["rate"], type = config["type"], modification_string = config["modification_string"], sample = samples)
+        sortedbams = expand("ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples),
+        sortedbamsindex = expand("ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
     params:
         shortreadsbam = "/oscar/data/jsedivy/mkelsey/freebayes/alignment/lf1.sorted.bam",
         shortreadsbamindex = "/oscar/data/jsedivy/mkelsey/freebayes/alignment/lf1.sorted.bam.bai",
         vcf = "/oscar/data/jsedivy/mkelsey/freebayes/results/variants.vcf",
-        ref = config["reference"]
+        ref = config["ldna"]["reference"]
     output:
         phasedvcf = "ldna/intermediates/phased.vcf"
     resources:
@@ -284,13 +291,13 @@ tabix {input.phasedvcf}.gz
         
 rule addphasetobam:
     input:
-        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
-        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
+        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
         phasedvcfgz = "ldna/intermediates/phased.vcf.gz",
-        ref = config["reference"]
+        ref = config["ldna"]["reference"]
     output:
-        haplotaggedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.haplotagged.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
-        haplotaggedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.haplotagged.bam.bai", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
+        haplotaggedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.haplotagged.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        haplotaggedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.haplotagged.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
     resources:
         cpus_per_task = 20
     conda:
@@ -305,10 +312,10 @@ samtools index -@ 6 {output.haplotaggedbam}
 
 rule methylartistprepdssdata:
     input:
-        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
-        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
+        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
     params:
-        ref = config["reference"],
+        ref = config["ldna"]["reference"],
     output:
         "ldna/intermediates/{sample}/{sample}.{context}_{mod}.dss.tsv"
     conda: "methylartist"
@@ -324,10 +331,10 @@ mkdir -p $(dirname {output})
 
 rule modbamtobed:
     input:
-        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
-        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
+        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
     params:
-        ref = config["reference"]
+        ref = config["ldna"]["reference"]
     resources:
         cpus_per_task = 36,
         mem_mb = 128000
@@ -355,11 +362,11 @@ awk -v s=1 '$4=="h" {{OFS = "\t"; print $1, $2+s, $10, $12}}' {output.bed} >> {o
 
 rule modbamtobed_region:
     input:
-        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
-        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
+        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
     params:
-        ref = config["reference"],
-        reference_annotation_dir = config["reference_annotation_dir"]
+        ref = config["ldna"]["reference"],
+        reference_annotation_dir = config["ldna"]["reference_annotation_dir"]
     resources:
         cpus_per_task = 36,
         mem_mb = 128000
@@ -390,6 +397,24 @@ awk -v s=1 '$4=="h" {{OFS = "\t"; print $1, $2+s, $10, $12}}' {output.bed} >> {o
 awk -v s=1 '$4=="a" {{OFS = "\t"; print $1, $2+s, $10, $12}}' {output.bed} >> {output.dssInput_a}
         """
 
+rule modbamtobedTLDRinsertions:
+    input:
+        tldr = "ldna/tldr/{sample}.table.txt"
+    params:
+        ref = config["aref"]["update_ref_with_tldr"]["tldr_te_ref"],
+        indir = "ldna/tldr/{sample}"
+    resources:
+        cpus_per_task = 4,
+        mem_mb = 30000
+    output:
+        outfile = "outfiles/{sample}.bedmethyltldr.txt"
+    conda:
+        "omics"
+    shell: 
+        """
+bash scripts/bedmethtldr.sh {params.indir}
+touch {output.outfile}
+        """
 
 rule dss:
     input:
@@ -416,14 +441,14 @@ rule calldss:
     input:
         "ldna/results/tables/dmrs.CG_m.tsv",
         "ldna/results/tables/dmrs.CG_h.tsv",
-        expand("ldna/results/tables/dmrs.{element}_{mod}.tsv", element = config["rte_subfamily_extra_modification_analysis"], mod = ["nocontext.m", "nocontext.h", "nocontext.a"])
+        expand("ldna/results/tables/dmrs.{element}_{mod}.tsv", element = config["ldna"]["rte_subfamily_extra_modification_analysis"], mod = ["nocontext.m", "nocontext.h", "nocontext.a"])
 
 
 # #something odd about running python scripts, you need to run in snakelocal mode.
 # rule l1readanalysis:
 #     input:
-#         sortedbams = expand("intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"], sample = samples),
-#         sortedbamindeces = expand("intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["rate"], type = config["type"], modification_string = config["modification_string"], sample = samples)
+#         sortedbams = expand("intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples),
+#         sortedbamindeces = expand("intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
 #     output:
 #         reads_of_interest = 'results/tables/reads_of_interest.tsv'
 #     resources:
@@ -438,13 +463,13 @@ rule calldss:
 
 rule extractmods:
     input:
-        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
-        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
+        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
     output:
         read_mods = 'ldna/intermediates/{sample}/methylation/{sample}_readmods_NoContext_{region}.tsv'
     params:
-        ref = config["reference"],
-        ref_annotation_dir = config["reference_annotation_dir"],
+        ref = config["ldna"]["reference"],
+        ref_annotation_dir = config["ldna"]["reference_annotation_dir"],
     resources:
         cpus_per_task = 8,
         mem_mb = 80000
@@ -465,13 +490,13 @@ mkdir -p $(dirname {output})
 
 rule extractmods_cg_context:
     input:
-        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
-        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
+        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
     output:
         read_mods = 'ldna/intermediates/{sample}/methylation/{sample}_readmods_CpG_{region}.tsv'
     params:
-        ref = config["reference"],
-        ref_annotation_dir = config["reference_annotation_dir"],
+        ref = config["ldna"]["reference"],
+        ref_annotation_dir = config["ldna"]["reference_annotation_dir"],
     resources:
         cpus_per_task = 8,
         mem_mb = 80000
@@ -498,7 +523,7 @@ rule bedmethylanalysis:
         bedmethylpaths = expand("ldna/intermediates/{sample}/methylation/{sample}_CG_bedMethyl.bed", sample = samples),
         dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
         dmls = "ldna/results/tables/dmls.CG_m.tsv",
-        read_mods = expand('ldna/intermediates/{sample}/methylation/{sample}_readmods_{context}_{region}.tsv', sample = samples, region = config["rte_subfamily_read_level_analysis"], context = ["CpG", "NoContext"])
+        read_mods = expand('ldna/intermediates/{sample}/methylation/{sample}_readmods_{context}_{region}.tsv', sample = samples, region = config["ldna"]["rte_subfamily_read_level_analysis"], context = ["CpG", "NoContext"])
     output:
         "ldna/outfiles/bedmethylanalysis.txt"
     resources:
@@ -510,30 +535,13 @@ rule bedmethylanalysis:
     script:
         "scripts/bedmethylanalysis.R"
 
-# rule modbamtobedTLDRinsertions:
-#     input:
-#         tldr = "tldr/{sample}.filtered.table.txt"
-#     params:
-#         ref = config["hs1sorted"],
-#         indir = "tldr/{sample}.filtered"
-#     resources:
-#         cpus_per_task = 4,
-#         mem_mb = 30000
-#     output:
-#         outfile = "outfiles/{sample}.bedmethyltldr.txt"
-#     conda:
-#         "omics"
-#     shell: 
-#         """
-# bash scripts/bedmethtldr.sh {params.indir}
-# touch {output.outfile}
-#         """
+
 
 # rule modbamtobedTLDRinsertionsCombinedCall:
 #     input:
 #         tldr = "tldr/SEN1.filtered_PRO1.filtered.table.txt"
 #     params:
-#         ref = config["hs1sorted"],
+#         ref = config["ldna"]["hs1sorted"],
 #         indir = "tldr/SEN1.filtered_PRO1.filtered"
 #     resources:
 #         cpus_per_task = 4,
@@ -557,7 +565,7 @@ rule modbamtools:
     input:
         sortedbam = "ldna/intermediates/{sample}/alignments/{sample}.sorted.bam",
     params:
-        refseq = config["refseq"],
+        refseq = config["ldna"]["refseq"],
         outdir = "results/{sample}"
     output:
         outfile = "ldna/results/{sample}/outfile.txt"        
@@ -588,17 +596,17 @@ rule callmodbamtobedandextractmods:
 #tag METHYLARTIST_PLOTS
 rule methylartistlocusplot_loci_of_interest:
     input:
-        sortedbam = expand("ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"], sample = samples),
-        sortedbai = expand("ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["rate"], type = config["type"], modification_string = config["modification_string"], sample = samples)
+        sortedbam = expand("ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples),
+        sortedbai = expand("ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
     resources:
         runtime = 180,
         mem_mb = 5000
     params:
-        ref = config["reference"],
-        refseqbgz = config["refseqbgz"],
-        methylartist_bam_config = config["methylartist_bam_config"],
-        methylartist_loci_of_interest = config["methylartist_loci_of_interest"],
-        module_prefix = config["prefix"],
+        ref = config["ldna"]["reference"],
+        refseqbgz = config["ldna"]["refseqbgz"],
+        methylartist_bam_config = config["ldna"]["methylartist_bam_config"],
+        methylartist_loci_of_interest = config["ldna"]["methylartist_loci_of_interest"],
+        module_prefix = config["ldna"]["prefix"],
         outputprefix = lambda w: "results/plots/methylartist/locus/loci_of_interest_",
     output:
         "ldna/results/plots/methylartist/locus/methylartistlocusplot_loci_of_interest.outfile"
@@ -639,9 +647,9 @@ touch {output}
 #         runtime = 180,
 #         mem_mb = 5000
 #     params:
-#         ref = config["hs1sorted"],
-#         genes = config["genes"],
-#         l1hsintact = config["l1hsintact"],
+#         ref = config["ldna"]["hs1sorted"],
+#         genes = config["ldna"]["genes"],
+#         l1hsintact = config["ldna"]["l1hsintact"],
 #         outputprefix = "results/plots/methylartist/locus/l1hsintact_"
 
 #     output:
@@ -659,12 +667,12 @@ touch {output}
 # for coord in "${{coords_array[@]}}"
 # do
 # coordfnsafe=$(echo $coord | sed 's/:/-/')
-# if /users/mkelsey/data/tools/methylartist/methylartist locus --bams {params.bamconfig} -o ${{outputprefix}}${{coordfnsafe}}.png -i $coord --ref {params.ref} --motif CG -m m --highlight_bed {config[prefix]}/results/tables/dmrs.bed -g /users/mkelsey/data/ref/genomes/hs1/annotations3/RTE/l1hsintact.gff.gz  -p 1,6,1,3,4 --labelgenes >> {log} 2>> {log}; then
+# if /users/mkelsey/data/tools/methylartist/methylartist locus --bams {params.bamconfig["ldna"]} -o ${{outputprefix}}${{coordfnsafe}}.png -i $coord --ref {params.ref} --motif CG -m m --highlight_bed {config["ldna"][prefix]}/results/tables/dmrs.bed -g /users/mkelsey/data/ref/genomes/hs1/annotations3/RTE/l1hsintact.gff.gz  -p 1,6,1,3,4 --labelgenes >> {log} 2>> {log}; then
 # echo "worked"
 # else
 # echo "failed"
 # fi
-# if /users/mkelsey/data/tools/methylartist/methylartist locus --bams {params.bamconfig} -o ${{outputprefix}}${{coordfnsafe}}.png -i $coord --ref {params.ref} --motif CG -m m --highlight_bed {config[prefix]}/results/tables/dmrs.bed -g /users/mkelsey/data/ref/genomes/hs1/annotations3/RTE/l1hsintact.gff.gz  -p 1,6,1,3,4 --labelgenes --svg >> {log} 2>> {log}; then
+# if /users/mkelsey/data/tools/methylartist/methylartist locus --bams {params.bamconfig["ldna"]} -o ${{outputprefix}}${{coordfnsafe}}.png -i $coord --ref {params.ref} --motif CG -m m --highlight_bed {config["ldna"][prefix]}/results/tables/dmrs.bed -g /users/mkelsey/data/ref/genomes/hs1/annotations3/RTE/l1hsintact.gff.gz  -p 1,6,1,3,4 --labelgenes --svg >> {log} 2>> {log}; then
 # echo "worked"
 # else
 # echo "failed"
@@ -681,10 +689,10 @@ touch {output}
 #         runtime = 180,
 #         mem_mb = 5000
 #     params:
-#         ref = config["hs1sorted"],
-#         bamconfig = "conf/methylartist_bam_config.txt",
-#         genes = config["genes"],
-#         l1hsintact = config["l1hsintact"],
+#         ref = config["ldna"]["hs1sorted"],
+#         bamconfig["ldna"] = "conf/methylartist_bam_config.txt",
+#         genes = config["ldna"]["genes"],
+#         l1hsintact = config["ldna"]["l1hsintact"],
 #         outputprefix = "results/plots/methylartist/locus/l1hsintact_"
 
 #     output:
@@ -702,12 +710,12 @@ touch {output}
 # for coord in "${{coords_array[@]}}"
 # do
 # coordfnsafe=$(echo $coord | sed 's/:/-/')
-# if /users/mkelsey/data/tools/methylartist/methylartist locus --bams {params.bamconfig} -o {params.outputprefix}${{coordfnsafe}}.png -i $coord --ref {params.ref} --motif CG -m m --highlight_bed results/tables/dmrs.bed -g /users/mkelsey/data/ref/genomes/hs1/annotations3/RTE/l1hsintact.gff.gz  -p 1,6,1,3,4 --labelgenes >> {log} 2>> {log}; then
+# if /users/mkelsey/data/tools/methylartist/methylartist locus --bams {params.bamconfig["ldna"]} -o {params.outputprefix}${{coordfnsafe}}.png -i $coord --ref {params.ref} --motif CG -m m --highlight_bed results/tables/dmrs.bed -g /users/mkelsey/data/ref/genomes/hs1/annotations3/RTE/l1hsintact.gff.gz  -p 1,6,1,3,4 --labelgenes >> {log} 2>> {log}; then
 # echo "worked"
 # else
 # echo "failed"
 # fi
-# if /users/mkelsey/data/tools/methylartist/methylartist locus --bams {params.bamconfig} -o {params.outputprefix}${{coordfnsafe}}.png -i $coord --ref {params.ref} --motif CG -m m --highlight_bed results/tables/dmrs.bed -g /users/mkelsey/data/ref/genomes/hs1/annotations3/RTE/l1hsintact.gff.gz  -p 1,6,1,3,4 --labelgenes --svg >> {log} 2>> {log}; then
+# if /users/mkelsey/data/tools/methylartist/methylartist locus --bams {params.bamconfig["ldna"]} -o {params.outputprefix}${{coordfnsafe}}.png -i $coord --ref {params.ref} --motif CG -m m --highlight_bed results/tables/dmrs.bed -g /users/mkelsey/data/ref/genomes/hs1/annotations3/RTE/l1hsintact.gff.gz  -p 1,6,1,3,4 --labelgenes --svg >> {log} 2>> {log}; then
 # echo "worked"
 # else
 # echo "failed"
@@ -724,10 +732,10 @@ touch {output}
 #         runtime = 180,
 #         mem_mb = 5000
 #     params:
-#         ref = config["hs1sorted"],
-#         genes = config["genes"],
-#         l1hsintact = config["l1hsintact"],
-#         bamconfig = "conf/methylartist_bam_config.txt",
+#         ref = config["ldna"]["hs1sorted"],
+#         genes = config["ldna"]["genes"],
+#         l1hsintact = config["ldna"]["l1hsintact"],
+#         bamconfig["ldna"] = "conf/methylartist_bam_config.txt",
 #         outputprefix = "results/plots/methylartist/locus/testlocus_l1hsintact_"
 
 #     output:
@@ -745,7 +753,7 @@ touch {output}
 # for coord in "${{coords_array[@]}}"
 # do
 # coordfnsafe=$(echo $coord | sed 's/:/-/')
-# if /users/mkelsey/data/tools/methylartist/methylartist locus --bams {params.bamconfig} -o {params.outputprefix}${{coordfnsafe}}.png -i $coord --ref {params.ref} --motif CG -m m --highlight_bed results/tables/dmrs.methylartistHighlight.txt -g /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations3/RTE/ltr5intact.gff.gz  -p 1,6,1,3,4 --labelgenes >> {log} 2>> {log}; then
+# if /users/mkelsey/data/tools/methylartist/methylartist locus --bams {params.bamconfig["ldna"]} -o {params.outputprefix}${{coordfnsafe}}.png -i $coord --ref {params.ref} --motif CG -m m --highlight_bed results/tables/dmrs.methylartistHighlight.txt -g /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations3/RTE/ltr5intact.gff.gz  -p 1,6,1,3,4 --labelgenes >> {log} 2>> {log}; then
 # echo "worked"
 # else
 # echo "failed"
@@ -756,20 +764,20 @@ touch {output}
 
 # #awk script to get gff in proper format for bgzip, tabix, and methylartist (note the space at the end and the feature being transcript)
 # # awk -v OFS="\t" '{print $1,"hub_3671779_hs1_hub_3671779_ncbiRefSeqCurated","transcript", $2, $3, "0.000000", $6, ".", "gene_id \"l1hsintact\"; transcript_id \"l1hsintact\"; "}' l1hsintact.bed > good.gff
-# # /users/mkelsey/data/tools/methylartist/methylartist locus --bams {params.bamconfig} -o results/plots/methylartist/locus/testlocus_l1hsintact_chr1-71385136-71403481.png -i chr1:71384136-71404481 --ref /users/mkelsey/data/ref/genomes/hs1/hs1.sorted.fa --motif CG -m m --highlight_bed results/tables/dmrs.methylartistHighlight.txt -g /users/mkelsey/data/ref/genomes/hs1/annotations3/RTE/good.gff.gz -p 1,6,1,3,4
+# # /users/mkelsey/data/tools/methylartist/methylartist locus --bams {params.bamconfig["ldna"]} -o results/plots/methylartist/locus/testlocus_l1hsintact_chr1-71385136-71403481.png -i chr1:71384136-71404481 --ref /users/mkelsey/data/ref/genomes/hs1/hs1.sorted.fa --motif CG -m m --highlight_bed results/tables/dmrs.methylartistHighlight.txt -g /users/mkelsey/data/ref/genomes/hs1/annotations3/RTE/good.gff.gz -p 1,6,1,3,4
 # #awk -v OFS="\t" '{print $1,"hub_3671779_hs1_hub_3671779_ncbiRefSeqCurated","transcript", $2, $3, "0.000000", $6, ".", "gene_id \""$4"\"; transcript_id \""$4"\"; "}' ltr5intact.bed > ltr5intact.gff
 # rule methylartistcomposite:
 #     input:
 #         sortedbams = expand("intermediates/{sample}/alignments/{sample}.filtered.bam", sample = samples),
 #         bai = expand("intermediates/{sample}/alignments/{sample}.filtered.bam.bai", sample = samples)
 #     params:
-#         ref = config["hs1sorted"],
-#         genes = config["genes"],
-#         intactl1hss = config["l1hsintact"],
-#         l13 = config["l13"],
-#         l13orfs = config["l13orfs"],
-#         repeats = config["repeatsbgzip"],
-#         bamconfig = "conf/methylartist_bam_config.txt"
+#         ref = config["ldna"]["hs1sorted"],
+#         genes = config["ldna"]["genes"],
+#         intactl1hss = config["ldna"]["l1hsintact"],
+#         l13 = config["ldna"]["l13"],
+#         l13orfs = config["ldna"]["l13orfs"],
+#         repeats = config["ldna"]["repeatsbgzip"],
+#         bamconfig["ldna"] = "conf/methylartist_bam_config.txt"
 #     resources:
 #         runtime = 30,
 #         mem_mb = 100000,
@@ -783,7 +791,7 @@ touch {output}
 #     shell:
 #         r"""
 # cut -f1,2,3,6 {params.intactl1hss} > tempIntactL1hs.bed
-# /users/mkelsey/data/tools/methylartist/methylartist composite --bams {params.bamconfig} --meanplot_cutoff 5 -s tempIntactL1hs.bed -r {params.ref} -o {output} -t {params.l13} --mod m --primary_only -p {resources.cpus_per_task} --blocks {params.l13orfs}
+# /users/mkelsey/data/tools/methylartist/methylartist composite --bams {params.bamconfig["ldna"]} --meanplot_cutoff 5 -s tempIntactL1hs.bed -r {params.ref} -o {output} -t {params.l13} --mod m --primary_only -p {resources.cpus_per_task} --blocks {params.l13orfs}
 #         """
 
 # rule callMethylartistPlots:
@@ -822,7 +830,7 @@ touch {output}
 #     input:
 #         dmrs = "results/tables/dmrs.tsv"
 #     params:
-#         hs1 = config["hs1sorted"],
+#         hs1 = config["ldna"]["hs1sorted"],
 #         outputdir = "results/homer"
 #     output:
 #         "homeroutfile.txt"
@@ -862,8 +870,8 @@ rule reAlignFqs:
         targetAlignment = "ldna/intermediates/{sample}/alignments/{sample}_to_{target, [A-Za-z0-9]+}.bam",
         targetAlignmentindex = "ldna/intermediates/{sample}/alignments/{sample}_to_{target, [A-Za-z0-9]+}.bam.bai",
     params:
-        refGenome = config["reference"],
-        targetFasta = lambda wildcards: config["{}Fasta".format(wildcards.target)]
+        refGenome = config["ldna"]["reference"],
+        targetFasta = lambda wildcards: config["ldna"]["{}Fasta".format(wildcards.target)]
     conda: "omics"
     resources:
         cpus_per_task =32,
@@ -886,8 +894,8 @@ rule reAlignFqsExtractRegion:
     output:
         targetAlignmentROI = "ldna/intermediates/{sample}/alignments/{sample}_to_{target}_ROI.bam",
     params:
-        refGenome = config["reference"],
-        targetFasta = lambda wildcards: config["{}Fasta".format(wildcards.target)]
+        refGenome = config["ldna"]["reference"],
+        targetFasta = lambda wildcards: config["ldna"]["{}Fasta".format(wildcards.target)]
     conda: "omics"
     resources:
         cpus_per_task =32,
@@ -1004,7 +1012,7 @@ rule blastn:
     input:
         outfile = "ldna/assembly/{sample}/blastdb.outfile"
     params:
-        targetFasta = lambda wildcards: config["{}Fasta".format(wildcards.target)]
+        targetFasta = lambda wildcards: config["ldna"]["{}Fasta".format(wildcards.target)]
     output:
         blastn = "ldna/assembly/{sample}/{target}.blastn.out"
     conda:
@@ -1038,84 +1046,17 @@ mkdir -p $(dirname {output.outfile})
 flye --nano-raw {input.fq} --out-dir $(dirname {output.outfile}) --threads 30
         """
 
-#tag TLDR
-# rule tldr:
-#     input:
-#         bam = "intermediates/{sample}/alignments/{sample}.sorted.filtered.bam",
-#         bai = "intermediates/{sample}/alignments/{sample}.sorted.filtered.bam.bai"
-#     output:
-#         outfile = "outfiles/tldr.{sample}.outfile.txt"
-#     resources:
-#         cpus_per_task = 28,
-#         mem_mb = 100000,
-#         runtime = 300
-#     conda:
-#         "tldr"
-#     shell:
-#         """
-# mkdir -p tldr
-# cd tldr
-# tldr -b ../{input.bam} \
-# -e /oscar/data/jsedivy/mkelsey/tools/tldr/ref/teref.ont.human.fa \
-# -r /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/hs1.sorted.fa \
-# -p 24 \
-# --detail_output \
-# --extend_consensus 4000 \
-# --trdcol \
-# --color_consensus \
-# --flanksize 500 \
-# --keep_pickles \
-# --methylartist
-# cd ..
-# touch {output.outfile}
-#         """
-
-
-# rule tldrALLSAMPLES:
-#     input:
-#         bam = expand("intermediates/{sample}/alignments/{sample}.sorted.filtered.bam", sample = samples),
-#         bai = expand("intermediates/{sample}/alignments/{sample}.sorted.filtered.bam.bai", sample = samples)
-#     output:
-#         outfile = "outfiles/tldrall.outfile.txt"
-#     resources:
-#         cpus_per_task = 28,
-#         mem_mb = 100000,
-#         runtime = 300
-
-#     conda:
-#         "tldr"
-#     shell:
-#         """
-# mkdir -p tldr
-# cd tldr
-# bams1=({input.bam})
-# bams2=$(printf "\"../%s\"," "${{bams1[@]}}")
-# bams=${{bams2%?}}
-# tldr -b $bams \
-# -e /oscar/data/jsedivy/mkelsey/tools/tldr/ref/teref.ont.human.fa \
-# -r /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/hs1.sorted.fa \
-# -p 24 \
-# --detail_output \
-# --extend_consensus 500 \
-# --trdcol \
-# --color_consensus \
-# --flanksize 500 \
-# --keep_pickles \
-# --methylartist
-# cd ..
-# touch {output.outfile}
-#         """
 
 #tag VARIANT_CALLING
 rule clair3:
     input:
-        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
-        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
+        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
     output:
         vcf = "ldna/intermediates/{sample}/clair3/full_alignment.vcf.gz"
     params:
-        ref = config["reference"],
-        clair3model = config["clair3model"]
+        ref = config["ldna"]["reference"],
+        clair3model = config["ldna"]["clair3model"]
     threads: 32
     resources:
         runtime = 1000,
@@ -1131,19 +1072,19 @@ run_clair3.sh \
 --ref_fn="{params.ref}" \
 --threads=24 \
 --platform="ont" \
---model_path={params.clair3model} --output=${{wd}}/$(dirname {output.outfile})
+--model_path={params.clair3model} --output=${{wd}}/$(dirname {output.vcf})
         """
 
 rule clair3ROI:
     input:
-        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
-        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
+        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
     output:
         outfile = "ldna/intermediates/{sample}/clair3ROIAF{sample}.outfile"
     params:
-        ref = config["reference"],
+        ref = config["ldna"]["reference"],
         roi = "/oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations4/hs1.repeatMasker.l1hs.bed",
-        clair3model = config["clair3model"]
+        clair3model = config["ldna"]["clair3model"]
     threads: 32
     resources:
         runtime = 1000,
@@ -1167,12 +1108,12 @@ touch {output.outfile}
 
 rule sniffles:
     input:
-        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
-        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
+        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
     output:
         vcf = "ldna/intermediates/{sample}/sniffles/sniffles.vcf"
     params:
-        ref = config["reference"]
+        ref = config["ldna"]["reference"]
     resources:
         runtime = 1000,
         mem_mb = 128000,
@@ -1188,7 +1129,7 @@ sniffles -i {input.sortedbam} -v {output.vcf} --threads 28 --mosaic --reference 
 rule snpeff:
     input: 
         vcf = "ldna/intermediates/{sample}/clair3/full_alignment.vcf.gz",
-        clinvar_bgz = config["clinvar_bgz"]
+        clinvar_bgz = config["ldna"]["clinvar_bgz"]
     output:
         csvStats = "ldna/intermediates/{sample}/snpeff/csvStats.csv",
         htmlStats = "ldna/intermediates/{sample}/snpeff/snpeffStats.html",
@@ -1201,10 +1142,10 @@ snpEff -v -noGenome -interval {input.clinvar_bgz} -chr 'chr' -csvStats {output.c
     
 rule pepper:
     input:
-        sortedbam = expand("ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"], sample = samples),
-        sortedbamindex = expand("ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["rate"], type = config["type"], modification_string = config["modification_string"], sample = samples)
+        sortedbam = expand("ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples),
+        sortedbamindex = expand("ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
     params:
-        ref = config["reference"]
+        ref = config["ldna"]["reference"]
     output:
         outfile = "ldna/intermediates/{sample}/pepper/out.outfile"
     resources:

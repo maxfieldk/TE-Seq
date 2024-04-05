@@ -1,4 +1,7 @@
-source("~/data/common/myDefaults.r")
+source("workflow/scripts/defaults.R")
+module_name <- "srna"
+source("workflow/srna/scripts/generate_colors_to_source.R")
+conf <- configr::read.config(file = "conf/config.yaml")[["srna"]]
 
 library("DESeq2")
 library("readr")
@@ -23,9 +26,6 @@ library("dplyr")
 library(EnhancedVolcano)
 
 
-conf <- configr::read.config(file = "conf/config.yaml")[["srna"]]
-
-
 
 tryCatch(
     {
@@ -44,7 +44,8 @@ tryCatch(
             "r_repeatmasker_annotation" = conf$r_repeatmasker_annotation,
             "paralellize_bioc" = 8
         ), env = globalenv())
-
+        assign("outputs", list(
+            plots = sprintf("srna/results/agg/deseq_telescope/telescope_multi/deseq_plots.RData"), env = globalenv()))
         assign("inputs", list(
             counts = sprintf("%s/outs/agg/featurecounts_genes/counts.txt", conf$prefix),
             rte_counts = sprintf("%s/outs/%s/telescope/telescope-run_stats.tsv", conf$prefix, conf$samples)
@@ -52,11 +53,17 @@ tryCatch(
     }
 )
 
+
+
 tecounttype <- params[["tecounttype"]]
+
 print(tecounttype)
 contrasts <- params[["contrasts"]]
 levels <- params[["levels"]]
 outputdir <- params[["outputdir"]]
+countspath <- paste(outputdir, tecounttype, "counttablesizenormed.csv", sep = "/")
+print("countspath")
+print(countspath)
 coldata <- read.csv(params[["sample_table"]])
 samples <- conf$samples
 coldata <- coldata[match(conf$samples, coldata$sample_name), ]
@@ -105,7 +112,7 @@ cts[rownames(cts) == "CDKN1A", ]
 dds <- DESeqDataSetFromMatrix(
     countData = cts,
     colData = coldata,
-    design = ~condition
+    design = ~batch + condition
 )
 
 colData(dds)
@@ -192,7 +199,7 @@ for (subset in c("rtes", "genes")) {
             xlim = c(-10, 10),
             ylim = c(-1, 15)
         ) + theme(axis.line = element_blank(), aspect.ratio = 1, panel.border = element_rect(color = "black", linetype = 1, linewidth = 1, fill = NA))
-        mysave(paste(outputdir, tecounttype, subset, contrast, "deplot.png", sep = "/"), 8, 8)
+        mysaveandstore(paste(outputdir, tecounttype, subset, contrast, "deplot.png", sep = "/"), 8, 8)
         deseq_plots[[tecounttype]][[subset]][["volcano"]][[contrast]] <- p
     }
 
@@ -203,41 +210,64 @@ for (subset in c("rtes", "genes")) {
     ## PCA plots
     pcaObj <- pca(vst_assay, metadata = colData(ddstemp), removeVar = 0.1)
 
-    p <- screeplot(pcaObj, title = "") +
-        theme_cowplot() +
-        mytheme
-    mysave(paste(outputdir, tecounttype, subset, "screeplot.png", sep = "/"), 4, 4)
-    deseq_plots[[tecounttype]][[subset]][["scree"]] <- p
+    p <- screeplot(pcaObj, title = "") + mtopen + anchorbar
+    mysaveandstore(paste(outputdir, tecounttype, subset, "screeplot.png", sep = "/"), 4, 4)
 
 
     p <- plotloadings(pcaObj,
         components = getComponents(pcaObj, seq_len(3)),
         rangeRetain = 0.045, labSize = 4
-    ) +
-        theme(legend.position = "none") +
-        mytheme
-    mysave(paste(outputdir, tecounttype, subset, "loadings.png", sep = "/"), 4, 4)
-    deseq_plots[[tecounttype]][[subset]][["loadings"]] <- p
+    ) + mtopen
+    mysaveandstore(paste(outputdir, tecounttype, subset, "loadings.png", sep = "/"), 10, 7)
 
+
+    p <- biplot(pcaObj,
+        showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0,
+        colby = "condition", legendPosition = "right", shape = "batch",
+        labSize = 5, pointSize = 5, sizeLoadingsNames = 5
+    ) + mtopen + scale_conditions
+    mysaveandstore(paste(outputdir, tecounttype, subset, "pca.png", sep = "/"), 5, 5)
+
+    p <- biplot(pcaObj,
+        showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0,
+        colby = "batch", legendPosition = "right",
+        labSize = 5, pointSize = 5, sizeLoadingsNames = 5
+    ) + mtopen
+    mysaveandstore(paste(outputdir, tecounttype, subset, "pca_batch.png", sep = "/"), 5, 5)
 
     p <- biplot(pcaObj,
         showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0,
         colby = "condition", legendPosition = "right",
         labSize = 5, pointSize = 5, sizeLoadingsNames = 5
-    ) +
-        theme_gray() +
-        mytheme
-    mysave(paste(outputdir, tecounttype, subset, "pca.png", sep = "/"), 4, 4)
-    deseq_plots[[tecounttype]][[subset]][["pca"]] <- p
+    ) + mtopen + scale_conditions
+    mysaveandstore(paste(outputdir, tecounttype, subset, "pca_large.png", sep = "/"), 16, 16)
+
+    p <- biplot(pcaObj,
+        showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0,
+        colby = "batch", legendPosition = "right",
+        labSize = 5, pointSize = 5, sizeLoadingsNames = 5
+    ) + mtopen
+    mysaveandstore(paste(outputdir, tecounttype, subset, "pca_batch_large.png", sep = "/"), 16, 16)
+
+
+
+    p <- pairsplot(pcaObj, colby = 'batch', title = 'Batch', legendPosition = "right")
+    mysaveandstore(paste(outputdir, tecounttype, subset, "pca_pairs_batch.png", sep = "/"), 15, 15)
+
+    p <- pairsplot(pcaObj, colby = "condition", title = 'Condition', legendPosition = "right")
+    mysaveandstore(paste(outputdir, tecounttype, subset, "pca_pairs_condition.png", sep = "/"), 15, 15)
+
+
+    p <- eigencorplot(pcaObj,metavars = c("batch", "condition"))
+    mysaveandstore(paste(outputdir, tecounttype, subset, "pca_pairs.png", sep = "/"), 8, 4)
 
 
     p <- biplot(pcaObj,
         x = "PC3", y = "PC4", showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0,
         colby = "condition", legendPosition = "right",
         labSize = 5, pointSize = 5, sizeLoadingsNames = 5
-    ) + mytheme
-    mysave(paste(outputdir, tecounttype, subset, "pca34.png", sep = "/"), 4, 4)
-    deseq_plots[[tecounttype]][[subset]][["pca34"]] <- p
+    ) + mtopen + scale_conditions
+    mysaveandstore(paste(outputdir, tecounttype, subset, "pca34.png", sep = "/"), 4, 4)
 
 
 
@@ -251,9 +281,10 @@ for (subset in c("rtes", "genes")) {
         clustering_distance_cols = sampleDists,
         col = colors
     )
-    mysave(paste(outputdir, tecounttype, subset, "pheatmap.png", sep = "/"), 4, 4)
-    deseq_plots[[tecounttype]][[subset]][["dist_heatmap"]] <- p
+    mysaveandstore(paste(outputdir, tecounttype, subset, "pheatmap.png", sep = "/"), 4, 4)
 }
-save(deseq_plots, file = paste(outputdir, tecounttype, "deseq_plots.RData", sep = "/"))
+
 save(ddsrteslist, file = paste(outputdir, tecounttype, "dds_rtes.RData", sep = "/"))
 save(ddsgeneslist, file = paste(outputdir, tecounttype, "dds_genes.RData", sep = "/"))
+
+save(mysaveandstoreplots, file = outputs$plots)

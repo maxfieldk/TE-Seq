@@ -1,4 +1,4 @@
-source("~/data/common/myDefaults.r")
+source("workflow/scripts/defaults.R")
 library(GenomicFeatures)
 library(GenomicRanges)
 library(rtracklayer)
@@ -14,11 +14,11 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            r_annotation_fragmentsjoined = "annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv",
-            ref = "aref/ref.fa"
+            r_annotation_fragmentsjoined = "aref/annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv",
+            ref = "aref/A.REF.fa"
         ), env = globalenv())
         assign("outputs", list(
-            r_repeatmasker_annotation = "annotations/repeatmasker_annotation.csv"
+            r_repeatmasker_annotation = "aref/annotations/repeatmasker_annotation.csv"
         ), env = globalenv())
     }
 )
@@ -277,7 +277,7 @@ tryCatch(
 
 
 # genes, centromere and telomere
-refseq <- import(conf$ref_refseq)
+refseq <- import(conf$ref_refseq_gtf)
 refseqdf <- as.data.frame(refseq) %>% tibble()
 coding_transcripts <- refseq[(mcols(refseq)$type == "transcript" & grepl("^NM", mcols(refseq)$transcript_id))]
 

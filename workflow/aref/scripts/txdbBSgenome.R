@@ -1,4 +1,4 @@
-source("~/data/common/myDefaults.r")
+source("workflow/scripts/defaults.R")
 library(igvR)
 library(knitr)
 library(rmarkdown)
@@ -26,15 +26,35 @@ library(ggpubr)
 library(GenomicFeatures)
 library(rtracklayer)
 
-grs_refseq <- import(snakemake@input$refseq)
-grs_repeatmasker <- import(snakemake@input$repeatmasker)
+tryCatch(
+    {
+        inputs <- inputs
+        outputs <- outputs
+    },
+    error = function(e) {
+        assign("inputs", list(
+            refseq = "aref/annotations/refseq.gff3",
+            repeatmasker = "aref/annotations/repeatmasker.complete.gff3",
+            genome2bit = "aref/ref.2bit"
+        ), env = globalenv())
+        assign("outputs", list(
+            txdb = "aref/annotations/repeatmasker_refseq.complete.sqlite",
+            txdbrefseq = "aref/annotations/refseq.sqlite",
+            txdbrepeatmasker = "aref/annotations/repeatmasker.complete.sqlite"
+        ), env = globalenv())
+    }
+)
+
+
+grs_refseq <- import(inputs$refseq)
+grs_repeatmasker <- import(inputs$repeatmasker)
 grs <- c(grs_refseq, grs_repeatmasker)
 txdb <- makeTxDbFromGRanges(grs)
 txdbrepeatmasker <- makeTxDbFromGRanges(grs_repeatmasker)
 txdbrefseq <- makeTxDbFromGRanges(grs_refseq)
-saveDb(txdb, file = snakemake@output$txdb)
-saveDb(txdbrefseq, file = snakemake@output$txdbrefseq)
-saveDb(txdbrepeatmasker, file = snakemake@output$txdbrepeatmasker)
+saveDb(txdb, file = outputs$txdb)
+saveDb(txdbrefseq, file = outputs$txdbrefseq)
+saveDb(txdbrepeatmasker, file = outputs$txdbrepeatmasker)
 
 
 # library(Biostrings)

@@ -1,4 +1,4 @@
-source("~/data/common/myDefaults.r")
+source("workflow/scripts/defaults.R")
 library(configr)
 library(Biostrings)
 
@@ -13,7 +13,10 @@ tryCatch(
             tldroutput = "aref/tldr/tldr.table.txt",
             reference = "/oscar/data/jsedivy/mkelsey/ref/genomes/hs1/hs1.sorted.fa"
         ), env = globalenv())
-        assign("outputs", list(updated_reference = "updated_reference/hs1_lf1.fa"), env = globalenv())
+        assign("outputs", list(
+            updated_reference = "updated_reference/hs1_lf1.fa",
+            non_ref_contigs = "aref/ref_pre_ins_filtering_nonrefcontigs.fa"
+        ), env = globalenv())
     }
 )
 
@@ -28,7 +31,7 @@ df <- df[!(df %$% faName %>% duplicated()), ]
 # fasta
 ss <- DNAStringSet(df %>% dplyr::arrange(faName) %$% Consensus)
 names(ss) <- df %>% dplyr::arrange(faName) %$% faName
-# writeXStringSet(ss, paste0(dirname(outputs$updated_reference), "/nonrefcontigs.fa"), append = FALSE, format = "fasta")
+writeXStringSet(ss, outputs$non_ref_contigs, append = FALSE, format = "fasta")
 
 dir.create(dirname(outputs$updated_reference), recursive = TRUE, showWarnings = FALSE)
 system(sprintf("cp %s %s", inputs$reference, outputs$updated_reference))

@@ -1,4 +1,4 @@
-source("~/data/common/myDefaults.r")
+source("workflow/scripts/defaults.R")
 library(readr)
 library(magrittr)
 library(stringr)
@@ -41,11 +41,11 @@ tryCatch(
         assign("inputs", list(
             r_annotation_fragmentsjoined = "aref/annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv",
             r_repeatmasker_annotation = "aref/annotations/repeatmasker_annotation.csv",
-            ref = "aref/ref.fa"
+            ref = "aref/A.REF.fa"
         ), env = globalenv())
         assign("params", list(l13 = conf$l13fasta), env = globalenv())
         assign("outputs", list(
-            outfile = "aref/RefAnalysis/element_analysis.outfile",
+            outfile = "aref/RefAnalysis/l1element_analysis.outfile",
             plots = "aref/RefAnalysis/plots.Rda"
         ), env = globalenv())
     }
