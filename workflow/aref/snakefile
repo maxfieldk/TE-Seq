@@ -26,10 +26,9 @@ rule dorado:
         reference = config["update_ref_with_tldr"]["tldr_input_bam_ref"]
     resources:
         cpus_per_task =12,
-        threads = 12,
         slurm_partition="gpu-he",
         mem_mb = 128000,
-        slurm_extra="--time=96:00:00 --constraint=a6000 --gres=gpu:2"
+        slurm_extra="--time=96:00:00 --prefer=a6000 --gres=gpu:2"
     shell:
         """
 mkdir -p $(dirname {output.calls})
