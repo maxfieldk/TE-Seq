@@ -20,7 +20,7 @@ sample_unique_palette <- setNames(color_table$sample_unique_color, color_table$s
 direction_palette <- setNames(c("red", "blue", "grey"), c("UP", "DOWN", "NS"))
 methylation_palette <- setNames(c("red", "blue", "grey"), c("Hypo", "Hyper", "NS"))
 
-
+contrasts <- conf$contrasts
 contrast_base <- gsub(".*_vs_", "", contrasts)
 contrast_level <- gsub("condition_", "", gsub("_vs_.*", "", contrasts))
 contrasts_with_same_base <- contrast_base == conf$levels[1]

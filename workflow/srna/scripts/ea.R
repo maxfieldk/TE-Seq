@@ -1,4 +1,4 @@
-source("~/data/common/myDefaults.r")
+source("workflow/scripts/defaults.R")
 module_name <- "srna"
 source("workflow/srna/scripts/generate_colors_to_source.R")
 conf <- configr::read.config(file = "conf/config.yaml")[["srna"]]

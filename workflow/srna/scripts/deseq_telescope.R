@@ -1,4 +1,4 @@
-source("~/data/common/myDefaults.r")
+source("workflow/scripts/defaults.R")
 module_name <- "srna"
 source("workflow/srna/scripts/generate_colors_to_source.R")
 conf <- configr::read.config(file = "conf/config.yaml")[["srna"]]
@@ -44,7 +44,8 @@ tryCatch(
             "r_repeatmasker_annotation" = conf$r_repeatmasker_annotation,
             "paralellize_bioc" = 8
         ), env = globalenv())
-
+        assign("outputs", list(
+            plots = sprintf("srna/results/agg/deseq_telescope/telescope_multi/deseq_plots.RData"), env = globalenv()))
         assign("inputs", list(
             counts = sprintf("%s/outs/agg/featurecounts_genes/counts.txt", conf$prefix),
             rte_counts = sprintf("%s/outs/%s/telescope/telescope-run_stats.tsv", conf$prefix, conf$samples)
@@ -222,10 +223,43 @@ for (subset in c("rtes", "genes")) {
 
     p <- biplot(pcaObj,
         showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0,
+        colby = "condition", legendPosition = "right", shape = "batch",
+        labSize = 5, pointSize = 5, sizeLoadingsNames = 5
+    ) + mtopen + scale_conditions
+    mysaveandstore(paste(outputdir, tecounttype, subset, "pca.png", sep = "/"), 5, 5)
+
+    p <- biplot(pcaObj,
+        showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0,
+        colby = "batch", legendPosition = "right",
+        labSize = 5, pointSize = 5, sizeLoadingsNames = 5
+    ) + mtopen
+    mysaveandstore(paste(outputdir, tecounttype, subset, "pca_batch.png", sep = "/"), 5, 5)
+
+    p <- biplot(pcaObj,
+        showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0,
         colby = "condition", legendPosition = "right",
         labSize = 5, pointSize = 5, sizeLoadingsNames = 5
     ) + mtopen + scale_conditions
-    mysaveandstore(paste(outputdir, tecounttype, subset, "pca.png", sep = "/"), 4, 4)
+    mysaveandstore(paste(outputdir, tecounttype, subset, "pca_large.png", sep = "/"), 16, 16)
+
+    p <- biplot(pcaObj,
+        showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0,
+        colby = "batch", legendPosition = "right",
+        labSize = 5, pointSize = 5, sizeLoadingsNames = 5
+    ) + mtopen
+    mysaveandstore(paste(outputdir, tecounttype, subset, "pca_batch_large.png", sep = "/"), 16, 16)
+
+
+
+    p <- pairsplot(pcaObj, colby = 'batch', title = 'Batch', legendPosition = "right")
+    mysaveandstore(paste(outputdir, tecounttype, subset, "pca_pairs_batch.png", sep = "/"), 15, 15)
+
+    p <- pairsplot(pcaObj, colby = "condition", title = 'Condition', legendPosition = "right")
+    mysaveandstore(paste(outputdir, tecounttype, subset, "pca_pairs_condition.png", sep = "/"), 15, 15)
+
+
+    p <- eigencorplot(pcaObj,metavars = c("batch", "condition"))
+    mysaveandstore(paste(outputdir, tecounttype, subset, "pca_pairs.png", sep = "/"), 8, 4)
 
 
     p <- biplot(pcaObj,

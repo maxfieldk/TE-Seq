@@ -1,4 +1,4 @@
-source("~/data/common/myDefaults.r")
+source("workflow/scripts/defaults.R")
 
 library("DESeq2")
 library("readr")
