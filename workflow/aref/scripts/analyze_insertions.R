@@ -1,4 +1,8 @@
 source("workflow/scripts/defaults.R")
+module_name <- "aref"
+conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/generate_colors_to_source.R")
+
 library(readr)
 library(magrittr)
 library(stringr)
@@ -16,9 +20,6 @@ library(patchwork)
 library(magrittr)
 library(forcats)
 
-conf <- c(
-    conf <- configr::read.config(file = "conf/config.yaml")[["aref"]]
-)
 
 tryCatch(
     {
@@ -65,7 +66,7 @@ p <- df %>%
     theme(panel.border = element_rect(color = "black", fill = NA, size = 1)) +
     scale_y_continuous(expand = expansion(mult = c(0, .1))) +
     labs(x = "", y = "Count") +
-    scale_fill_manual(values = (my_palette)) +
+    paletteer::scale_fill_paletteer_d(conf$default_palette) +
     ggtitle("Non-reference RTE Insertions")
 mysaveandstore(sprintf("%s/insertions.png", outputdir), 5, 5)
 
@@ -78,7 +79,7 @@ p <- df %>%
     theme(panel.border = element_rect(color = "black", fill = NA, size = 1)) +
     scale_y_continuous(expand = expansion(mult = c(0, .1))) +
     labs(x = "", y = "Count") +
-    scale_fill_manual(values = (my_palette)) +
+    paletteer::scale_fill_paletteer_d(conf$default_palette) +
     ggtitle("Non-reference RTE Insertions")
 mysaveandstore(sprintf("%s/insertions_subfamily.png", outputdir), 5, 5)
 
@@ -89,7 +90,7 @@ p <- df %>%
     geom_vline(xintercept = 6000, color = "red", linetype = 2) +
     ggtitle("L1HS Insertion Lengths") +
     labs(x = "Length (bp)", y = "Count") +
-    mythemeconditions
+    mtopen
 mysaveandstore(sprintf("%s/l1hs_length.png", outputdir), 5, 5)
 
 
@@ -103,7 +104,7 @@ p <- df_filtered %>%
     theme(panel.border = element_rect(color = "black", fill = NA, size = 1)) +
     scale_y_continuous(expand = expansion(mult = c(0, .1))) +
     labs(x = "", y = "Count") +
-    scale_fill_manual(values = (my_palette)) +
+    paletteer::scale_fill_paletteer_d(conf$default_palette) +
     ggtitle("Non-reference RTE Insertions")
 mysaveandstore(sprintf("%s/insertions_in_updated_ref.png", outputdir), 5, 5)
 
@@ -116,7 +117,7 @@ p <- df_filtered %>%
     theme(panel.border = element_rect(color = "black", fill = NA, size = 1)) +
     scale_y_continuous(expand = expansion(mult = c(0, .1))) +
     labs(x = "", y = "Count") +
-    scale_fill_manual(values = (my_palette)) +
+    paletteer::scale_fill_paletteer_d(conf$default_palette) +
     ggtitle("Non-reference RTE Insertions")
 mysaveandstore(sprintf("%s/insertions_subfamily_in_updated_ref.png", outputdir), 6, 4)
 
@@ -127,7 +128,7 @@ p <- df_filtered %>%
     geom_vline(xintercept = 6000, color = "red", linetype = 2) +
     ggtitle("L1HS Insertion Lengths") +
     labs(x = "Length (bp)", y = "Count") +
-    mythemeconditions
+    mtopen + paletteer::scale_fill_paletteer_d(conf$default_palette)
 mysaveandstore(sprintf("%s/l1hs_length_in_updated_ref.png", outputdir), 5, 5)
 
 ###############

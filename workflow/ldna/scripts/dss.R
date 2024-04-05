@@ -1,9 +1,13 @@
+source("workflow/scripts/defaults.R")
+module_name <- "ldna"
+conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/generate_colors_to_source.R")
+
 library(DSS)
 library(BiocParallel)
 library(readr)
 require(bsseq)
 
-conf <- configr::read.config(file = "conf/config.yaml")[["ldna"]]
 
 tryCatch(
     {

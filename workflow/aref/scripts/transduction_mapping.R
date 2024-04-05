@@ -1,4 +1,8 @@
 source("workflow/scripts/defaults.R")
+module_name <- "aref"
+conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/generate_colors_to_source.R")
+
 library(readr)
 library(magrittr)
 library(stringr)
@@ -16,10 +20,6 @@ library(patchwork)
 library(magrittr)
 library(forcats)
 library(rBLAST)
-
-conf <- c(
-    conf <- configr::read.config(file = "conf/config.yaml")[["aref"]]
-)
 
 tryCatch(
     {

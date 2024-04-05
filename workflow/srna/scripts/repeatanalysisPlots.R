@@ -1,7 +1,7 @@
 source("workflow/scripts/defaults.R")
 module_name <- "srna"
-source("workflow/srna/scripts/generate_colors_to_source.R")
-conf <- configr::read.config(file = "conf/config.yaml")[["srna"]]
+conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/generate_colors_to_source.R")
 
 library(knitr)
 library(rmarkdown)
@@ -186,7 +186,7 @@ dep <- function(df, facet_var = "ALL", filter_var = "ALL") {
             labs(x = "", y = "Number DE", caption = counttype_label) +
             geom_col(aes(x = direction, group = direction, y = count)) +
             mtclosed +
-            mypalette +
+            scale_palette +
             anchorbar +
             guides(fill = "none")
     } else {
@@ -195,7 +195,7 @@ dep <- function(df, facet_var = "ALL", filter_var = "ALL") {
             geom_col(aes(x = direction, group = direction, y = count)) +
             facet_wrap(facet_var) +
             mtclosed +
-            mypalette +
+            scale_palette +
             anchorbar +
             guides(fill = "none")
     }

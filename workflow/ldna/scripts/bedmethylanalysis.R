@@ -1,4 +1,9 @@
 source("workflow/scripts/defaults.R")
+module_name <- "ldna"
+conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/generate_colors_to_source.R")
+conf$sample_table
+
 library(rtracklayer)
 library(Biostrings)
 library(cowplot)
@@ -18,7 +23,6 @@ library(ggbeeswarm)
 # library(msigdbr)
 library(Biostrings)
 
-conf <- read.config(file = "conf/config.yaml")[["ldna"]]
 samples <- conf$samples
 sample_table <- read_csv(sprintf("conf/sample_table_%s.csv", conf$prefix))
 sample_table <- sample_table[match(samples, sample_table$sample_name), ]
@@ -51,37 +55,6 @@ if ("chrY" %in% conf$SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS) {
 }
 #################### functions and themes
 
-{
-    mytheme <- list(
-        theme(panel.border = element_rect(color = "black", fill = NA, size = 1))
-    )
-    mythemesamples <- list(
-        scale_fill_manual(values = rep(my_palette[4:5], each = 1)),
-        theme(panel.border = element_rect(color = "black", fill = NA, size = 1))
-    )
-    mythemesamplesdif <- list(
-        scale_fill_manual(values = c(bluelight, blue, bluedark, orangelight, orange, orangedark)),
-        theme(panel.border = element_rect(color = "black", fill = NA, size = 1))
-    )
-    mythemeconditions <- list(
-        scale_color_manual(values = my_palette[5:4]),
-        scale_fill_manual(values = my_palette[5:4]),
-        theme(panel.border = element_rect(color = "black", fill = NA, size = 1))
-    )
-    mythemeconditionsrev <- list(
-        scale_color_manual(values = my_palette[4:5]),
-        scale_fill_manual(values = my_palette[4:5]),
-        theme(panel.border = element_rect(color = "black", fill = NA, size = 1))
-    )
-    mythemecontrast <- list(
-        scale_fill_manual(values = my_palette[c(1, 2, 9)]),
-        theme(panel.border = element_rect(color = "black", fill = NA, size = 1))
-    )
-    mythemecontrastrev <- list(
-        scale_fill_manual(values = my_palette[c(2, 1, 9)]),
-        theme(panel.border = element_rect(color = "black", fill = NA, size = 1))
-    )
-}
 
 plots <- list()
 BMAtables <- list()
@@ -304,7 +277,7 @@ t.test(pctM ~ condition, data = grsdf %>% filter(seqnames %in% chromosomesNoX), 
 
 p <- grsdf %>% ggplot() +
     geom_boxplot(aes(x = islandStatus, y = pctM, fill = condition)) +
-    mythemeconditionsrev
+    mtopen + scale_conditions
 mysave(fn = "results/plots/genomewide/cpgislandstatusbox.png", w = 4, h = 4, res = 300, pl = p)
 plots[["cpgislandstatusbox"]] <- p
 
@@ -313,7 +286,7 @@ p <- grsdf %>%
     summarize(pctM = mean(pctM)) %>%
     ggplot() +
     geom_col(aes(x = islandStatus, y = pctM, fill = condition), position = "dodge", color = "black") +
-    mythemeconditionsrev +
+    mtopen + scale_conditions +
     anchorbar
 mysave(fn = "results/plots/genomewide/cpgislandstatusbar.png", w = 4, h = 4, res = 300, pl = p)
 plots[["cpgislandstatusbar"]] <- p
@@ -326,7 +299,7 @@ p <- dmrs %>%
     labs(x = "") +
     scale_y_continuous(expand = expansion(mult = c(0, .1))) +
     ggtitle("DMR Counts") +
-    mythemecontrast
+    mtopen + scale_contrasts
 mysave(fn = "results/plots/genomewide/dmr_number.png", 4, 4)
 plots[["dmr_number"]] <- p
 
@@ -336,7 +309,7 @@ p <- ggplot(data = dmrs) +
     ggtitle("DMR Lengths") +
     labs(x = "length (bp)") +
     xlim(0, 3000) +
-    mythemesamples
+    mtopen + scale_samples
 mysave(fn = "results/plots/genomewide/dmr_length.png", w = 4, h = 4)
 plots[["dmr_length"]] <- p
 
@@ -345,7 +318,7 @@ p <- ggplot(data = dmrs) +
     ggtitle("DMR Lengths") +
     labs(x = "length (bp)") +
     xlim(0, 3000) +
-    mythemesamples
+    mtopen + scale_samples
 mysave(fn = "results/plots/genomewide/dmr_length_stratified.png", w = 4, h = 4)
 plots[["dmr_length_stratified"]] <- p
 
@@ -362,7 +335,7 @@ p <- ggplot() +
     ggtitle("DMR Methylation Density") +
     annotate("label", x = -Inf, y = Inf, label = "SEN Hyper", hjust = 0, vjust = 1) +
     annotate("label", x = Inf, y = Inf, label = "SEN Hypo", hjust = 1, vjust = 1) +
-    mythemesamples
+    mtopen + scale_samples
 mysave(fn = "results/plots/genomewide/dmr_delta.png", w = 4, h = 4)
 plots[["dmr_delta"]] <- p
 
@@ -387,7 +360,7 @@ p <- dmrsgrislandStatusdf %>%
     summarize(mean_diff = mean(diff_c2_minus_c1), n = n()) %>%
     ggplot() +
     geom_col(aes(x = islandStatus, y = n, fill = direction), position = "dodge", color = "black") +
-    mythemecontrast +
+    mtopen + scale_contrasts +
     anchorbar +
     labs(x = "", y = "Count") +
     ggtitle("DMR")
@@ -404,7 +377,7 @@ p <- ggplot(data = dmrlocdf) +
     theme(axis.text.x = element_text(angle = 0, vjust = 1, hjust = 1)) +
     labs(x = "count", y = "") +
     ggtitle("DMR Location") +
-    mythemecontrast
+    mtopen + scale_contrasts
 mysave(fn = "results/plots/genomewide/dmr_count.png", 5, 5)
 plots[["dmr_count"]] <- p
 
@@ -418,7 +391,7 @@ p <- dmrs %>%
     xlab(sprintf("CpG Methylation %s", condition1)) +
     ylab(sprintf("CpG Methylation %s", condition2)) +
     ggtitle("DMR Density") +
-    mytheme
+    mtopen
 mysave(fn = "results/plots/genomewide/dmrdensity.png", 5, 5)
 plots[["dmrdensity"]] <- p
 
@@ -428,7 +401,7 @@ p <- dmls %>%
     ggtitle("DML Counts") +
     labs(x = "", y = "Count") +
     anchorbar +
-    mythemecontrast
+    mtopen + scale_contrasts
 mysave(fn = "results/plots/genomewide/dml_count.png", 4, 4)
 plots[["dml_count"]] <- p
 # dmls
@@ -439,7 +412,7 @@ p <- ggplot() +
     ggtitle("DML Methylation Density") +
     annotate("label", x = -Inf, y = Inf, label = paste0(condition2, " Hypo"), hjust = 0, vjust = 1) +
     annotate("label", x = Inf, y = Inf, label = paste0(condition2, " Hyper"), hjust = 1, vjust = 1) +
-    mythemecontrast
+    mtopen + scale_contrasts
 
 mysave(fn = "results/plots/genomewide/dml_delta.png", 4, 4)
 plots[["dml_delta"]] <- p
@@ -460,7 +433,7 @@ p <- dmls %>%
     xlab(sprintf("CpG Methylation %s", condition1)) +
     ylab(sprintf("CpG Methylation %s", condition2)) +
     ggtitle("DML Density") +
-    mytheme
+    mtopen
 mysave(fn = "results/plots/genomewide/dmldensity.png", w = 5, h = 5)
 plots[["dmldensity"]] <- p
 
@@ -485,7 +458,7 @@ p <- dmlsgrislandStatusdf %>%
     summarize(mean_diff = mean(diff_c2_minus_c1), n = n()) %>%
     ggplot() +
     geom_col(aes(x = islandStatus, y = n, fill = direction), position = "dodge", color = "black") +
-    mythemecontrast +
+    mtopen + scale_contrasts +
     anchorbar +
     labs(x = "", y = "Count") +
     ggtitle("DML Island Status")
@@ -757,7 +730,7 @@ p <- pff %>%
     facet_wrap(~genic_loc, scales = "free_x", nrow = 2) +
     labs(x = "", y = "Fraction Differentially Methylated") +
     ggtitle(sprintf("Full Length %s Promoter Differential Methylation", "RTE")) +
-    mythemecontrastrev
+    mtopen + scale_contrasts
 mysave(sprintf("results/plots/rte/dmfl%s_promoter.png", "all"), 10, 7)
 plots[[sprintf("dmfl%s_promoter", "all")]] <- p
 
@@ -813,7 +786,7 @@ p <- perelementdf_promoters %>%
     xlab("") +
     ylab("Average CpG Methylation Per Element") +
     ggtitle("RTE CpG Methylation") +
-    mythemeconditions
+    mtopen + scale_conditions
 mysave(fn = "results/plots/rte/repmasker_boxplot_promoters.png", 14, 6)
 plots[["repmasker_boxplot_promoters"]] <- p
 
@@ -852,7 +825,7 @@ p <- pf_pos %>% ggplot() +
     scale_x_continuous(breaks = scales::breaks_pretty(3)) +
     facet_wrap(~gene_id, ncol = 5, scales = "free_x") +
     ylim(c(0, 100)) +
-    mythemeconditions
+    mtopen + scale_conditions
 png("results/plots/rte/l1intact_Lines_pos_strand.png", 12, 30, units = "in", res = 300)
 print(p)
 dev.off()
@@ -865,7 +838,7 @@ p <- pf_pos %>%
     facet_wrap(~gene_id, ncol = 5, scales = "free_x") +
     xlim(c(1, 910)) +
     ylim(c(0, 100)) +
-    mythemeconditionsrev
+    mtopen + scale_conditions
 png("results/plots/rte/l1intact_Lines_pos_strand_promoter.png", 12, 30, units = "in", res = 300)
 print(p)
 dev.off()
@@ -875,7 +848,7 @@ p <- pf_neg %>% ggplot() +
     scale_x_continuous(breaks = scales::breaks_pretty(3)) +
     facet_wrap(~gene_id, ncol = 5, scales = "free_x") +
     ylim(c(0, 100)) +
-    mythemeconditions
+    mtopen + scale_conditions
 png("results/plots/rte/l1intact_Lines_neg_strand.png", 12, 30, units = "in", res = 300)
 print(p)
 dev.off()
@@ -888,7 +861,7 @@ p <- pf_neg %>%
     facet_wrap(~gene_id, ncol = 5, scales = "free_x") +
     xlim(c(1, 910)) +
     ylim(c(0, 100)) +
-    mythemeconditionsrev
+    mtopen + scale_conditions
 png("results/plots/rte/l1intact_Lines_neg_strand_promoter.png", 12, 30, units = "in", res = 300)
 print(p)
 dev.off()
@@ -931,7 +904,7 @@ pl_elementofinterest1 <- pf %>%
     geom_rect(aes(xmin = l1.2.coord[1], ymin = y_valmin, xmax = l1.2.coord[2], ymax = y_valmax), fill = "grey") +
     geom_rect(data = color_intervals, aes(xmin = start, xmax = end, ymin = y_valmin, ymax = y_valmax, fill = Region), alpha = 1) +
     geom_text(data = color_intervals, aes(x = (start + end) / 2, y = y_valmax, label = Region), vjust = -0.5) +
-    mythemeconditions +
+    mtopen + scale_conditions +
     scale_fill_manual(values = c(my_palette[5:4], paletteer::paletteer_d("dutchmasters::pearl_earring", 4)))
 png("results/plots/rte/element_of_interest1.png", 5, 5, units = "in", res = 300)
 print(pl_elementofinterest1)
@@ -969,7 +942,7 @@ pl_elementofinterest2 <- pf %>%
     geom_rect(aes(xmin = l1.2.coord2[1], ymin = y_valmin, xmax = l1.2.coord2[2], ymax = y_valmax), fill = "grey") +
     geom_rect(data = color_intervals2, aes(xmin = start, xmax = end, ymin = y_valmin, ymax = y_valmax, fill = Region), alpha = 1) +
     geom_text(data = color_intervals2, aes(x = (start + end) / 2, y = y_valmax, label = Region), vjust = -0.5) +
-    mythemeconditions +
+    mtopen + scale_conditions +
     scale_fill_manual(values = c(my_palette[5:4], paletteer::paletteer_d("dutchmasters::pearl_earring", 4)))
 png("results/plots/rte/element_of_interest2.png", 5, 5, units = "in", res = 300)
 print(pl_elementofinterest2)
@@ -1009,7 +982,7 @@ dev.off()
         scale_x_continuous(breaks = scales::breaks_pretty(3)) +
         facet_wrap(~gene_id, ncol = 5, scales = "free_x") +
         ylim(c(0, 100)) +
-        mythemeconditions
+        mtopen + scale_conditions
     png("results/plots/rte/LTR5_Hs_Lines.png", 12, 120, units = "in", res = 200)
     print(p)
     dev.off()
@@ -1025,7 +998,7 @@ dev.off()
         scale_x_continuous(breaks = scales::breaks_pretty(3)) +
         facet_wrap(~gene_id, ncol = 5, scales = "free_x") +
         ylim(c(60, 100)) +
-        mythemeconditions
+        mtopen + scale_conditions
     png("results/plots/rte/LTR5B_Lines.png", 12, 120, units = "in", res = 200)
     print(p)
     dev.off()
@@ -1041,7 +1014,7 @@ dev.off()
         scale_x_continuous(breaks = scales::breaks_pretty(3)) +
         facet_wrap(~gene_id, ncol = 5, scales = "free_x") +
         ylim(c(60, 100)) +
-        mythemeconditions
+        mtopen + scale_conditions
     png("results/plots/rte/LTR5_Lines.png", 12, 120, units = "in", res = 200)
     print(p)
     dev.off()
@@ -1068,7 +1041,7 @@ for (gene_id in l1hsintactmethdf %$% gene_id %>% unique()) {
         scale_x_continuous(breaks = scales::breaks_pretty(3)) +
         facet_wrap(~gene_id, ncol = 5, scales = "free_x") +
         ylim(c(0, 100)) +
-        mythemeconditions
+        mtopen + scale_conditions
     dir.create("results/plots/rte/l1hsintact")
     png(paste0("results/plots/rte/l1hsintact/", gene_id, ".png"), 8, 3, units = "in", res = 300)
     print(p)
@@ -1288,7 +1261,7 @@ read_analysis <- function(readsdf,
         facet_wrap(vars(region)) +
         labs(x = "", y = "Proportion of Reads less than 50% methylated") +
         ggtitle("L1 5'UTR Methylation") +
-        mythemeconditionsrev +
+        mtopen + scale_conditions +
         anchorbar
     mysave(sprintf("results/plots/reads/barplot_50pct_%s_%s_%s.png", region, mod_code_var, context), 4, 4, pl = p)
     plots[["barplot_50pct"]][[region]][[mod_code_var]][[context]] <- p
@@ -1320,7 +1293,7 @@ p <- aa %>%
     labs(x = "Pct CpG Methylation per Read") +
     ggtitle("L1 5'UTR Methylation") +
     facet_wrap(vars(region)) +
-    mythemeconditionsrev
+    mtopen + scale_conditions
 mysave("results/plots/reads/fraction_meth_density_distribution.png", 5, 7.5)
 plots[["fraction_meth_density_distribution"]] <- p
 
@@ -1333,7 +1306,7 @@ p <- utr %>%
     geom_density(aes(x = fraction_meth, fill = condition), alpha = 0.3) +
     labs(x = "Pct CpG Methylation per Read") +
     ggtitle("L1HS Intact 5'UTR Methylation") +
-    mythemeconditionsrev +
+    mtopen + scale_conditions +
     anchorbar
 
 mysave("results/plots/reads/fraction_meth_density_distribution_l1hsintact.png", 5, 7.5)
@@ -1543,7 +1516,7 @@ library(clusterProfiler)
         ggtitle("Promoter Methylation") +
         labs(x = "", y = "count") +
         theme(legend.position = "none") +
-        mythemecontrast +
+        mtopen + scale_contrasts +
         scale_fill_manual(values = genes_contrast_colors) +
         anchorbar
 
@@ -1560,7 +1533,7 @@ library(clusterProfiler)
         annotate("label", x = -Inf, y = Inf, label = "SEN Hyper", hjust = 0, vjust = 1) +
         annotate("label", x = Inf, y = Inf, label = "SEN Hypo", hjust = 1, vjust = 1) +
         theme(legend.position = "none") +
-        mythemeconditions +
+        mtopen + scale_conditions +
         anchorbar
 
     mysave(pl = p, "results/plots/genes/genes_density.png", 4, 4)
@@ -1605,7 +1578,7 @@ library(clusterProfiler)
         labs(x = "") +
         ggtitle("cCRE Methylation") +
         scale_y_continuous(expand = expansion(mult = c(0, .1))) +
-        mythemecontrast
+        mtopen + scale_contrasts
     mysave(pl = p, "results/plots/ccres/dmrs_in_ccres.png", 5, 6)
     ccresplots[["dmrs_in_ccres"]] <- p
 
@@ -1626,7 +1599,7 @@ library(clusterProfiler)
         theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
         ggtitle("cCRE Methylation") +
         scale_y_continuous(expand = expansion(mult = c(0, .1))) +
-        mythemecontrast
+        mtopen + scale_contrasts
     mysave(pl = p, "results/plots/ccres/dmrs_in_ccres_pct.png", 6, 6)
     ccresplots[["dmrs_in_ccres_pct"]] <- p
 
