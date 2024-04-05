@@ -1,3 +1,5 @@
+source("workflow/scripts/defaults.R")
+
 library("DESeq2")
 library("readr")
 library("pheatmap")
@@ -21,13 +23,6 @@ library("dplyr")
 
 
 ### functions
-plotSave <- function(path, plot, width = 6, height = 6) {
-    dir.create(dirname(path), recursive = TRUE)
-    png(path, width = width, height = height, units = "in", res = 300)
-    print(plot)
-    dev.off()
-}
-
 
 conf <- configr::read.config(file = "conf/config.yaml")[["srna"]]
 
@@ -58,6 +53,16 @@ if (params$paralellize_bioc) {
     register(MulticoreParam(8))
 }
 
+{
+    #build color palettes:
+    sample_palette <- setNames(c("darkgrey", as.character(paletteer_d(conf$default_palette, direction = 1, n = length(conf$samples)-1))), conf$samples)
+    contrast_palette <- setNames(paletteer_d(conf$default_palette, direction = 1, n = length(conf$levels)), conf$levels)
+    direction_palette <- setNames(c("red", "blue"), c("up", "down"))
+
+    scale_contrasts <- list(scale_fill_manual(values = contrast_palette), scale_color_manual(values = contrast_palette))
+    scale_samples <- list(scale_fill_manual(values = samples_palette), scale_color_manual(values = samples_palette))
+    scale_directions <- list(scale_fill_manual(values = directions_palette), scale_color_manual(values = directions_palette))
+}
 
 ### inputs
 
@@ -122,8 +127,7 @@ for (contrast in contrasts) {
         xlim = c(-10, 10),
         ylim = c(-1, 15)
     ) + theme(axis.line = element_blank(), aspect.ratio = 1, panel.border = element_rect(color = "black", linetype = 1, linewidth = 1, fill = NA))
-    plotSave(paste(outputdir, counttype, contrast, "deplot.png", sep = "/"), p, 8, 8)
-
+    mysaveandstore(paste(outputdir, counttype, contrast, "deplot.png", sep = "/"), w = 8, h = 8, res = 300)
 
     resOrdered <- res[order(res$pvalue), ]
     resSig <- subset(resOrdered, padj < 0.1)
@@ -160,12 +164,10 @@ for (contrast in contrasts) {
                 }
                 set <- interestingsets[[name]]
                 dirname <- file.path(outputdir, counttype, contrast)
-                dir.create(dirname, recursive = TRUE)
                 filename <- paste0(name, blabel, scale, ".png")
                 path <- file.path(dirname, filename)
-                png(path, width = 10, height = 8, units = "in", res = 300)
-                pheatmap(assay(rld)[set, rownames(df)], annotation_col = df, scale = scale, show_rownames = binary, main = name)
-                dev.off()
+                p <- pheatmap(assay(rld)[set, rownames(df)], annotation_col = df, scale = scale, show_rownames = binary, main = name)
+                mysaveandstore(path, w = 10, h = 8, res = 300)
             }
         }
     }
@@ -194,12 +196,10 @@ for (name in names(interestingsets)) {
             }
             set <- interestingsets[[name]]
             dirname <- file.path(outputdir, counttype, "plots")
-            dir.create(dirname, recursive = TRUE)
             filename <- paste0(name, blabel, scale, ".png")
             path <- file.path(dirname, filename)
-            png(path, width = 10, height = 8, units = "in", res = 300)
-            pheatmap(assay(rld)[set, ], annotation_col = df, scale = scale, show_rownames = binary, main = name)
-            dev.off()
+            p <- pheatmap(assay(rld)[set, ], annotation_col = df, scale = scale, show_rownames = binary, main = name)
+            mysaveandstore(path, w = 10, h = 8, res = 300)
         }
     }
 }
@@ -213,74 +213,35 @@ sampleDists <- dist(t(vst))
 ## PCA plots
 pcaObj <- pca(vst, metadata = colData(dds), removeVar = 0.1)
 
-screep <- screeplot(pcaObj, title = "") +
-    theme_cowplot() +
-    theme(axis.line = element_blank(), aspect.ratio = 1, panel.border = element_rect(color = "black", linetype = 1, linewidth = 1, fill = NA))
+p <- screeplot(pcaObj, title = "") +
+    mtopen
+mysaveandstore(paste(outputdir, counttype, "plots", "screeplot.png", sep = "/"), w = 5, h = 6, res = 300)
 
-png(paste(outputdir, counttype, "plots", "screeplot.png", sep = "/"), width = 5, height = 6, units = "in", res = 300)
-print(screep)
-dev.off()
-
-loadingsp <- plotloadings(pcaObj,
+p <- plotloadings(pcaObj,
     components = getComponents(pcaObj, seq_len(3)),
     rangeRetain = 0.045, labSize = 4
 ) +
     theme(legend.position = "none") +
-    theme_cowplot() +
-    theme(axis.line = element_blank(), aspect.ratio = 1, panel.border = element_rect(color = "black", linetype = 1, linewidth = 1, fill = NA))
-
-png(paste(outputdir, counttype, "plots", "loadings.png", sep = "/"), width = 6, height = 6, units = "in", res = 300)
-print(loadingsp)
-dev.off()
+    mtopen
+mysaveandstore(paste(outputdir, counttype, "plots", "loadings.png", sep = "/"), w = 6, h = 6, res = 300)
 
 pcaplot <- biplot(pcaObj,
     showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0,
     colby = "condition", legendPosition = "right",
     labSize = 5, pointSize = 5, sizeLoadingsNames = 5
 )
-pcap <- pcaplot +
-    theme_cowplot() +
-    theme(axis.line = element_blank(), aspect.ratio = 1, panel.border = element_rect(color = "black", linetype = 1, linewidth = 1, fill = NA))
-
-png(paste(outputdir, counttype, "plots", "pcaplot.png", sep = "/"), width = 7, height = 6, units = "in", res = 300)
-print(pcap)
-dev.off()
+p <- pcaplot +
+    mtopen
+mysaveandstore(paste(outputdir, counttype, "plots", "pcaplot.png", sep = "/"), w = 7, h = 6, res = 300)
 
 pcaplot34 <- biplot(pcaObj,
     x = "PC3", y = "PC4", showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0,
     colby = "condition", legendPosition = "right",
     labSize = 5, pointSize = 5, sizeLoadingsNames = 5
 )
-pcap34 <- pcaplot34 +
-    theme_cowplot() +
-    theme(axis.line = element_blank(), aspect.ratio = 1, panel.border = element_rect(color = "black", linetype = 1, linewidth = 1, fill = NA))
-
-png(paste(outputdir, counttype, "plots", "pcaplotPC34.png", sep = "/"), width = 7, height = 6, units = "in", res = 300)
-print(pcap)
-dev.off()
-
-legend <- get_legend(
-    # create some space to the left of the legend
-    pcap + theme(legend.box.margin = margin(0, 0, 0, 1), legend.position = "right")
-)
-
-prow <- plot_grid(screep + theme(legend.position = "none", panel.border = element_rect(color = "black", linetype = 1, linewidth = 1, fill = NA)),
-    loadingsp + theme(legend.position = "none", panel.border = element_rect(color = "black", linetype = 1, linewidth = 1, fill = NA)),
-    pcap + theme(legend.position = "none", panel.border = element_rect(color = "black", linetype = 1, linewidth = 0.5, fill = NA)),
-    nrow = 1,
-    rel_widths = c(1, 1, 1), labels = "AUTO",
-    align = "vh",
-    axis = "bt"
-) + theme(legend.position = "none")
-p <- plot_grid(prow, legend, nrow = 1, rel_widths = c(3, 0.4))
-
-png(paste(outputdir, counttype, "plots", "PCAgrid.png", sep = "/"), width = 16, height = 6, units = "in", res = 300)
-print(p)
-dev.off()
-
-# png("eigencorr.png", width=10, height=8)
-# eigencorplot(p, metavars = c('condition', 'sample_name'))
-# dev.off()
+p <- pcaplot34 +
+    mtopen
+mysaveandstore(paste(outputdir, counttype, "plots", "pcaplotPC34.png", sep = "/"), w = 7, h = 6, res = 300)
 
 
 sampleDistMatrix <- as.matrix(sampleDists)
@@ -288,15 +249,14 @@ rownames(sampleDistMatrix) <- paste(vst_full$condition, vst_full$type, sep = "-"
 colnames(sampleDistMatrix) <- NULL
 colors <- colorRampPalette(rev(brewer.pal(9, "Blues")))(255)
 
-png(paste(outputdir, counttype, "plots", "heatmapplot.png", sep = "/"), width = 10, height = 8, units = "in", res = 300)
-pheatmap::pheatmap(sampleDistMatrix,
+p <- pheatmap::pheatmap(sampleDistMatrix,
     clustering_distance_rows = sampleDists,
     clustering_distance_cols = sampleDists,
     col = colors
 )
-dev.off()
-
+mysaveandstore(paste(outputdir, counttype, "plots", "heatmapplot.png", sep = "/"), w = 10, h = 8, res = 300)
 ####
 
+save(mysaveandstoreplots, file = outputs$plots)
 x <- data.frame()
 write.table(x, file = outputs[["outfile"]], col.names = FALSE)

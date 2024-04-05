@@ -1,4 +1,4 @@
-source("~/data/common/myDefaults.r")
+source("workflow/scripts/defaults.R")
 library(readr)
 library(magrittr)
 library(stringr)
@@ -49,7 +49,7 @@ rmfragments <- read_csv(inputs$r_annotation_fragmentsjoined, col_names = TRUE)
 rmfamilies <- read_csv(inputs$r_repeatmasker_annotation, col_names = TRUE)
 rmann <- left_join(rmfragments, rmfamilies)
 
-df_filtered <- read_delim("aref/tldr/tldr.table.kept_in_updated_ref.txt")
+df_filtered <- read_delim(inputs$filtered_tldr)
 
 trsd <- df_filtered %>%
     filter(Subfamily == "L1Ta") %>%

@@ -1,4 +1,8 @@
-source("~/data/common/myDefaults.r")
+source("workflow/scripts/defaults.R")
+module_name <- "srna"
+source("workflow/srna/scripts/generate_colors_to_source.R")
+conf <- configr::read.config(file = "conf/config.yaml")[["srna"]]
+
 library(magrittr)
 library(org.Hs.eg.db)
 library(clusterProfiler)
@@ -22,7 +26,6 @@ library(ComplexHeatmap)
 
 # analysis parameters
 {
-    conf <- configr::read.config(file = "conf/config.yaml")[["srna"]]
 
 
     tryCatch(
@@ -49,8 +52,11 @@ library(ComplexHeatmap)
         }
     )
 
-    sample_table <- read_csv(params[["sample_table"]])
 }
+
+sample_table <- read_csv(params[["sample_table"]])
+
+
 
 # load results
 resultsdf1 <- read_delim(inputs$resultsdf, delim = "\t")
@@ -62,9 +68,6 @@ res %>%
     select(conf$samples)
 # GSEA
 genecollections <- names(params[["genesets_for_gsea"]])
-gse_results <- list()
-core_enrichments_for_plot <- list()
-EAplots <- list()
 rm(gse_df)
 for (contrast in params[["contrasts"]]) {
     # PREP RESULTS FOR GSEA
@@ -80,7 +83,7 @@ for (contrast in params[["contrasts"]]) {
             {
                 genesets <- read.gmt(params[["genesets_for_gsea"]][[collection]])
                 gse <- GSEA(ordered_by_stat, TERM2GENE = genesets, maxGSSize = 100000, minGSSize = 1)
-                df <- gse@result 
+                df <- gse@result %>% tibble()
                 df$collection <- collection
                 df$contrast <- contrast
                 # gse_results[[contrast]][[collection]] <- as.data.frame(df) %>% tibble()
@@ -90,26 +93,21 @@ for (contrast in params[["contrasts"]]) {
                     gse_df <<- rbind(gse_df, df)
                 }
                 genesettheme <- theme_gray() + theme(axis.text.x = element_text(colour = "black"), axis.text.y = element_text(colour = "black"))
-                p <- dotplot(gse, showCategory = 20) + ggtitle(paste("GSEA", contrast, sep = " ")) + genesettheme + mytheme
-                mysave(sprintf("%s/%s/gsea/%s/dotplot.png", params[["outputdir"]], contrast, collection), w = 6, h = 6, res = 300)
-                EAplots[[contrast]][[collection]][["dot"]] <- p
+                p <- dotplot(gse, showCategory = 20) + ggtitle(paste("GSEA", contrast, sep = " ")) + genesettheme + mtopen
+                mysaveandstore(sprintf("%s/%s/gsea/%s/dotplot.png", params[["outputdir"]], contrast, collection), w = 6, h = 6, res = 300)
 
                 p <- cnetplot(gse, foldChange = ordered_by_l2fc, cex_label_category = 2)
-                mysave(sprintf("%s/%s/gsea/%s/cnetplot.png", params[["outputdir"]], contrast, collection), w = 10, h = 9, res = 300)
-                EAplots[[contrast]][[collection]][["cnet"]] <- p
+                mysaveandstore(sprintf("%s/%s/gsea/%s/cnetplot.png", params[["outputdir"]], contrast, collection), w = 10, h = 9, res = 300)
 
                 p <- cnetplot(gse, foldChange = ordered_by_l2fc, cex_label_category = 2, circular = TRUE, colorEdge = TRUE)
-                mysave(sprintf("%s/%s/gsea/%s/cnetplot2.png", params[["outputdir"]], contrast, collection), w = 10, h = 9, res = 300)
-                EAplots[[contrast]][[collection]][["cnet2"]] <- p
+                mysaveandstore(sprintf("%s/%s/gsea/%s/cnetplot2.png", params[["outputdir"]], contrast, collection), w = 10, h = 9, res = 300)
 
-                p <- ridgeplot(gse) + ggtitle(paste("GSEA", contrast, sep = " ")) + genesettheme + mytheme
-                mysave(sprintf("%s/%s/gsea/%s/ridgeplot.png", params[["outputdir"]], contrast, collection), w = 6, h = 6, res = 300)
-                EAplots[[contrast]][[collection]][["ridge"]] <- p
+                p <- ridgeplot(gse) + ggtitle(paste("GSEA", contrast, sep = " ")) + genesettheme + mtopen
+                mysaveandstore(sprintf("%s/%s/gsea/%s/ridgeplot.png", params[["outputdir"]], contrast, collection), w = 6, h = 6, res = 300)
 
                 gsep <- pairwise_termsim(gse)
                 p <- emapplot(gsep, color = "enrichmentScore", showCategory = 20, layout = "nicely") + ggtitle(paste("GSEA", contrast, sep = " "))
-                mysave(sprintf("%s/%s/gsea/%s/network.png", params[["outputdir"]], contrast, collection), w = 10, h = 9, res = 300)
-                EAplots[[contrast]][[collection]][["emap"]] <- p
+                mysaveandstore(sprintf("%s/%s/gsea/%s/network.png", params[["outputdir"]], contrast, collection), w = 10, h = 9, res = 300)
 
 
                 tryCatch(
@@ -123,12 +121,11 @@ for (contrast in params[["contrasts"]]) {
                             p <- ggplot(df, aes(NES, fct_reorder(Description, NES), fill = p.adjust)) +
                                 geom_col(orientation = "y") +
                                 scale_fill_continuous(low = "red", high = "blue", guide = guide_colorbar(reverse = TRUE)) +
-                                mytheme +
+                                mtopen +
                                 theme(axis.text.y = element_text(colour = "black")) +
                                 ylab(NULL)
 
-                            mysave(sprintf("%s/%s/gsea/%s/nes%s.png", params[["outputdir"]], contrast, collection, num), w = 8, h = min(num, 7), res = 300)
-                            EAplots[[contrast]][[collection]][["nes"]][[num]] <- p
+                            mysaveandstore(sprintf("%s/%s/gsea/%s/nes%s.png", params[["outputdir"]], contrast, collection, num), w = 8, h = min(num, 7), res = 300)
                         }
                     },
                     error = function(e) {
@@ -139,8 +136,7 @@ for (contrast in params[["contrasts"]]) {
                 tryCatch(
                     {
                         p <- gseaplot2(gse, geneSetID = "SAUL_SEN_MAYO", pvalue_table = TRUE, subplots = 1:2, ES_geom = "line")
-                        mysave(sprintf("%s/%s/gsea/%s/senmayo_gsea.png", params[["outputdir"]], contrast, collection), w = 8, h = 3, res = 300)
-                        EAplots[[contrast]][[collection]][["senmayo"]] <- p
+                        mysaveandstore(sprintf("%s/%s/gsea/%s/senmayo_gsea.png", params[["outputdir"]], contrast, collection), w = 8, h = 3, res = 300)
                     },
                     error = function(e) {
                         print("")
@@ -153,8 +149,8 @@ for (contrast in params[["contrasts"]]) {
         )
     }
 }
-contrast_labels <- conf$contrast_labels
-contrast_label_map <- tibble(contrast = names(contrast_labels), label = unlist(contrast_labels))
+
+contrast_label_map <- tibble(contrast = params[["contrasts"]], label = gsub("constrast_", "", params[["contrasts"]]))
 gres <- gse_df %>% tibble()
 for (collec in genecollections) {
     grestemp <- gres %>% filter(collection == collec) %>% left_join(contrast_label_map)
@@ -169,7 +165,7 @@ for (collec in genecollections) {
         labs(x = "", y = "", title = collec) +
         theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
         coord_equal()
-    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/gsea_top_%s.png", collec), 8,5)
+    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/gsea_top_%s.png", collec), 10,7)
 }
 
 # plot core enrichments
@@ -179,12 +175,11 @@ for (contrast in params[["contrasts"]]) {
     contrast_l2fc <- paste0("log2FoldChange_", contrast)
     contrast_padj <- paste0("padj_", contrast)
     res <- res %>% arrange(-!!sym(contrast_stat))
-    for (collection in names(gse_results[[contrast]])) {
-        gse <- gse_results[[contrast]][[collection]]
+    for (collec in genecollections) {
+        gse <- gse_df %>% filter(collection == collec)
         df <- arrange(gse, -abs(NES)) %>%
             group_by(sign(NES)) %>%
             slice(1:n_top_sets)
-        df <- df@result
         ids <- df$ID
         core_enrichments <- df$core_enrichment
         core_enrichments <- str_split(core_enrichments, "/")
@@ -220,7 +215,7 @@ for (contrast in params[["contrasts"]]) {
             pch[!is_sig] <- NA
             pvalue_adj_col_fun <- colorRamp2(c(0, 2, 3), c("white", "blue", "red"))
             ha <- rowAnnotation(pvalue_adj = anno_simple(-log10(pvalue_adj), col = pvalue_adj_col_fun, pch = pch))
-            topAnn <- HeatmapAnnotation(Condition = condition_vec, col = list(Condition = unlist(conf$condition_colors[condition_vec])))
+            topAnn <- HeatmapAnnotation(Condition = condition_vec, col = list(Condition = unlist(condition_palette[condition_vec])))
             hm <- scaledm %>%
                 Heatmap(
                     name = "Scaled Normalized Counts",
@@ -228,7 +223,7 @@ for (contrast in params[["contrasts"]]) {
                     cluster_columns = FALSE,
                     show_row_names = TRUE,
                     show_column_names = TRUE,
-                    column_names_rot = 45,
+                    column_names_rot = 90,
                     split = pch,
                     top_annotation = topAnn,
                     right_annotation = ha,
@@ -243,8 +238,7 @@ for (contrast in params[["contrasts"]]) {
             lgd_sig <- Legend(pch = "*", type = "points", labels = "< 0.05")
             # these two self-defined legends are added to the plot by `annotation_legend_list`
             p <- draw(hm, annotation_legend_list = list(lgd_pvalue_adj, lgd_sig), heatmap_legend_side = "bottom", annotation_legend_side = "bottom")
-            mysave(sprintf("%s/%s/gsea/%s/core_enrichments/heatmap_%s.png", params[["outputdir"]], contrast, collection, set_title), w = min(dim(scaledm)[2], 12), h = min(dim(scaledm)[1], 12), res = 300)
-            EAplots[[contrast]][[collection]][["heatmap"]][[set_title]] <- p
+            mysaveandstore(sprintf("%s/%s/gsea/%s/core_enrichments/heatmap_%s.png", params[["outputdir"]], contrast, collection, set_title), w = min(dim(scaledm)[2], 12), h = min(dim(scaledm)[1], 12), res = 300)
         }
     }
 }
@@ -269,14 +263,13 @@ for (geneset in names(params[["genesets_for_heatmaps"]])) {
             cluster_columns = FALSE,
             show_row_names = TRUE,
             show_column_names = TRUE,
-            column_names_rot = 45,
+            column_names_rot = 90,
             top_annotation = topAnn,
             row_title = set_title,
             # border_gp = gpar(col = "black")
         )
     p <- draw(hm, heatmap_legend_side = "bottom", annotation_legend_side = "bottom")
-    mysave(sprintf("%s/heatmap_%s.png", params[["outputdir"]], set_title), w = min(dim(scaledm)[2], 12), h = min(dim(scaledm)[1], 12), res = 300)
-    EAheatmaps[[set_title]][["all"]] <- p
+    mysaveandstore(sprintf("%s/heatmap_%s.png", params[["outputdir"]], set_title), w = min(dim(scaledm)[2], 12), h = min(dim(scaledm)[1], 12), res = 300)
 
     # now for each contrast
     for (contrast in params[["contrasts"]]) {
@@ -312,7 +305,7 @@ for (geneset in names(params[["genesets_for_heatmaps"]])) {
         pch[!is_sig] <- NA
         pvalue_adj_col_fun <- colorRamp2(c(0, 2, 3), c("white", "blue", "red"))
         ha <- rowAnnotation(pvalue_adj = anno_simple(-log10(pvalue_adj), col = pvalue_adj_col_fun, pch = pch))
-        topAnn <- HeatmapAnnotation(Condition = condition_vec, col = list(Condition = unlist(conf$condition_colors[condition_vec])))
+        topAnn <- HeatmapAnnotation(Condition = condition_vec, col = list(Condition = unlist(condition_palette[condition_vec])))
         hm <- scaledm %>%
             Heatmap(
                 name = "Scaled Normalized Counts",
@@ -320,7 +313,7 @@ for (geneset in names(params[["genesets_for_heatmaps"]])) {
                 cluster_columns = FALSE,
                 show_row_names = TRUE,
                 show_column_names = TRUE,
-                column_names_rot = 45,
+                column_names_rot = 90,
                 split = pch,
                 top_annotation = topAnn,
                 right_annotation = ha,
@@ -335,16 +328,10 @@ for (geneset in names(params[["genesets_for_heatmaps"]])) {
         lgd_sig <- Legend(pch = "*", type = "points", labels = "< 0.05")
         # these two self-defined legends are added to the plot by `annotation_legend_list`
         p <- draw(hm, annotation_legend_list = list(lgd_pvalue_adj, lgd_sig), heatmap_legend_side = "bottom", annotation_legend_side = "bottom")
-        mysave(sprintf("%s/%s/heatmap_%s.png", params[["outputdir"]], contrast, set_title), w = min(dim(scaledm)[2], 12), h = min(dim(scaledm)[1], 12), res = 300)
-        EAheatmaps[[set_title]][[contrast]] <- p
+        mysaveandstore(sprintf("%s/%s/heatmap_%s.png", params[["outputdir"]], contrast, set_title), w = min(dim(scaledm)[2], 12), h = min(dim(scaledm)[1], 12), res = 300)
     }
 }
 
-save(EAplots, file = sprintf("%s/EAplots.RData", params[["outputdir"]]))
-save(EAheatmaps, file = sprintf("%s/EAheatmaps.RData", params[["outputdir"]]))
-save(gse_results, file = sprintf("%s/gse_results.RData", params[["outputdir"]]))
-
-
-
+save(mysaveandstoreplots, file = outputs$plots)
 x <- data.frame()
 write.table(x, file = outputs[["outfile"]], col.names = FALSE)

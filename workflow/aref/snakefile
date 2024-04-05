@@ -303,14 +303,17 @@ rule process_gtf:
 rule move_refseq:
     input:
         ref_refseq_gff3 = config["ref_refseq_gff3"],
-        ref_refseq_gtf = config["ref_refseq_gtf"]
+        ref_refseq_gtf = config["ref_refseq_gtf"],
+        ref_refseq_bed = config["ref_refseq_bed"]
     output:
         refseq_gff3 = "aref/annotations/refseq.gff3",
-        refseq_gtf = "aref/annotations/refseq.gtf"
+        refseq_gtf = "aref/annotations/refseq.gtf",
+        refseq_bed = "aref/annotations/refseq.bed"
     shell:
         """
 cp {input.ref_refseq_gff3} {output.refseq_gff3}
 cp {input.ref_refseq_gtf} {output.refseq_gtf}
+cp {input.ref_refseq_bed} {output.refseq_bed}
         """
 
 
@@ -604,6 +607,6 @@ rule transduction_mapping:
         plots = "aref/{sample_or_ref}_Analysis/tldr_plots/transduction_mapping.rds",
         transduction_df = "aref/{sample_or_ref}_Analysis/transduction_df.csv"
     conda:
-        "repeatanalysis"
+        "evo2"
     script:
-        "scripts/transdcution_mapping.R"
+        "scripts/transduction_mapping.R"

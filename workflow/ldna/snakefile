@@ -58,7 +58,7 @@ rule align_to_updated_ref:
     input:
         fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq"
     output:
-        bam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+        bam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
     params:
         ref = config["ldna"]["reference"]
     resources:

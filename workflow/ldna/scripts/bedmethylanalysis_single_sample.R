@@ -1,4 +1,4 @@
-source("workflow/scripts/defaults.R")
+source("~/data/common/myDefaults.r")
 library(rtracklayer)
 library(Biostrings)
 library(cowplot)
@@ -94,18 +94,14 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            bedmethlpaths = sprintf("intermediates/%s/methylation/%s_CG_bedMethyl.bed", samples, samples),
-            dmrs = "results/tables/dmrs.CG_m.tsv",
-            dmls = "results/tables/dmls.CG_m.tsv",
-            read_mods = sprintf("intermediates/%s/methylation/%s_readmods_%s_%s.tsv", samples, samples, "NoContext", conf$rte_subfamily_read_level_analysis),
-            read_mods_cg = sprintf("intermediates/%s/methylation/%s_readmods_%s_%s.tsv", samples, samples, "CpG", conf$rte_subfamily_read_level_analysis)
+            bedmethlpaths = sprintf("ldna/intermediates/%s/methylation/%s_CG_bedMethyl.bed", samples, samples),
+            read_mods = sprintf("ldna/intermediates/%s/methylation/%s_readmods_%s_%s.tsv", samples, samples, "NoContext", conf$rte_subfamily_read_level_analysis),
+            read_mods_cg = sprintf("ldna/intermediates/%s/methylation/%s_readmods_%s_%s.tsv", samples, samples, "CpG", conf$rte_subfamily_read_level_analysis)
         ), env = globalenv())
-        assign("outputs", list(outfile = "outfiles/bedmethylanalysis.txt"), env = globalenv())
+        assign("outputs", list(outfile = "ldna/outfiles/bedmethylanalysis.txt"), env = globalenv())
     }
 )
 
-dmlspath <- inputs$dmls
-dmrspath <- inputs$dmrs
 
 cdrpath <- conf$cdr
 HORpath <- conf$HOR
@@ -123,9 +119,7 @@ rte_subfamily_read_level_analysis <- conf$rte_subfamily_read_level_analysis
 if (interactive()) {
     conditions <- conf$conditions
     condition1 <- conditions[1]
-    condition2 <- conditions[2]
     condition1samples <- sample_table[sample_table$condition == conditions[1], ]$sample_name
-    condition2samples <- sample_table[sample_table$condition == conditions[2], ]$sample_name
 
     grsdf <- read_delim("Rintermediates/grsdf.tsv", col_names = TRUE)
     grsdf$seqnames <- factor(grsdf$seqnames, levels = chromosomesAll)
@@ -148,34 +142,6 @@ if (interactive()) {
         group_by(sample, seqnames, islandStatus) %>%
         slice_sample(n = 1000)
     grss <- GRanges(grsdfs)
-
-    dmrs <- read_delim(dmrspath, delim = "\t", col_names = TRUE)
-    dmls <- read_delim(dmlspath, delim = "\t", col_names = TRUE)
-    dmls <- dmls %>% filter(chr %in% CHROMOSOMESINCLUDEDINANALYSIS)
-    dmrs <- dmrs %>% filter(chr %in% CHROMOSOMESINCLUDEDINANALYSIS)
-    dmrs <- dmrs %>% mutate(direction = ifelse(diff_c2_minus_c1 > 0, paste0(condition2, " Hyper"), paste0(condition2, " Hypo")))
-    dmrs$direction <- factor(dmrs$direction, levels = c(paste0(condition2, " Hypo"), paste0(condition2, " Hyper")))
-
-    dmls <- dmls %>% mutate(direction = ifelse(diff_c2_minus_c1 > 0, paste0(condition2, " Hyper"), paste0(condition2, " Hypo")))
-    dmls$direction <- factor(dmls$direction, levels = c(paste0(condition2, " Hypo"), paste0(condition2, " Hyper")))
-
-
-    dmrsgr <- GRanges(dmrs)
-    dmlsgr <- GRanges(
-        seqnames = dmls$chr,
-        ranges = IRanges(start = dmls$pos, end = dmls$pos),
-        mu_c2 = dmls$mu_c2,
-        mu_c1 = dmls$mu_c1,
-        diff_c2_minus_c1 = dmls$diff_c2_minus_c1,
-        diff_c2_minus_c1.se = dmls$diff_c2_minus_c1.se,
-        stat = dmls$stat,
-        phi_c2 = dmls$phi_c2,
-        phi_c1 = dmls$phi_c1,
-        pval = dmls$pval,
-        fdr = dmls$fdr,
-        postprob.overThreshold = dmls$postprob.overThreshold,
-        direction = dmls$direction
-    )
 }
 
 ##########################
@@ -183,9 +149,7 @@ if (!interactive()) {
     # PREP DATA FOR ANALYSIS
     conditions <- conf$conditions
     condition1 <- conditions[1]
-    condition2 <- conditions[2]
     condition1samples <- sample_table[sample_table$condition == conditions[1], ]$sample_name
-    condition2samples <- sample_table[sample_table$condition == conditions[2], ]$sample_name
 
     sample_grs <- list()
     for (sample_name in samples) {

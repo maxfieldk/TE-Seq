@@ -41,22 +41,23 @@ aref:
   update_ref_with_tldr:
     response: "yes"
     #if making one ref per sample (i.e. each sample has unique inserts), then "yes", else "no"
-    per_sample: "yes"
+    per_sample: "no"
     #IF updating reference with tldr inserts; else NULL
-    tldr_input_bam_ref: /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/hs1.sorted.fa
+    tldr_input_bam_ref: /users/mkelsey/data/ref/pipeline_annotations/hs1/RTE/aref/A.REF.fa
     #ensure tldr_input_bams are a full path, not relative paths
     tldr_te_ref: /oscar/data/jsedivy/mkelsey/tools/tldr/ref/teref.ont.human.fa
 
   #IF annotating existing reference, else NULL
-  starting_ref: "/oscar/data/jsedivy/mkelsey/ref/genomes/hs1/hs1.sorted.fa"
+  starting_ref: /users/mkelsey/data/ref/pipeline_annotations/hs1/RTE/aref/A.REF.fa
 
-  starting_ref_repeatmasker: /users/mkelsey/data/ref/generate/hs1/AnnotateReference/repeatmasker/repeatmasker.gtf
+  starting_ref_repeatmasker: /users/mkelsey/data/ref/pipeline_annotations/hs1/RTE/aref/repeatmasker/A.REF_repeatmasker_raw.gtf
 
   ref: aref/A.REF.fa
   ref_index: aref/A.REF.fa.fai
   #use ucsc naming convention, e.g. chr1, chr2, ...
   ref_refseq_gtf: /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/refseq_2023_10/GCF_009914755.1_T2T-CHM13v2.0_genomic.ucscnames.gtf
   ref_refseq_gff3: /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/refseq_2023_10/GCF_009914755.1_T2T-CHM13v2.0_genomic.ucscnames.gff
+  ref_refseq_bed: /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/refseq_2023_10/GCF_009914755.1_T2T-CHM13v2.0_genomic.ucscnames.bed
   ref_cytobands: /users/mkelsey/data/ref/genomes/hs1/annotations7/chm13v2.0_cytobands_allchrs.bed
   ref_ccres: /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations3/cCREs/hs1-imr90-cCREsCuratedWithClosestGene.bed
   ref_telomere: /users/mkelsey/data/ref/genomes/hs1/annotations7/chm13v2.0_telomere.bed
@@ -217,7 +218,7 @@ lrna:
   referencetranscriptome: "/oscar/data/jsedivy/mkelsey/ref/transcriptome/GRCh38_latest_rna_andRCS.fna"
 
   ## new additions
-  annotation_genes: "/oscar/data/jsedivy/mkelsey/ref/genomes/hs1/refseq_2023_10/GCF_009914755.1_T2T-CHM13v2.0_genomic.ucscnames.gtf"
+  annotation_genes: "aref/annotations/refseq.gtf"
   annotation_genes_bed12: "/oscar/data/jsedivy/mkelsey/ref/genomes/hs1/refseq_2023_10/GCF_009914755.1_T2T-CHM13v2.0_genomic.ucscnames.bed"
   annotation_genesandrtes: "aref/annotations/A.REF_repeatmasker_refseq.complete.gtf"
   annotation_rtes: "aref/annotations/A.REF_repeatmasker.gff2"
@@ -233,7 +234,7 @@ srna:
   prefix: "srna"
   sample_table: "conf/sample_table_srna.csv"
   peptable: "conf/peptable_srna.csv"
-
+  default_palette: "ggsci::default_aaas"
   samples:
     - "RS_0w_low_O2_1"
     - "RS_0w_low_O2_2"
@@ -323,7 +324,7 @@ srna:
     Senescence: /users/mkelsey/data/ref/genesets/human/mycustom/senescence.txt
     InflammatoryGenes: /users/mkelsey/data/ref/genesets/human/mycustom/inflammatory.txt
 
-  annotation_genes: "aref/annotations/refseq.complete.gtf"
+  annotation_genes: "aref/annotations/refseq.gtf"
   annotation_genes_bed12: "aref/annotations/refseq.complete.bed"
   annotation_genesandrtes: "A.REF_repeatmasker_refseq.complete.gtf"
   annotation_rtes: "aref/annotations/A.REF_repeatmasker.gff2"
