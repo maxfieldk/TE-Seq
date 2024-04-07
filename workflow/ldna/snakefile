@@ -23,7 +23,7 @@ rule dorado:
         threads = 12,
         slurm_partition="gpu-he",
         mem_mb = 128000,
-        slurm_extra="--time=96:00:00 --constraint=a6000 --gres=gpu:2"
+        slurm_extra="--time=48:00:00 --constraint=a6000 --gres=gpu:2"
     shell:
         """
 mkdir -p $(dirname {output.calls})
@@ -56,11 +56,10 @@ samtools fastq -TMM,ML {input.bam} > {output.fastq}
 
 rule align_to_updated_ref:
     input:
-        fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq"
+        fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq",
+        ref = "aref/{sample}.fa"
     output:
         bam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
-    params:
-        ref = config["ldna"]["reference"]
     resources:
         cpus_per_task =20,
         runtime = 1200,
@@ -68,7 +67,7 @@ rule align_to_updated_ref:
     conda: "minimap2"
     shell:
         """
-minimap2 -a -x map-ont -t 14 -y {params.ref} {input.fastq} > {output.bam}
+minimap2 -a -x map-ont -t 14 -y {input.ref} {input.fastq} > {output.bam}
         """
 
 rule call_align_updated:
@@ -241,7 +240,7 @@ rule filterbam:
         mem_mb = 40000
     conda:
         "omics"
-    shell: "samtools view -b -F 0x100 -q 10 -e '[qs] > 10' {input.bam} > {output.bam}"
+    shell: "samtools view -b -F 0x100 -q 10 {input.bam} > {output.bam}"
 
 #tag PHASING
 
