@@ -120,7 +120,7 @@ rte_subfamily_read_level_analysis <- conf$rte_subfamily_read_level_analysis
 
 # RUN IF RESUMING
 if (interactive()) {
-    conditions <- conf$conditions
+    conditions <- conf$levels
     condition1 <- conditions[1]
     condition1samples <- sample_table[sample_table$condition == conditions[1], ]$sample_name
 
@@ -150,7 +150,7 @@ if (interactive()) {
 ##########################
 if (!interactive()) {
     # PREP DATA FOR ANALYSIS
-    conditions <- conf$conditions
+    conditions <- conf$levels
     condition1 <- conditions[1]
     condition1samples <- sample_table[sample_table$condition == conditions[1], ]$sample_name
 
@@ -1079,8 +1079,7 @@ genic_locs <- l1hsintactdf %>%
     filter(gene_id %in% rownames(m)) %$% genic_loc
 row_ha <- rowAnnotation(pvalue = anno_simple(pch, pch = pch), genic_loc = genic_locs, col = list(genic_loc = c("Genic" = "brown", "NonGenic" = "tan")))
 conditions <- c(sample_table %>% filter(condition == condition1) %$% condition, sample_table %>% filter(condition == condition2) %$% condition)
-named_colors <- setNames(c(conf$condition_colors[[condition1]], conf$condition_colors[[condition2]]), nm = c(condition1, condition2) )
-topAnn <- ComplexHeatmap::HeatmapAnnotation(Condition = conditions, col = list(Condition = named_colors))
+topAnn <- ComplexHeatmap::HeatmapAnnotation(Condition = conditions, col = list(Condition = condition_palette))
 library(circlize)
 col_fun <- colorRamp2(c(0, 50, 100), c("red", "white", "blue"))
 col_fun(seq(0, 50, by = 25))

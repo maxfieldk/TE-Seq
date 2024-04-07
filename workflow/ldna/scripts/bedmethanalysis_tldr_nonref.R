@@ -83,7 +83,7 @@ beds <- Reduce(rbind, sample_beds)
 colnames(beds) <- c("seqnames", "start", "end", "name", "strand", "sample", "condition")
 ######
     # PREP DATA FOR ANALYSIS
-    conditions <- conf$conditions
+    conditions <- conf$levels
     condition1 <- conditions[1]
     condition2 <- conditions[2]
     condition1samples <- sample_table[sample_table$condition == conditions[1], ]$sample_name
