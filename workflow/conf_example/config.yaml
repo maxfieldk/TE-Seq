@@ -5,13 +5,16 @@
 pipelines_to_deploy:
   - aref
   # - srna
-  - ldna
+  # - ldna
   # - lrna
 
 #PIPELINE SETTINGS - Ignore settings for pipelines not being deployed
 aref:
   prefix: aref
-
+  sample_table: "conf/sample_table_aref.csv"
+  levels:
+    - "N2102EP"
+  default_palette: "ggsci::default_aaas"
   #MODULE PATHS
   dorado: "/users/mkelsey/data/tools/dorado-0.5.1-linux-x64/bin/dorado"
   basecallingModel:
@@ -31,12 +34,7 @@ aref:
     response: "no"
     aref_symlinkdir: "/oscar/data/jsedivy/mkelsey/ref/pipeline_annotations/hs1/RTE/aref"
   samples: 
-    - "AD1"
-    - "AD2"
-    - "AD3"
-    - "CTRL1"
-    - "CTRL2"
-    - "CTRL3"
+    - "N2102EP1"
     
   update_ref_with_tldr:
     response: "yes"
@@ -56,8 +54,8 @@ aref:
   ref_index: aref/A.REF.fa.fai
   #use ucsc naming convention, e.g. chr1, chr2, ...
   ref_refseq_gtf: /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/refseq_2023_10/GCF_009914755.1_T2T-CHM13v2.0_genomic.ucscnames.gtf
-  ref_refseq_gff3: /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/refseq_2023_10/GCF_009914755.1_T2T-CHM13v2.0_genomic.ucscnames.gff
   ref_refseq_bed: /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/refseq_2023_10/GCF_009914755.1_T2T-CHM13v2.0_genomic.ucscnames.bed
+  ref_refseq_gff3: /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/refseq_2023_10/GCF_009914755.1_T2T-CHM13v2.0_genomic.ucscnames.gff
   ref_cytobands: /users/mkelsey/data/ref/genomes/hs1/annotations7/chm13v2.0_cytobands_allchrs.bed
   ref_ccres: /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations3/cCREs/hs1-imr90-cCREsCuratedWithClosestGene.bed
   ref_telomere: /users/mkelsey/data/ref/genomes/hs1/annotations7/chm13v2.0_telomere.bed
@@ -72,25 +70,22 @@ aref:
 ldna:
   ##      ANALYSIS PARAMETERES       ##
   prefix: ldna
+  sample_table: "conf/sample_table_ldna.csv"
+  default_palette: "ggsci::default_aaas"
   use_aref_basecalls: "yes"
   tldr_input_bams:
   samples:
-    - "AD1"
-    - "AD2"
-    - "AD3"
-    - "CTRL1"
-    - "CTRL2"
-    - "CTRL3"
+    - "N2102EP1"
 
   #order with base comparator as first (dss will have 2 - 1)
-  conditions:
-    - "CTRL"
-    - "AD"
+  levels:
+    - "N2102EP"
+
   contrasts:
-    - "condition_AD_vs_CTRL"
+    - ""
+
   condition_colors:
-    CTRL: "#3C5488FF"
-    AD: "#F39B7FFF"
+    N2102EP: "#3C5488FF"
 
   barcoding: "inactive"
   barcodingKit: ""
@@ -106,7 +101,7 @@ ldna:
   dorado: "/users/mkelsey/data/tools/dorado-0.5.1-linux-x64/bin/dorado"
   ##      ANALYSIS PATHS       ##
   MINIMUM_COVERAGE_FOR_METHYLATION_ANALYSIS: 7
-  SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS: "chrY"
+  SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS: ""
   reference_annotation_dir: "aref"
   reference: "aref/A.REF.fa"
   annotation: "aref/annotations/A.REF_repeatmasker_refseq.complete.gtf"
@@ -157,6 +152,8 @@ ldna:
 
 lrna:
   prefix: "lrna"
+  sample_table: "conf/sample_table_lrna.csv"
+  default_palette: "ggsci::default_aaas"
   samples:
     - "pro1"
     - "pro2"
@@ -209,7 +206,6 @@ lrna:
   guppy: "/oscar/data/jsedivy/mkelsey/tools/ont-guppy/bin/guppy_basecaller"
   guppy_config: "/oscar/data/jsedivy/mkelsey/tools/ont-guppy/data/rna_r9.4.1_70bps_sup.cfg"
 
-  sample_table: "conf/sample_table_lrna.csv"
   reference: "aref/A.REF.fa"
   rtes_genes_gtf: "aref/annotations/A.REF_repeatmasker_refseq.complete.gtf"
 
