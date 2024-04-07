@@ -382,7 +382,7 @@ rule mergeGtfsandCleanupRM:
     output:
         gtf = "lrna/intermediates/{sample}/repeatmasker/{alignmenttype}/{sample}_repeatmasker.gtf"
     conda:
-        "evo"
+        "evo2"
     shell:
         """
 cat {input} > {output.gtf}

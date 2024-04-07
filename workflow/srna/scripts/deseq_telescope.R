@@ -1,7 +1,7 @@
 source("workflow/scripts/defaults.R")
 module_name <- "srna"
-source("workflow/srna/scripts/generate_colors_to_source.R")
-conf <- configr::read.config(file = "conf/config.yaml")[["srna"]]
+conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/generate_colors_to_source.R")
 
 library("DESeq2")
 library("readr")

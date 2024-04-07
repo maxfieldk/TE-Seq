@@ -1,4 +1,8 @@
 source("workflow/scripts/defaults.R")
+module_name <- "lrna"
+conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/generate_colors_to_source.R")
+
 library(igvR)
 library(knitr)
 library(rmarkdown)
@@ -24,9 +28,6 @@ library(rstatix)
 library(purrr)
 library(ggpubr)
 library(GenomicRanges)
-
-conf <- configr::read.config(file = "conf/config.yaml")[["lrna"]]
-
 
 tryCatch(
     {
@@ -122,7 +123,7 @@ pvp <- function(df, facet_var = "ALL", filter_var = "ALL") {
                 scale_color_manual(values = c("black", "red", "lightgray")) +
                 geom_abline(intercept = 0, slope = 1) +
                 labs(x = sprintf("%s Norm Counts", contrast_level_1), y = sprintf("%s Norm Counts", contrast_level_2)) +
-                mytheme +
+                mtopen +
                 coord_fixed(
                     xlim = range(c(.[[contrast_level_1]], .[[contrast_level_2]])),
                     ylim = range(c(.[contrast_level_1], .[contrast_level_2]))
@@ -167,7 +168,7 @@ dep <- function(df, facet_var = "ALL", filter_var = "ALL") {
             labs(x = "", y = "Number DE") +
             geom_col(aes(x = direction, fill = direction, y = count)) +
             anchorbar +
-            mythemecontrast +
+            mtopen + scale_contrasts +
             guides(fill = "none")
     } else {
         p <- plotframe %>% ggplot() +
@@ -175,7 +176,7 @@ dep <- function(df, facet_var = "ALL", filter_var = "ALL") {
             geom_col(aes(x = direction, fill = direction, y = count)) +
             facet_wrap(facet_var) +
             anchorbar +
-            mythemecontrast +
+            mtopen + scale_contrasts +
             guides(fill = "none")
     }
     return(p)
@@ -239,10 +240,10 @@ stripp <- function(df, stats = "yes", extraGGoptions = NULL, facet_var = "ALL", 
         geom_jitter(aes(x = condition, y = sample_sum), width = 0.2, alpha = 0.4) +
         geom_errorbar(data = summarydf, aes(x = condition, ymin = mean - se, ymax = mean + se), width = 0.2) +
         labs(x = "", y = "Sum Normalized Counts") +
-        mythemecontrastrev +
+        mtopen + scale_contrasts +
         extraGGoptions +
         theme(legend.position = "none") +
-        mytheme +
+        mtopen +
         anchorbar +
         guides(fill = "none")
     if (facet_var != "ALL") {
@@ -693,7 +694,7 @@ write.table(x, file = outputs$outfile, col.names = FALSE)
         geom_col(aes(x = fct_reorder(gene_id, -sen1), y = sen1)) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         labs(x = "Gene ID", y = "Counts", title = "Top 10 expressed genes") +
-        mytheme +
+        mtopen +
         anchorbar
     path <- paste0(plotdir, "topcounts.png")
     png(path, height = 5, width = 10, res = 300, units = "in")
@@ -705,7 +706,7 @@ write.table(x, file = outputs$outfile, col.names = FALSE)
         geom_col(aes(x = fct_reorder(gene_id, -sen1cpm), y = sen1cpm)) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         labs(x = "Gene ID", y = "Counts Per Million (CPM)", title = "Top 10 expressed genes") +
-        mytheme +
+        mtopen +
         anchorbar
 
     path <- paste0(plotdir, "topcpm.png")
@@ -719,7 +720,7 @@ write.table(x, file = outputs$outfile, col.names = FALSE)
         geom_col(aes(x = fct_reorder(gene_id, -sen1), y = sen1)) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         labs(x = "Gene ID", y = "Counts", title = "Top 10 expressed genes") +
-        mytheme +
+        mtopen +
         anchorbar
     path <- paste0(plotdir, "topgenecounts.png")
     png(path, height = 5, width = 10, res = 300, units = "in")
@@ -731,7 +732,7 @@ write.table(x, file = outputs$outfile, col.names = FALSE)
         geom_col(aes(x = fct_reorder(gene_id, -sen1cpm), y = sen1cpm)) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         labs(x = "Gene ID", y = "Counts Per Million (CPM)", title = "Top 10 expressed genes") +
-        mytheme +
+        mtopen +
         anchorbar
 
     path <- paste0(plotdir, "topgenecpm.png")
@@ -745,7 +746,7 @@ write.table(x, file = outputs$outfile, col.names = FALSE)
         geom_histogram(aes(x = sen1)) +
         xlim(0, 100) +
         labs(x = "Transcript Counts", y = "n", title = "Expressed Gene Count Distribution") +
-        mytheme
+        mtopen
 
     path <- paste0(plotdir, "expressedgenecountsdistribution.png")
     png(path, height = 5, width = 5, res = 300, units = "in")
@@ -758,7 +759,7 @@ write.table(x, file = outputs$outfile, col.names = FALSE)
         geom_histogram(aes(x = Length)) +
         labs(x = "Read Length (bp)", y = "Count", title = "expressed gene length distribution") +
         xlim(0, 20000) +
-        mytheme
+        mtopen
 
     path <- paste0(plotdir, "expressedgenelengthdistribution.png")
     png(path, height = 5, width = 5, res = 300, units = "in")
@@ -771,7 +772,7 @@ write.table(x, file = outputs$outfile, col.names = FALSE)
         summarise(n = n()) %>%
         ggplot() +
         geom_col(aes(x = detected, y = n)) +
-        mytheme +
+        mtopen +
         anchorbar
     path <- paste0(plotdir, "genesidentified.png")
     png(path, height = 5, width = 5, res = 300, units = "in")
@@ -787,7 +788,7 @@ write.table(x, file = outputs$outfile, col.names = FALSE)
         ggplot() +
         geom_col(aes(x = fct_reorder(gene_id, -sen1), y = sen1)) +
         labs(x = "Gene ID", y = "Counts", title = "Top 20 expressed Repeats") +
-        mytheme +
+        mtopen +
         coord_flip() +
         anchorbar
     path <- paste0(plotdir, "toprtecounts.png")
@@ -803,7 +804,7 @@ write.table(x, file = outputs$outfile, col.names = FALSE)
         geom_col(aes(x = fct_reorder(gene_id, -sen1), y = sen1)) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         labs(x = "Gene ID", y = "Counts", title = "Top 20 expressed young L1s") +
-        mytheme +
+        mtopen +
         coord_flip() +
         anchorbar
 
@@ -823,7 +824,7 @@ write.table(x, file = outputs$outfile, col.names = FALSE)
         ggplot() +
         geom_col(aes(x = fct_reorder(family, cpm), y = cpm, fill = family)) +
         labs(x = "Family", y = "Counts", title = "") +
-        mytheme +
+        mtopen +
         coord_flip() +
         anchorbar
 
@@ -839,7 +840,7 @@ write.table(x, file = outputs$outfile, col.names = FALSE)
         ggplot() +
         geom_col(aes(x = fct_reorder(family, cpm), y = cpm, fill = family)) +
         labs(x = "Family", y = "Counts", title = "") +
-        mytheme +
+        mtopen +
         coord_flip() +
         anchorbar
 
@@ -855,7 +856,7 @@ write.table(x, file = outputs$outfile, col.names = FALSE)
         ggplot() +
         geom_col(aes(x = fct_reorder(family, cpm), y = cpm, fill = family)) +
         labs(x = "Family", y = "Counts", title = "") +
-        mytheme +
+        mtopen +
         coord_flip() +
         anchorbar
 
@@ -871,7 +872,7 @@ write.table(x, file = outputs$outfile, col.names = FALSE)
         ggplot() +
         geom_col(aes(x = fct_reorder(rte_superfamily, cpm), y = cpm, fill = rte_superfamily)) +
         labs(x = "Family", y = "CPM", title = "") +
-        mytheme +
+        mtopen +
         anchorbar
 
     path <- paste0(plotdir, "rtefamilies.png")
@@ -961,7 +962,7 @@ p <- alndf %>%
     ggplot() +
     geom_col(aes(x = seqnames, y = n)) +
     coord_flip() +
-    mytheme +
+    mtopen +
     anchorbar
 png("results/sen1/alignmentsbycontig.png", height = 5, width = 10, res = 300, units = "in")
 print(p)
@@ -975,7 +976,7 @@ p <- alndff %>% ggplot() +
     geom_vline(aes(xintercept = mean(qwidth)), color = "red") +
     labs(x = "Alignment Length (bp)", y = "Count", title = "Alignment Length Distribution") +
     xlim(0, 7500) +
-    mytheme +
+    mtopen +
     anchorbar
 png("results/sen1/alignmentsLengthHistogram.png", height = 5, width = 10, res = 300, units = "in")
 print(p)
