@@ -26,10 +26,9 @@ rule dorado:
         reference = config["update_ref_with_tldr"]["tldr_input_bam_ref"]
     resources:
         cpus_per_task =12,
-        threads = 12,
         slurm_partition="gpu-he",
         mem_mb = 128000,
-        slurm_extra="--time=96:00:00 --constraint=a6000 --gres=gpu:2"
+        slurm_extra="--time=96:00:00 --prefer=a6000 --gres=gpu:2"
     shell:
         """
 mkdir -p $(dirname {output.calls})
@@ -41,8 +40,49 @@ basecaller \
 {input.dir} \
 --recursive \
 --verbose \
---reference {params.reference} > {output.calls}
+--reference {params.reference} > {output.calls}.unfinished
+mv {output.calls}.unfinished {output.calls}
         """
+
+rule call_dorado_resume:
+    input:
+        expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.bam.unfinished", sample = config["samples"], rate = config["rate"], type = config["type"], modifications_string = config["modification_string"])
+
+rule dorado_resume:
+    input:
+        unfinished = "aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.bam.unfinished"
+    output:
+        calls = "aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.bam.finished"
+    wildcard_constraints:
+        sample="[0-9A-Za-z_]+",
+        type = "[0-9A-Za-z]+",
+        rate = "[0-9A-Za-z]+",
+        modifications_string = "[0-9A-Za-z_-]+"
+    params:
+        dorado = config["dorado"],
+        basecallingModel = lambda w: config["basecallingModel"][w.rate][w.type],
+        reference = config["update_ref_with_tldr"]["tldr_input_bam_ref"]
+    resources:
+        cpus_per_task =12,
+        slurm_partition="gpu-he",
+        mem_mb = 128000,
+        slurm_extra="--time=48:00:00 --prefer=a6000 --gres=gpu:2"
+    shell:
+        """
+mkdir -p $(dirname {output.calls})
+mod_string=$(echo {wildcards.modifications_string} | tr "-" ",")
+
+{params.dorado} \
+basecaller \
+{wildcards.type},$mod_string \
+{input.dir} \
+--resume-from {input.unfinished} \
+--recursive \
+--verbose \
+--reference {params.reference} > {output.calls}.temp
+mv {output.calls}.temp {output.calls}
+        """
+
 #tag ALIGNMENT_UTILITIES
 rule sortBam:
     input:
@@ -77,7 +117,8 @@ samtools index  -@6 {input.bam}
 
 rule tldr_aggregate_multiple_samples:
     input:
-        bams = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam", sample = config["samples"], rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
+        bams = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam", sample = config["samples"], rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
+        bais = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam.bai", sample = config["samples"], rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
     params:
         tldr_input_bam_ref = lambda w: config["update_ref_with_tldr"]["tldr_input_bam_ref"],
         tldr_te_ref = config["update_ref_with_tldr"]["tldr_te_ref"]
@@ -107,7 +148,9 @@ mv ref $(dirname {output.tldr})/
 
 rule tldr_per_sample:
     input:
-        bam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
+        bam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
+        bai = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam.bai", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
+
     params:
         tldr_input_bam_ref = lambda w: config["update_ref_with_tldr"]["tldr_input_bam_ref"],
         tldr_te_ref = config["update_ref_with_tldr"]["tldr_te_ref"]
@@ -181,7 +224,7 @@ samtools faidx {input.reference}
 
 
 def repeatmasker_input(wildcards):
-    if config["update_ref_with_tldr"] == "yes":
+    if config["update_ref_with_tldr"]["response"] == "yes":
         return expand("aref/{sample_or_ref}-pre-ins-filtering_nonrefcontigs.fa", sample_or_ref = wildcards.sample_or_ref)
     else:
         return config["ref"]

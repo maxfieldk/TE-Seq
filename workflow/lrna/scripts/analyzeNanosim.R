@@ -1,11 +1,11 @@
 source("workflow/scripts/defaults.R")
+module_name <- "lrna"
+conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/generate_colors_to_source.R")
+
 library(GenomicAlignments)
 library(Rsamtools)
 library(rtracklayer)
-
-conf <- c(
-    configr::read.config(file = "conf/config.yaml")[["lrna"]]
-)
 
 tryCatch(
     {
@@ -50,7 +50,7 @@ for (type in c("Perfect", "ONT_dRNA")) {
 
     p <- alndf %>% ggplot() +
         geom_histogram(aes(x = qwidth), binwidth = 100) +
-        mytheme
+        mtopen
     mysave(sprintf("nanosim/plots/read_length_distribution_%s.png", type), 4, 4)
 
     alndf1 <- alndf %>%
@@ -72,7 +72,7 @@ for (type in c("Perfect", "ONT_dRNA")) {
         mutate(AlignmentAccuracy = `Proper Alignment` / (Misalignment + `Proper Alignment`))
     p <- pf %>% ggplot(aes(x = readlengthgroup, y = AlignmentAccuracy)) +
         geom_col() +
-        mytheme +
+        mtopen +
         ggtitle(sprintf("Simulated %s L1HS Intact Reads", type)) +
         labs(y = "Mapping Accuracy", x = "Read Length") +
         anchorbar
@@ -83,7 +83,7 @@ for (type in c("Perfect", "ONT_dRNA")) {
         drop_na() %>%
         ggplot() +
         geom_histogram(aes(x = mapq)) +
-        mytheme +
+        mtopen +
         ggtitle(sprintf("Simulated %s L1HS Intact 6kb Reads", type)) +
         labs(y = "Count", x = "Mapq")
     mysave(sprintf("nanosim/plots/mapqhistogram_%s.png", type), 4, 4)
@@ -129,7 +129,7 @@ pf <- mbo %>%
     dplyr::rename(`Error Profile` = readtype)
 p <- pf %>% ggplot(aes(x = readlengthgroup, y = AlignmentAccuracy, fill = `Error Profile`)) +
     geom_col(pos = "dodge") +
-    mythemecontrast +
+    mtopen + scale_contrasts +
     ggtitle(sprintf("Simulated L1HS Intact Reads")) +
     labs(y = "Mapping Accuracy", x = "Read Length") +
     anchorbar
@@ -153,7 +153,7 @@ pf <- mbo %>%
 p <- pf %>% ggplot(aes(x = readlengthgroup, y = AlignmentAccuracy, fill = `Error Profile`)) +
     geom_col(pos = "dodge") +
     facet_wrap(~mapqGroup) +
-    mythemecontrast +
+    mtopen + scale_contrasts +
     ggtitle(sprintf("Simulated L1HS Intact Reads")) +
     labs(y = "Mapping Accuracy", x = "Read Length") +
     anchorbar

@@ -1,4 +1,8 @@
 source("workflow/scripts/defaults.R")
+module_name <- "lrna"
+conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/generate_colors_to_source.R")
+
 library(magrittr)
 library(org.Hs.eg.db)
 library(clusterProfiler)
@@ -21,7 +25,6 @@ library(circlize)
 
 # analysis parameters
 {
-    conf <- configr::read.config(file = "conf/config.yaml")[["lrna"]]
 
 
     tryCatch(
@@ -157,11 +160,11 @@ for (contrast in params[["contrasts"]]) {
                     gse <- GSEA(ordered_by_stat, TERM2GENE = genesets, maxGSSize = 10000, minGSSize = 1)
                     gse_results[[contrast]][[ontology]][[filter_var]] <- gse
                     genesettheme <- theme_gray() + theme(axis.text.y = element_text(colour = "black"))
-                    p <- dotplot(gse, showCategory = 20) + ggtitle(paste("GSEA", contrast, sep = " ")) + genesettheme + mytheme
+                    p <- dotplot(gse, showCategory = 20) + ggtitle(paste("GSEA", contrast, sep = " ")) + genesettheme + mtopen
                     mysave(sprintf("%s/%s/gsea/%s/%s/dotplot.png", params[["outputdir"]], contrast, ontology, filter_var), w = 4, h = 6, res = 300)
                     EARTEplots[[contrast]][[ontology]][[filter_var]][["dot"]] <- p
 
-                    p <- ridgeplot(gse, core_enrichment = FALSE) + ggtitle(paste("GSEA", contrast, sep = " ")) + xlab("Log2 FC") + xlim(c(-4, 4)) + genesettheme + mytheme
+                    p <- ridgeplot(gse, core_enrichment = FALSE) + ggtitle(paste("GSEA", contrast, sep = " ")) + xlab("Log2 FC") + xlim(c(-4, 4)) + genesettheme + mtopen
                     mysave(sprintf("%s/%s/gsea/%s/%s/ridgeplot.png", params[["outputdir"]], contrast, ontology, filter_var), w = 4, h = 6, res = 300)
                     EARTEplots[[contrast]][[ontology]][[filter_var]][["ridge"]] <- p
 
@@ -177,7 +180,7 @@ for (contrast in params[["contrasts"]]) {
                                 p <- ggplot(df, aes(NES, fct_reorder(Description, NES), fill = p.adjust)) +
                                     geom_col(orientation = "y") +
                                     scale_fill_continuous(low = "red", high = "blue", guide = guide_colorbar(reverse = TRUE)) +
-                                    mytheme +
+                                    mtopen +
                                     theme(axis.text.y = element_text(colour = "black")) +
                                     ylab(NULL)
 

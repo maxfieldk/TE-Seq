@@ -1,4 +1,8 @@
 source("workflow/scripts/defaults.R")
+module_name <- "ldna"
+conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/generate_colors_to_source.R")
+
 library(rtracklayer)
 library(Biostrings)
 library(cowplot)
@@ -19,38 +23,6 @@ library(Biostrings)
     library(glob)
 ####################
 {
-    my_palette <- paletteer::paletteer_d("ggsci::nrc_npg")
-
-    bluelight <- "#8399c9"
-    blue <- "#3C5488FF"
-    bluedark <- "#273759"
-    orangelight <- "#F39B7FFF"
-    orange <- "#e94716"
-    orangedark <- "#75240b"
-    mycolor <- "#00A087FF"
-    mythemesamples <- list(
-        scale_fill_manual(values = rep(my_palette[4:5], each = 3)),
-        theme(panel.border = element_rect(color = "black", fill = NA, size = 1))
-    )
-    mythemesamplesdif <- list(
-        scale_fill_manual(values = c(bluelight, blue, bluedark, orangelight, orange, orangedark)),
-        theme(panel.border = element_rect(color = "black", fill = NA, size = 1))
-    )
-    mythemeconditions <- list(
-        scale_color_manual(values = my_palette[5:4]),
-        scale_fill_manual(values = my_palette[5:4]),
-        theme(panel.border = element_rect(color = "black", fill = NA, size = 1))
-    )
-    mythemecontrast <- list(
-        scale_fill_manual(values = my_palette[c(1, 2, 9)]),
-        theme(panel.border = element_rect(color = "black", fill = NA, size = 1))
-    )
-    mythemeconditionsrev <- list(
-        scale_color_manual(values = my_palette[4:5]),
-        scale_fill_manual(values = my_palette[4:5]),
-        theme(panel.border = element_rect(color = "black", fill = NA, size = 1))
-    )
-
     chromosomesAll <- c(paste0("chr", 1:22), "chrX", "chrY", "chrM")
     chromosomes <- c(paste0("chr", 1:22), "chrX")
     chromosomesNoX <- c(paste0("chr", 1:22))
@@ -111,7 +83,7 @@ beds <- Reduce(rbind, sample_beds)
 colnames(beds) <- c("seqnames", "start", "end", "name", "strand", "sample", "condition")
 ######
     # PREP DATA FOR ANALYSIS
-    conditions <- conf$conditions
+    conditions <- conf$levels
     condition1 <- conditions[1]
     condition2 <- conditions[2]
     condition1samples <- sample_table[sample_table$condition == conditions[1], ]$sample_name
@@ -193,7 +165,7 @@ p <- rbind(nonref, ref) %>% ggplot() +
     theme(panel.grid.major.y = element_blank(), panel.grid.minor.y = element_blank()) +
     labs(x = "", y = "Mean element methylation") +
     ggtitle("Reference vs Non-reference L1HS") +
-    mythemeconditions
+    mtopen + scale_conditions
 png("results/plots/tldr/beeswarm_5utr.png", width = 8, height = 4, units = "in", res = 300)
 print(p)
 dev.off()
@@ -202,7 +174,7 @@ p <- rbind(nonref, ref) %>% ggplot() +
     theme(panel.grid.major.y = element_blank(), panel.grid.minor.y = element_blank()) +
     labs(x = "", y = "Mean element methylation") +
     ggtitle("Reference vs Non-reference L1HS") +
-    mythemeconditions
+    mtopen + scale_conditions
 png("results/plots/tldr/box_hideoutliers_5utr.png", width = 4, height = 4, units = "in", res = 300)
 print(p)
 dev.off()
@@ -212,7 +184,7 @@ p <- rbind(nonref, ref) %>% ggplot() +
     theme(panel.grid.major.y = element_blank(), panel.grid.minor.y = element_blank()) +
     labs(x = "", y = "Mean element methylation") +
     ggtitle("Reference vs Non-reference L1HS") +
-    mythemeconditions
+    mtopen + scale_conditions
 png("results/plots/tldr/box_5utr.png", width = 4, height = 4, units = "in", res = 300)
 print(p)
 dev.off()
@@ -240,7 +212,7 @@ p <- rbind(nonref, ref) %>% ggplot() +
     theme(panel.grid.major.y = element_blank(), panel.grid.minor.y = element_blank()) +
     labs(x = "", y = "Mean element methylation") +
     ggtitle("Reference vs Non-reference L1HS") +
-    mythemeconditions
+    mtopen + scale_conditions
 
 png("results/plots/tldr/beeswarm.png", width = 6, height = 4, units = "in", res = 300)
 print(p)
@@ -250,7 +222,7 @@ p <- rbind(nonref, ref) %>% ggplot() +
     theme(panel.grid.major.y = element_blank(), panel.grid.minor.y = element_blank()) +
     labs(x = "", y = "Mean element methylation") +
     ggtitle("Reference vs Non-reference L1HS") +
-    mythemeconditions
+    mtopen + scale_conditions
 
 png("results/plots/tldr/box_hideoutliers.png", width = 4, height = 4, units = "in", res = 300)
 print(p)
@@ -260,7 +232,7 @@ p <- rbind(nonref, ref) %>% ggplot() +
     theme(panel.grid.major.y = element_blank(), panel.grid.minor.y = element_blank()) +
     labs(x = "", y = "Mean element methylation") +
     ggtitle("Reference vs Non-reference L1HS") +
-    mythemeconditions
+    mtopen + scale_conditions
 png("results/plots/tldr/box.png", width = 4, height = 4, units = "in", res = 300)
 print(p)
 dev.off()
@@ -291,7 +263,7 @@ p <- ggplot(shared_nonref_counts, aes(x = counts)) +
     labs(x = "Insertion found in N samples", y = "Count", fill = "Shared") +
     scale_x_continuous(breaks = scales::pretty_breaks(n = 6)) +
     ggtitle("Non-reference fl-L1HS Insertion") +
-    mythemeconditions
+    mtopen + scale_conditions
 png("results/plots/tldr/shared_nonref_hist.png", width = 4, height = 4, units = "in", res = 300)
 print(p)
 dev.off()

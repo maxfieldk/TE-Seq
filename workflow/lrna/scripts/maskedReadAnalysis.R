@@ -1,11 +1,12 @@
 source("workflow/scripts/defaults.R")
+module_name <- "lrna"
+conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/generate_colors_to_source.R")
+
 library(GenomicAlignments)
 library(Rsamtools)
 library(rtracklayer)
 
-conf <- c(
-    configr::read.config(file = "conf/config.yaml")[["lrna"]]
-)
 
 tryCatch(
     {
@@ -60,7 +61,7 @@ alndf <- aln %>%
 
 p <- alndf %>% ggplot() +
     geom_histogram(aes(x = qwidth), binwidth = 100) +
-    mytheme
+    mtopen
 mysave(sprintf("maskedread_length_distribution.png"), 4, 4)
 
 alndf1 <- alndf %>%
