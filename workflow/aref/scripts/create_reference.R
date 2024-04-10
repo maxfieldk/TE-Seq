@@ -1,8 +1,10 @@
-source("~/data/common/myDefaults.r")
+source("workflow/scripts/defaults.R")
+module_name <- "aref"
+conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/generate_colors_to_source.R")
 library(configr)
 library(Biostrings)
 
-conf <- configr::read.config(file = "conf/config.yaml")[["aref"]]
 tryCatch(
     {
         inputs <- snakemake@input

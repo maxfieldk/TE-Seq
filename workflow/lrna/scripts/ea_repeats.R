@@ -1,4 +1,8 @@
-source("~/data/common/myDefaults.r")
+source("workflow/scripts/defaults.R")
+module_name <- "lrna"
+conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/generate_colors_to_source.R")
+
 library(magrittr)
 library(org.Hs.eg.db)
 library(clusterProfiler)
@@ -23,7 +27,6 @@ library(ComplexHeatmap)
 
 # analysis parameters
 {
-    conf <- configr::read.config(file = "conf/config.yaml")[["lrna"]]
 
 
     tryCatch(
@@ -176,6 +179,7 @@ for (contrast in params[["contrasts"]]) {
                                 p <- ggplot(df, aes(NES, fct_reorder(Description, NES), fill = p.adjust)) +
                                     geom_col(orientation = "y") +
                                     scale_fill_continuous(low = "red", high = "blue", guide = guide_colorbar(reverse = TRUE)) +
+                                    mtopen +
                                     mtopen +
                                     theme(axis.text.y = element_text(colour = "black")) +
                                     ylab(NULL)

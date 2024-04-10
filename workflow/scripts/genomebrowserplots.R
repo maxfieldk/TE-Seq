@@ -1,4 +1,4 @@
-source("~/data/common/myDefaults.r")
+source("workflow/scripts/defaults.R")
 library(igvR)
 library(knitr)
 library(rmarkdown)

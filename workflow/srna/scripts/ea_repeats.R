@@ -1,4 +1,8 @@
-source("~/data/common/myDefaults.r")
+source("workflow/scripts/defaults.R")
+module_name <- "srna"
+conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/generate_colors_to_source.R")
+
 library(magrittr)
 library(org.Hs.eg.db)
 library(clusterProfiler)
@@ -23,9 +27,6 @@ library(ComplexHeatmap)
 
 # analysis parameters
 {
-    conf <- configr::read.config(file = "conf/config.yaml")[["srna"]]
-
-
     tryCatch(
         {
             params <- snakemake@params

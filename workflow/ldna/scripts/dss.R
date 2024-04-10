@@ -1,9 +1,13 @@
+source("workflow/scripts/defaults.R")
+module_name <- "ldna"
+conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/generate_colors_to_source.R")
+
 library(DSS)
 library(BiocParallel)
 library(readr)
 require(bsseq)
 
-conf <- configr::read.config(file = "conf/config.yaml")[["ldna"]]
 
 tryCatch(
     {
@@ -36,7 +40,7 @@ for (sample in sample_table$sample_name) {
 BSobj <- makeBSseqData(sample_dfs, names(sample_dfs))
 mParam <- MulticoreParam(workers = 12, progressbar = TRUE)
 
-conditions <- conf$conditions
+conditions <- conf$levels
 condition1samples <- sample_table[sample_table$condition == conditions[1], ]$sample_name
 condition2samples <- sample_table[sample_table$condition == conditions[2], ]$sample_name
 # need to adjust numbering given idiosyncracies of dmltest

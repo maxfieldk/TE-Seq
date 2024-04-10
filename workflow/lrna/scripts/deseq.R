@@ -1,4 +1,7 @@
-source("~/data/common/myDefaults.r")
+source("workflow/scripts/defaults.R")
+module_name <- "lrna"
+conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/generate_colors_to_source.R")
 
 library("DESeq2")
 library("readr")
@@ -21,8 +24,6 @@ library("biomaRt")
 library(stringr)
 library("dplyr")
 library(EnhancedVolcano)
-
-conf <- configr::read.config(file = "conf/config.yaml")[["lrna"]]
 
 
 tryCatch(
@@ -166,7 +167,7 @@ for (subset in c("genes", "rtes")) {
 
             p <- screeplot(pcaObj, title = "") +
                 theme_cowplot() +
-                mytheme
+                mtopen
             mysave(paste(outputdir, subset, "screeplot.png", sep = "/"), 4, 4)
             deseq_plots[[subset]][["scree"]] <- p
 
@@ -176,7 +177,7 @@ for (subset in c("genes", "rtes")) {
                 rangeRetain = 0.045, labSize = 4
             ) +
                 theme(legend.position = "none") +
-                mytheme
+                mtopen
             mysave(paste(outputdir, subset, "loadings.png", sep = "/"), 4, 4)
             deseq_plots[[subset]][["loadings"]] <- p
 
@@ -187,7 +188,7 @@ for (subset in c("genes", "rtes")) {
                 labSize = 5, pointSize = 5, sizeLoadingsNames = 5
             ) +
                 theme_gray() +
-                mytheme
+                mtopen
             mysave(paste(outputdir, subset, "pca.png", sep = "/"), 4, 4)
             deseq_plots[[subset]][["pca"]] <- p
 
@@ -196,7 +197,7 @@ for (subset in c("genes", "rtes")) {
                 x = "PC3", y = "PC4", showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0,
                 colby = "condition", legendPosition = "right",
                 labSize = 5, pointSize = 5, sizeLoadingsNames = 5
-            ) + mytheme
+            ) + mtopen
             mysave(paste(outputdir, subset, "pca34.png", sep = "/"), 4, 4)
             deseq_plots[[subset]][["pca34"]] <- p
 

@@ -1,4 +1,7 @@
-source("~/data/common/myDefaults.r")
+source("workflow/scripts/defaults.R")
+module_name <- "srna"
+conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/generate_colors_to_source.R")
 
 library("DESeq2")
 library("readr")
@@ -20,12 +23,6 @@ library(AnnotationDbi)
 library("biomaRt")
 library(stringr)
 library("dplyr")
-
-
-### functions
-
-conf <- configr::read.config(file = "conf/config.yaml")[["srna"]]
-
 
 
 tryCatch(

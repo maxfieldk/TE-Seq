@@ -1,7 +1,7 @@
-source("~/data/common/myDefaults.r")
+source("workflow/scripts/defaults.R")
 module_name <- "srna"
-source("workflow/srna/scripts/generate_colors_to_source.R")
-conf <- configr::read.config(file = "conf/config.yaml")[["srna"]]
+conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/generate_colors_to_source.R")
 
 library(knitr)
 library(rmarkdown)
@@ -96,7 +96,7 @@ resultsdf <- resultsdf1 %>%
 
 #### PLOTTING FUNCTIONS
 
-pvp <- function(df, facet_var = "ALL", filter_var = "ALL") {
+pvp <- function(df, facet_var = "ALL", filter_var = "ALL", labels = "no") {
     if (filter_var != "ALL") {
         df <- df %>% filter(str_detect(!!sym(filter_var), ">|Intact|towards"))
     }
@@ -105,6 +105,7 @@ pvp <- function(df, facet_var = "ALL", filter_var = "ALL") {
         summarise(mean(counts), padj = dplyr::first(!!sym(contrast_padj))) %>%
         pivot_wider(names_from = condition, values_from = `mean(counts)`) 
     top_sig <- pf %>% filter(!!sym(contrast_padj) < 0.05) %>% arrange(padj) %>% head(6) %>% pull(gene_id) 
+    if (labels != "no") {
     p <- pf %>%
         {
             ggplot(data = ., mapping = aes(x = !!sym(contrast_level_1), y = !!sym(contrast_level_2))) +
@@ -129,6 +130,25 @@ pvp <- function(df, facet_var = "ALL", filter_var = "ALL") {
                     ylim = range(c(.[contrast_level_1], .[contrast_level_2]))
                 )
          }
+    } else {
+
+    p <- pf %>%
+        {
+            ggplot(data = ., mapping = aes(x = !!sym(contrast_level_1), y = !!sym(contrast_level_2))) +
+                geom_point(aes(color = padj < 0.05)) +
+                scale_color_manual(values = c("black", "red", "lightgray")) +
+                geom_abline(intercept = 0, slope = 1) +
+                labs(x = sprintf("%s Norm Counts", contrast_level_1), y = sprintf("%s Norm Counts", contrast_level_2), caption = counttype_label) +
+                mtclosedgrid +
+                theme(aspect.ratio = 1) +
+                coord_cartesian(clip = "off") +
+                    coord_fixed(
+                    xlim = range(c(.[[contrast_level_1]], .[[contrast_level_2]])),
+                    ylim = range(c(.[contrast_level_1], .[contrast_level_2]))
+                )
+         }
+
+    }
     if (facet_var != "ALL") {
         p <- p + facet_wrap(facet_var)
     }
@@ -166,7 +186,7 @@ dep <- function(df, facet_var = "ALL", filter_var = "ALL") {
             labs(x = "", y = "Number DE", caption = counttype_label) +
             geom_col(aes(x = direction, group = direction, y = count)) +
             mtclosed +
-            mypalette +
+            scale_palette +
             anchorbar +
             guides(fill = "none")
     } else {
@@ -175,7 +195,7 @@ dep <- function(df, facet_var = "ALL", filter_var = "ALL") {
             geom_col(aes(x = direction, group = direction, y = count)) +
             facet_wrap(facet_var) +
             mtclosed +
-            mypalette +
+            scale_palette +
             anchorbar +
             guides(fill = "none")
     }
@@ -188,7 +208,7 @@ dep <- function(df, facet_var = "ALL", filter_var = "ALL") {
 # p <- dep(tidydf %>% filter(rte_subfamily == "L1HS"), filter_var = "rte_length_req") + ggtitle("L1HS")
 # mysave("temp1.png")
 
-stripp <- function(df, stats = "yes", extraGGoptions = NULL, facet_var = "ALL", filter_var = "ALL") {
+stripp <- function(df, stats = "no", extraGGoptions = NULL, facet_var = "ALL", filter_var = "ALL") {
     if (facet_var != "ALL") {
         stats <- "no"
     }
@@ -441,7 +461,7 @@ for (contrast in contrasts) {
                             {
                                 function_current <- get(function_name)
                                 plot_width <- 5
-                                plot_height <- 4
+                                plot_height <- 5
                                 if (facet_var != "ALL") {
                                     plot_width <- 8
                                 }
@@ -455,10 +475,13 @@ for (contrast in contrasts) {
                                 }
                                 p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var) + ggtitle(plot_title)
                                 mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s.png", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height)
-                                
+                                if (function_name == "pvp") {
+                                    p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, labels = "yes") + ggtitle(plot_title)
+                                    mysaveandstore(sprintf("% s/%s/%s/%s/%s_%s_%s_labels.png", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height)
+                                }
                                 if (function_name == "stripp") {
-                                    p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, stats = "no") + ggtitle(plot_title)
-                                    mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_no_stats.png", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height)
+                                    p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, stats = "yes") + ggtitle(plot_title)
+                                    mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_stats.png", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height + 2)
                                 }
                             },
                             error = function(e) {

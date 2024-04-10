@@ -1,4 +1,8 @@
-source("~/data/common/myDefaults.r")
+source("workflow/scripts/defaults.R")
+module_name <- "aref"
+conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/generate_colors_to_source.R")
+
 library(readr)
 library(magrittr)
 library(stringr)
@@ -27,9 +31,6 @@ library(ggnewscale)
 library(RColorBrewer)
 library(ORFik)
 
-conf <- c(
-    conf <- configr::read.config(file = "conf/config.yaml")[["aref"]]
-)
 
 tryCatch(
     {
@@ -83,7 +84,7 @@ p <- pf %>% ggplot() +
     theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
     labs(title = "Number of L1 Elements per Subfamily", x = "Family", y = "Number of Elements", fill = "Reference Status") +
     facet_wrap(~refstatus, scales = "free") +
-    mytheme +
+    mtopen +
     anchorbar
 mysaveandstore(sprintf("%s/l1familycount.png", outputdir), w = 8, h = 5)
 
@@ -98,7 +99,7 @@ p <- rmann %>%
     theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
     labs(title = "Number of Full Length L1 Elements per Subfamily", x = "Family", y = "Number of Elements", fill = "Reference Status") +
     facet_wrap(~refstatus, scales = "free") +
-    mytheme +
+    mtopen +
     anchorbar
 mysaveandstore(sprintf("%s/l1FLfamilycount.png", outputdir), w = 8, h = 5)
 
@@ -121,7 +122,7 @@ p <- rmann %>%
     filter(grepl("Intact", l1_intactness_req)) %>%
     ggplot() +
     geom_bar(aes(x = rte_subfamily, fill = refstatus), color = "black") +
-    mytheme +
+    mtopen +
     anchorbar
 mysaveandstore(sprintf("%s/l1_intact_refstatus.png", outputdir), 4, 4)
 
@@ -230,7 +231,7 @@ library(ggbio)
         mutate(n = n()) %>%
         filter(n < 2)
     notsplitnonrefl1hsgrs <- GRanges(seqnames = "l1.3", ranges = IRanges(start = notsplitnonrefl1hs$minIget, end = notsplitnonrefl1hs$maxIget))
-    p <- autoplot(notsplitnonrefl1hsgrs, aes(color = end)) + mytheme + labs(x = "Position in L1.3 (bp)", y = "Coverage", title = "L1HS Blast to L1.3")
+    p <- autoplot(notsplitnonrefl1hsgrs, aes(color = end)) + mtopen + labs(x = "Position in L1.3 (bp)", y = "Coverage", title = "L1HS Blast to L1.3")
     mysaveandstore(sprintf("%s/l13alnnotsplit.png", outputdir))
 }
 
@@ -238,21 +239,21 @@ p <- bres %>%
     filter(SubjectID == "l1.3") %>%
     ggplot() +
     geom_histogram(aes(x = Perc.Ident)) +
-    mytheme
+    mtopen
 mysaveandstore(sprintf("%s/l13identHist.png", outputdir))
 
 p <- bres %>%
     filter(SubjectID == "orf1") %>%
     ggplot() +
     geom_histogram(aes(x = Perc.Ident)) +
-    mytheme
+    mtopen
 mysaveandstore(sprintf("%s/orf1identHist.png", outputdir))
 
 p <- bres %>%
     filter(SubjectID == "orf2") %>%
     ggplot() +
     geom_histogram(aes(x = Perc.Ident)) +
-    mytheme
+    mtopen
 mysaveandstore(sprintf("%s/orf2identHist.png", outputdir))
 
 
@@ -360,13 +361,13 @@ l1hs_intact_aln_ss_c <- as(l1hs_intact_aln_c, "DNAStringSet")
 writeXStringSet(l1hs_intact_aln_ss_c, file = sprintf("%s/l1hs_intact_alnWconensus.fa", outputdir))
 p <- simplot(sprintf("%s/l1hs_intact_alnWconensus.fa", outputdir), "consensus", window = 1, group = TRUE, id = 1, sep = "_") +
     ggtitle("L1HS ORF1&2 Intact Consensus Accuracy") +
-    mytheme
+    mtopen
 mysaveandstore(sprintf("%s/l1hs_intact_alnWconensus_similarity.png", outputdir), w = 10, h = 5)
 
 p <- simplot(sprintf("%s/l1hs_intact_alnWconensus.fa", outputdir), "consensus", window = 1, group = TRUE, id = 1, sep = "_") +
     ggtitle("L1HS ORF1&2 Intact Consensus Accuracy") +
     geom_hline(yintercept = 0.95, col = "red", lty = 2) +
-    mytheme
+    mtopen
 mysaveandstore(sprintf("%s/l1hs_intact_alnWconensus_similarity_ONTdRNAerror.png", outputdir), w = 10, h = 5)
 
 

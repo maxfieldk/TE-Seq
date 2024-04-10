@@ -1,4 +1,8 @@
-source("~/data/common/myDefaults.r")
+source("workflow/scripts/defaults.R")
+module_name <- "aref"
+conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/generate_colors_to_source.R")
+
 library(readr)
 library(magrittr)
 library(stringr)
@@ -27,9 +31,6 @@ library(ggnewscale)
 library(RColorBrewer)
 library(ORFik)
 
-conf <- c(
-    conf <- configr::read.config(file = "conf/config.yaml")[["aref"]]
-)
 
 tryCatch(
     {
@@ -80,7 +81,7 @@ p <- pf %>% ggplot() +
     theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
     labs(title = "Number of L1 Elements per Subfamily", x = "Family", y = "Number of Elements", fill = "Reference Status") +
     facet_wrap(~refstatus, scales = "free") +
-    mytheme +
+    mtopen +
     anchorbar
 mysave(sprintf("%s/l1familycount.png", outputdir), w = 8, h = 5)
 
@@ -95,7 +96,7 @@ p <- rmann %>%
     theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
     labs(title = "Number of Full Length L1 Elements per Subfamily", x = "Family", y = "Number of Elements", fill = "Reference Status") +
     facet_wrap(~refstatus, scales = "free") +
-    mytheme +
+    mtopen +
     anchorbar
 mysave(sprintf("%s/l1FLfamilycount.png", outputdir), w = 8, h = 5)
 
@@ -302,13 +303,13 @@ library(ggbio)
 
     # non full length cov
     nflgrs <- grs[width(grs) < 6000]
-    p <- autoplot(coverage(nflgrs)$l1.3) + mytheme + labs(x = "Position in L1.3 (bp)", y = "Coverage", title = "L1HS(>6000 bp) Blast to L1.3")
+    p <- autoplot(coverage(nflgrs)$l1.3) + mtopen + labs(x = "Position in L1.3 (bp)", y = "Coverage", title = "L1HS(>6000 bp) Blast to L1.3")
     mysave(sprintf("%s/l13covnotfulllength.png", outputdir))
-    p <- autoplot(coverage(grs)$l1.3) + mytheme + labs(x = "Position in L1.3 (bp)", y = "Coverage", title = "NonRef L1HS Blast to L1.3")
+    p <- autoplot(coverage(grs)$l1.3) + mtopen + labs(x = "Position in L1.3 (bp)", y = "Coverage", title = "NonRef L1HS Blast to L1.3")
     mysave(sprintf("%s/nonref_l13cov.png", outputdir))
-    p <- autoplot(grs, aes(color = width)) + mytheme + labs(x = "Position in L1.3 (bp)", y = "Coverage", title = "L1HS Blast to L1.3")
+    p <- autoplot(grs, aes(color = width)) + mtopen + labs(x = "Position in L1.3 (bp)", y = "Coverage", title = "L1HS Blast to L1.3")
     mysave(sprintf("%s/l13aln.png", outputdir))
-    p <- autoplot(nflgrs, aes(color = width)) + mytheme + labs(x = "Position in L1.3 (bp)", y = "Coverage", title = "L1HS Blast to L1.3")
+    p <- autoplot(nflgrs, aes(color = width)) + mtopen + labs(x = "Position in L1.3 (bp)", y = "Coverage", title = "L1HS Blast to L1.3")
     mysave(sprintf("%s/l13alnnotfulllength.png", outputdir))
     # filtering out any split elements
     notsplit <- bres %>%
@@ -325,7 +326,7 @@ library(ggbio)
         mutate(maxIget = max(S.start, S.end))
     nsgrs <- GRanges(seqnames = "l1.3", ranges = IRanges(start = l1.3alnns$minIget, end = l1.3alnns$maxIget))
     nsnflgrs <- nsgrs[width(nsgrs) < 6000]
-    p <- autoplot(nsnflgrs, aes(color = end)) + mytheme + labs(x = "Position in L1.3 (bp)", y = "Coverage", title = "L1HS Blast to L1.3")
+    p <- autoplot(nsnflgrs, aes(color = end)) + mtopen + labs(x = "Position in L1.3 (bp)", y = "Coverage", title = "L1HS Blast to L1.3")
     mysave(sprintf("%s/l13alnnotsplitnotfulllength.png", outputdir))
 }
 
@@ -334,21 +335,21 @@ p <- bres %>%
     filter(SubjectID == "l1.3") %>%
     ggplot() +
     geom_histogram(aes(x = Perc.Ident)) +
-    mytheme
+    mtopen
 mysave(sprintf("%s/l13identHist.png", outputdir))
 
 p <- bres %>%
     filter(SubjectID == "orf1") %>%
     ggplot() +
     geom_histogram(aes(x = Perc.Ident)) +
-    mytheme
+    mtopen
 mysave(sprintf("%s/orf1identHist.png", outputdir))
 
 p <- bres %>%
     filter(SubjectID == "orf2") %>%
     ggplot() +
     geom_histogram(aes(x = Perc.Ident)) +
-    mytheme
+    mtopen
 mysave(sprintf("%s/orf2identHist.png", outputdir))
 
 
@@ -445,13 +446,13 @@ l1hs_intact_aln_ss_c <- as(l1hs_intact_aln_c, "DNAStringSet")
 writeXStringSet(l1hs_intact_aln_ss_c, file = sprintf("%s/l1hs_intact_alnWconensus.fa", outputdir))
 p <- simplot(sprintf("%s/l1hs_intact_alnWconensus.fa", outputdir), "consensus", window = 1, group = TRUE, id = 1, sep = "_") +
     ggtitle("L1HS ORF1&2 Intact Consensus Accuracy") +
-    mytheme
+    mtopen
 mysave(sprintf("%s/l1hs_intact_alnWconensus_similarity.png", outputdir), w = 10, h = 5)
 
 p <- simplot(sprintf("%s/l1hs_intact_alnWconensus.fa", outputdir), "consensus", window = 1, group = TRUE, id = 1, sep = "_") +
     ggtitle("L1HS ORF1&2 Intact Consensus Accuracy") +
     geom_hline(yintercept = 0.95, col = "red", lty = 2) +
-    mytheme
+    mtopen
 mysave(sprintf("%s/l1hs_intact_alnWconensus_similarity_ONTdRNAerror.png", outputdir), w = 10, h = 5)
 
 
