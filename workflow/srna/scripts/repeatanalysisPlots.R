@@ -408,7 +408,8 @@ for (contrast in contrasts) {
         for (group in ontology_groups) {
             if (!(group %in% groups_that_have_been_run | group %in% groups_not_to_run | group %in% big_ontology_groups)) {
                 groups_that_have_been_run <- c(groups_that_have_been_run, group)
-                groupframe <- tidydf %>% filter(!!sym(ontology) == group)
+                #maybe change to !!group
+                groupframe <- tidydf %>% dplyr::filter(!!sym(ontology) == group)
                 eligible_modifiers <- c()
                 for (modifier in modifiers) {
                     values_present <- tidydf %>%

@@ -393,7 +393,6 @@ rule deseq_telescope:
     input:
         counts = "srna/outs/agg/featurecounts_genes/counts.txt",
         rte_counts = expand("srna/outs/{sample}/telescope/telescope-run_stats.tsv", sample = samples),
-        colors = "conf/colors_srna.RData"
     params:
         sample_table = config["sample_table"],
         contrasts = config["contrasts"],
