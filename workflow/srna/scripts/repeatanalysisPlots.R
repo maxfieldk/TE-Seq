@@ -208,7 +208,7 @@ dep <- function(df, facet_var = "ALL", filter_var = "ALL") {
 # p <- dep(tidydf %>% filter(rte_subfamily == "L1HS"), filter_var = "rte_length_req") + ggtitle("L1HS")
 # mysave("temp1.png")
 
-stripp <- function(df, stats = "yes", extraGGoptions = NULL, facet_var = "ALL", filter_var = "ALL") {
+stripp <- function(df, stats = "no", extraGGoptions = NULL, facet_var = "ALL", filter_var = "ALL") {
     if (facet_var != "ALL") {
         stats <- "no"
     }
@@ -428,7 +428,8 @@ for (contrast in contrasts) {
         for (group in ontology_groups) {
             if (!(group %in% groups_that_have_been_run | group %in% groups_not_to_run | group %in% big_ontology_groups)) {
                 groups_that_have_been_run <- c(groups_that_have_been_run, group)
-                groupframe <- tidydf %>% filter(!!sym(ontology) == group)
+                #maybe change to !!group
+                groupframe <- tidydf %>% dplyr::filter(!!sym(ontology) == group)
                 eligible_modifiers <- c()
                 for (modifier in modifiers) {
                     values_present <- tidydf %>%
@@ -460,7 +461,7 @@ for (contrast in contrasts) {
                             {
                                 function_current <- get(function_name)
                                 plot_width <- 5
-                                plot_height <- 4
+                                plot_height <- 5
                                 if (facet_var != "ALL") {
                                     plot_width <- 8
                                 }
@@ -479,8 +480,8 @@ for (contrast in contrasts) {
                                     mysaveandstore(sprintf("% s/%s/%s/%s/%s_%s_%s_labels.png", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height)
                                 }
                                 if (function_name == "stripp") {
-                                    p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, stats = "no") + ggtitle(plot_title)
-                                    mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_no_stats.png", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height)
+                                    p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, stats = "yes") + ggtitle(plot_title)
+                                    mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_stats.png", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height + 2)
                                 }
                             },
                             error = function(e) {

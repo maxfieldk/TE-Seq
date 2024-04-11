@@ -267,7 +267,7 @@ for (geneset in names(params[["genesets_for_heatmaps"]])) {
             # border_gp = gpar(col = "black")
         )
     p <- draw(hm, heatmap_legend_side = "bottom", annotation_legend_side = "bottom")
-    mysaveandstore(sprintf("%s/heatmap_%s.png", params[["outputdir"]], set_title), w = min(dim(scaledm)[2], 12), h = min(dim(scaledm)[1], 12), res = 300)
+    mysaveandstore(sprintf("%s/heatmap_%s.png", params[["outputdir"]], set_title), w = min(dim(scaledm)[2]*2, 12), h = min(dim(scaledm)[1]*2, 12), res = 300)
 
     # now for each contrast
     for (contrast in params[["contrasts"]]) {
