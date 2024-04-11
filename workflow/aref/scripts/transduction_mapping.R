@@ -116,7 +116,6 @@ bresgrs <- resize(bresgrs, width = width(bresgrs) + 10000, fix = "center")
 trsd_adjacent_l1 <- subsetByOverlaps(bresgrs, l1grs)
 trsd_adjacent_l1_sankey <- trsd_adjacent_l1$QueryID
 
-save(mysaveandstoreplots, file = outputs$plots)
 
 
 `NON_REF L1TA` <- ifelse(l1ta_sankey %in% l1ta_sankey, "NON-REF L1TA", "FAIL")
@@ -193,3 +192,6 @@ mysaveandstore(sprintf("%s/transduction_sankey.png", outputdir), 7, 5)
 
 # tip_to_tip <- castor::find_nearest_tips(as.phylo(ttibble_raw), target_tips = ref_nodes)$nearest_tip_per_tip
 # data.frame(from = seq(1:length(tip_to_tip)), to = tip_to_tip)
+
+
+save(mysaveandstoreplots, file = outputs$plots)
