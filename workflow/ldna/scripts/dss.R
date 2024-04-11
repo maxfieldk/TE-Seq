@@ -1,12 +1,13 @@
-source("workflow/scripts/defaults.R")
 module_name <- "ldna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
-source("workflow/scripts/generate_colors_to_source.R")
+sample_table <- read_csv(sprintf("conf/sample_table_%s.csv", conf$prefix))
+sample_table <- sample_table[match(conf$samples, sample_table$sample_name), ]
 
 library(DSS)
 library(BiocParallel)
 library(readr)
 require(bsseq)
+library(readr)
 
 
 tryCatch(
@@ -18,6 +19,7 @@ tryCatch(
     error = function(e) {
         print("not sourced snake variables")
         assign("inputs", list(
+            "data" = sprintf("ldna/intermediates/%s/methylation/%s_CG_m_dss.tsv", sample_table$sample_name, sample_table$sample_name),
             "r_annotation_fragmentsjoined" = "annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv",
             "r_repeatmasker_annotation" = "annotations/repeatmasker_annotation.csv"
         ), env = globalenv())
@@ -29,8 +31,7 @@ tryCatch(
 
 
 
-sample_table <- read_csv(sprintf("conf/sample_table_%s.csv", conf$prefix))
-sample_table <- sample_table[match(conf$samples, sample_table$sample_name), ]
+
 
 sample_dfs <- list()
 for (sample in sample_table$sample_name) {

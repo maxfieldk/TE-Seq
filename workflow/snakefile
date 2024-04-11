@@ -43,11 +43,15 @@ for pipeline in config["pipelines_to_deploy"]:
                         paths.append(expand("aref/{sample_or_ref}_Analysis/tldr_plots/tldr_plots.rds", sample_or_ref = config["aref"]["samples"]))
                         paths.append(expand("aref/{sample_or_ref}_Analysis/tldr_plots/transduction_mapping.rds", sample_or_ref = config["aref"]["samples"]))
                         paths.append(expand("aref/{sample_or_ref}_Analysis/l1element_analysis.outfile", sample_or_ref = config["aref"]["samples"]))
+                        paths.append(expand("aref/annotations/{sample_or_ref}_rte_beds/outfile.txt", sample_or_ref = config["aref"]["samples"]))
+                        
+                        paths.append(expand("aref/annotations/{sample_or_ref}_rte_beds/outfile.txt", sample_or_ref = "A.REF"))
 
                     else:
                         paths.append(expand("aref/{sample_or_ref}_Analysis/tldr_plots/tldr_plots.rds", sample_or_ref = "A.REF"))
                         paths.append(expand("aref/{sample_or_ref}_Analysis/tldr_plots/transduction_mapping.rds", sample_or_ref = "A.REF"))
                         paths.append(expand("aref/{sample_or_ref}_Analysis/l1element_analysis.outfile", sample_or_ref = "A.REF"))
+                        paths.append(expand("aref/annotations/{sample_or_ref}_rte_beds/outfile.txt", sample_or_ref = "A.REF"))
 
 
                 return list(flatten(paths))

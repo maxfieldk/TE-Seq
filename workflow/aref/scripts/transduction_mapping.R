@@ -34,6 +34,7 @@ tryCatch(
     {
         inputs <- snakemake@input
         outputs <- snakemake@output
+        params <- snakemake@params
     },
     error = function(e) {
         assign("inputs", list(
@@ -46,6 +47,9 @@ tryCatch(
         assign("outputs", list(
             plots = "aref/A.REF_Analysis/tldr_plots/transduction_mapping.rds",
             transduction_df = "aref/A.REF_Analysis/transduction_df.csv"
+        ), env = globalenv())
+        assign("params", list(
+            sample_or_ref = "aref/A.REF"
         ), env = globalenv())
     }
 )
@@ -80,7 +84,7 @@ at_content <- letterFrequency(trsd_ss, letters = "AT", as.prob = TRUE)
 trsd_ss_for_blast <- trsd_ss[which(at_content < 0.9)]
 trsd_ss_for_blast_sankey <-names(trsd_ss_for_blast)
 
-bl <- blast(db = "aref/A.REF")
+bl <- blast(db = sprintf("aref/%s", params$sample_or_ref))
 bres <- tibble(predict(bl, trsd_ss_for_blast)) %>% left_join(rmfragments, by = c("QueryID" = "gene_id"))
 
 

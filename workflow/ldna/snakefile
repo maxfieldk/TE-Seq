@@ -309,24 +309,24 @@ samtools index -@ 6 {output.haplotaggedbam}
 
 #tag METHYLATION
 
-rule methylartistprepdssdata:
-    input:
-        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
-    params:
-        ref = config["ldna"]["reference"],
-    output:
-        "ldna/intermediates/{sample}/{sample}.{context}_{mod}.dss.tsv"
-    conda: "methylartist"
-    resources:
-        cpus_per_task = 14,
-        runtime = 1000,
-        mem_mb = 128000
-    shell:
-        r"""
-mkdir -p $(dirname {output})
-/users/mkelsey/data/tools/methylartist/methylartist wgmeth -b {input.sortedbam} --dss --ref {params.ref} --fai {params.ref}.fai -o {output} -p {resources.cpus_per_task} --motif {wildcards.context} --mod {wildcards.mod} --primary_only
-        """
+# rule methylartistprepdssdata:
+#     input:
+#         sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+#         sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+#     params:
+#         ref = config["ldna"]["reference"],
+#     output:
+#         "ldna/intermediates/{sample}/{sample}.{context}_{mod}.dss.tsv"
+#     conda: "methylartist"
+#     resources:
+#         cpus_per_task = 14,
+#         runtime = 1000,
+#         mem_mb = 128000
+#     shell:
+#         r"""
+# mkdir -p $(dirname {output})
+# /users/mkelsey/data/tools/methylartist/methylartist wgmeth -b {input.sortedbam} --dss --ref {params.ref} --fai {params.ref}.fai -o {output} -p {resources.cpus_per_task} --motif {wildcards.context} --mod {wildcards.mod} --primary_only
+#         """
 
 rule modbamtobed:
     input:
@@ -358,6 +358,28 @@ awk -v s=1 '$4=="m" {{OFS = "\t"; print $1, $2+s, $10, $12}}' {output.bed} >> {o
 echo -e "chr\tpos\tN\tX" > {output.dssInput_h}
 awk -v s=1 '$4=="h" {{OFS = "\t"; print $1, $2+s, $10, $12}}' {output.bed} >> {output.dssInput_h}
         """
+
+# rule methbigwig:
+#     input:
+#         bed = "ldna/intermediates/{sample}/methylation/{sample}_CG_bedMethyl.bed"
+#     output:
+#         meth_bed = "ldna/intermediates/{sample}/methylation/{sample}_CG_m.bed",
+#         hmeth_bed = "ldna/intermediates/{sample}/methylation/{sample}_CG_h.bed",
+#         meth_bw = "ldna/intermediates/{sample}/methylation/{sample}_CG_m_50bp.bw",
+#         hmeth_bw = "ldna/intermediates/{sample}/methylation/{sample}_CG_h_50bp.bw",
+#     conda:
+#         "omics"
+#     shell:
+#         """
+# cat {input.bed} | awk 'BEGIN{{OFS="\t"}} $4=="m" && NR>1{{print $1,$2,$3,$4,$11}}' > {output.meth_bedgraph}
+# cat {input.bed} | awk 'BEGIN{{OFS="\t"}} $4=="h" && NR>1{{print $1,$2,$3,$4,$11}}' > {output.hmeth_bedgraph}
+
+# bedtools makewindows 
+# bedmap --echo --mean --range 100 windows.bed map.bed
+
+
+# bigwigAverage -b sample1.bw sample2.bw -o outfile.bw
+#         """
 
 rule modbamtobed_region:
     input:
@@ -463,7 +485,8 @@ rule calldss:
 rule extractmods:
     input:
         sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        region = "aref/annotations/{sample}_rte_beds/outfile.txt"
     output:
         read_mods = 'ldna/intermediates/{sample}/methylation/{sample}_readmods_NoContext_{region}.tsv'
     params:
@@ -480,7 +503,7 @@ mkdir -p $(dirname {output})
 /oscar/data/jsedivy/mkelsey/tools/modkit extract \
 --mapped \
 --no-filtering \
---include-bed {params.ref_annotation_dir}/annotations/rte_beds/{wildcards.region}.bed \
+--include-bed $(dirname {input.region})/{wildcards.region}.bed \
 --ref {params.ref} \
 --threads {resources.cpus_per_task} \
 {input.sortedbam} \
@@ -490,7 +513,8 @@ mkdir -p $(dirname {output})
 rule extractmods_cg_context:
     input:
         sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        region = "aref/annotations/{sample}_rte_beds/outfile.txt"
     output:
         read_mods = 'ldna/intermediates/{sample}/methylation/{sample}_readmods_CpG_{region}.tsv'
     params:
@@ -509,7 +533,7 @@ mkdir -p $(dirname {output})
 --cpg \
 --mapped \
 --no-filtering \
---include-bed {params.ref_annotation_dir}/annotations/rte_beds/{wildcards.region}.bed \
+--include-bed $(dirname {input.region})/{wildcards.region}.bed \
 --ref {params.ref} \
 --threads {resources.cpus_per_task} \
 {input.sortedbam} \

@@ -236,7 +236,7 @@ rule repeatmasker:
         repeatmaskerpath = config["repeatmaskerpath"],
         species = config["species"]
     output:
-        rmout = "aref/repeatmasker/{sample_or_ref}.fa.out"
+        rmout = "aref/repeatmasker/{sample_or_ref}-pre-ins-filtering_nonrefcontigs.fa.out"
     resources:
         cpus_per_task =20,
         runtime = 1200,
@@ -246,13 +246,13 @@ rule repeatmasker:
     shell:
         """
 module load libnsl
-mkdir -p $(dirname $(dirname {output}))
-{params.repeatmaskerpath} -species {params.species} -pa {resources.cpus_per_task} -gff {input.fasta} -dir $(dirname $(dirname {output}))/{wildcards.sample_or_ref}
+mkdir -p $(dirname {output})
+{params.repeatmaskerpath} -species {params.species} -pa {resources.cpus_per_task} -gff {input.fasta} -dir $(dirname {output})
         """
 
 rule getGtfs:
     input:
-        rmout = "aref/repeatmasker/{sample_or_ref}.fa.out",
+        rmout = "aref/repeatmasker/{sample_or_ref}-pre-ins-filtering_nonrefcontigs.fa.out",
         rmref = config["starting_ref_repeatmasker"]
     params:
         module_prefix = config["prefix"]
@@ -647,6 +647,8 @@ rule transduction_mapping:
         r_repeatmasker_annotation = "aref/annotations/{sample_or_ref}_repeatmasker_annotation.csv",
         ref = "aref/{sample_or_ref}.fa",
         blast_njs = "aref/{sample_or_ref}.njs"
+    params:
+        sample_or_ref = lambda w: w.sample_or_ref
     output:
         plots = "aref/{sample_or_ref}_Analysis/tldr_plots/transduction_mapping.rds",
         transduction_df = "aref/{sample_or_ref}_Analysis/transduction_df.csv"
