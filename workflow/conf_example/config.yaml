@@ -33,11 +33,13 @@ aref:
   symlink_aref:
     response: "no"
     aref_symlinkdir: "/oscar/data/jsedivy/mkelsey/ref/pipeline_annotations/hs1/RTE/aref"
+  symlink_aref_contents:
+    response: "no"
   samples: 
     - "N2102EP1"
     
   update_ref_with_tldr:
-    response: "yes"
+    response: "no"
     #if making one ref per sample (i.e. each sample has unique inserts), then "yes", else "no"
     per_sample: "no"
     #IF updating reference with tldr inserts; else NULL
