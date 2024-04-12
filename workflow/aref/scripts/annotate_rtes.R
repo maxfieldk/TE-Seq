@@ -15,11 +15,11 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            r_annotation_fragmentsjoined = "aref/annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv",
+            r_annotation_fragmentsjoined = "aref/A.REF_annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv",
             ref = "aref/A.REF.fa"
         ), env = globalenv())
         assign("outputs", list(
-            r_repeatmasker_annotation = "aref/annotations/repeatmasker_annotation.csv"
+            r_repeatmasker_annotation = "aref/A.REF_annotations/repeatmasker_annotation.csv"
         ), env = globalenv())
     }
 )

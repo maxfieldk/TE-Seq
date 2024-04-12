@@ -2,12 +2,11 @@ source("workflow/scripts/defaults.R")
 module_name <- "ldna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
 source("workflow/scripts/generate_colors_to_source.R")
-conf$sample_table
 
 library(rtracklayer)
 library(Biostrings)
 library(cowplot)
-library(zoo)
+# library(zoo)
 library(pryr)
 library(circlize)
 library(rGREAT)
@@ -55,8 +54,6 @@ if ("chrY" %in% conf$SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS) {
 }
 #################### functions and themes
 
-
-plots <- list()
 BMAtables <- list()
 
 tryCatch(
@@ -67,13 +64,13 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            bedmethlpaths = sprintf("intermediates/%s/methylation/%s_CG_bedMethyl.bed", samples, samples),
-            dmrs = "results/tables/dmrs.CG_m.tsv",
-            dmls = "results/tables/dmls.CG_m.tsv",
-            read_mods = sprintf("intermediates/%s/methylation/%s_readmods_%s_%s.tsv", samples, samples, "NoContext", conf$rte_subfamily_read_level_analysis),
-            read_mods_cg = sprintf("intermediates/%s/methylation/%s_readmods_%s_%s.tsv", samples, samples, "CpG", conf$rte_subfamily_read_level_analysis)
+            bedmethlpaths = sprintf("ldna/intermediates/%s/methylation/%s_CG_bedMethyl.bed", samples, samples),
+            dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
+            dmls = "ldna/results/tables/dmls.CG_m.tsv",
+            read_mods = sprintf("ldna/intermediates/%s/methylation/%s_readmods_%s_%s.tsv", samples, samples, "NoContext", conf$rte_subfamily_read_level_analysis),
+            read_mods_cg = sprintf("ldna/intermediates/%s/methylation/%s_readmods_%s_%s.tsv", samples, samples, "CpG", conf$rte_subfamily_read_level_analysis)
         ), env = globalenv())
-        assign("outputs", list(outfile = "outfiles/bedmethylanalysis.txt"), env = globalenv())
+        assign("outputs", list(outfile = "ldna/outfiles/bedmethylanalysis.txt"), env = globalenv())
     }
 )
 
@@ -161,7 +158,7 @@ if (!interactive()) {
     condition2samples <- sample_table[sample_table$condition == conditions[2], ]$sample_name
 
     sample_grs <- list()
-    for (sample_name in samples) {
+    for (sample_name in samples[c(1,6)]) {
         df <- read_table(grep(sprintf("/%s/", sample_name), inputs$bedmethlpaths, value = TRUE), col_names = FALSE)
         df_m <- df %>% filter(X4 == "m")
         df_h <- df %>% filter(X4 == "h")

@@ -12,7 +12,7 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            tldroutput = "aref/tldr/tldr.table.txt",
+            tldroutput = "aref/A.REF_tldr/tldr.table.txt",
             reference = "/oscar/data/jsedivy/mkelsey/ref/genomes/hs1/hs1.sorted.fa"
         ), env = globalenv())
         assign("outputs", list(

@@ -38,9 +38,9 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            filtered_tldr = "aref/tldr/A.REF.table.kept_in_updated_ref.txt",
-            r_annotation_fragmentsjoined = "aref/annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
-            r_repeatmasker_annotation = "aref/annotations/A.REF_repeatmasker_annotation.csv",
+            filtered_tldr = "aref/A.REF_tldr/A.REF.table.kept_in_updated_ref.txt",
+            r_annotation_fragmentsjoined = "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
+            r_repeatmasker_annotation = "aref/A.REF_annotations/A.REF_repeatmasker_annotation.csv",
             ref = "aref/A.REF.fa",
             blast_njs = "aref/A.REF.njs"
         ), env = globalenv())
@@ -192,6 +192,15 @@ mysaveandstore(sprintf("%s/transduction_sankey.png", outputdir), 7, 5)
 
 # tip_to_tip <- castor::find_nearest_tips(as.phylo(ttibble_raw), target_tips = ref_nodes)$nearest_tip_per_tip
 # data.frame(from = seq(1:length(tip_to_tip)), to = tip_to_tip)
+
+library(circlize)
+circos.par("track.height" = 0.1)
+
+circos.initialize(df$sectors, x = df$x)
+
+df <- tibble(sectors = )
+
+
 
 
 save(mysaveandstoreplots, file = outputs$plots)

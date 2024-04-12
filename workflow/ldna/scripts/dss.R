@@ -1,3 +1,5 @@
+library(readr)
+
 module_name <- "ldna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
 sample_table <- read_csv(sprintf("conf/sample_table_%s.csv", conf$prefix))
@@ -7,7 +9,6 @@ library(DSS)
 library(BiocParallel)
 library(readr)
 require(bsseq)
-library(readr)
 
 
 tryCatch(
@@ -34,7 +35,7 @@ tryCatch(
 
 
 sample_dfs <- list()
-for (sample in sample_table$sample_name) {
+for (sample in sample_table$sample_name[c(1,6)]) {
     sample_dfs[[sample]] <- read.table(grep(sprintf("/%s/", sample), inputs$data, value = TRUE), header = TRUE)
 }
 
@@ -44,8 +45,31 @@ mParam <- MulticoreParam(workers = 12, progressbar = TRUE)
 conditions <- conf$levels
 condition1samples <- sample_table[sample_table$condition == conditions[1], ]$sample_name
 condition2samples <- sample_table[sample_table$condition == conditions[2], ]$sample_name
+condition1samples <- sample_table[sample_table$condition == conditions[1], ]$sample_name[1]
+condition2samples <- sample_table[sample_table$condition == conditions[2], ]$sample_name[1]
 # need to adjust numbering given idiosyncracies of dmltest
+
+BSobj <- BSmooth(BSobj, BPPARAM = mParam)
+
+head(getCoverage(BSobj, type = "M"), n = 4)
+head(getCoverage(BSobj, type = "Cov"), n = 4)
+
+
+head(getMeth(BSobj, type = "raw"), n = 4)
+head(getMeth(BSobj, type = "smooth"), n = 4)
+
+
+# getMeth(BS.chr22, regions[2], type = "raw", what = "perBase")
+
+
+plotRegion()
+
+
+
+
 dmlTest <- DMLtest(BSobj, group1 = condition2samples, group2 = condition1samples, smoothing = TRUE)
+
+str(dmlTest)
 
 tryCatch(
     {

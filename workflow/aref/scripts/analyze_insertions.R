@@ -28,15 +28,15 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            tldroutput = "aref/tldr/tldr.table.txt",
-            r_annotation_fragmentsjoined = "aref/annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv",
-            r_repeatmasker_annotation = "aref/annotations/repeatmasker_annotation.csv",
+            tldroutput = "aref/A.REF_tldr/tldr.table.txt",
+            r_annotation_fragmentsjoined = "aref/A.REF_annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv",
+            r_repeatmasker_annotation = "aref/A.REF_annotations/repeatmasker_annotation.csv",
             ref = "aref/ref_pre_ins_filtering.fa"
         ), env = globalenv())
         assign("outputs", list(
             plots = "aref/RefAnalysis/tldr_plots/tldr_plots.rds",
             contigs_to_keep = "aref/contigs_to_keep.txt",
-            filtered_tldr = "aref/tldr/tldr.table.kept_in_updated_ref.txt"
+            filtered_tldr = "aref/A.REF_tldr/tldr.table.kept_in_updated_ref.txt"
         ), env = globalenv())
     }
 )
