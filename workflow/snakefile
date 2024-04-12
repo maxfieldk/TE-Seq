@@ -19,6 +19,7 @@ for pipeline in config["pipelines_to_deploy"]:
             use rule sym_link from aref as aref_*
             final_input.append("aref.symlinked.outfile")
         else:
+            final_input.append("aref_contents.symlinked.outfile")
             if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
                 if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
                     use rule * from aref exclude tldr_aggregate_multiple_samples as aref_*
@@ -29,29 +30,29 @@ for pipeline in config["pipelines_to_deploy"]:
 
             def aref_rally():
                 paths = [
-                    "aref/annotations/A.REF_repeatmasker.complete.gff3.gz.tbi",
-                    "aref/annotations/refseq.complete.gff3.gz.tbi",
-                    "aref/annotations/A.REF_repeatmasker_refseq.complete.gtf",
-                    "aref/annotations/A.REF_repeatmasker_refseq.complete.gff3",
-                    "aref/annotations/A.REF_repeatmasker.complete.bed",
-                    "aref/annotations/A.REF_rte_beds/outfile.txt",
-                    "aref/annotations/A.REF_repeatmasker_refseq.complete.sqlite",
-                    "aref/annotations/cytobands.bed"
+                    "aref/A.REF_annotations/A.REF_repeatmasker.complete.gff3.gz.tbi",
+                    "aref/A.REF_annotations/refseq.complete.gff3.gz.tbi",
+                    "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf",
+                    "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gff3",
+                    "aref/A.REF_annotations/A.REF_repeatmasker.complete.bed",
+                    "aref/A.REF_annotations/A.REF_rte_beds/outfile.txt",
+                    "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.sqlite",
+                    "aref/A.REF_annotations/cytobands.bed"
                 ]
                 if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
                     if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
                         paths.append(expand("aref/{sample_or_ref}_Analysis/tldr_plots/tldr_plots.rds", sample_or_ref = config["aref"]["samples"]))
                         paths.append(expand("aref/{sample_or_ref}_Analysis/tldr_plots/transduction_mapping.rds", sample_or_ref = config["aref"]["samples"]))
                         paths.append(expand("aref/{sample_or_ref}_Analysis/l1element_analysis.outfile", sample_or_ref = config["aref"]["samples"]))
-                        paths.append(expand("aref/annotations/{sample_or_ref}_rte_beds/outfile.txt", sample_or_ref = config["aref"]["samples"]))
+                        paths.append(expand("aref/{sample_or_ref}_annotations/{sample_or_ref}_rte_beds/outfile.txt", sample_or_ref = config["aref"]["samples"]))
                         
-                        paths.append(expand("aref/annotations/{sample_or_ref}_rte_beds/outfile.txt", sample_or_ref = "A.REF"))
+                        paths.append(expand("aref/{sample_or_ref}_annotations/{sample_or_ref}_rte_beds/outfile.txt", sample_or_ref = "A.REF"))
 
                     else:
                         paths.append(expand("aref/{sample_or_ref}_Analysis/tldr_plots/tldr_plots.rds", sample_or_ref = "A.REF"))
                         paths.append(expand("aref/{sample_or_ref}_Analysis/tldr_plots/transduction_mapping.rds", sample_or_ref = "A.REF"))
                         paths.append(expand("aref/{sample_or_ref}_Analysis/l1element_analysis.outfile", sample_or_ref = "A.REF"))
-                        paths.append(expand("aref/annotations/{sample_or_ref}_rte_beds/outfile.txt", sample_or_ref = "A.REF"))
+                        paths.append(expand("aref/{sample_or_ref}_annotations/{sample_or_ref}_rte_beds/outfile.txt", sample_or_ref = "A.REF"))
 
 
                 return list(flatten(paths))

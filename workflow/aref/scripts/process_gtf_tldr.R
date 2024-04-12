@@ -17,7 +17,7 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            gtf = "aref/repeatmasker/repeatmasker_raw.gtf",
+            gtf = "aref/A.REF_repeatmasker/repeatmasker_raw.gtf",
             contigs_to_keep = "aref/contigs_to_keep.txt",
             ref_cytobands = "aref/A.REF_annotations/cytobands.bed",
             tldroutput = "aref/A.REF_tldr/tldr.table.txt",
