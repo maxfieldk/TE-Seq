@@ -649,6 +649,8 @@ rule transduction_mapping:
         blast_njs = "aref/{sample_or_ref}.njs"
     output:
         plots = "aref/{sample_or_ref}_Analysis/tldr_plots/transduction_mapping.rds",
+        circlize_phylogeny = "aref/{sample_or_ref}_Analysis/tldr_plots/circlize_phylogeny.png",
+        circlize_transduction = "aref/{sample_or_ref}_Analysis/tldr_plots/circlize_transduction.png",
         transduction_df = "aref/{sample_or_ref}_Analysis/transduction_df.csv"
     conda:
         "evo2"
