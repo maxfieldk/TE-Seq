@@ -116,16 +116,8 @@ pvp <- function(df, facet_var = "ALL", filter_var = "ALL", labels = "no") {
                 mtclosedgrid +
                 theme(aspect.ratio = 1) +
                 coord_cartesian(clip = "off") +
-                geom_label_repel(data = . %>% 
-                        mutate(label = ifelse(gene_id %in% top_sig, gene_id, "")),
-                    aes(label = label),
-                    size = 2,
-                    force_pull   = 0,
-                    direction = "both",
-                    box.padding = 0.25, max.overlaps = Inf, 
-                    hjust = 1,
-                    show.legend = FALSE) +
-                    coord_fixed(
+                geom_text_repel(data = . %>% mutate(label = ifelse(gene_id %in% top_sig, gene_id, "")), aes(label = label), max.overlaps = Inf, show.legend = FALSE) +
+                coord_fixed(
                     xlim = range(c(.[[contrast_level_1]], .[[contrast_level_2]])),
                     ylim = range(c(.[contrast_level_1], .[contrast_level_2]))
                 )
@@ -215,6 +207,7 @@ stripp <- function(df, stats = "no", extraGGoptions = NULL, facet_var = "ALL", f
     if (filter_var != "ALL") {
         df <- df %>% filter(str_detect(!!sym(filter_var), ">|Intact"))
     }
+    
     stat.test <- df %>%
         group_by(sample) %>%
         summarise(sum(counts), condition = dplyr::first(condition)) %>%
@@ -277,7 +270,7 @@ stripp <- function(df, stats = "no", extraGGoptions = NULL, facet_var = "ALL", f
     }
     return(p)
 }
-
+# df <- tidydf %>% filter(rte_subfamily == "L1HS")
 # p <- stripp(tidydf %>% filter(rte_subfamily == "L1HS"), filter_var = "ALL", facet_var = "genic_loc") + ggtitle("L1HS")
 # mysave("temp1.png")
 

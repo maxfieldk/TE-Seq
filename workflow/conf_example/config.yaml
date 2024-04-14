@@ -232,9 +232,15 @@ srna:
   peptable: "conf/peptable_srna.csv"
   default_palette: "ggsci::default_aaas"
   samples:
+    - "PRO_low_O2_1"
+    - "PRO_low_O2_2"
+    - "PRO_low_O2_3"
     - "RS_0w_low_O2_1"
     - "RS_0w_low_O2_2"
     - "RS_0w_low_O2_3"
+    - "RS_0w_low_O2_4"
+    - "RS_0w_low_O2_5"
+    - "RS_0w_low_O2_6"
     - "RS_4w_low_O2_1"
     - "RS_4w_low_O2_2"
     - "RS_4w_low_O2_3"
@@ -250,9 +256,6 @@ srna:
     - "DDIS_8w_low_O2_1"
     - "DDIS_8w_low_O2_2"
     - "DDIS_8w_low_O2_3"
-    - "PRO_low_O2_1"
-    - "PRO_low_O2_2"
-    - "PRO_low_O2_3"
 
   paralellize_bioc: 8
   counttypes:
