@@ -36,18 +36,22 @@ tryCatch(
     {
         inputs <- snakemake@input
         outputs <- snakemake@output
+        params <- snakemake@params
     },
     error = function(e) {
         assign("inputs", list(
-            filtered_tldr = "aref/tldr/A.REF.table.kept_in_updated_ref.txt",
-            r_annotation_fragmentsjoined = "aref/annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
-            r_repeatmasker_annotation = "aref/annotations/A.REF_repeatmasker_annotation.csv",
+            filtered_tldr = "aref/A.REF_tldr/A.REF.table.kept_in_updated_ref.txt",
+            r_annotation_fragmentsjoined = "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
+            r_repeatmasker_annotation = "aref/A.REF_annotations/A.REF_repeatmasker_annotation.csv",
             ref = "aref/A.REF.fa",
             blast_njs = "aref/A.REF.njs"
         ), env = globalenv())
         assign("outputs", list(
             plots = "aref/A.REF_Analysis/tldr_plots/transduction_mapping.rds",
             transduction_df = "aref/A.REF_Analysis/transduction_df.csv"
+        ), env = globalenv())
+        assign("params", list(
+            sample_or_ref = "aref/A.REF"
         ), env = globalenv())
     }
 )
