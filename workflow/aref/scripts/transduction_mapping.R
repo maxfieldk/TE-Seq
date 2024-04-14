@@ -34,18 +34,22 @@ tryCatch(
     {
         inputs <- snakemake@input
         outputs <- snakemake@output
+        params <- snakemake@params
     },
     error = function(e) {
         assign("inputs", list(
-            filtered_tldr = "aref/tldr/A.REF.table.kept_in_updated_ref.txt",
-            r_annotation_fragmentsjoined = "aref/annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
-            r_repeatmasker_annotation = "aref/annotations/A.REF_repeatmasker_annotation.csv",
+            filtered_tldr = "aref/A.REF_tldr/A.REF.table.kept_in_updated_ref.txt",
+            r_annotation_fragmentsjoined = "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
+            r_repeatmasker_annotation = "aref/A.REF_annotations/A.REF_repeatmasker_annotation.csv",
             ref = "aref/A.REF.fa",
             blast_njs = "aref/A.REF.njs"
         ), env = globalenv())
         assign("outputs", list(
             plots = "aref/A.REF_Analysis/tldr_plots/transduction_mapping.rds",
             transduction_df = "aref/A.REF_Analysis/transduction_df.csv"
+        ), env = globalenv())
+        assign("params", list(
+            sample_or_ref = "aref/A.REF"
         ), env = globalenv())
     }
 )
@@ -80,7 +84,7 @@ at_content <- letterFrequency(trsd_ss, letters = "AT", as.prob = TRUE)
 trsd_ss_for_blast <- trsd_ss[which(at_content < 0.9)]
 trsd_ss_for_blast_sankey <-names(trsd_ss_for_blast)
 
-bl <- blast(db = "aref/A.REF")
+bl <- blast(db = sprintf("aref/%s", params$sample_or_ref))
 bres <- tibble(predict(bl, trsd_ss_for_blast)) %>% left_join(rmfragments, by = c("QueryID" = "gene_id"))
 
 
@@ -112,7 +116,6 @@ bresgrs <- resize(bresgrs, width = width(bresgrs) + 10000, fix = "center")
 trsd_adjacent_l1 <- subsetByOverlaps(bresgrs, l1grs)
 trsd_adjacent_l1_sankey <- trsd_adjacent_l1$QueryID
 
-save(mysaveandstoreplots, file = outputs$plots)
 
 
 `NON_REF L1TA` <- ifelse(l1ta_sankey %in% l1ta_sankey, "NON-REF L1TA", "FAIL")
@@ -189,3 +192,15 @@ mysaveandstore(sprintf("%s/transduction_sankey.png", outputdir), 7, 5)
 
 # tip_to_tip <- castor::find_nearest_tips(as.phylo(ttibble_raw), target_tips = ref_nodes)$nearest_tip_per_tip
 # data.frame(from = seq(1:length(tip_to_tip)), to = tip_to_tip)
+
+library(circlize)
+circos.par("track.height" = 0.1)
+
+circos.initialize(df$sectors, x = df$x)
+
+df <- tibble(sectors = )
+
+
+
+
+save(mysaveandstoreplots, file = outputs$plots)
