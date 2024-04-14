@@ -19,7 +19,8 @@ for pipeline in config["pipelines_to_deploy"]:
             use rule sym_link from aref as aref_*
             final_input.append("aref.symlinked.outfile")
         else:
-            final_input.append("aref_contents.symlinked.outfile")
+            if config["aref"]["symlink_aref_contents"]["response"] == "yes":
+                final_input.append("aref_contents.symlinked.outfile")
             if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
                 if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
                     use rule * from aref exclude tldr_aggregate_multiple_samples as aref_*
@@ -37,7 +38,8 @@ for pipeline in config["pipelines_to_deploy"]:
                     "aref/A.REF_annotations/A.REF_repeatmasker.complete.bed",
                     "aref/A.REF_annotations/A.REF_rte_beds/outfile.txt",
                     "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.sqlite",
-                    "aref/A.REF_annotations/cytobands.bed"
+                    "aref/A.REF_annotations/cytobands.bed",
+                    "aref/A.REF_annotations/cpg_islands.bed"
                 ]
                 if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
                     if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
