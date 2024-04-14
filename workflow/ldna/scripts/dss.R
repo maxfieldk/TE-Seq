@@ -25,7 +25,8 @@ tryCatch(
             "r_repeatmasker_annotation" = "annotations/repeatmasker_annotation.csv"
         ), env = globalenv())
         assign("outputs", list(
-            "outfile" = "annotations/rte_beds/outfile.txt"
+            dmls = "ldna/results/tables/dmls.CG_m.tsv",
+            dmrs = "ldna/results/tables/dmrs.CG_m.tsv"
         ), env = globalenv())
     }
 )
@@ -35,7 +36,7 @@ tryCatch(
 
 
 sample_dfs <- list()
-for (sample in sample_table$sample_name[c(1,6)]) {
+for (sample in sample_table$sample_name) {
     sample_dfs[[sample]] <- read.table(grep(sprintf("/%s/", sample), inputs$data, value = TRUE), header = TRUE)
 }
 
@@ -45,28 +46,9 @@ mParam <- MulticoreParam(workers = 12, progressbar = TRUE)
 conditions <- conf$levels
 condition1samples <- sample_table[sample_table$condition == conditions[1], ]$sample_name
 condition2samples <- sample_table[sample_table$condition == conditions[2], ]$sample_name
-condition1samples <- sample_table[sample_table$condition == conditions[1], ]$sample_name[1]
-condition2samples <- sample_table[sample_table$condition == conditions[2], ]$sample_name[1]
+# condition1samples <- sample_table[sample_table$condition == conditions[1], ]$sample_name[1]
+# condition2samples <- sample_table[sample_table$condition == conditions[2], ]$sample_name[1]
 # need to adjust numbering given idiosyncracies of dmltest
-
-BSobj <- BSmooth(BSobj, BPPARAM = mParam)
-
-head(getCoverage(BSobj, type = "M"), n = 4)
-head(getCoverage(BSobj, type = "Cov"), n = 4)
-
-
-head(getMeth(BSobj, type = "raw"), n = 4)
-head(getMeth(BSobj, type = "smooth"), n = 4)
-
-
-# getMeth(BS.chr22, regions[2], type = "raw", what = "perBase")
-
-
-plotRegion()
-
-
-
-
 dmlTest <- DMLtest(BSobj, group1 = condition2samples, group2 = condition1samples, smoothing = TRUE)
 
 str(dmlTest)
@@ -111,6 +93,6 @@ tryCatch(
 )
 # save results
 options(scipen = 500)
-dir.create("results/tables", recursive = TRUE, showWarnings = FALSE)
+dir.create(dirname(outputs$dmls), recursive = TRUE, showWarnings = FALSE)
 write_delim(dmls, outputs$dmls, delim = "\t", col_names = TRUE)
 write_delim(dmrs, outputs$dmrs, delim = "\t", col_names = TRUE)

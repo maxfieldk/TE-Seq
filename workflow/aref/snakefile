@@ -547,7 +547,8 @@ agat_sp_extract_sequences.pl -g {input.gtf} -f {input.ref} -t exon --merge -o {o
 rule annotate_rtes:
     input:
         r_annotation_fragmentsjoined = "aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
-        ref = "aref/{sample_or_ref}.fa"
+        ref = "aref/{sample_or_ref}.fa",
+        txdbrefseq = "aref/A.REF_annotations/refseq.sqlite"
     output:
         r_repeatmasker_annotation = "aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_annotation.csv",
     conda:

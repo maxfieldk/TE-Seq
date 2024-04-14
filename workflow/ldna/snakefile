@@ -559,6 +559,19 @@ rule bedmethylanalysis:
         "scripts/bedmethylanalysis.R"
 
 
+rule insertion_analysis:
+    input:
+        tldroutput = "aref/{sample_or_ref}_tldr/{sample_or_ref}.table.txt",
+        filtered_tldr = "aref/{sample_or_ref}_tldr/{sample_or_ref}.table.kept_in_updated_ref.txt",
+        r_annotation_fragmentsjoined = "aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
+        r_repeatmasker_annotation = "aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_annotation.csv",
+        ref = "aref/{sample_or_ref}-pre-ins-filtering.fa"
+    output:
+        plots = "ldna/results/insertion_analysis/insertion_analysis.rds",
+    conda:
+        "evo2"
+    script:
+        "scripts/insertion_analysis.R"
 
 # rule modbamtobedTLDRinsertionsCombinedCall:
 #     input:

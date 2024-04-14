@@ -65,6 +65,7 @@ tryCatch(
     error = function(e) {
         assign("inputs", list(
             bedmethlpaths = sprintf("ldna/intermediates/%s/methylation/%s_CG_bedMethyl.bed", samples, samples),
+            data = sprintf("ldna/intermediates/%s/methylation/%s_CG_m_dss.tsv", sample_table$sample_name, sample_table$sample_name),
             dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
             dmls = "ldna/results/tables/dmls.CG_m.tsv",
             read_mods = sprintf("ldna/intermediates/%s/methylation/%s_readmods_%s_%s.tsv", samples, samples, "NoContext", conf$rte_subfamily_read_level_analysis),
@@ -89,6 +90,141 @@ refseqgenespath <- conf$refseq
 ref_annotation_dir <- conf$reference_annotation_dir
 rte_subfamily_read_level_analysis <- conf$rte_subfamily_read_level_analysis
 
+
+### BSSEQ
+library(readr)
+library(bsseq)
+library(BiocParallel)
+
+#couldn't load dss, here is a function from that package
+makeBSseqData <- function(dat, sampleNames) {
+    n0 <- length(dat)
+
+    if(missing(sampleNames))
+        sampleNames <- paste("sample", 1:n0, sep="")
+
+    alldat <- dat[[1]]
+    if(any(alldat[,"N"] < alldat[,"X"], na.rm=TRUE))
+        stop("Some methylation counts are greater than coverage.\n")
+
+    ix.X <- which(colnames(alldat) == "X")
+    ix.N <- which(colnames(alldat) == "N")
+    colnames(alldat)[ix.X] <- "X1"
+    colnames(alldat)[ix.N] <- "N1"
+
+    if(n0 > 1) { ## multiple replicates, merge data
+        for(i in 2:n0) {
+            thisdat <- dat[[i]]
+            if(any(thisdat[,"N"] < thisdat[,"X"], na.rm=TRUE))
+                stop("Some methylation counts are greater than coverage.\n")
+
+            ix.X <- which(colnames(thisdat) == "X")
+            ix.N <- which(colnames(thisdat) == "N")
+            colnames(thisdat)[c(ix.X,ix.N)] <- paste(c("X", "N"),i, sep="")
+            alldat <- merge(alldat, thisdat, all=TRUE)
+        }
+    }
+
+    ## make BSseq object
+    ix.X <- grep("X", colnames(alldat))
+    ix.N <- grep("N", colnames(alldat))
+    alldat[is.na(alldat)] <- 0
+    M <- as.matrix(alldat[,ix.X, drop=FALSE])
+    Cov <- as.matrix(alldat[,ix.N, drop=FALSE])
+    colnames(M) <- colnames(Cov) <- sampleNames
+
+    ## order CG sites according to positions
+    idx <- split(1:length(alldat$chr), alldat$chr)
+    M.ordered <- M
+    Cov.ordered <- Cov
+    pos.ordered <- alldat$pos
+
+    for( i in seq(along=idx) ) {
+        thisidx = idx[[i]]
+        thispos = alldat$pos[ thisidx ]
+        dd = diff(thispos)
+        if( min(dd)<0 ) { # not ordered
+            warning( paste0("CG positions in chromosome ",  names(idx)[i], " is not ordered. Reorder CG sites.\n") )
+            iii = order(thispos)
+            M.ordered[thisidx, ] <- M[thisidx, ][iii,]
+            Cov.ordered[thisidx, ] <- Cov[thisidx, ][iii,]
+            pos.ordered[thisidx] <- alldat$pos[thisidx][iii]
+        }
+    }
+
+    result <- BSseq(chr=alldat$chr, pos=pos.ordered, M=M.ordered, Cov=Cov.ordered)
+
+##    result <- BSseq(chr=alldat$chr, pos=alldat$pos, M=M, Cov=Cov)
+
+    result
+}
+
+
+sample_dfs <- list()
+for (sample in sample_table$sample_name[c(1,7)]) {
+    sample_dfs[[sample]] <- read.table(grep(sprintf("/%s/", sample), inputs$data, value = TRUE), header = TRUE)
+}
+
+BSobj <- makeBSseqData(sample_dfs, names(sample_dfs))
+mParam <- MulticoreParam(workers = 12, progressbar = TRUE)
+
+conditions <- conf$levels
+condition1samples <- sample_table[sample_table$condition == conditions[1], ]$sample_name
+condition2samples <- sample_table[sample_table$condition == conditions[2], ]$sample_name
+# condition1samples <- sample_table[sample_table$condition == conditions[1], ]$sample_name[1]
+# condition2samples <- sample_table[sample_table$condition == conditions[2], ]$sample_name[1]
+# need to adjust numbering given idiosyncracies of dmltest
+
+BSobj <- BSmooth(BSobj, BPPARAM = mParam)
+BSobj
+
+head(BSobj)
+
+chrSizesdf <- read_delim("aref/A.REF.fa.fai", delim = "\t", col_names = FALSE) %>% dplyr::select(X1, X2) %>% dplyr::rename(chr = X1, seqlengths = X2) 
+#centromere
+chrSizesCSdf <- chrSizesdf %>% mutate(cumsum = cumsum(seqlengths)) %>% mutate(cumsum_zerostart = cumsum - chrSizesdf[1,]$seqlengths) 
+
+
+chrSizes <- setNames(chrSizesdf$seqlengths, chrSizesdf$chr)
+bins   <- tileGenome(chrSizes, tilewidth=50000, cut.last.tile.in.chrom=T)
+
+
+globalmeth <- getMeth(BSobj, bins, type = "raw", what = "perRegion")
+head(globalmeth)
+mcols(bins) <- globalmeth
+globalmeth <- as.data.frame(bins) %>% tibble() %>% mutate(dif = CTRL1 - AD1) %>% mutate(csum=cumsum(as.numeric(width)))
+
+
+cytobands <- read.delim(conf$ref_cytobands, header = FALSE, sep = "\t", col.names = c("chr", "start", "end", "name", "gieStain")) %>% tibble() %>%
+mutate(chr = factor(chr, levels = levels(globalmeth$seqnames)))
+
+centromeres <- cytobands %>% filter(gieStain == "acen") %>%
+    group_by(chr) %>% summarize(start = min(start), end = max(end)) %>% as.data.frame() %>% tibble() %>%
+    left_join(chrSizesCSdf) %>%
+    mutate(start_cumsum = cumsum_zerostart + start) %>% mutate(end_cumsum = cumsum_zerostart + end)
+
+
+axis_set <- globalmeth %>%
+  group_by(seqnames) %>%
+  summarize(center = mean(csum))
+
+p <- globalmeth %>% 
+    ggplot() +
+        geom_point(aes(x = csum, y = dif, color = factor(seqnames)), alpha = 0.5) +
+        geom_segment(data = centromeres, aes(x = start_cumsum, xend = end_cumsum, y = 0, yend = 0), color = "red", size = 3) +
+        scale_color_manual(values = rep(c("#276FBF", "#183059"), unique(length(axis_set$seqnames)))) +
+        scale_x_continuous(label = axis_set$seqnames, breaks = axis_set$center) +
+        labs(x = "Genomic Position", y = "Difference in Methylation") +
+        ggtitle("Global Methylation Difference") +
+        mtopengridh + theme(legend.position = "none") +
+        theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+
+mysave(pl = p, fn = "results/plots/genomewide/globalmethdiff.png", w = 14, h = 4, res = 300)
+# p <- plotRegion(chr23, "chr23:1-1000000")
+
+
+
+####
 # RUN IF RESUMING
 if (interactive()) {
     conditions <- conf$levels
@@ -98,6 +234,7 @@ if (interactive()) {
     condition2samples <- sample_table[sample_table$condition == conditions[2], ]$sample_name
 
     grsdf <- read_delim("Rintermediates/grsdf.tsv", col_names = TRUE)
+    grsdf %$% sample %>% unique()
     grsdf$seqnames <- factor(grsdf$seqnames, levels = chromosomesAll)
     grs <- GRanges(grsdf)
     cpg_islands <- rtracklayer::import(conf$cpg_islands)
@@ -158,7 +295,7 @@ if (!interactive()) {
     condition2samples <- sample_table[sample_table$condition == conditions[2], ]$sample_name
 
     sample_grs <- list()
-    for (sample_name in samples[c(1,6)]) {
+    for (sample_name in samples[c(1,7)]) {
         df <- read_table(grep(sprintf("/%s/", sample_name), inputs$bedmethlpaths, value = TRUE), col_names = FALSE)
         df_m <- df %>% filter(X4 == "m")
         df_h <- df %>% filter(X4 == "h")
@@ -229,6 +366,13 @@ if (!interactive()) {
     grss <- GRanges(grsdfs)
 }
 
+
+
+
+
+
+
+
 dmrs <- read_delim(dmrspath, delim = "\t", col_names = TRUE)
 dmls <- read_delim(dmlspath, delim = "\t", col_names = TRUE)
 dmls <- dmls %>% filter(chr %in% CHROMOSOMESINCLUDEDINANALYSIS)
@@ -275,8 +419,7 @@ t.test(pctM ~ condition, data = grsdf %>% filter(seqnames %in% chromosomesNoX), 
 p <- grsdf %>% ggplot() +
     geom_boxplot(aes(x = islandStatus, y = pctM, fill = condition)) +
     mtopen + scale_conditions
-mysave(fn = "results/plots/genomewide/cpgislandstatusbox.png", w = 4, h = 4, res = 300, pl = p)
-plots[["cpgislandstatusbox"]] <- p
+mysaveandstore(fn = "results/plots/genomewide/cpgislandstatusbox.png", w = 4, h = 4, res = 300, pl = p)
 
 p <- grsdf %>%
     group_by(islandStatus, condition) %>%
@@ -285,8 +428,7 @@ p <- grsdf %>%
     geom_col(aes(x = islandStatus, y = pctM, fill = condition), position = "dodge", color = "black") +
     mtopen + scale_conditions +
     anchorbar
-mysave(fn = "results/plots/genomewide/cpgislandstatusbar.png", w = 4, h = 4, res = 300, pl = p)
-plots[["cpgislandstatusbar"]] <- p
+mysaveandstore(fn = "results/plots/genomewide/cpgislandstatusbar.png", w = 4, h = 4, res = 300, pl = p)
 
 ##################################### DMR analysis
 # how many dmrs
@@ -297,8 +439,7 @@ p <- dmrs %>%
     scale_y_continuous(expand = expansion(mult = c(0, .1))) +
     ggtitle("DMR Counts") +
     mtopen + scale_contrasts
-mysave(fn = "results/plots/genomewide/dmr_number.png", 4, 4)
-plots[["dmr_number"]] <- p
+mysaveandstore(fn = "results/plots/genomewide/dmr_number.png", 4, 4)
 
 # what is their average length
 p <- ggplot(data = dmrs) +
@@ -307,8 +448,7 @@ p <- ggplot(data = dmrs) +
     labs(x = "length (bp)") +
     xlim(0, 3000) +
     mtopen + scale_samples
-mysave(fn = "results/plots/genomewide/dmr_length.png", w = 4, h = 4)
-plots[["dmr_length"]] <- p
+mysaveandstore(fn = "results/plots/genomewide/dmr_length.png", w = 4, h = 4)
 
 p <- ggplot(data = dmrs) +
     geom_histogram(aes(length, fill = direction), alpha = 0.7) +
@@ -316,8 +456,7 @@ p <- ggplot(data = dmrs) +
     labs(x = "length (bp)") +
     xlim(0, 3000) +
     mtopen + scale_samples
-mysave(fn = "results/plots/genomewide/dmr_length_stratified.png", w = 4, h = 4)
-plots[["dmr_length_stratified"]] <- p
+mysaveandstore(fn = "results/plots/genomewide/dmr_length_stratified.png", w = 4, h = 4)
 
 # a positive difference means that sample 1 has more methylation than sample 2
 meandiff <- mean(dmrs$diff_c2_minus_c1)
@@ -333,8 +472,7 @@ p <- ggplot() +
     annotate("label", x = -Inf, y = Inf, label = "SEN Hyper", hjust = 0, vjust = 1) +
     annotate("label", x = Inf, y = Inf, label = "SEN Hypo", hjust = 1, vjust = 1) +
     mtopen + scale_samples
-mysave(fn = "results/plots/genomewide/dmr_delta.png", w = 4, h = 4)
-plots[["dmr_delta"]] <- p
+mysaveandstore(fn = "results/plots/genomewide/dmr_delta.png", w = 4, h = 4)
 
 ## where are they?
 
@@ -361,8 +499,7 @@ p <- dmrsgrislandStatusdf %>%
     anchorbar +
     labs(x = "", y = "Count") +
     ggtitle("DMR")
-mysave(fn = "results/plots/genomewide/dmr_count_islandstatus.png", 4, 4)
-plots[["dmr_count_islandstatus"]] <- p
+mysaveandstore(fn = "results/plots/genomewide/dmr_count_islandstatus.png", 4, 4)
 
 
 dmrlocdf <- dmrs %>%
@@ -375,8 +512,7 @@ p <- ggplot(data = dmrlocdf) +
     labs(x = "count", y = "") +
     ggtitle("DMR Location") +
     mtopen + scale_contrasts
-mysave(fn = "results/plots/genomewide/dmr_count.png", 5, 5)
-plots[["dmr_count"]] <- p
+mysaveandstore(fn = "results/plots/genomewide/dmr_count.png", 5, 5)
 
 p <- dmrs %>%
     ggplot(aes(x = meanMethy_c1, y = meanMethy_c2)) +
@@ -389,8 +525,7 @@ p <- dmrs %>%
     ylab(sprintf("CpG Methylation %s", condition2)) +
     ggtitle("DMR Density") +
     mtopen
-mysave(fn = "results/plots/genomewide/dmrdensity.png", 5, 5)
-plots[["dmrdensity"]] <- p
+mysaveandstore(fn = "results/plots/genomewide/dmrdensity.png", 5, 5)
 
 p <- dmls %>%
     ggplot() +
@@ -399,8 +534,7 @@ p <- dmls %>%
     labs(x = "", y = "Count") +
     anchorbar +
     mtopen + scale_contrasts
-mysave(fn = "results/plots/genomewide/dml_count.png", 4, 4)
-plots[["dml_count"]] <- p
+mysaveandstore(fn = "results/plots/genomewide/dml_count.png", 4, 4)
 # dmls
 p <- ggplot() +
     geom_density(data = dmls, aes(x = diff_c2_minus_c1), fill = mycolor) +
@@ -411,8 +545,7 @@ p <- ggplot() +
     annotate("label", x = Inf, y = Inf, label = paste0(condition2, " Hyper"), hjust = 1, vjust = 1) +
     mtopen + scale_contrasts
 
-mysave(fn = "results/plots/genomewide/dml_delta.png", 4, 4)
-plots[["dml_delta"]] <- p
+mysaveandstore(fn = "results/plots/genomewide/dml_delta.png", 4, 4)
 
 dmllocdf <- dmls %>%
     group_by(chr, direction) %>%
@@ -431,8 +564,7 @@ p <- dmls %>%
     ylab(sprintf("CpG Methylation %s", condition2)) +
     ggtitle("DML Density") +
     mtopen
-mysave(fn = "results/plots/genomewide/dmldensity.png", w = 5, h = 5)
-plots[["dmldensity"]] <- p
+mysaveandstore(fn = "results/plots/genomewide/dmldensity.png", w = 5, h = 5)
 
 
 
@@ -459,8 +591,7 @@ p <- dmlsgrislandStatusdf %>%
     anchorbar +
     labs(x = "", y = "Count") +
     ggtitle("DML Island Status")
-mysave(fn = "results/plots/genomewide/dml_count_islandstatus.png", 4, 4)
-plots[["dml_count_islandstatus"]] <- p
+mysaveandstore(fn = "results/plots/genomewide/dml_count_islandstatus.png", 4, 4)
 
 
 
@@ -490,7 +621,7 @@ dir.create("results/plots/figs")
 #     plot.title = element_text(size = 18),
 #     plot.tag = element_text(size = 32)
 # )
-# mysave(fn = "results/plots/figs/global_2.png", w = 20, h = 20, res = 300, pl = p)
+# mysaveandstore(fn = "results/plots/figs/global_2.png", w = 20, h = 20, res = 300, pl = p)
 
 
 # rm(pl_meth_by_chromosome, patch, patch1, patch2, patch3, pl_ndml, pl_ddml, pl_cdml, pl_ndmr, pl_ddmr, pl_cdmr)
@@ -728,8 +859,7 @@ p <- pff %>%
     labs(x = "", y = "Fraction Differentially Methylated") +
     ggtitle(sprintf("Full Length %s Promoter Differential Methylation", "RTE")) +
     mtopen + scale_contrasts
-mysave(sprintf("results/plots/rte/dmfl%s_promoter.png", "all"), 10, 7)
-plots[[sprintf("dmfl%s_promoter", "all")]] <- p
+mysaveandstore(sprintf("results/plots/rte/dmfl%s_promoter.png", "all"), 10, 7)
 
 classes <- flRTEpromoter$rte_length_req %>%
     unique() %>%
@@ -784,8 +914,7 @@ p <- perelementdf_promoters %>%
     ylab("Average CpG Methylation Per Element") +
     ggtitle("RTE CpG Methylation") +
     mtopen + scale_conditions
-mysave(fn = "results/plots/rte/repmasker_boxplot_promoters.png", 14, 6)
-plots[["repmasker_boxplot_promoters"]] <- p
+mysaveandstore(fn = "results/plots/rte/repmasker_boxplot_promoters.png", 14, 6)
 
 #################
 
@@ -1205,7 +1334,7 @@ read_analysis <- function(readsdf,
     p <- utr %>% ggplot() +
         geom_density(aes(x = mod_qual, fill = condition), alpha = 0.3) +
         facet_wrap(vars(region))
-    mysave(sprintf("results/plots/reads/modbase_score_dist_%s_%s_%s.png", region, mod_code_var, context), 12, 4, pl = p)
+    mysaveandstore(sprintf("results/plots/reads/modbase_score_dist_%s_%s_%s.png", region, mod_code_var, context), 12, 4, pl = p)
 
 
     p <- utr %>%
@@ -1214,7 +1343,7 @@ read_analysis <- function(readsdf,
         ggplot() +
         geom_density(aes(x = nc, fill = condition), alpha = 0.5) +
         facet_wrap(vars(region))
-    mysave(sprintf("results/plots/reads/read_span_distribution_%s_%s_%s.png", region, mod_code_var, context), 5, 5, pl = p)
+    mysaveandstore(sprintf("results/plots/reads/read_span_distribution_%s_%s_%s.png", region, mod_code_var, context), 5, 5, pl = p)
 
 
     p <- utr %>%
@@ -1224,7 +1353,7 @@ read_analysis <- function(readsdf,
         ggplot() +
         geom_density(aes(x = nc, fill = condition), alpha = 0.5) +
         facet_wrap(vars(region))
-    mysave(sprintf("results/plots/reads/read_num_cpg_distribution_%s_%s_%s.png", region, mod_code_var, context), 5, 5, pl = p)
+    mysaveandstore(sprintf("results/plots/reads/read_num_cpg_distribution_%s_%s_%s.png", region, mod_code_var, context), 5, 5, pl = p)
 
 
 
@@ -1235,7 +1364,7 @@ read_analysis <- function(readsdf,
         ggplot() +
         geom_point(aes(x = read_span, y = fraction_meth, color = condition)) +
         facet_wrap(vars(region))
-    mysave(sprintf("results/plots/reads/fraction_meth_distribution_%s_%s_%s.png", region, mod_code_var, context), 5, 5, pl = p)
+    mysaveandstore(sprintf("results/plots/reads/fraction_meth_distribution_%s_%s_%s.png", region, mod_code_var, context), 5, 5, pl = p)
 
 
     aa <- utr %>%
@@ -1259,8 +1388,7 @@ read_analysis <- function(readsdf,
         ggtitle("L1 5'UTR Methylation") +
         mtopen + scale_conditions +
         anchorbar
-    mysave(sprintf("results/plots/reads/barplot_50pct_%s_%s_%s.png", region, mod_code_var, context), 4, 4, pl = p)
-    plots[["barplot_50pct"]][[region]][[mod_code_var]][[context]] <- p
+    mysaveandstore(sprintf("results/plots/reads/barplot_50pct_%s_%s_%s.png", region, mod_code_var, context), 4, 4, pl = p)
 
     # note that this isn't the right test for this
 
@@ -1290,8 +1418,7 @@ p <- aa %>%
     ggtitle("L1 5'UTR Methylation") +
     facet_wrap(vars(region)) +
     mtopen + scale_conditions
-mysave("results/plots/reads/fraction_meth_density_distribution.png", 5, 7.5)
-plots[["fraction_meth_density_distribution"]] <- p
+mysaveandstore("results/plots/reads/fraction_meth_density_distribution.png", 5, 7.5)
 
 p <- utr %>%
     filter(region == "L1HS_l1_intactness_req_ALL") %>%
@@ -1305,8 +1432,7 @@ p <- utr %>%
     mtopen + scale_conditions +
     anchorbar
 
-mysave("results/plots/reads/fraction_meth_density_distribution_l1hsintact.png", 5, 7.5)
-plots[["fraction_meth_density_distribution_l1hsintact"]] <- pl_l1hsintact_density
+mysaveandstore("results/plots/reads/fraction_meth_density_distribution_l1hsintact.png", 5, 7.5)
 
 
 ######### GENES
@@ -1458,8 +1584,7 @@ library(clusterProfiler)
                         panel.border = element_rect(color = "black", fill = NA, size = 1),
                         axis.ticks.y = element_blank()
                     )
-                greatplots[[collection]][[direction]] <- p
-                mysave(paste(mydir, collection, paste0(direction, "lollipop.png"), sep = "/"), 5, 10)
+                mysaveandstore(paste(mydir, collection, paste0(direction, "lollipop.png"), sep = "/"), 5, 10)
             }
         })
     }
@@ -1516,8 +1641,7 @@ library(clusterProfiler)
         scale_fill_manual(values = genes_contrast_colors) +
         anchorbar
 
-    mysave(pl = p, "results/plots/genes/genes_concordance.png", 3, 4)
-    promotersplots[["genes_concordance"]] <- p
+    mysaveandstore(pl = p, "results/plots/genes/genes_concordance.png", 3, 4)
 
     pl_genes_density <- mergeddf %>%
         filter(concordance == "concordant") %>%
@@ -1532,8 +1656,7 @@ library(clusterProfiler)
         mtopen + scale_conditions +
         anchorbar
 
-    mysave(pl = p, "results/plots/genes/genes_density.png", 4, 4)
-    promotersplots[["genes_density"]] <- p
+    mysaveandstore(pl = p, "results/plots/genes/genes_density.png", 4, 4)
 
     save(promotersplots, file = "results/plots/objects/promotersplots.rda")
     # highly_enriched_notch_sets <- tablesReactome[["Higher_in_Alz"]] %>% head(n = 15) %>% filter(grepl("NOTCH", anno.result) | grepl("LFNG", anno.result))
@@ -1575,8 +1698,7 @@ library(clusterProfiler)
         ggtitle("cCRE Methylation") +
         scale_y_continuous(expand = expansion(mult = c(0, .1))) +
         mtopen + scale_contrasts
-    mysave(pl = p, "results/plots/ccres/dmrs_in_ccres.png", 5, 6)
-    ccresplots[["dmrs_in_ccres"]] <- p
+    mysaveandstore(pl = p, "results/plots/ccres/dmrs_in_ccres.png", 5, 6)
 
     totalccres <- ccresdf %>%
         group_by(X10) %>%
@@ -1596,8 +1718,7 @@ library(clusterProfiler)
         ggtitle("cCRE Methylation") +
         scale_y_continuous(expand = expansion(mult = c(0, .1))) +
         mtopen + scale_contrasts
-    mysave(pl = p, "results/plots/ccres/dmrs_in_ccres_pct.png", 6, 6)
-    ccresplots[["dmrs_in_ccres_pct"]] <- p
+    mysaveandstore(pl = p, "results/plots/ccres/dmrs_in_ccres_pct.png", 6, 6)
 
     save(ccresplots, file = "results/plots/objects/ccresplots.rda")
 }
