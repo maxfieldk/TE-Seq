@@ -171,7 +171,7 @@ countspath <- paste(outputdir, tecounttype, "counttablesizenormed.csv", sep = "/
 countsbatchnotremovedpath <- paste(outputdir, tecounttype, "counttablesizenormedbatchnotremoved.csv", sep = "/")
 dir.create(dirname(countspath), recursive = TRUE, showWarnings = FALSE)
 write.csv(counttablesizenormed, file = countspath)
-write.csv(counttablesizenormedbatchremoved, file = countsbatchnotremovedpath)
+write.csv(counttablesizenormedbatchnotremoved, file = countsbatchnotremovedpath)
 
 # write.csv(as.data.frame(assay(vst_assaydf)), file = paste(outputdir, tecounttype, "vstcounts.csv", sep = "/"))
 
