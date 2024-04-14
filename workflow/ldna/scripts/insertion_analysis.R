@@ -60,8 +60,8 @@ for (sample in sample_table$sample_name) {
 }
 ann <- do.call(rbind, anns) %>% tibble()
 
-ann %>% filter(rte_family == "Alu") %>% print(width=Inf)
-ann %$% rte_family %>% table()
+
+ann %>% filter(rte_subfamily == "Other") %>% print(width = Inf)
 p <- ann %>%
     ggplot(aes(x = sample_name)) +
     facet_wrap(~rte_subfamily, scales = "free", ncol = 2) +
@@ -75,7 +75,7 @@ mysaveandstore(w = 8, h = 6)
 p <- ann %>%
     ggplot(aes(x = sample_name)) +
     facet_wrap(~rte_subfamily, scales = "free", ncol = 2) +
-    geom_bar(aes(fill = centromeric_loc)) +
+    geom_bar(aes(fill = loc_integrative_loc)) +
     labs(x = "", y = "Count") +
     paletteer::scale_fill_paletteer_d(conf$default_palette) +
     ggtitle("Non-reference RTE Insertions") +
