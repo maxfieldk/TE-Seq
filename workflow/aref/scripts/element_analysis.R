@@ -40,14 +40,14 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            r_annotation_fragmentsjoined = "aref/A.REF_annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv",
-            r_repeatmasker_annotation = "aref/A.REF_annotations/repeatmasker_annotation.csv",
+            r_annotation_fragmentsjoined = "aref/annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
+            r_repeatmasker_annotation = "aref/annotations/A.REF_repeatmasker_annotation.csv",
             ref = "aref/A.REF.fa"
         ), env = globalenv())
         assign("params", list(l13 = conf$l13fasta), env = globalenv())
         assign("outputs", list(
-            outfile = "aref/RefAnalysis/l1element_analysis.outfile",
-            plots = "aref/RefAnalysis/plots.Rda"
+            outfile = "aref/A.REF_Analysis/l1element_analysis.outfile",
+            plots = "aref/A.REF_Analysis/plots.Rda"
         ), env = globalenv())
     }
 )
@@ -55,12 +55,13 @@ tryCatch(
 fa <- FaFile(inputs$ref)
 rmfragments <- read_csv(inputs$r_annotation_fragmentsjoined, col_names = TRUE)
 rmfamilies <- read_csv(inputs$r_repeatmasker_annotation, col_names = TRUE)
-rmann <- left_join(rmfragments, rmfamilies)
+rmann <- left_join(rmfragments, rmfamilies) %>%
+    filter(refstatus != "NonCentral")
 outputdir <- dirname(outputs$outfile)
 dir.create(outputdir, recursive = TRUE, showWarnings = FALSE)
 
-
-
+rmann %>% filter(l1_intactness_req == "L1HS ORFs Intact") %>% head() %>% write_delim(sprintf("%s/rmann_head.csv", outputdir), delim = "\t", col_names = TRUE)
+rmann %$% l1_intactness_req %>% table()
 
 options(scipen = 999)
 
@@ -75,17 +76,19 @@ hs_pa2_pa3 <- as.data.frame(hs_pa2_pa3_gr) %>% tibble()
 
 # plot number of l1 sequences
 pf <- rmann %>%
+    filter(refstatus != "NonCentral") %>%
     filter(grepl("L1PA|L1HS", rte_subfamily)) %>%
     group_by(rte_subfamily, refstatus) %>%
     summarise(n = n()) %>%
     ungroup()
 p <- pf %>% ggplot() +
     geom_bar(aes(x = rte_subfamily, y = n), color = "black", stat = "identity") +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
     labs(title = "Number of L1 Elements per Subfamily", x = "Family", y = "Number of Elements", fill = "Reference Status") +
     facet_wrap(~refstatus, scales = "free") +
-    mtopen +
-    anchorbar
+    mtclosed +
+    anchorbar +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
 mysaveandstore(sprintf("%s/l1familycount.png", outputdir), w = 8, h = 5)
 
 p <- rmann %>%
@@ -96,11 +99,12 @@ p <- rmann %>%
     ungroup() %>%
     ggplot() +
     geom_bar(aes(x = rte_subfamily, y = n, fill = l1_intactness_req), color = "black", stat = "identity") +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
     labs(title = "Number of Full Length L1 Elements per Subfamily", x = "Family", y = "Number of Elements", fill = "Reference Status") +
     facet_wrap(~refstatus, scales = "free") +
-    mtopen +
-    anchorbar
+    mtclosed +
+    anchorbar +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
 mysaveandstore(sprintf("%s/l1FLfamilycount.png", outputdir), w = 8, h = 5)
 
 
@@ -239,21 +243,24 @@ p <- bres %>%
     filter(SubjectID == "l1.3") %>%
     ggplot() +
     geom_histogram(aes(x = Perc.Ident)) +
-    mtopen
+    mtopen +
+    anchorbar
 mysaveandstore(sprintf("%s/l13identHist.png", outputdir))
 
 p <- bres %>%
     filter(SubjectID == "orf1") %>%
     ggplot() +
     geom_histogram(aes(x = Perc.Ident)) +
-    mtopen
+    mtopen +
+    anchorbar
 mysaveandstore(sprintf("%s/orf1identHist.png", outputdir))
 
 p <- bres %>%
     filter(SubjectID == "orf2") %>%
     ggplot() +
     geom_histogram(aes(x = Perc.Ident)) +
-    mtopen
+    mtopen +
+    anchorbar
 mysaveandstore(sprintf("%s/orf2identHist.png", outputdir))
 
 

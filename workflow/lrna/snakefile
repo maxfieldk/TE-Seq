@@ -529,7 +529,8 @@ rule deseq:
     output:
         results_genes = expand("lrna/results/agg/deseq/{{alignmenttype}}/{{counttype}}/{contrast}/results_genes.csv", contrast = config["contrasts"]),
         results_rtes = expand("lrna/results/agg/deseq/{{alignmenttype}}/{{counttype}}/{contrast}/results_rtes.csv", contrast = config["contrasts"]),
-        counts_normed = "lrna/results/agg/deseq/{alignmenttype}/{counttype}/counttablesizenormed.csv"
+        counts_normed = "lrna/results/agg/deseq/{alignmenttype}/{counttype}/counttablesizenormed.csv",
+        plots = "lrna/results/agg/deseq/{alignmenttype}/{counttype}/deseq_plots.RData"
     script:
         "scripts/deseq.R"
 
@@ -569,7 +570,8 @@ rule enrichment_analysis:
         mem_mb = 164000,
         runtime = 300
     output:
-        outfile = "lrna/results/agg/enrichment_analysis/{alignmenttype}/{counttype}/outfile.txt"
+        outfile = "lrna/results/agg/enrichment_analysis/{alignmenttype}/{counttype}/outfile.txt",
+        plots = "lrna/results/agg/enrichment_analysis/{alignmenttype}/{counttype}/enrichment_analysis_plots.RData"
     script:
         "scripts/ea.R"
 
@@ -590,7 +592,9 @@ rule enrichment_analysis_repeats:
         mem_mb = 164000,
         runtime = 300
     output:
-        outfile = "lrna/results/agg/enrichment_analysis_repeats/{alignmenttype}/{counttype}/outfile.txt"
+        outfile = "lrna/results/agg/enrichment_analysis_repeats/{alignmenttype}/{counttype}/outfile.txt",
+        plots = "lrna/results/agg/enrichment_analysis/{alignmenttype}/{counttype}/enrichment_analysis_repeats_plots.RData"
+
     script:
         "scripts/ea_repeats.R"
 
@@ -612,7 +616,8 @@ rule repeatanalysis_plots:
         mem_mb = 164000,
         runtime = 300
     output:
-        outfile = "lrna/results/agg/repeatanalysis/{alignmenttype}/{counttype}/plots.outfile.txt"
+        outfile = "lrna/results/agg/repeatanalysis/{alignmenttype}/{counttype}/plots.outfile.txt",
+        plots = "lrna/results/agg/repeatanalysis/{alignmenttype}/{counttype}/repeatanalysis_plots.txt"
     script:
         "scripts/repeatanalysisPlots.R"
 
