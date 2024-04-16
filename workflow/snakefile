@@ -91,11 +91,11 @@ for pipeline in config["pipelines_to_deploy"]:
             enrichment_analysis = expand("lrna/results/agg/enrichment_analysis/{alignmenttype}/{counttype}/outfile.txt", alignmenttype = config["lrna"]["alignmenttypes"], counttype = config["lrna"]["counttypes"])
             enrichment_analysis_repeats = expand("lrna/results/agg/enrichment_analysis_repeats/{alignmenttype}/{counttype}/outfile.txt", alignmenttype = config["lrna"]["alignmenttypes"], counttype = config["lrna"]["counttypes"])
             repeatanalysisplots = expand("lrna/results/agg/repeatanalysis/{alignmenttype}/{counttype}/plots.outfile.txt", alignmenttype = config["lrna"]["alignmenttypes"], counttype = config["lrna"]["counttypes"])
-            qc = [expand("lrna/qc/mycoplasma/mycoplasma{sample}.bam", sample = config["lrna"]["samples"]), "qc/multiqc_report.html"]
-            bw = [expand("lrna/intermediates/{sample}/alignments/genome/{alignmenttype}/{sample}.F.bw", alignmenttype = config["lrna"]["alignmenttypes"], sample = config["lrna"]["samples"]), expand("intermediates/{sample}/alignments/genome/{alignmenttype}/{sample}.R.bw", alignmenttype = config["lrna"]["alignmenttypes"], sample = config["lrna"]["samples"])],
-            genomebrowserplots = expand("lrna/outfiles/genomebrowserplots{alignmenttype}.out", alignmenttype = config["lrna"]["alignmenttypes"])
+            # genomebrowserplots = expand("lrna/outfiles/genomebrowserplots{alignmenttype}.out", alignmenttype = config["lrna"]["alignmenttypes"])
+            qc = [expand("lrna/qc/mycoplasma/mycoplasma{sample}.bam", sample = config["lrna"]["samples"]), "lrna/qc/multiqc_report.html"]
+            bw = [expand("lrna/intermediates/{sample}/alignments/genome/{alignmenttype}/{sample}.F.bw", alignmenttype = config["lrna"]["alignmenttypes"], sample = config["lrna"]["samples"]), expand("lrna/intermediates/{sample}/alignments/genome/{alignmenttype}/{sample}.R.bw", alignmenttype = config["lrna"]["alignmenttypes"], sample = config["lrna"]["samples"])],
             m6a = expand("lrna/intermediates/{sample}/m6a/results/data.indiv_proba.csv", sample = config["lrna"]["samples"])
-            return list(flatten([m6a, genomebrowserplots, bw, deseq, enrichment_analysis, enrichment_analysis_repeats, qc]))
+            return list(flatten([m6a, bw, deseq, enrichment_analysis, enrichment_analysis_repeats, qc]))
 
         for e in lrna_rally():
             final_input.append(e)

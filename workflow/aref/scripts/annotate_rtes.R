@@ -33,6 +33,7 @@ rmfamilies <- rmfragments %>%
         str_detect(family, "^LINE") ~ "LINE",
         str_detect(family, "^SINE") ~ "SINE",
         str_detect(family, "^LTR") ~ "LTR",
+        str_detect(family, "^Retroposon") ~ "Retroposon",
         str_detect(family, "^DNA") ~ "DNA",
         str_detect(family, "^Satellite") ~ "SAT",
     )) %>%
@@ -47,6 +48,7 @@ rmfamilies <- rmfragments %>%
         str_detect(family, "^LINE/L1") ~ "L1",
         str_detect(family, "^SINE/Alu") ~ "Alu",
         str_detect(family, "^LTR/ERV") ~ "ERV",
+        str_detect(family, "^Retroposon/SVA") ~ "SVA",
     )) %>%
     mutate(rte_family = replace_na(rte_family, "Other")) %>%
     mutate(rte_subfamily = case_when(
@@ -68,7 +70,13 @@ rmfamilies <- rmfragments %>%
         grepl("^LINE/L1/L1PA3$", family, perl = TRUE) ~ "L1PA3",
         grepl("^LINE/L1/L1PA4$", family, perl = TRUE) ~ "L1PA4",
         grepl("^LINE/L1/L1PA5$", family, perl = TRUE) ~ "L1PA5",
-        grepl("^LINE/L1/L1PA6$", family, perl = TRUE) ~ "L1PA6"
+        grepl("^LINE/L1/L1PA6$", family, perl = TRUE) ~ "L1PA6",
+        grepl("^Retroposon/SVA/SVA_A$", family, perl = TRUE) ~ "SVA_A",
+        grepl("^Retroposon/SVA/SVA_B$", family, perl = TRUE) ~ "SVA_B",
+        grepl("^Retroposon/SVA/SVA_C$", family, perl = TRUE) ~ "SVA_C",
+        grepl("^Retroposon/SVA/SVA_D$", family, perl = TRUE) ~ "SVA_D",
+        grepl("^Retroposon/SVA/SVA_E$", family, perl = TRUE) ~ "SVA_E",
+        grepl("^Retroposon/SVA/SVA_F$", family, perl = TRUE) ~ "SVA_F",
     )) %>%
     mutate(rte_subfamily = replace_na(rte_subfamily, "Other")) %>%
     mutate(rte_subfamily_limited = case_when(
@@ -135,10 +143,21 @@ rmlengthreq <- rmfragments %>%
         str_detect(rte_subfamily, "HERVK_INT") & length <= 6999 ~ "HERVK_INT <7kb",
         str_detect(rte_subfamily, "AluY") & length > 299 ~ "AluY >300bp",
         str_detect(rte_subfamily, "AluY") & length <= 299 ~ "AluY <300bp",
+        str_detect(rte_subfamily, "SVA_A") & length > 1999 ~ "SVA_A >2kb",
+        str_detect(rte_subfamily, "SVA_A") & length <= 1999 ~ "SVA_A <2kb",
+        str_detect(rte_subfamily, "SVA_B") & length > 1999 ~ "SVA_B >2kb",
+        str_detect(rte_subfamily, "SVA_B") & length <= 1999 ~ "SVA_B <2kb",
+        str_detect(rte_subfamily, "SVA_C") & length > 1999 ~ "SVA_C >2kb",
+        str_detect(rte_subfamily, "SVA_C") & length <= 1999 ~ "SVA_C <2kb",
+        str_detect(rte_subfamily, "SVA_D") & length > 1999 ~ "SVA_D >2kb",
+        str_detect(rte_subfamily, "SVA_D") & length <= 1999 ~ "SVA_D <2kb",
+        str_detect(rte_subfamily, "SVA_E") & length > 1999 ~ "SVA_E >2kb",
+        str_detect(rte_subfamily, "SVA_E") & length <= 1999 ~ "SVA_E <2kb",
+        str_detect(rte_subfamily, "SVA_F") & length > 1999 ~ "SVA_F >2kb",
+        str_detect(rte_subfamily, "SVA_F") & length <= 1999 ~ "SVA_F <2kb",
         str_detect(rte_subfamily, "Other") ~ "Other",
     )) %>%
     dplyr::select(gene_id, rte_length)
-
 
 # Annotate Intactness
 fa <- Rsamtools::FaFile(inputs$ref)
@@ -173,6 +192,16 @@ intactness <- rmfragments %>%
         gene_id %in% l1pa2pass ~ "L1PA2 ORFs Intact",
         TRUE ~ "Other"
     ))
+
+
+req_annot <- full_join(intactness, rmlengthreq)
+req_annot <- req_annot %>% mutate(req_integrative = case_when(
+    l1_intactness == "L1HS ORFs Intact" ~ "L1HS ORFs Intact",
+    l1_intactness == "L1PA2 ORFs Intact" ~ "L1PA2 ORFs Intact",
+    str_detect(rte_length, ">") ~ "Full Length",
+    str_detect(rte_length, "<") ~ "Truncated",  
+    TRUE ~ "Other"
+))
 
 
 # HERV ltr status
@@ -380,9 +409,8 @@ region_annot <- region_annot %>% mutate(loc_integrative = case_when(
 ))
 
 annots <- rmfamilies %>%
-    full_join(rmlengthreq %>% rename_at(vars(-gene_id), ~ paste0(., "_req"))) %>%
-    full_join(intactness %>% rename_at(vars(-gene_id), ~ paste0(., "_req"))) %>%
+    full_join(req_annot %>% rename_at(vars(-gene_id, -req_integrative), ~ paste0(., "_req"))) %>%
     full_join(ltr_viral_status %>% rename_at(vars(-gene_id), ~ paste0(., "_req"))) %>%
-    full_join(region_annot %>% rename_at(vars(-gene_id), ~ paste0(., "_loc")))
+    full_join(region_annot %>% rename_at(vars(-gene_id, -loc_integrative), ~ paste0(., "_loc")))
 
 write_csv(annots, outputs$r_repeatmasker_annotation)

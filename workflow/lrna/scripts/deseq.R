@@ -114,7 +114,8 @@ if (params$paralellize_bioc) {
 counttablesizenormedrtes <- counts(ddsrtes, normalized = TRUE)
 counttablesizenormedgenes <- counts(ddsgenes, normalized = TRUE)
 counttablesizenormed <- rbind(as.data.frame(counttablesizenormedrtes), as.data.frame(counttablesizenormedgenes))
-countspath <- paste(outputdir, "counttablesizenormed.csv", sep = "/")
+# countspath <- paste(outputdir, "counttablesizenormed.csv", sep = "/")
+countspath <- outputs$counts_normed
 dir.create(dirname(countspath), recursive = TRUE, showWarnings = FALSE)
 write.csv(counttablesizenormed, file = countspath)
 # write.csv(as.data.frame(assay(vst_assaydf)), file = paste(outputdir, "vstcounts.csv", sep = "/"))
@@ -131,6 +132,11 @@ for (subset in c("genes", "rtes")) {
         res <- results(ddstemp, name = contrast)
         res <- res[order(res$pvalue), ]
         respath <- paste(outputdir, contrast, sprintf("results_%s.csv", subset), sep = "/")
+        if (subset == "rtes") {
+            respath <- str_detect(outputs$results_genes, contrast)
+        } else {
+            respath <- str_detect(outputs$results_rtes, contrast)
+        }
         dir.create(dirname(respath), recursive = TRUE, showWarnings = FALSE)
         write.csv(as.data.frame(res), file = respath)
 
@@ -151,8 +157,7 @@ for (subset in c("genes", "rtes")) {
             xlim = c(-10, 10),
             ylim = c(-1, 15)
         ) + theme(axis.line = element_blank(), aspect.ratio = 1, panel.border = element_rect(color = "black", linetype = 1, linewidth = 1, fill = NA))
-        mysave(paste(outputdir, subset, contrast, "deplot.png", sep = "/"), 8, 8)
-        deseq_plots[[subset]][["volcano"]][[contrast]] <- p
+        mysaveandstore(paste(outputdir, subset, contrast, "deplot.png", sep = "/"), 8, 8)
     }
     keep <- rowSums(counts(ddstemp) >= 2) >= 2
     ddstemp <- ddstemp[keep]
@@ -168,8 +173,7 @@ for (subset in c("genes", "rtes")) {
             p <- screeplot(pcaObj, title = "") +
                 theme_cowplot() +
                 mtopen
-            mysave(paste(outputdir, subset, "screeplot.png", sep = "/"), 4, 4)
-            deseq_plots[[subset]][["scree"]] <- p
+            mysaveandstore(paste(outputdir, subset, "screeplot.png", sep = "/"), 4, 4)
 
 
             p <- plotloadings(pcaObj,
@@ -178,8 +182,7 @@ for (subset in c("genes", "rtes")) {
             ) +
                 theme(legend.position = "none") +
                 mtopen
-            mysave(paste(outputdir, subset, "loadings.png", sep = "/"), 4, 4)
-            deseq_plots[[subset]][["loadings"]] <- p
+            mysaveandstore(paste(outputdir, subset, "loadings.png", sep = "/"), 4, 4)
 
 
             p <- biplot(pcaObj,
@@ -189,8 +192,7 @@ for (subset in c("genes", "rtes")) {
             ) +
                 theme_gray() +
                 mtopen
-            mysave(paste(outputdir, subset, "pca.png", sep = "/"), 4, 4)
-            deseq_plots[[subset]][["pca"]] <- p
+            mysaveandstore(paste(outputdir, subset, "pca.png", sep = "/"), 4, 4)
 
 
             p <- biplot(pcaObj,
@@ -198,8 +200,7 @@ for (subset in c("genes", "rtes")) {
                 colby = "condition", legendPosition = "right",
                 labSize = 5, pointSize = 5, sizeLoadingsNames = 5
             ) + mtopen
-            mysave(paste(outputdir, subset, "pca34.png", sep = "/"), 4, 4)
-            deseq_plots[[subset]][["pca34"]] <- p
+            mysaveandstore(paste(outputdir, subset, "pca34.png", sep = "/"), 4, 4)
 
 
 
@@ -213,8 +214,7 @@ for (subset in c("genes", "rtes")) {
                 clustering_distance_cols = sampleDists,
                 col = colors
             )
-            mysave(paste(outputdir, subset, "pheatmap.png", sep = "/"), 4, 4)
-            deseq_plots[[subset]][["dist_heatmap"]] <- p
+            mysaveandstore(paste(outputdir, subset, "pheatmap.png", sep = "/"), 4, 4)
         },
         error = function(e) {
             print(e)
@@ -222,6 +222,6 @@ for (subset in c("genes", "rtes")) {
     )
 }
 
-save(deseq_plots, file = paste(outputdir, "deseq_plots.RData", sep = "/"))
+save(mysaveandstoreplots, file = paste(outputdir, "deseq_plots.RData", sep = "/"))
 save(ddsrtes, file = paste(outputdir, "dds_rtes.RData", sep = "/"))
 save(ddsgenes, file = paste(outputdir, "dds_genes.RData", sep = "/"))
