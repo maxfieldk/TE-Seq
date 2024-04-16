@@ -270,6 +270,7 @@ stripp <- function(df, stats = "no", extraGGoptions = NULL, facet_var = "ALL", f
     }
     return(p)
 }
+
 # df <- tidydf %>% filter(rte_subfamily == "L1HS")
 # p <- stripp(tidydf %>% filter(rte_subfamily == "L1HS"), filter_var = "ALL", facet_var = "genic_loc") + ggtitle("L1HS")
 # mysave("temp1.png")
@@ -396,7 +397,143 @@ tidydf <- resultsdf %>%
 tidydf$condition <- factor(tidydf$condition, levels = conf$levels)
 
 
+rte_fams <- tidydf %$% rte_family %>% unique() %>% na.omit()
+rte_fams <- rte_fams[rte_fams != "Other"]
+for (rte_fam in rte_fams) {
+
+df <- tidydf %>% filter(rte_family == rte_fam) %>% filter(tecounttype == "telescope_multi")
+
+pf <- df %>%
+        group_by(sample, req_integrative, genic_loc, condition) %>%
+        summarise(sample_sum = sum(counts), condition = dplyr::first(condition)) %>% ungroup() %>% 
+        mutate(req_integrative = ifelse(req_integrative == "Other", "Trucated Ancient", req_integrative))
+# pf2 <- pf %>% group_by(sample, condition) %>% summarise(sample_sum = sum(sample_sum)) 
+
+p <- pf %>% arrange(req_integrative) %>%
+    ggplot() +
+    geom_bar(aes(x = sample, y = sample_sum, fill = req_integrative), stat = "identity", position = position_stack(reverse = TRUE)) +
+    labs(x = "", y = "Sum Normalized Counts", caption = counttype_label, title = rte_fam) +
+    mtclosedgridh +
+    scale_palette +
+    anchorbar +
+    facet_grid(col = vars(condition), row = vars(genic_loc), scales = "free_x", space = "free") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    mysaveandstore(sprintf("%s/%s/%s_bar.png", outputdir, tecounttype, rte_fam), 15, 8)
+}
+
+rte_subfams <- tidydf %$% rte_subfamily %>% unique() %>% na.omit()
+rte_subfams <- rte_subfams[rte_subfams != "Other"]
+for (rte_subfam in rte_subfams) {
+
+df <- tidydf %>% filter(rte_subfamily == rte_subfam) %>% filter(tecounttype == "telescope_multi")
+
+pf <- df %>%
+        group_by(sample, req_integrative, genic_loc, condition) %>%
+        summarise(sample_sum = sum(counts), condition = dplyr::first(condition)) %>% ungroup()  %>%
+        mutate(req_integrative = ifelse(req_integrative == "Other", "Trucated Ancient", req_integrative))
+
+# pf2 <- pf %>% group_by(sample, condition) %>% summarise(sample_sum = sum(sample_sum)) 
+
+p <- pf %>% arrange(req_integrative) %>%
+    ggplot() +
+    geom_bar(aes(x = sample, y = sample_sum, fill = req_integrative), stat = "identity", position = position_stack(reverse = TRUE)) +
+    labs(x = "", y = "Sum Normalized Counts", caption = counttype_label, title = rte_subfam) +
+    mtclosedgridh +
+    scale_palette +
+    anchorbar +
+    facet_grid(col = vars(condition), row = vars(genic_loc), scales = "free_x", space = "free") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    mysaveandstore(sprintf("%s/%s/%s_bar.png", outputdir, tecounttype, rte_subfam), 15, 8)
+}
+
+
 #### PLOTTING
+groups_that_have_been_run <- c()
+groups_not_to_run <- c()
+for (ontology in ontologies) {
+    ontology_groups <- r_repeatmasker_annotation %>%
+        pull(!!sym(ontology)) %>%
+        unique()
+    ontology_groups <- ontology_groups[ontology_groups != "Other"]
+    for (group in ontology_groups) {
+        if (!(group %in% groups_that_have_been_run | group %in% groups_not_to_run | group %in% big_ontology_groups)) {
+            groups_that_have_been_run <- c(groups_that_have_been_run, group)
+            #maybe change to !!group
+            groupframe <- tidydf %>% dplyr::filter(!!sym(ontology) == group)
+            eligible_modifiers <- c()
+            for (modifier in modifiers) {
+                values_present <- tidydf %>%
+                    filter(!!sym(ontology) == group) %>%
+                    pull(!!sym(modifier)) %>%
+                    unique()
+                if ((length(values_present) > 1) | !("Other" %in% values_present)) {
+                    eligible_modifiers <- c(eligible_modifiers, modifier)
+                }
+            }
+            for (modifier in eligible_modifiers) {
+                values_present <- resultsdf %>%
+                    filter(!!sym(ontology) == group) %>%
+                    pull(!!sym(modifier)) %>%
+                    unique()
+                if ((length(values_present) > 1) | !("Other" %in% values_present)) {
+                    eligible_modifiers <- c(eligible_modifiers, modifier)
+                }
+                eligible_filter_modifiers <- c(eligible_modifiers[grepl("_req$", eligible_modifiers)], "ALL")
+                eligible_facet_modifiers <- c(eligible_modifiers[grepl("_loc$", eligible_modifiers)], "ALL")
+                eligible_modifier_combinations <- expand.grid(filter_var = eligible_filter_modifiers, facet_var = eligible_facet_modifiers, stringsAsFactors = FALSE)
+            }
+            for (i in seq(1, length(rownames(eligible_modifier_combinations)))) {
+                filter_var <- eligible_modifier_combinations[i, ]$filter_var
+                facet_var <- eligible_modifier_combinations[i, ]$facet_var
+                plotting_functions <- c("stripp", "pvp", "dep")
+                for (function_name in plotting_functions) {
+                    tryCatch(
+                        {
+                            function_current <- get(function_name)
+                            plot_width <- 5
+                            plot_height <- 5
+                            if (facet_var != "ALL") {
+                                plot_width <- 8
+                            }
+                            if (filter_var != "ALL") {
+                                plot_title <- groupframe %>%
+                                    pull(!!sym(filter_var)) %>%
+                                    unique() %>%
+                                    grep(">|Intact", ., value = TRUE)
+                            } else {
+                                plot_title <- group
+                            }
+                            p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var) + ggtitle(plot_title)
+                            mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s.png", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height)
+                            if (function_name == "pvp") {
+                                p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, labels = "yes") + ggtitle(plot_title)
+                                mysaveandstore(sprintf("% s/%s/%s/%s/%s_%s_%s_labels.png", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height)
+                            }
+                            if (function_name == "stripp") {
+                                p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, stats = "yes") + ggtitle(plot_title)
+                                mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_stats.png", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height + 2)
+                            }
+                        },
+                        error = function(e) {
+                            print(sprintf("Error with  %s %s %s %s %s %s", tecounttype, contrast, group, function_name, filter_var, facet_var))
+                            print(e)
+                            tryCatch(
+                                {
+                                    dev.off()
+                                },
+                                error = function(e) {
+                                    print(e)
+                                }
+                            )
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+
 for (contrast in contrasts) {
     contrast_of_interest <- contrast
     contrast_level_2 <- contrast_of_interest %>%
