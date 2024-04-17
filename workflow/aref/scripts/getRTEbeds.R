@@ -16,11 +16,11 @@ tryCatch(
     error = function(e) {
         print("not sourced snake variables")
         assign("inputs", list(
-            "r_annotation_fragmentsjoined" = "annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv",
-            "r_repeatmasker_annotation" = "annotations/repeatmasker_annotation.csv"
+            "r_annotation_fragmentsjoined" = "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
+            "r_repeatmasker_annotation" = "aref/A.REF_annotations/A.REF_repeatmasker_annotation.csv"
         ), env = globalenv())
         assign("outputs", list(
-            "outfile" = "annotations/rte_beds/outfile.txt"
+            "outfile" = "aref/A.REF_annotations/rte_beds/outfile.txt"
         ), env = globalenv())
     }
 )
@@ -92,6 +92,7 @@ for (ontology in ontologies) {
                 facet_var <- eligible_modifier_combinations[i, ]$facet_var
                 groupframe <- ann %>% filter(!!sym(ontology) == group)
                 if (filter_var != "ALL") {
+                    groupframe %$% rte_length_req %>% unique()
                     groupframe <- groupframe %>% filter(str_detect(!!sym(filter_var), ">|Intact"))
                 }
                 if (facet_var != "ALL") {
@@ -104,14 +105,24 @@ for (ontology in ontologies) {
                             dplyr::select(seqnames, start, end, gene_id, pctdiv, strand) %>%
                             dplyr::rename(name = gene_id, score = pctdiv) %>%
                             GRanges()
+                        mcols(ranges)[mcols(ranges)$score %>% is.na(),"score"] <- 0
+                        tryCatch({
                         export(ranges, paste0(outputdir, "/", group, "_", filter_var, "_", facet_value, ".bed"))
+                        }, error = function(e) {
+                            print(paste0("Error exporting ", group, "_", filter_var, "_", facet_value, ".bed"))
+                        })
                     }
                 } else {
                     ranges <- groupframe %>%
                         dplyr::select(seqnames, start, end, gene_id, pctdiv, strand) %>%
                         dplyr::rename(name = gene_id, score = pctdiv) %>%
                         GRanges()
+                    mcols(ranges)[mcols(ranges)$score %>% is.na(),"score"] <- 0
+                    tryCatch({
                     export(ranges, paste0(outputdir, "/", group, "_", filter_var, "_ALL.bed"))
+                    }, error = function(e) {
+                        print(paste0("Error exporting ", group, "_", filter_var, "_ALL.bed"))
+                    })
                 }
             }
         }

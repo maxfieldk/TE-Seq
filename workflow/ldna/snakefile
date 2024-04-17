@@ -39,7 +39,7 @@ basecaller \
         """
 
 
-rule updated_bam_to_fastq:
+rule mod_bam_to_fastq:
     input:
         bam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
     output:
@@ -59,7 +59,7 @@ rule align_to_updated_ref:
         fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq",
         ref = "aref/{sample}.fa"
     output:
-        bam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+        sam = expand("ldna/intermediates/{{sample}}/alignments_updated_ref/{rate}/{{sample}}.{type}.{modification_string}.sam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
     resources:
         cpus_per_task =20,
         runtime = 1200,
@@ -67,12 +67,27 @@ rule align_to_updated_ref:
     conda: "minimap2"
     shell:
         """
-minimap2 -a -x map-ont -t 14 -y {input.ref} {input.fastq} > {output.bam}
+mkdir -p $(dirname {output.bam})
+minimap2 -a -x map-ont -t 14 -y {input.ref} {input.fastq} > {output.sam}
         """
 
-rule call_align_updated:
+rule samToBam:
     input:
-        bam =  expand("ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.NEW.bam",sample = config["ldna"]["samples"], rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+        sam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+    output:
+        bam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+    conda:
+        "omics"
+    resources:
+        cpus_per_task =10,
+        runtime = 100,
+        mem_mb = 64000
+    shell:
+        """
+samtools view -@8 -bS {input.sam} > {output.bam}
+        """
+
+
 
 rule dorado_barcode:
     input:
@@ -199,6 +214,7 @@ rule sortBam:
 mkdir -p $(dirname {output})
 samtools sort -@8 -m4g {input.bam} > {output.sortedbam}
         """
+
 
 rule IndexBam:
     input:
@@ -331,9 +347,8 @@ samtools index -@ 6 {output.haplotaggedbam}
 rule modbamtobed:
     input:
         sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
-    params:
-        ref = config["ldna"]["reference"]
+        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        ref = "aref/{sample}.fa"
     resources:
         cpus_per_task = 36,
         mem_mb = 128000
@@ -347,7 +362,7 @@ rule modbamtobed:
         """
 mkdir -p $(dirname {output})
 /oscar/data/jsedivy/mkelsey/tools/modkit pileup {input.sortedbam} {output.bed} \
---ref {params.ref} \
+--ref {input.ref} \
 --interval-size 30000 \
 --combine-strands \
 --cpg \
@@ -420,7 +435,7 @@ awk -v s=1 '$4=="a" {{OFS = "\t"; print $1, $2+s, $10, $12}}' {output.bed} >> {o
 
 rule modbamtobedTLDRinsertions:
     input:
-        tldr = "ldna/tldr/{sample}.table.txt"
+        tldr = "aref/{sample}_tldr/{sample}.table.txt"
     params:
         ref = config["aref"]["update_ref_with_tldr"]["tldr_te_ref"],
         indir = "ldna/tldr/{sample}"
@@ -441,8 +456,13 @@ rule dss:
     input:
         data = expand("ldna/intermediates/{sample}/methylation/{sample}_{{type}}_dss.tsv", sample = samples),
     output:
+        dmls_unfiltered = "ldna/results/tables/dmls.{type}.unfiltered.tsv",
+        dmrs_unfiltered = "ldna/results/tables/dmrs.{type}.unfiltered.tsv",
         dmls = "ldna/results/tables/dmls.{type}.tsv",
-        dmrs = "ldna/results/tables/dmrs.{type}.tsv"
+        dmrs = "ldna/results/tables/dmrs.{type}.tsv",
+        dmrs_bed = "ldna/results/tables/dmrs.{type}.bed",
+        dmrs_hypo_bed = "ldna/results/tables/dmrs_hypo.{type}.bed",
+        dmrs_hyper_bed = "ldna/results/tables/dmrs_hyper.{type}.bed"
     conda:
         "dss2"
     resources:
@@ -548,7 +568,11 @@ rule bedmethylanalysis:
         dmls = "ldna/results/tables/dmls.CG_m.tsv",
         read_mods = expand('ldna/intermediates/{sample}/methylation/{sample}_readmods_{context}_{region}.tsv', sample = samples, region = config["ldna"]["rte_subfamily_read_level_analysis"], context = ["CpG", "NoContext"])
     output:
-        "ldna/outfiles/bedmethylanalysis.txt"
+        outfile = "ldna/outfiles/bedmethylanalysis.txt",
+        promoters_bed = "ldna/Rintermediates/promoters.bed",
+        dmrpromoterhyper_bed = "ldna/Rintermediates/promoters_dmhyperregions.bed",
+        dmrpromoterhypo_bed = "ldna/Rintermediates/promoters_dmhyporegions.bed",
+
     resources:
         cpus_per_task =10,
         mem_mb = 200000,
@@ -660,12 +684,12 @@ mapfile -t coords_array <<< "$coords"
 for coord in "${{coords_array[@]}}"
 do
 coordfnsafe=$(echo $coord | sed 's/:/-/')
-if /users/mkelsey/data/tools/methylartist/methylartist locus --bams {params.methylartist_bam_config} -o ${{outputprefix}}${{coordfnsafe}}.png -i $coord --ref {params.ref} --motif CG -m m --highlight_bed {params.module_prefix}/results/tables/dmrs.bed -p 1,6,1,3,4 --labelgenes; then
+if /users/mkelsey/data/tools/methylartist/methylartist locus --bams {params.methylartist_bam_config} -o ${{outputprefix}}${{coordfnsafe}}.png -i $coord --ref {params.ref} --motif CG -m m --highlight_bed {params.module_prefix}/results/tables/dmrs.bed -p 1,6,1,0,4 --labelgenes; then
 echo "worked"
 else
 echo "failed"
 fi
-if /users/mkelsey/data/tools/methylartist/methylartist locus --bams {params.methylartist_bam_config} -o ${{outputprefix}}${{coordfnsafe}}.png -i $coord --ref {params.ref} --motif CG -m m --highlight_bed {params.module_prefix}/results/tables/dmrs.bed -p 1,6,1,3,4 --labelgenes --svg; then
+if /users/mkelsey/data/tools/methylartist/methylartist locus --bams {params.methylartist_bam_config} -o ${{outputprefix}}${{coordfnsafe}}.png -i $coord --ref {params.ref} --motif CG -m m --highlight_bed {params.module_prefix}/results/tables/dmrs.bed -p 1,6,1,0,4 --labelgenes --svg; then
 echo "worked"
 else
 echo "failed"
@@ -838,29 +862,42 @@ touch {output}
 #         locusextended = "outfiles/methylartistlocusplotexpandedview.txt"
 
 #tag MOTIF_ANALYSIS
-# rule gimme:
-#     input:
-#         hypo = "Rintermediates/promoters_dmhyporegions.bed",
-#         hyper = "Rintermediates/promoters_dmhyperregions.bed"
-#     output:
-#         "outfiles/gimme.txt"
-#     resources:
-#         cpus_per_task = 26,
-#         mem_mb = 64000,
-#         runtime = 300
-#     log:
-#         "logs/gimme.log"
-#     conda:
-#         "Rclusterprofiler"
-#     shell:
-#         """
-# bedtools getfasta -fi /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/hs1.sorted.fa -bed Rintermediates/promoters.bed -fo Rintermediates/promoters.fa
-# bedtools getfasta -fi /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/hs1.sorted.fa -bed Rintermediates/promoters_dmhyperregions.bed -fo Rintermediates/promoters_dmhyperregions.fa
-# bedtools getfasta -fi /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/hs1.sorted.fa -bed Rintermediates/promoters_dmhyporegions.bed -fo Rintermediates/promoters_dmhyporegions.fa
-# gimme motifs results/tables/dmrs_hyper.bed results/gimme/hyper --background gc -g /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/hs1.sorted.fa --known --nthreads 24 -p /oscar/data/jsedivy/mkelsey/ref/pwms/hocomoco_jasperformat.txt --size 500 --noreport
-# gimme motifs results/tables/dmrs_hypo.bed results/gimme/hypo --background gc -g /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/hs1.sorted.fa --known --nthreads 24 -p /oscar/data/jsedivy/mkelsey/ref/pwms/hocomoco_jasperformat.txt --size 500 --noreport
-# touch {output}
-#         """
+rule gimme:
+    input:
+        promoters_bed = "ldna/Rintermediates/promoters.bed",
+        dmrpromoterhyper_bed = "ldna/Rintermediates/promoters_dmhyperregions.bed",
+        dmrpromoterhypo_bed = "ldna/Rintermediates/promoters_dmhyporegions.bed"
+    params:
+        ref = config["ldna"]["reference"],
+        pwms = config["ldna"]["tf_position_weighted_matrices"]
+    output:
+        hypo = "ldna/results/gimme/hypo/gimme.roc.report.txt",
+        hyper = "ldna/results/gimme/hyper/gimme.roc.report.txt"
+    resources:
+        cpus_per_task = 26,
+        mem_mb = 64000,
+        runtime = 300
+    conda:
+        "gimme"
+    shell:
+        """
+bedtools getfasta -fi {params.ref} -bed {input.promoters_bed} -fo ${{{input.promoters_bed}%.*}}.fa
+bedtools getfasta -fi {params.ref} -bed {input.dmrpromoterhyper_bed} -fo ${{{input.dmrpromoterhyper_bed}%.*}}.fa
+bedtools getfasta -fi {params.ref} -bed {input.dmrpromoterhypo_bed} -fo ${{{input.dmrpromoterhypo_bed}%.*}}.fa
+gimme motifs ${{{input.dmrpromoterhyper_bed}%.*}}.fa $(dirname {output.hyper}) --background gc -g {params.ref} --known --nthreads 24 -p {params.pwms} --size 500 --noreport
+gimme motifs ${{{input.dmrpromoterhypo_bed}%.*}}.fa $(dirname {output.hypo}) --background gc -g {params.ref} --known --nthreads 24 -p {params.pwms} --size 500 --noreport
+        """
+
+rule gimmeplots:
+    input:
+        hypo = "ldna/results/gimme/hypo/gimme.roc.report.txt",
+        hyper = "ldna/results/gimme/hyper/gimme.roc.report.txt"
+    output:
+        plots = "ldna/results/gimme/gimme_plots.rds",
+    conda:
+        "ds"
+    script:
+        "scripts/gimmeplots.R"
         
 # rule homer_find_motifs:
 #     input:

@@ -19,9 +19,9 @@ color_table <- color_table %>% left_join(tibble(replicate = 1:num_replicates, sh
     mutate(sample_unique_color = darken(color, shade_modifier))
 
 sample_palette <- setNames(color_table$color, color_table$sample_name)
-sample_unique_palette <- setNames(color_table$sample_unique_color, color_table$sample_unique_color)
+sample_unique_palette <- setNames(color_table$sample_unique_color, color_table$sample_name)
 direction_palette <- setNames(c("red", "blue", "grey"), c("UP", "DOWN", "NS"))
-methylation_palette <- setNames(c("red", "blue", "grey"), c("Hypo", "Hyper", "NS"))
+methylation_palette <- setNames(c("#ede6d1", "#2b2a24", "grey"), c("Hypo", "Hyper", "NS"))
 
 contrasts <- conf$contrasts
 contrast_base <- gsub(".*_vs_", "", contrasts)
@@ -39,9 +39,9 @@ if (length(rownames(toappend)) > 0) {
     contrasts_to_append <- toappend$contrast
     to_append_palette <- setNames(as.character(paletteer_d(conf$default_palette)[palette_index_start:palette_index_start+length(contrasts_to_append)]), contrasts_to_append)
     contrast_palette <- c(contrast_palette, to_append_palette)
-    scale_contrasts <- list(scale_fill_manual(values = contrast_palette), scale_color_manual(values = contrast_palette))
-
 }
+scale_contrasts <- list(scale_fill_manual(values = contrast_palette), scale_color_manual(values = contrast_palette))
+
 }, error = function(e) {
     
 })
@@ -52,4 +52,6 @@ scale_samples_unique <- list(scale_fill_manual(values = sample_unique_palette), 
 scale_samples <- list(scale_fill_manual(values = sample_palette), scale_color_manual(values = sample_palette))
 scale_conditions <- list(scale_fill_manual(values = condition_palette), scale_color_manual(values = condition_palette))
 scale_directions <- list(scale_fill_manual(values = direction_palette), scale_color_manual(values = direction_palette))
+scale_methylation <- list(scale_fill_manual(values = methylation_palette), scale_color_manual(values = methylation_palette))
 }
+mycolor = "darkgrey"
