@@ -61,7 +61,7 @@ for (sample in sample_table$sample_name) {
 ann <- do.call(rbind, anns) %>% tibble()
 
 
-ann %>% filter(rte_subfamily == "Other") %>% print(width = Inf)
+
 p <- ann %>%
     ggplot(aes(x = sample_name)) +
     facet_wrap(~rte_subfamily, scales = "free", ncol = 2) +

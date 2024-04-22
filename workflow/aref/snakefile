@@ -551,6 +551,8 @@ rule annotate_rtes:
         txdbrefseq = "aref/A.REF_annotations/refseq.sqlite"
     output:
         r_repeatmasker_annotation = "aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_annotation.csv",
+        rmann = "aref/{sample_or_ref}_annotations/{sample_or_ref}_rmann.csv",
+        rmann_nonref = "aref/{sample_or_ref}_annotations/{sample_or_ref}_rmann_nonref.csv"
     conda:
         "evo2"
     script:

@@ -414,3 +414,6 @@ annots <- rmfamilies %>%
     full_join(region_annot %>% rename_at(vars(-gene_id, -loc_integrative), ~ paste0(., "_loc")))
 
 write_csv(annots, outputs$r_repeatmasker_annotation)
+rmann <- left_join(rmfragments, annots) 
+write_csv(rmann, outputs$rmann)
+write_csv(rmann %>% filter(refstatus == "NonRef"), outputs$rmann_nonref)

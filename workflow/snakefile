@@ -48,6 +48,7 @@ for pipeline in config["pipelines_to_deploy"]:
                         paths.append(expand("aref/{sample_or_ref}_Analysis/l1element_analysis.outfile", sample_or_ref = config["aref"]["samples"]))
                         paths.append(expand("aref/{sample_or_ref}_annotations/{sample_or_ref}_rte_beds/outfile.txt", sample_or_ref = config["aref"]["samples"]))
                         
+                        paths.append(expand("aref/{sample_or_ref}_Analysis/l1element_analysis.outfile", sample_or_ref = "A.REF"))
                         paths.append(expand("aref/{sample_or_ref}_annotations/{sample_or_ref}_rte_beds/outfile.txt", sample_or_ref = "A.REF"))
 
                     else:
@@ -77,7 +78,10 @@ for pipeline in config["pipelines_to_deploy"]:
             bedmethanalysis = "ldna/outfiles/bedmethylanalysis.txt"
             sniffles = expand("ldna/intermediates/{sample}/sniffles/sniffles.vcf", sample = config["ldna"]["samples"])
             clair3 = expand("ldna/intermediates/{sample}/clair3/full_alignment.vcf.gz", sample = config["ldna"]["samples"])
-            return list(flatten([m1, haplotaggedbam, bedmethanalysis, sniffles, clair3, pycoQC, seqsummary]))
+            methylartist = "ldna/results/plots/methylartist/locus/methylartistlocusplot_loci_of_interest.outfile"
+            gimme = "ldna/results/gimme/gimme_plots.rds"
+            return list(flatten([gimme, bedmethanalysis]))
+            #m1, haplotaggedbam, , sniffles, clair3, pycoQC, seqsummary, methylartist, haplotaggedbam
         for e in ldna_rally():
             final_input.append(e)
 

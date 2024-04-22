@@ -132,7 +132,7 @@ l1hs_fl_non_ref <- df %>%
     filter(element_length > 6000)
 l1hs_fl_non_ref %$% uid %>% unique()
 # reference insertions
-rtedf <- read_delim("Rintermediates/rtedf.tsv", col_names = TRUE)
+rtedf <- read_delim("ldna/Rintermediates/rtedf.tsv", col_names = TRUE)
 # l1hs_ref <- rtedf %>% filter(type == "L1HS")
 # l1hs_ref <- l1hs_ref %>% separate(uid, c("element_seqnames", "element_start", "element_end", "element_strand"), sep = "_", remove = FALSE, convert = TRUE)
 # l1hs_ref <- l1hs_ref %>% mutate(element_length = element_end - element_start)
