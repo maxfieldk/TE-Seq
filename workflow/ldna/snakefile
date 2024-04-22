@@ -455,34 +455,37 @@ touch {output.outfile}
 rule dss:
     input:
         data = expand("ldna/intermediates/{sample}/methylation/{sample}_{{type}}_dss.tsv", sample = samples),
+    params:
+        chromosome = lambda w: w.chr
     output:
-        dmls_unfiltered = "ldna/results/tables/dmls.{type}.unfiltered.tsv",
-        dmrs_unfiltered = "ldna/results/tables/dmrs.{type}.unfiltered.tsv",
-        dmls = "ldna/results/tables/dmls.{type}.tsv",
-        dmrs = "ldna/results/tables/dmrs.{type}.tsv",
-        dmrs_bed = "ldna/results/tables/dmrs.{type}.bed",
-        dmrs_hypo_bed = "ldna/results/tables/dmrs_hypo.{type}.bed",
-        dmrs_hyper_bed = "ldna/results/tables/dmrs_hyper.{type}.bed"
+        dmls_unfiltered = "ldna/results/tables/dmls.{chr}.{type}.unfiltered.tsv",
+        dmrs_unfiltered = "ldna/results/tables/dmrs.{chr}.{type}.unfiltered.tsv",
+        dmls = "ldna/results/tables/dmls.{chr}.{type}.tsv",
+        dmrs = "ldna/results/tables/dmrs.{chr}.{type}.tsv"
     conda:
         "dss2"
     resources:
         cpus_per_task = 10,
-        mem_mb = 200000
+        mem_mb = 60000
     script:
         "scripts/dss.R"
 
 
-rule calldss_C:
+rule merge_dss:
     input:
-        expand("ldna/results/tables/dmrs.CG_m.tsv")
+        dmrs = expand("ldna/results/tables/dmrs.{chr}.CG_m.tsv", chr = ["chr%s"%chrid for chrid in list(range(1, 23)) + ["X", "Y"]]),
+        dmls = expand("ldna/results/tables/dmls.{chr}.CG_m.tsv", chr = ["chr%s"%chrid for chrid in list(range(1, 23)) + ["X", "Y"]])
     output:
-        "ldna/outfiles/dss.txt"
+        dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
+        dmls = "ldna/results/tables/dmls.CG_m.tsv",
+        dmrs_bed = "ldna/results/tables/dmrs.CG_m.bed",
+        dmrs_hypo_bed = "ldna/results/tables/dmrs_hypo.CG_m.bed",
+        dmrs_hyper_bed = "ldna/results/tables/dmrs_hyper.CG_m.bed"
+    conda:
+        "omics"
+    script:
+        "scripts/merge_dss.R"
 
-rule calldss:
-    input:
-        "ldna/results/tables/dmrs.CG_m.tsv",
-        "ldna/results/tables/dmrs.CG_h.tsv",
-        expand("ldna/results/tables/dmrs.{element}_{mod}.tsv", element = config["ldna"]["rte_subfamily_extra_modification_analysis"], mod = ["nocontext.m", "nocontext.h", "nocontext.a"])
 
 
 # #something odd about running python scripts, you need to run in snakelocal mode.
@@ -563,9 +566,9 @@ mkdir -p $(dirname {output})
 
 rule bedmethylanalysis:
     input:
-        bedmethylpaths = expand("ldna/intermediates/{sample}/methylation/{sample}_CG_bedMethyl.bed", sample = samples),
         dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
         dmls = "ldna/results/tables/dmls.CG_m.tsv",
+        bedmethylpaths = expand("ldna/intermediates/{sample}/methylation/{sample}_CG_bedMethyl.bed", sample = samples),
         read_mods = expand('ldna/intermediates/{sample}/methylation/{sample}_readmods_{context}_{region}.tsv', sample = samples, region = config["ldna"]["rte_subfamily_read_level_analysis"], context = ["CpG", "NoContext"])
     output:
         outfile = "ldna/outfiles/bedmethylanalysis.txt",

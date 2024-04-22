@@ -94,6 +94,40 @@ basecaller \
 mv {output.calls}.temp {output.calls}
         """
 
+
+
+rule dorado_seqsummary:
+    input:
+        sortedbam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
+        sortedbamindex = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam.bai", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
+    params:
+        dorado = config["dorado"]
+    output:
+        "aref/qc/{sample}/{sample}.doradosummary.txt"
+    conda:
+        "omics"
+    shell:
+        """
+{params.dorado} summary {input.sortedbam} > {output}
+        """
+
+rule pycoQC:
+    input:
+        seqsummary = "aref/qc/{sample}/{sample}.doradosummary.txt",
+        sortedbam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
+    output:
+        html = "aref/qc/{sample}/{sample}pycoQC.html",
+        json = "aref/qc/{sample}/{sample}pycoQC.json"
+    resources:
+        mem_mb = 100000,
+    conda:
+        "pycoQC"
+    shell:
+        """
+mkdir -p $(dirname {output})
+pycoQC --summary_file {input.seqsummary} --bam_file {input.sortedbam} --html_outfile {output.html} --json_outfile {output.json} --min_pass_qual 10
+        """
+
 #tag ALIGNMENT_UTILITIES
 rule sortBam:
     input:
@@ -658,6 +692,7 @@ makeblastdb -in {input.ref} -dbtype nucl -out aref/{wildcards.sample_or_ref}
 rule transduction_mapping:
     input:
         filtered_tldr = "aref/{sample_or_ref}_tldr/{sample_or_ref}.table.kept_in_updated_ref.txt",
+        unfiltered_tldr = "aref/{sample_or_ref}_tldr/{sample_or_ref}.table.txt",
         r_annotation_fragmentsjoined = "aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
         r_repeatmasker_annotation = "aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_annotation.csv",
         ref = "aref/{sample_or_ref}.fa",
@@ -667,8 +702,8 @@ rule transduction_mapping:
     output:
         plots = "aref/{sample_or_ref}_Analysis/tldr_plots/transduction_mapping.rds",
         circlize_phylogeny = "aref/{sample_or_ref}_Analysis/tldr_plots/circlize_phylogeny.png",
-        circlize_transduction = "aref/{sample_or_ref}_Analysis/tldr_plots/circlize_transduction.png",
-        transduction_df = "aref/{sample_or_ref}_Analysis/transduction_df.csv"
+        # circlize_transduction = "aref/{sample_or_ref}_Analysis/tldr_plots/circlize_transduction.png",
+        # transduction_df = "aref/{sample_or_ref}_Analysis/transduction_df.csv"
     conda:
         "evo2"
     script:
