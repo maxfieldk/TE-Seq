@@ -586,7 +586,7 @@ rule getBigWigF:
         mem_mb = 40000
     conda:
         "omics"
-    shell: "bamCoverage -b {input.sortedbam} -o {output.bwF} --numberOfProcessors max --normalizeUsing CPM --samFlagExclude 256 --filterRNAstrand forward --binSize 10"
+    shell: "bamCoverage -b {input.sortedbam} -o {output.bwF} --numberOfProcessors max --normalizeUsing CPM --samFlagExclude 256 --filterRNAstrand forward --binSize 50"
 #The --filterRNAstrand option assumes the sequencing library generated from ILLUMINA
 # dUTP/NSR/NNSR methods, which are the most commonly used method for library preparation, 
 #where Read 2 (R2) is in the direction of RNA strand (reverse-stranded library). 
@@ -604,34 +604,45 @@ rule getBigWigR:
         mem_mb = 40000
     conda:
         "omics"
-    shell: "bamCoverage -b {input.sortedbam} -o {output.bwR} --numberOfProcessors max --normalizeUsing CPM --samFlagExclude 256 --filterRNAstrand reverse --binSize 10"
+    shell: "bamCoverage -b {input.sortedbam} -o {output.bwR} --numberOfProcessors max --normalizeUsing CPM --samFlagExclude 256 --filterRNAstrand reverse --binSize 50"
 #The --filterRNAstrand option assumes the sequencing library generated from ILLUMINA
 # dUTP/NSR/NNSR methods, which are the most commonly used method for library preparation, 
 #where Read 2 (R2) is in the direction of RNA strand (reverse-stranded library). 
 #However other methods exist, which generate read R1 in the direction of RNA strand 
 #(see this review). For these libraries, --filterRNAstrand will have an opposite behavior, 
 #i.e. --filterRNAstrand forward will give you reverse strand signal and vice-versa.
-
-
-rule deeptools_l1hs_profile:
+rule bigwigplots:
     input:
-        bwF = "srna/outs/{sample}/star_output/{sample}.F.bw",
-        bwR = "srna/outs/{sample}/star_output/{sample}.R.bw"
+        bwF = expand("srna/outs/{sample}/star_output/{sample}.F.bw", sample = samples),
+        bwR = expand("srna/outs/{sample}/star_output/{sample}.R.bw", sample = samples)
     output:
-        bwR = "srna/outs/{sample}/star_output/{sample}.R.bw"
+        plots = "srna/results/agg/bigwig_plots/plots.rds"
     resources:
         cpus_per_task =10,
         mem_mb = 40000
     conda:
-        "deeptools"
-    shell: 
-        """
-deepTools2.0/bin/computeMatrix scale-regions \
-  -R genes_chr19_firstHalf.bed genes_chr19_secondHalf.bed \ # separate multiple files with spaces
-  -S testFiles/log2ratio_*.bw  \ or use the wild card approach
-  -b 3000 -a 3000 \
-  --regionBodyLength 5000 \
-  --skipZeros -o matrix2_multipleBW_l2r_twoGroups_scaled.gz \
-  --outFileNameMatrix matrix2_multipleBW_l2r_twoGroups_scaled.tab \
-  --outFileSortedRegions regions2_multipleBW_l2r_twoGroups_genes.bed
-        """
+        "repeatanalysis"
+    script: "scripts/bigwig_analysis.R"
+
+# rule deeptools_l1hs_profile:
+#     input:
+#         bwF = "srna/outs/{sample}/star_output/{sample}.F.bw",
+#         bwR = "srna/outs/{sample}/star_output/{sample}.R.bw"
+#     output:
+#         bwR = "srna/outs/{sample}/star_output/{sample}.R.bw"
+#     resources:
+#         cpus_per_task =10,
+#         mem_mb = 40000
+#     conda:
+#         "deeptools"
+#     shell: 
+#         """
+# deepTools2.0/bin/computeMatrix scale-regions \
+#   -R genes_chr19_firstHalf.bed genes_chr19_secondHalf.bed \ # separate multiple files with spaces
+#   -S testFiles/log2ratio_*.bw  \ or use the wild card approach
+#   -b 3000 -a 3000 \
+#   --regionBodyLength 5000 \
+#   --skipZeros -o matrix2_multipleBW_l2r_twoGroups_scaled.gz \
+#   --outFileNameMatrix matrix2_multipleBW_l2r_twoGroups_scaled.tab \
+#   --outFileSortedRegions regions2_multipleBW_l2r_twoGroups_genes.bed
+#         """

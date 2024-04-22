@@ -218,14 +218,11 @@ for (gene_or_te in c("gene", "repeat")) {
     # DEGs
     for (contrast in shared_contrasts) {
         contrast_of_interest <- contrast
-        contrast_level_1 <- contrast_of_interest %>%
-            str_split("_") %>%
-            unlist() %>%
-            .[4]
         contrast_level_2 <- contrast_of_interest %>%
-            str_split("_") %>%
-            unlist() %>%
-            .[2]
+            gsub("condition_", "", .) %>%
+            gsub("_vs_.*", "", .)
+        contrast_level_1 <- contrast_of_interest %>%
+            gsub(".*_vs_", "", .)
         contrast_stat <- paste0("stat_", contrast_of_interest)
         contrast_padj <- paste0("padj_", contrast_of_interest)
         contrast_log2FoldChange <- paste0("log2FoldChange_", contrast_of_interest)
