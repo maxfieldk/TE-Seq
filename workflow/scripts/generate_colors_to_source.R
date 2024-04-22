@@ -48,6 +48,8 @@ scale_contrasts <- list(scale_fill_manual(values = contrast_palette), scale_colo
 
 {
 scale_palette <- list(paletteer::scale_fill_paletteer_d(conf$default_palette), paletteer::scale_color_paletteer_d(conf$default_palette))
+scale_palette_alt <- list(paletteer::scale_fill_paletteer_d("ggthemes::few_Dark"), paletteer::scale_color_paletteer_d("ggthemes::few_Dark"))
+
 scale_samples_unique <- list(scale_fill_manual(values = sample_unique_palette), scale_color_manual(values = sample_unique_palette))
 scale_samples <- list(scale_fill_manual(values = sample_palette), scale_color_manual(values = sample_palette))
 scale_conditions <- list(scale_fill_manual(values = condition_palette), scale_color_manual(values = condition_palette))

@@ -406,14 +406,11 @@ for (ontology in ontologies) {
 
             for (contrast in contrasts) {
                 contrast_of_interest <- contrast
-                contrast_level_1 <- contrast_of_interest %>%
-                    str_split("_") %>%
-                    unlist() %>%
-                    .[4]
                 contrast_level_2 <- contrast_of_interest %>%
-                    str_split("_") %>%
-                    unlist() %>%
-                    .[2]
+                gsub("condition_", "", .) %>%
+                gsub("_vs_.*", "", .)
+                contrast_level_1 <- contrast_of_interest %>%
+                gsub(".*_vs_", "", .)
                 contrast_stat <- paste0("stat_", contrast_of_interest)
                 contrast_padj <- paste0("padj_", contrast_of_interest)
                 contrast_log2FoldChange <- paste0("log2FoldChange_", contrast_of_interest)
@@ -493,7 +490,7 @@ for (contrast in contrasts) {
                         eligible_modifiers <- c(eligible_modifiers, modifier)
                     }
                     eligible_filter_modifiers <- c(eligible_modifiers[grepl("_req$", eligible_modifiers)], "ALL")
-                    eligible_facet_modifiers <- c(eligible_modifiers[grepl("_loc$", eligible_modifiers)], "ALL")
+                    eligible_facet_modifiers <- c(eligible_modifiers[grepl("genic_loc$", eligible_modifiers)], "ALL")
                     eligible_modifier_combinations <- expand.grid(filter_var = eligible_filter_modifiers, facet_var = eligible_facet_modifiers, stringsAsFactors = FALSE)
                 }
                 for (i in seq(1, length(rownames(eligible_modifier_combinations)))) {
@@ -583,7 +580,7 @@ for (contrast in contrasts) {
                         eligible_modifiers <- c(eligible_modifiers, modifier)
                     }
                     eligible_filter_modifiers <- c(eligible_modifiers[grepl("_req$", eligible_modifiers)], "ALL")
-                    eligible_facet_modifiers <- c(eligible_modifiers[grepl("_loc$", eligible_modifiers)], "ALL")
+                    eligible_facet_modifiers <- c(eligible_modifiers[grepl("genic_loc$", eligible_modifiers)], "ALL")
                     eligible_modifier_combinations <- expand.grid(filter_var = eligible_filter_modifiers, facet_var = eligible_facet_modifiers, stringsAsFactors = FALSE)
                 }
                 # first plots without any modifiers
@@ -647,14 +644,11 @@ tryCatch(
                     contrastL <- list()
                     for (contrast in contrasts) {
                         contrast_of_interest <- contrast
-                        contrast_level_1 <- contrast_of_interest %>%
-                            str_split("_") %>%
-                            unlist() %>%
-                            .[4]
                         contrast_level_2 <- contrast_of_interest %>%
-                            str_split("_") %>%
-                            unlist() %>%
-                            .[2]
+                            gsub("condition_", "", .) %>%
+                            gsub("_vs_.*", "", .)
+                        contrast_level_1 <- contrast_of_interest %>%
+                            gsub(".*_vs_", "", .)
                         contrast_padj <- paste0("padj_", contrast_of_interest)
                         contrast_log2FoldChange <- paste0("log2FoldChange_", contrast_of_interest)
 

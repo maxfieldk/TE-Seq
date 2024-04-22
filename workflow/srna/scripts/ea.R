@@ -23,6 +23,8 @@ library(ggstance)
 library(enrichplot)
 library(circlize)
 library(ComplexHeatmap)
+library(msigdbr)
+
 
 # analysis parameters
 {
@@ -54,8 +56,6 @@ library(ComplexHeatmap)
 
 sample_table <- read_csv(params[["sample_table"]])
 
-
-
 # load results
 resultsdf1 <- read_delim(inputs$resultsdf, delim = "\t")
 resultsdf1 <- resultsdf1[resultsdf1$gene_id != "__no_feature", ]
@@ -64,7 +64,9 @@ res <- res %>% filter(gene_or_te == "gene")
 res %>%
     filter(str_detect(gene_id, "CDKN1A")) %>%
     select(conf$samples)
-# GSEA
+
+
+# GSEA targeted 
 genecollections <- names(params[["genesets_for_gsea"]])
 rm(gse_df)
 for (contrast in params[["contrasts"]]) {
@@ -234,6 +236,12 @@ for (contrast in params[["contrasts"]]) {
                 }
             )
 
+            pvpprep <- res %>% filter(gene_id %in% genestoplot)
+            p <- res %>% ggplot(aes(x = !!sym(contrast_l2fc), y = -log10(!!sym(contrast_padj)))) +
+                geom_point() + geom_text(aes(label = gene_id), nudge_y = 0.1) + mtclosed +
+                labs(title = set_title, x = "log2FoldChange", y = "-log10(padj)")
+
+
             heatmapprep <- res %>% filter(gene_id %in% genestoplot)
             m <- as.matrix(heatmapprep %>% dplyr::select(sample_vec))
             rownames(m) <- heatmapprep %$% gene_id
@@ -386,6 +394,84 @@ for (geneset in names(params[["genesets_for_heatmaps"]])) {
         # these two self-defined legends are added to the plot by `annotation_legend_list`
         p <- draw(hm, annotation_legend_list = list(lgd_pvalue_adj, lgd_sig), heatmap_legend_side = "bottom", annotation_legend_side = "bottom")
         mysaveandstore(sprintf("%s/%s/heatmap_%s.png", params[["outputdir"]], contrast, set_title), w = min(dim(scaledm)[2], 12), h = min(dim(scaledm)[1], 12), res = 300)
+    }
+}
+
+
+# GSEA untargeted 
+gene_sets = msigdbr(species = "human")
+rm(gse_df)
+for (contrast in params[["contrasts"]]) {
+    # PREP RESULTS FOR GSEA
+    contrast_stat <- paste0("stat_", contrast)
+    contrast_l2fc <- paste0("log2FoldChange_", contrast)
+    res <- res %>% arrange(-!!sym(contrast_stat))
+
+    ordered_by_stat <- setNames(res[[contrast_stat]], res$gene_id) %>% na.omit()
+    resl2fc <- res %>% arrange(-!!sym(contrast_l2fc))
+    ordered_by_l2fc <- setNames(resl2fc[[contrast_l2fc]], resl2fc$gene_id) %>% na.omit()
+    for (category in gene_sets %$% gs_cat %>% unique()) {
+        cat(category, "\n")
+        tryCatch(
+            {
+                collection <- category
+                msigdbr_df <- gene_sets %>% filter(gs_cat == category)
+                msigdbr_t2g = msigdbr_df %>% dplyr::distinct(gs_name, gene_symbol) %>% as.data.frame()
+                gse <- GSEA(ordered_by_stat, TERM2GENE = msigdbr_t2g, maxGSSize = 100000, minGSSize = 1)
+                df <- gse@result %>% tibble()
+                df$collection <- collection
+                df$contrast <- contrast
+                # gse_results[[contrast]][[collection]] <- as.data.frame(df) %>% tibble()
+                if (!exists("gse_df")) {
+                    gse_df <<- df
+                } else {
+                    gse_df <<- rbind(gse_df, df)
+                }
+                genesettheme <- theme_gray() + theme(axis.text.x = element_text(colour = "black"), axis.text.y = element_text(colour = "black"))
+                p <- dotplot(gse, showCategory = 20) + ggtitle(paste("GSEA", contrast, sep = " ")) + genesettheme + mtopen
+                mysaveandstore(sprintf("%s/%s/gsea/%s/dotplot.png", params[["outputdir"]], contrast, collection), w = 6, h = 6, res = 300)
+
+                p <- cnetplot(gse, foldChange = ordered_by_l2fc, cex_label_category = 2)
+                mysaveandstore(sprintf("%s/%s/gsea/%s/cnetplot.png", params[["outputdir"]], contrast, collection), w = 10, h = 9, res = 300)
+
+                p <- cnetplot(gse, foldChange = ordered_by_l2fc, cex_label_category = 2, circular = TRUE, colorEdge = TRUE)
+                mysaveandstore(sprintf("%s/%s/gsea/%s/cnetplot2.png", params[["outputdir"]], contrast, collection), w = 10, h = 9, res = 300)
+
+                p <- ridgeplot(gse) + ggtitle(paste("GSEA", contrast, sep = " ")) + genesettheme + mtopen
+                mysaveandstore(sprintf("%s/%s/gsea/%s/ridgeplot.png", params[["outputdir"]], contrast, collection), w = 6, h = 6, res = 300)
+
+                gsep <- pairwise_termsim(gse)
+                p <- emapplot(gsep, color = "enrichmentScore", showCategory = 20, layout = "nicely") + ggtitle(paste("GSEA", contrast, sep = " "))
+                mysaveandstore(sprintf("%s/%s/gsea/%s/network.png", params[["outputdir"]], contrast, collection), w = 10, h = 9, res = 300)
+
+
+                tryCatch(
+                    {
+                        for (num in c(5, 10, 15)) {
+                            df <- arrange(gse, -abs(NES)) %>%
+                                group_by(sign(NES)) %>%
+                                slice(1:num)
+                            df <- df@result %>% mutate(Description = str_wrap(as.character(Description) %>% gsub("_", " ", .), width = 40)) 
+
+                            p <- ggplot(df, aes(NES, fct_reorder(Description, NES), fill = p.adjust)) +
+                                geom_col(orientation = "y") +
+                                scale_fill_continuous(low = "red", high = "blue", guide = guide_colorbar(reverse = TRUE)) +
+                                mtopen +
+                                theme(axis.text.y = element_text(colour = "black")) +
+                                ylab(NULL)
+
+                            mysaveandstore(sprintf("%s/%s/gsea/%s/nes%s.png", params[["outputdir"]], contrast, collection, num), w = 8, h = min(num, 7), res = 300)
+                        }
+                    },
+                    error = function(e) {
+                        print("")
+                    }
+                )
+            },
+            error = function(e) {
+                print("probably no enrichments in this collection")
+            }
+        )
     }
 }
 

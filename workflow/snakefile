@@ -125,9 +125,10 @@ for pipeline in config["pipelines_to_deploy"]:
             deseq = expand("srna/results/agg/deseq_telescope/{tecounttype}/{contrast}/results_genes.csv", tecounttype = config["srna"]["tecounttypes"], contrast = config["srna"]["contrasts"])
             enrichment_analysis = "srna/results/agg/enrichment_analysis/outfile.txt"
             enrichment_analysis_repeats = expand("srna/results/agg/enrichment_analysis_repeats/{tecounttype}/outfile.txt", tecounttype = config["srna"]["tecounttypes"])
-            repeatanalysisplots = "srna/results/agg/repeatanalysis_telescope/plots.outfile.txt",
+            repeatanalysisplots = "srna/results/agg/repeatanalysis_telescope/plots.outfile.txt"
+            bigwigs = "srna/results/agg/bigwig_plots/plots.rds"
             qc = [expand("srna/qc/mycoplasma/mycoplasma{sample}.sam", sample = config["srna"]["samples"]), "srna/qc/multiqc/multiqc_report.html"]
-            return list(flatten([deseq, enrichment_analysis, enrichment_analysis_repeats, repeatanalysisplots, qc]))
+            return list(flatten([bigwigs, deseq, enrichment_analysis, enrichment_analysis_repeats, repeatanalysisplots, qc]))
        
         for e in srna_rally():
             final_input.append(e)
