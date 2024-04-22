@@ -28,6 +28,8 @@ library(purrr)
 library(ggpubr)
 library(GenomicRanges)
 library(paletteer)
+library(rtracklayer)
+
 
 tryCatch(
     {
