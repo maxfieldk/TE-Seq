@@ -3,17 +3,18 @@
 
 #META PIPELINE SETTINGS
 pipelines_to_deploy:
-  - aref
   # - srna
+  # - aref
   # - ldna
-  # - lrna
+  - lrna
 
 #PIPELINE SETTINGS - Ignore settings for pipelines not being deployed
 aref:
   prefix: aref
   sample_table: "conf/sample_table_aref.csv"
   levels:
-    - "N2102EP"
+    - "PRO"
+    - "SEN"
   default_palette: "ggsci::default_aaas"
   #MODULE PATHS
   dorado: "/users/mkelsey/data/tools/dorado-0.5.1-linux-x64/bin/dorado"
@@ -34,7 +35,8 @@ aref:
     response: "no"
     aref_symlinkdir: "/oscar/data/jsedivy/mkelsey/ref/pipeline_annotations/hs1/RTE/aref"
   samples: 
-    - "N2102EP1"
+    - "PRO1"
+    - "SEN1"
     
   update_ref_with_tldr:
     response: "yes"
@@ -75,17 +77,18 @@ ldna:
   use_aref_basecalls: "yes"
   tldr_input_bams:
   samples:
-    - "N2102EP1"
+    - "PRO1"
+    - "SEN1"
 
   #order with base comparator as first (dss will have 2 - 1)
-  levels:
-    - "N2102EP"
-
+  conditions:
+    - "PRO"
+    - "SEN"
   contrasts:
-    - ""
-
+    - "condition_SEN_vs_PRO"
   condition_colors:
-    N2102EP: "#3C5488FF"
+    PRO: "#3C5488FF"
+    SEN: "#F39B7FFF"
 
   barcoding: "inactive"
   barcodingKit: ""
@@ -232,27 +235,12 @@ srna:
   peptable: "conf/peptable_srna.csv"
   default_palette: "ggsci::default_aaas"
   samples:
-    - "RS_0w_low_O2_1"
-    - "RS_0w_low_O2_2"
-    - "RS_0w_low_O2_3"
-    - "RS_4w_low_O2_1"
-    - "RS_4w_low_O2_2"
-    - "RS_4w_low_O2_3"
-    - "RS_8w_low_O2_1"
-    - "RS_8w_low_O2_2"
-    - "RS_8w_low_O2_3"
-    - "RS_12w_low_O2_1"
-    - "RS_12w_low_O2_2"
-    - "RS_12w_low_O2_3"
-    - "PRO_normoxic_1"
-    - "PRO_normoxic_2"
-    - "PRO_normoxic_3"
-    - "DDIS_8w_low_O2_1"
-    - "DDIS_8w_low_O2_2"
-    - "DDIS_8w_low_O2_3"
-    - "PRO_low_O2_1"
-    - "PRO_low_O2_2"
-    - "PRO_low_O2_3"
+    - "PRO1"
+    - "PRO2"
+    - "PRO3"
+    - "SEN1"
+    - "SEN2"
+    - "SEN3"
 
   paralellize_bioc: 8
   counttypes:
@@ -264,49 +252,24 @@ srna:
   library_type: PE
   #order matters for levels! first is the base comparator
   levels:
-    - "PRO_low_O2"
-    - "RS_0w_low_O2"
-    - "RS_4w_low_O2"
-    - "RS_8w_low_O2"
-    - "RS_12w_low_O2"
-    - "PRO_normoxic"
-    - "DDIS_8w_low_O2"
+    - "PRO"
+    - "SEN"
 
   #mappings
   levelslegendmap:
-    PRO_low_O2: "PRO_low_O2"
-    RS_0w_low_O2: "RS_0w_low_O2"
-    RS_4w_low_O2: "RS_4w_low_O2"
-    RS_8w_low_O2: "RS_8w_low_O2"
-    RS_12w_low_O2: "RS_12w_low_O2"
-    PRO_normoxic: "PRO_normoxic"
-    DDIS_8w_low_O2: "DDIS_8w_low_O2"
+    SEN: "SEN"
+    PRO: "PRO"
 
   #analysis settings
   contrasts:
-    - "condition_RS_0w_low_O2_vs_PRO_low_O2"
-    - "condition_RS_4w_low_O2_vs_PRO_low_O2"
-    - "condition_RS_8w_low_O2_vs_PRO_low_O2"
-    - "condition_RS_12w_low_O2_vs_PRO_low_O2"
-    - "condition_PRO_normoxic_vs_PRO_low_O2"
-    - "condition_DDIS_8w_low_O2_vs_PRO_low_O2"
+    - "condition_SEN_vs_PRO"
 
   contrast_colors:
-    condition_RS_0w_low_O2_vs_PRO_low_O2: yellow
-    condition_RS_4w_low_O2_vs_PRO_low_O2: orange
-    condition_RS_8w_low_O2_vs_PRO_low_O2: red
-    condition_RS_12w_low_O2_vs_PRO_low_O2: purple
-    condition_PRO_normoxic_vs_PRO_low_O2: blue
-    condition_DDIS_8w_low_O2_vs_PRO_low_O2: magenta
+    condition_SEN_vs_PRO: "red"
 
   condition_colors:
-    PRO_low_O2: grey
-    RS_0w_low_O2: yellow
-    RS_4w_low_O2: orange
-    RS_8w_low_O2: red
-    RS_12w_low_O2: purple
-    PRO_normoxic: blue
-    DDIS_8w_low_O2: magenta
+    SEN: "red"
+    PRO: "blue"
 
   genesets_for_gsea:
     msigdbH: /users/mkelsey/data/ref/genesets/human/msigdb/h.all.v2023.2.Hs.symbols.gmt

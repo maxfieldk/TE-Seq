@@ -29,24 +29,30 @@ library(ggmsa)
 library(gggenes)
 library(ggnewscale)
 library(RColorBrewer)
+library(ggsankey)
+library(circlize)
 
 tryCatch(
     {
         inputs <- snakemake@input
         outputs <- snakemake@output
         params <- snakemake@params
+        params <- snakemake@params
     },
     error = function(e) {
         assign("inputs", list(
-            filtered_tldr = "aref/tldr/A.REF.table.kept_in_updated_ref.txt",
-            r_annotation_fragmentsjoined = "aref/annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
-            r_repeatmasker_annotation = "aref/annotations/A.REF_repeatmasker_annotation.csv",
+            filtered_tldr = "aref/A.REF_tldr/A.REF.table.kept_in_updated_ref.txt",
+            r_annotation_fragmentsjoined = "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
+            r_repeatmasker_annotation = "aref/A.REF_annotations/A.REF_repeatmasker_annotation.csv",
             ref = "aref/A.REF.fa",
             blast_njs = "aref/A.REF.njs"
         ), env = globalenv())
         assign("outputs", list(
             plots = "aref/A.REF_Analysis/tldr_plots/transduction_mapping.rds",
             transduction_df = "aref/A.REF_Analysis/transduction_df.csv"
+        ), env = globalenv())
+        assign("params", list(
+            sample_or_ref = "aref/A.REF"
         ), env = globalenv())
         assign("params", list(
             sample_or_ref = "aref/A.REF"
@@ -63,15 +69,15 @@ rmfamilies <- read_csv(inputs$r_repeatmasker_annotation, col_names = TRUE)
 rmann <- left_join(rmfragments, rmfamilies)
 
 df_filtered <- read_delim(inputs$filtered_tldr)
-df_filtered <- df_filtered %>% mutate(nonref_chrom_id = sprintf("nonrefins_%s_%s_%s_%s", Subfamily, Chrom, Start, End))
-
-l1ta <- df_filtered %>%
-    filter(Subfamily == "L1Ta")
+df_nonfiltered <- read_delim(inputs$unfiltered_tldr)
+l1ta <- df_nonfiltered %>%
+    filter(Family %in% c("L1")) %>% 
+    filter(Filter == "PASS")
 l1ta_sankey <- l1ta %$% UUID
 
 trsd <- l1ta %>%
     mutate(TransductionLen = nchar(Transduction_3p)) %>%
-    filter(TransductionLen > 29)
+    filter(TransductionLen > 20)
 trsd_sankey <- trsd %$% UUID
 trsd %>% head(n = 4) %$% Transduction_3p
 
@@ -85,7 +91,7 @@ at_content <- letterFrequency(trsd_ss, letters = "AT", as.prob = TRUE)
 trsd_ss_for_blast <- trsd_ss[which(at_content < 0.9)]
 trsd_ss_for_blast_sankey <-names(trsd_ss_for_blast)
 
-bl <- blast(db = sprintf("aref/%s", params$sample_or_ref))
+bl <- blast(db = sub('\\.[^.]*$', '', inputs$blast_njs))
 bres <- tibble(predict(bl, trsd_ss_for_blast)) %>% left_join(rmfragments, by = c("QueryID" = "gene_id"))
 
 
@@ -112,7 +118,7 @@ bres_hits_grs_prep <- bres_hits %>%
     dplyr::select(seqnames, start, end, QueryID)
 bresgrs <- GRanges(bres_hits_grs_prep)
 # extend by 500 bp on either side
-bresgrs <- resize(bresgrs, width = width(bresgrs) + 10000, fix = "center")
+bresgrs <- resize(bresgrs, width = width(bresgrs) + 20000, fix = "center")
 
 trsd_adjacent_l1 <- subsetByOverlaps(bresgrs, l1grs)
 
@@ -120,7 +126,10 @@ trsd_adjacent_l1 <- subsetByOverlaps(bresgrs, l1grs)
 
 trsd_adjacent_l1_sankey <- trsd_adjacent_l1$QueryID
 
-save(mysaveandstoreplots, file = outputs$plots)
+trsd_adjacent_l1 <- subsetByOverlaps(bresgrs, l1grs)
+
+
+
 
 
 `NON_REF L1TA` <- ifelse(l1ta_sankey %in% l1ta_sankey, "NON-REF L1TA", "FAIL")
@@ -169,7 +178,7 @@ mysaveandstore(sprintf("%s/transduction_sankey.png", outputdir), 7, 5)
 
 
 
-l1hs_intact_aln <- read.alignment("aref/A.REF_Analysis/l1hs_intact.aln.fa", format = "fasta")
+l1hs_intact_aln <- read.alignment(sprintf("aref/%s_Analysis/l1hs_intact.aln.fa", params$sample_or_ref), format = "fasta")
 d <- dist.alignment(l1hs_intact_aln, "identity", gap = FALSE)
 d_gapped <- dist.alignment(l1hs_intact_aln, "identity", gap = TRUE)
 
@@ -177,60 +186,78 @@ d_gapped <- dist.alignment(l1hs_intact_aln, "identity", gap = TRUE)
 dsqaured <- 100 * d**2
 d_gappedsquared <- 100 * d_gapped**2
 
-dist_matrix <- as.matrix(dsqaured)
+str(dsqaured)
+tree_raw <- as.treedata(fastme.bal(dsqaured))
+treegapped_raw <- as.treedata(fastme.bal(d_gappedsquared))
+# to df for further modifications
+ttibble_raw <- as_tibble(tree_raw)
+ttibblegapped_raw <- as_tibble(treegapped_raw)
+
 
 rmannl1 <- rmann %>% filter(grepl("L1HS|L1PA[2]", rte_subfamily))
-rmannl1nonref <- rmannl1 %>% filter(refstatus == "NonRef") %$% gene_id
-rmannl1ref <- rmannl1 %>% filter(refstatus == "Ref") %$% gene_id
 
-"L1HS_Xp21.1_5" %in% rmannl1ref
-"L1HS_Xp21.1_5" %in% rmannl1nonref
+non_ref_tree <- as.phylo(ttibble_raw %>% left_join(rmannl1 %>% dplyr::select(gene_id, refstatus), by = c("label" = "gene_id")))
 
+non_ref_nodes <- ttibble_raw %>% left_join(rmannl1 %>% dplyr::select(gene_id, refstatus), by = c("label" = "gene_id")) %>% filter(refstatus == "NonRef") %>% pull(node)
+ref_nodes <- ttibble_raw %>% left_join(rmannl1 %>% dplyr::select(gene_id, refstatus), by = c("label" = "gene_id")) %>% filter(refstatus == "Ref") %>% pull(node)
+treedf <- ttibble_raw %>% left_join(rmannl1 %>% dplyr::select(gene_id, refstatus), by = c("label" = "gene_id")) %>% filter(!is.na(refstatus))
+nearest_tip_per_tip <- castor::find_nearest_tips(as.phylo(ttibble_raw), target_tips = ref_nodes)$nearest_tip_per_tip
+treedf$nearest_ref_tip <- nearest_tip_per_tip
 
-
-dists <- dist_matrix[rownames(dist_matrix) %in% rmannl1nonref,][,colnames(dist_matrix) %in% rmannl1ref]
-
-source_element <- c()
-child_element <- c()
-for (element in rownames(dists)) {
-    source_element <- c(source_element, colnames(dists)[which.min(dists[element,])])
-    child_element <- c(child_element, element)
-
+treedf_nonref <- treedf %>% filter(refstatus == "NonRef") %>% select(node, nearest_ref_tip) %>% dplyr::rename(from = nearest_ref_tip, to = node)
+#initialize new data frame
+from_df <- tibble(chr = character(), start = integer(), end = integer(), gene_id = character())
+to_df <- tibble(chr = character(), start = integer(), end = integer(), gene_id = character())
+for (index in 1:nrow(treedf_nonref)) {
+        from <- treedf_nonref[index,]$from
+        to <- treedf_nonref[index,]$to
+        from_gene_id <- treedf %>% filter(node == from) %>% pull(label)
+        to_gene_id <- treedf %>% filter(node == to) %>% pull(label)
+        from_chr <- rmannl1 %>% filter(gene_id == from_gene_id) %>% pull(seqnames)
+        to_chr <- rmannl1 %>% filter(gene_id == to_gene_id) %>% pull(seqnames) %>% str_extract("chr[0-9XY]+")
+        from_start <- rmannl1 %>% filter(gene_id == from_gene_id) %>% pull(start)
+        to_start <- rmannl1 %>% filter(gene_id == to_gene_id) %>% pull(start)
+        from_end <- rmannl1 %>% filter(gene_id == from_gene_id) %>% pull(end)
+        to_end <- rmannl1 %>% filter(gene_id == to_gene_id) %>% pull(end)
+        from_df_row <- tibble(gene_id = from_gene_id, chr = from_chr, start = from_start, end = from_end)
+        to_df_row <- tibble(gene_id = to_gene_id, chr = to_chr, start = to_start, end = to_end)
+        from_df <- bind_rows(from_df, from_df_row)
+        to_df <- bind_rows(to_df, to_df_row)
 }
 
-relatedness_df_phylogeny <- tibble(
-    source_element = source_element,
-    child_element = child_element,
-    evidence = "phylogeny"
-)
+from_elements <- from_df %>% pull(gene_id) %>% unique()
+from_elements_colors <- tibble(gene_id = from_elements, color = adjust_transparency(as.character(paletteer_c("grDevices::Roma", direction = 1, n = length(from_elements))), alpha = 1))
+from_df <- left_join(from_df, from_elements_colors, by = "gene_id")
+cytobands <- read.cytoband(
+    cytoband = ,
+    species = NULL,
+    sort.chr = TRUE)
 
+{
+png(outputs$circlize_phylogeny, width = 6, height = 6, units = "in", res = 300)
 
+circos.initializeWithIdeogram(
+    cytoband = conf$ref_cytobands,
+    sort.chr = TRUE,
+    major.by = NULL,
+    plotType = c("ideogram", "axis", "labels"),
+    track.height = NULL,
+    ideogram.height = convert_height(5, "mm"))
 
-UUID_to_source_gene_id_mbo <- mergeByOverlaps(trsd_adjacent_l1, l1grs) %>% as.data.frame() %>% tibble()
-UUID_to_source_gene_id <- UUID_to_source_gene_id_mbo %>% dplyr::select(QueryID, gene_id) %>% dplyr::rename(source_element = gene_id)
-
-UUID_to_child_gene_id <- tibble()
-for (QueryID in trsd_adjacent_l1$QueryID) {
-nonref_chrom_id <- df_filtered %>% filter(UUID == QueryID) %$% nonref_chrom_id
-child_element <- rmann %>% filter(seqnames == nonref_chrom_id) %>% filter(refstatus == "NonRef") %$% gene_id
-
-UUID_to_child_gene_id <- rbind(UUID_to_child_gene_id, tibble(QueryID = QueryID, child_element = child_element))
+circos.genomicLink(from_df, to_df, col = from_df$color, lwd = 2, direction = 1)
+title("L1HS Source Element Mapping")
+dev.off()
 }
 
-relatedness_df_transduction <- left_join(UUID_to_child_gene_id, UUID_to_source_gene_id) %>% dplyr::select(-QueryID) %>% mutate(evidence = "transduction")
-
-transd_df <- bind_rows(relatedness_df_phylogeny, relatedness_df_transduction)
- 
-transd_df %>% write_csv(outputs$transduction_df)
 
 
-table(transd_df$source_element)
-
-transd_df %>% left_join(rmann, by = c("source_element" = "gene_id"))
+number_of_offspring <- from_df %>% group_by(gene_id) %>% summarize(n = n())
+p <- number_of_offspring  %>% ggplot(aes(x = fct_reorder(gene_id, n), y = n)) + geom_col() + mtopen + coord_flip() +
+    scale_y_continuous(labels = scales::number_format(accuracy = 1)) +
+    labs(x = "Source Element", y = "Number of Offspring", caption = "Phylogeny-based Source Element Mapping") +
+    anchorbar
+mysaveandstore(sprintf("%s/offspring_per_source_element.png", outputdir), 4, 6)
 
 
 
-source_element <- transd_df %$% source_element
-child_element <- transd_df %$% child_element
-evidence <- transd_df %$% evidence
-
+save(mysaveandstoreplots, file = outputs$plots)

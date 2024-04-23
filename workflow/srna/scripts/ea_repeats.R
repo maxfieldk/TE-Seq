@@ -38,24 +38,24 @@ library(ComplexHeatmap)
                 "counttypes" = conf$counttypes,
                 "sample_table" = conf$sample_table,
                 "contrasts" = conf$contrasts,
-                "inputdir" = "results/agg/repeatanalysis_telescope",
-                "outputdir" = "results/agg/enrichment_analysis_repeats",
-                "tecounttypes" = c("telescope_multi"),
+                "SenMayoHuman" = conf$SenMayoHuman,
+                "genesets_for_heatmaps" = conf$genesets_for_heatmaps,
+                "genesets_for_gsea" = conf$genesets_for_gsea,
+                "inputdir" = "srna/results/agg/deseq_telescope",
+                "outputdir" = "srna/results/agg/enrichment_analysis_repeats",
                 "r_annotation_fragmentsjoined" = conf$r_annotation_fragmentsjoined,
                 "r_repeatmasker_annotation" = conf$r_repeatmasker_annotation
             ), env = globalenv())
             assign("inputs", list(
-                "resultsdf" = "results/agg/repeatanalysis_telescope/resultsdf.tsv"
+                resultsdf = paste0("srna/results/agg/deseq_telescope/resultsdf.tsv")
             ), env = globalenv())
-            assign("outputs", list(outfile = "results/agg/enrichment_analysis_repeats/outfile.txt"), env = globalenv())
+            assign("outputs", list(outfile = "srna/results/agg/enrichment_analysis_repeats/outfile.txt"), env = globalenv())
         }
     )
-
-    sample_table <- read_csv(params[["sample_table"]])
+        sample_table <- read_csv(params[["sample_table"]])
     peptable <- read.csv(conf$peptable)
+
 }
-
-
 
 ## Load Data and add annotations
 resultsdf1 <- read_delim(inputs$resultsdf, delim = "\t")
@@ -68,8 +68,6 @@ resultsdf <- resultsdf1 %>%
 
 
 
-gse_results <- list()
-core_enrichments_for_plot <- list()
 
 ### ONTOLOGY DEFINITION
 {
@@ -94,20 +92,17 @@ core_enrichments_for_plot <- list()
 
 
 
-gse_results <- list()
-core_enrichments_for_plot <- list()
-EARTEplots <- list()
 
+
+EARTEplots <- list()
+rm(gse_df)
 for (contrast in params[["contrasts"]]) {
     contrast_of_interest <- contrast
-    contrast_level_1 <- contrast_of_interest %>%
-        str_split("_") %>%
-        unlist() %>%
-        .[4]
     contrast_level_2 <- contrast_of_interest %>%
-        str_split("_") %>%
-        unlist() %>%
-        .[2]
+        gsub("condition_", "", .) %>%
+        gsub("_vs_.*", "", .)
+    contrast_level_1 <- contrast_of_interest %>%
+        gsub(".*_vs_", "", .)
     contrast_stat <- paste0("stat_", contrast_of_interest)
     contrast_padj <- paste0("padj_", contrast_of_interest)
     contrast_log2FoldChange <- paste0("log2FoldChange_", contrast_of_interest)
@@ -142,7 +137,7 @@ for (contrast in params[["contrasts"]]) {
                 }
             }
             eligible_filter_modifiers <- c(eligible_modifiers[grepl("_req$", eligible_modifiers)], "ALL")
-            eligible_facet_modifiers <- c(eligible_modifiers[grepl("_loc$", eligible_modifiers)], "ALL")
+            eligible_facet_modifiers <- c(eligible_modifiers[grepl("genic_loc$", eligible_modifiers)], "ALL")
             eligible_modifier_combinations <- expand.grid(filter_var = eligible_filter_modifiers, facet_var = eligible_facet_modifiers, stringsAsFactors = FALSE)
 
             for (filter_var in eligible_filter_modifiers) {
@@ -160,37 +155,46 @@ for (contrast in params[["contrasts"]]) {
                         }
 
                         gse <- GSEA(ordered_by_stat, TERM2GENE = genesets, maxGSSize = 10000, minGSSize = 1)
-                        gse_results[[contrast]][[tecounttype]][[ontology]][[filter_var]] <- gse
+                        df <- gse@result %>% tibble()
+                        df$collection <- ontology
+                        df$contrast <- contrast
+                        df$filter_var <- filter_var
+                        if (!exists("gse_df")) {
+                            gse_df <<- df
+                        } else {
+                            gse_df <<- rbind(gse_df, df)
+                        }
+
                         genesettheme <- theme_gray() + theme(axis.text.y = element_text(colour = "black"))
-                        p <- dotplot(gse, showCategory = 20) + ggtitle(paste("GSEA", contrast, sep = " ")) + genesettheme + mtopen
-                        mysaveandstore(sprintf("%s/%s/%s/gsea/%s/%s/dotplot.png", params[["outputdir"]], tecounttype, contrast, ontology, filter_var), w = 3, h = 4, res = 300)
+                        # p <- dotplot(gse, showCategory = 20) + ggtitle(paste("GSEA", contrast, sep = " ")) + genesettheme + mtopen
+                        # mysaveandstore(sprintf("%s/%s/%s/gsea/%s/%s/dotplot.png", params[["outputdir"]], tecounttype, contrast, ontology, filter_var), w = 3, h = 4, res = 300)
 
-                        p <- ridgeplot(gse, core_enrichment = FALSE) + ggtitle(paste("GSEA", contrast, sep = " ")) + xlab("Log2 FC") + xlim(c(-4, 4)) + genesettheme + mtopen
-                        mysaveandstore(sprintf("%s/%s/%s/gsea/%s/%s/ridgeplot.png", params[["outputdir"]], tecounttype, contrast, ontology, filter_var), w = 3, h = 4, res = 300)
+                        # p <- ridgeplot(gse, core_enrichment = FALSE) + ggtitle(paste("GSEA", contrast, sep = " ")) + xlab("Log2 FC") + xlim(c(-4, 4)) + genesettheme + mtopen
+                        # mysaveandstore(sprintf("%s/%s/%s/gsea/%s/%s/ridgeplot.png", params[["outputdir"]], tecounttype, contrast, ontology, filter_var), w = 3, h = 4, res = 300)
 
 
-                        tryCatch(
-                            {
-                                for (num in c(5, 10, 15, 30)) {
-                                    df <- arrange(gse, -abs(NES)) %>%
-                                        group_by(sign(NES)) %>%
-                                        slice(1:num)
-                                    df <- df@result
+                        # tryCatch(
+                        #     {
+                        #         for (num in c(5, 10, 15, 30)) {
+                        #             df <- arrange(gse, -abs(NES)) %>%
+                        #                 group_by(sign(NES)) %>%
+                        #                 slice(1:num)
+                        #             df <- df@result
 
-                                    p <- ggplot(df, aes(NES, fct_reorder(Description, NES), fill = p.adjust)) +
-                                        geom_col(orientation = "y") +
-                                        scale_fill_continuous(low = "red", high = "blue", guide = guide_colorbar(reverse = TRUE)) +
-                                        mtopen +
-                                        theme(axis.text.y = element_text(colour = "black")) +
-                                        ylab(NULL)
+                        #             p <- ggplot(df, aes(NES, fct_reorder(Description, NES), fill = p.adjust)) +
+                        #                 geom_col(orientation = "y") +
+                        #                 scale_fill_continuous(low = "red", high = "blue", guide = guide_colorbar(reverse = TRUE)) +
+                        #                 mtopen +
+                        #                 theme(axis.text.y = element_text(colour = "black")) +
+                        #                 ylab(NULL)
 
-                                    mysaveandstore(sprintf("%s/%s/%s/gsea/%s/%s/nes%s.png", params[["outputdir"]], tecounttype, contrast, ontology, filter_var, num), w = 3, h = min(num/2, 7), res = 300)
-                                }
-                            },
-                            error = function(e) {
-                                print("")
-                            }
-                        )
+                        #             mysaveandstore(sprintf("%s/%s/%s/gsea/%s/%s/nes%s.png", params[["outputdir"]], tecounttype, contrast, ontology, filter_var, num), w = 3, h = min(num/2, 7), res = 300)
+                        #         }
+                        #     },
+                        #     error = function(e) {
+                        #         print("")
+                        #     }
+                        # )
                     },
                     error = function(e) {
                         print(e)
@@ -199,6 +203,26 @@ for (contrast in params[["contrasts"]]) {
             }
         }
     }
+}
+gse_df %$% collection
+gres <- gse_df %>% tibble()
+for (ontology in ontologies) {
+    grestemp <- gres %>% filter(collection == collec) %>% left_join(contrast_label_map)
+    sigIDs <- grestemp %>% group_by(contrast) %>% arrange(p.adjust) %>% slice_head(n = 10) %$% ID %>% unique()
+    p <- grestemp %>% dplyr::filter(ID %in% sigIDs) %>% mutate(sig = ifelse(p.adjust < 0.05, "*", "")) %>%
+        mutate(ID = str_wrap(as.character(ID) %>% gsub("_", " ", .), width = 40)) %>%
+        mutate(contrast = str_wrap(as.character(contrast) %>% gsub("condition_", "", .) %>% gsub("_vs_.*", "", .), width = 40)) %>%
+        mutate(contrast = factor(contrast, levels = conf$levels)) %>%
+        ggplot(aes(x = contrast, y = ID)) + 
+        geom_tile(aes(fill = NES), color = "black") + 
+        theme(legend.position = "none") + 
+        scale_fill_paletteer_c("grDevices::RdYlBu", direction = -1) + 
+        mtclosed + 
+        theme(axis.text.x = element_text(colour = "black"), axis.text.y = element_text(colour = "black", hjust = 1)) +
+        labs(x = "", y = "", title = ontology) +
+        theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+        coord_equal()
+    mysaveandstore(sprintf("%s/gsea_top_rtes.png", params[["outputdir"]], collec), 7,12)
 }
 
 save(mysaveandstoreplots, file = outputs$plots)

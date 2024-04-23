@@ -22,6 +22,8 @@ library(forcats)
 library(ggstance)
 library(enrichplot)
 library(circlize)
+library(ComplexHeatmap)
+
 
 # analysis parameters
 {
@@ -50,9 +52,8 @@ library(circlize)
         }
     )
 
-    samples <- conf$samples
-    sample_table <- read_csv("conf/sample_table.csv")
-    sample_table <- sample_table[match(samples, sample_table$sample_name), ]
+    sample_table <- read_csv(params[["sample_table"]])
+    peptable <- read.csv(conf$peptable)
 }
 
 
@@ -100,14 +101,11 @@ EARTEplots <- list()
 
 for (contrast in params[["contrasts"]]) {
     contrast_of_interest <- contrast
-    contrast_level_1 <- contrast_of_interest %>%
-        str_split("_") %>%
-        unlist() %>%
-        .[4]
     contrast_level_2 <- contrast_of_interest %>%
-        str_split("_") %>%
-        unlist() %>%
-        .[2]
+        gsub("condition_", "", .) %>%
+        gsub("_vs_.*", "", .)
+    contrast_level_1 <- contrast_of_interest %>%
+        gsub(".*_vs_", "", .)
     contrast_stat <- paste0("stat_", contrast_of_interest)
     contrast_padj <- paste0("padj_", contrast_of_interest)
     contrast_log2FoldChange <- paste0("log2FoldChange_", contrast_of_interest)
@@ -140,7 +138,7 @@ for (contrast in params[["contrasts"]]) {
             }
         }
         eligible_filter_modifiers <- c(eligible_modifiers[grepl("_req$", eligible_modifiers)], "ALL")
-        eligible_facet_modifiers <- c(eligible_modifiers[grepl("_loc$", eligible_modifiers)], "ALL")
+        eligible_facet_modifiers <- c(eligible_modifiers[grepl("genic_loc$", eligible_modifiers)], "ALL")
         eligible_modifier_combinations <- expand.grid(filter_var = eligible_filter_modifiers, facet_var = eligible_facet_modifiers, stringsAsFactors = FALSE)
 
         for (filter_var in eligible_filter_modifiers) {
@@ -158,16 +156,14 @@ for (contrast in params[["contrasts"]]) {
                     }
 
                     gse <- GSEA(ordered_by_stat, TERM2GENE = genesets, maxGSSize = 10000, minGSSize = 1)
-                    gse_results[[contrast]][[ontology]][[filter_var]] <- gse
+                    gse_results[[contrast]][[tecounttype]][[ontology]][[filter_var]] <- gse
                     genesettheme <- theme_gray() + theme(axis.text.y = element_text(colour = "black"))
                     p <- dotplot(gse, showCategory = 20) + ggtitle(paste("GSEA", contrast, sep = " ")) + genesettheme + mtopen
-                    mysave(sprintf("%s/%s/gsea/%s/%s/dotplot.png", params[["outputdir"]], contrast, ontology, filter_var), w = 4, h = 6, res = 300)
-                    EARTEplots[[contrast]][[ontology]][[filter_var]][["dot"]] <- p
-
+                        mysaveandstore(sprintf("%s/%s/%s/gsea/%s/%s/dotplot.png", params[["outputdir"]], tecounttype, contrast, ontology, filter_var), w = 3, h = 4, res = 300)
+                    
                     p <- ridgeplot(gse, core_enrichment = FALSE) + ggtitle(paste("GSEA", contrast, sep = " ")) + xlab("Log2 FC") + xlim(c(-4, 4)) + genesettheme + mtopen
-                    mysave(sprintf("%s/%s/gsea/%s/%s/ridgeplot.png", params[["outputdir"]], contrast, ontology, filter_var), w = 4, h = 6, res = 300)
-                    EARTEplots[[contrast]][[ontology]][[filter_var]][["ridge"]] <- p
-
+                        mysaveandstore(sprintf("%s/%s/%s/gsea/%s/%s/ridgeplot.png", params[["outputdir"]], tecounttype, contrast, ontology, filter_var), w = 3, h = 4, res = 300)
+                    
 
                     tryCatch(
                         {
@@ -181,12 +177,12 @@ for (contrast in params[["contrasts"]]) {
                                     geom_col(orientation = "y") +
                                     scale_fill_continuous(low = "red", high = "blue", guide = guide_colorbar(reverse = TRUE)) +
                                     mtopen +
+                                    mtopen +
                                     theme(axis.text.y = element_text(colour = "black")) +
                                     ylab(NULL)
 
-                                mysave(sprintf("%s/%s/gsea/%s/%s/nes%s.png", params[["outputdir"]], contrast, ontology, filter_var, num), w = 4, h = min(num, 7), res = 300)
-                                EARTEplots[[contrast]][[ontology]][[filter_var]][["nes"]][[num]] <- p
-                            }
+                                mysaveandstore(sprintf("%s/%s/%s/gsea/%s/%s/nes%s.png", params[["outputdir"]], tecounttype, contrast, ontology, filter_var, num), w = 3, h = min(num/2, 7), res = 300)
+                                                            }
                         },
                         error = function(e) {
                             print("")
@@ -200,9 +196,8 @@ for (contrast in params[["contrasts"]]) {
         }
     }
 }
+}
 
-save(EARTEplots, file = sprintf("%s/EARTEplots.RData", params[["outputdir"]]))
-save(gse_results, file = sprintf("%s/gse_results.RData", params[["outputdir"]]))
-
+save(mysaveandstoreplots, file = outputs$plots)
 x <- data.frame()
 write.table(x, file = outputs[["outfile"]], col.names = FALSE)

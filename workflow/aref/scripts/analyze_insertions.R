@@ -28,15 +28,15 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            tldroutput = "aref/tldr/tldr.table.txt",
+            tldroutput = "aref/tldr/A.REF.table.txt",
             r_annotation_fragmentsjoined = "aref/annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv",
             r_repeatmasker_annotation = "aref/annotations/repeatmasker_annotation.csv",
-            ref = "aref/ref_pre_ins_filtering.fa"
+            ref = "aref/ref_pre_ins_filtering.fa",
+            contigs_to_keep = "aref/contigs_to_keep.txt",
+            filtered_tldr = "aref/tldr/A.REF.table.kept_in_updated_ref.txt"
         ), env = globalenv())
         assign("outputs", list(
-            plots = "aref/RefAnalysis/tldr_plots/tldr_plots.rds",
-            contigs_to_keep = "aref/contigs_to_keep.txt",
-            filtered_tldr = "aref/tldr/tldr.table.kept_in_updated_ref.txt"
+            plots = "aref/A.REF_Analysis/tldr_plots/tldr_plots.rds"
         ), env = globalenv())
     }
 )
@@ -63,11 +63,10 @@ p <- df %>%
     filter(Family != "NA") %>%
     ggplot(aes(x = Family)) +
     geom_bar(color = "black") +
-    theme(panel.border = element_rect(color = "black", fill = NA, size = 1)) +
-    scale_y_continuous(expand = expansion(mult = c(0, .1))) +
     labs(x = "", y = "Count") +
     paletteer::scale_fill_paletteer_d(conf$default_palette) +
-    ggtitle("Non-reference RTE Insertions")
+    ggtitle("Non-reference RTE Insertions") +
+    mtopen + anchorbar
 mysaveandstore(sprintf("%s/insertions.png", outputdir), 5, 5)
 
 
@@ -76,11 +75,11 @@ p <- df %>%
     ggplot(aes(x = Subfamily)) +
     facet_wrap(~Family, scales = "free") +
     geom_bar(color = "black") +
-    theme(panel.border = element_rect(color = "black", fill = NA, size = 1)) +
-    scale_y_continuous(expand = expansion(mult = c(0, .1))) +
     labs(x = "", y = "Count") +
     paletteer::scale_fill_paletteer_d(conf$default_palette) +
-    ggtitle("Non-reference RTE Insertions")
+    ggtitle("Non-reference RTE Insertions") +
+    mtclosed + anchorbar +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
 mysaveandstore(sprintf("%s/insertions_subfamily.png", outputdir), 5, 5)
 
 p <- df %>%
@@ -90,7 +89,8 @@ p <- df %>%
     geom_vline(xintercept = 6000, color = "red", linetype = 2) +
     ggtitle("L1HS Insertion Lengths") +
     labs(x = "Length (bp)", y = "Count") +
-    mtopen
+    mtopen +
+    anchorbar
 mysaveandstore(sprintf("%s/l1hs_length.png", outputdir), 5, 5)
 
 
@@ -101,12 +101,12 @@ p <- df_filtered %>%
     filter(Family != "NA") %>%
     ggplot(aes(x = Family)) +
     geom_bar(color = "black") +
-    theme(panel.border = element_rect(color = "black", fill = NA, size = 1)) +
-    scale_y_continuous(expand = expansion(mult = c(0, .1))) +
     labs(x = "", y = "Count") +
     paletteer::scale_fill_paletteer_d(conf$default_palette) +
-    ggtitle("Non-reference RTE Insertions")
-mysaveandstore(sprintf("%s/insertions_in_updated_ref.png", outputdir), 5, 5)
+    ggtitle("Non-reference RTE Insertions") +
+    mtopen + anchorbar
+
+mysaveandstore(sprintf("%s/insertions_in_updated_ref.png", outputdir), 3, 4)
 
 
 p <- df_filtered %>%
@@ -114,11 +114,11 @@ p <- df_filtered %>%
     ggplot(aes(x = Subfamily)) +
     facet_wrap(~Family, scales = "free") +
     geom_bar(color = "black") +
-    theme(panel.border = element_rect(color = "black", fill = NA, size = 1)) +
-    scale_y_continuous(expand = expansion(mult = c(0, .1))) +
     labs(x = "", y = "Count") +
     paletteer::scale_fill_paletteer_d(conf$default_palette) +
-    ggtitle("Non-reference RTE Insertions")
+    ggtitle("Non-reference RTE Insertions") +
+    mtclosed + anchorbar +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
 mysaveandstore(sprintf("%s/insertions_subfamily_in_updated_ref.png", outputdir), 6, 4)
 
 p <- df_filtered %>%
@@ -128,7 +128,8 @@ p <- df_filtered %>%
     geom_vline(xintercept = 6000, color = "red", linetype = 2) +
     ggtitle("L1HS Insertion Lengths") +
     labs(x = "Length (bp)", y = "Count") +
-    mtopen + paletteer::scale_fill_paletteer_d(conf$default_palette)
+    mtopen + paletteer::scale_fill_paletteer_d(conf$default_palette) +
+    anchorbar
 mysaveandstore(sprintf("%s/l1hs_length_in_updated_ref.png", outputdir), 5, 5)
 
 ###############

@@ -23,6 +23,8 @@ library(ggstance)
 library(enrichplot)
 library(circlize)
 library(ComplexHeatmap)
+library(msigdbr)
+
 
 # analysis parameters
 {
@@ -54,8 +56,6 @@ library(ComplexHeatmap)
 
 sample_table <- read_csv(params[["sample_table"]])
 
-
-
 # load results
 resultsdf1 <- read_delim(inputs$resultsdf, delim = "\t")
 resultsdf1 <- resultsdf1[resultsdf1$gene_id != "__no_feature", ]
@@ -64,7 +64,9 @@ res <- res %>% filter(gene_or_te == "gene")
 res %>%
     filter(str_detect(gene_id, "CDKN1A")) %>%
     select(conf$samples)
-# GSEA
+
+
+# GSEA targeted 
 genecollections <- names(params[["genesets_for_gsea"]])
 rm(gse_df)
 for (contrast in params[["contrasts"]]) {
@@ -114,7 +116,7 @@ for (contrast in params[["contrasts"]]) {
                             df <- arrange(gse, -abs(NES)) %>%
                                 group_by(sign(NES)) %>%
                                 slice(1:num)
-                            df <- df@result
+                            df <- df@result %>% mutate(Description = str_wrap(as.character(Description) %>% gsub("_", " ", .), width = 40)) 
 
                             p <- ggplot(df, aes(NES, fct_reorder(Description, NES), fill = p.adjust)) +
                                 geom_col(orientation = "y") +
@@ -153,17 +155,38 @@ gres <- gse_df %>% tibble()
 for (collec in genecollections) {
     grestemp <- gres %>% filter(collection == collec) %>% left_join(contrast_label_map)
     sigIDs <- grestemp %>% group_by(contrast) %>% arrange(p.adjust) %>% slice_head(n = 10) %$% ID %>% unique()
-    p <- grestemp %>% dplyr::filter(ID %in% sigIDs) %>% mutate(sig = ifelse(p.adjust < 0.05, "*", "")) %>% ggplot(aes(x = label, y = ID)) + 
+    p <- grestemp %>% dplyr::filter(ID %in% sigIDs) %>% mutate(sig = ifelse(p.adjust < 0.05, "*", "")) %>%
+        mutate(ID = str_wrap(as.character(ID) %>% gsub("_", " ", .), width = 40)) %>%
+        mutate(label = str_wrap(as.character(label) %>% gsub("condition_", "", .) %>% gsub("_vs_.*", "", .), width = 40)) %>%
+        mutate(label = factor(label, levels = conf$levels)) %>%
+        ggplot(aes(x = label, y = ID)) + 
         geom_tile(aes(fill = NES), color = "black") + 
-        geom_text(aes(label = sig), color = "white", size = 4) +
         theme(legend.position = "none") + 
-        scale_fill_paletteer_c("ggthemes::Red-Blue Diverging") + 
+        scale_fill_paletteer_c("grDevices::RdYlBu", direction = -1) + 
         mtclosed + 
         theme(axis.text.x = element_text(colour = "black"), axis.text.y = element_text(colour = "black", hjust = 1)) +
         labs(x = "", y = "", title = collec) +
         theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
         coord_equal()
-    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/gsea_top_%s.png", collec), 10,7)
+    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/gsea_top_%s.png", collec), 7,12)
+}
+for (collec in genecollections) {
+    grestemp <- gres %>% filter(collection == collec) %>% left_join(contrast_label_map)
+    sigIDs <- grestemp %>% group_by(contrast) %>% arrange(p.adjust) %>% slice_head(n = 10) %$% ID %>% unique()
+    p <- grestemp %>% dplyr::filter(ID %in% sigIDs) %>% mutate(sig = ifelse(p.adjust < 0.05, "*", "")) %>%
+        mutate(ID = str_wrap(as.character(ID) %>% gsub("_", " ", .), width = 40)) %>%
+        mutate(label = str_wrap(as.character(label) %>% gsub("condition_", "", .) %>% gsub("_vs_.*", "", .), width = 40)) %>%
+        mutate(label = factor(label, levels = conf$levels)) %>%
+        ggplot(aes(x = label, y = ID)) + 
+        geom_point(aes(color = NES, size = abs(NES))) + 
+        theme(legend.position = "none") + 
+        scale_color_paletteer_c("grDevices::RdYlBu", direction = -1) + 
+        mtclosed + 
+        theme(axis.text.x = element_text(colour = "black"), axis.text.y = element_text(colour = "black", hjust = 1)) +
+        labs(x = "", y = "", title = collec) +
+        theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+        coord_equal()
+    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/gsea_top_%s_dot.png", collec), 7,12)
 }
 
 # plot core enrichments
@@ -186,13 +209,38 @@ for (contrast in params[["contrasts"]]) {
             genestoplot <- core_enrichments[[geneset]]
             set_title <- geneset
 
-            contrastconditions <- str_split(contrast, "_")[[1]][c(2, 4)]
+            contrastconditions <- gsub("condition_", "", contrast) %>% str_split("_vs_") %>% pluck(1)
             sample_vec <- sample_table %>%
                 filter(condition %in% contrastconditions) %>%
                 pull(sample_name)
             condition_vec <- sample_table %>%
                 filter(sample_name %in% sample_vec) %>%
                 pull(condition)
+
+            ngenes <- length(genestoplot)
+            ncol <- 4
+            barplotpf <- res %>% filter(gene_id %in% genestoplot) %>% pivot_longer(cols = conf$samples, names_to = "sample_name", values_to = "counts") %>% left_join(sample_table) %>%
+                mutate(sample_name = factor(sample_name, levels = conf$samples)) %>%
+                mutate(condition = factor(condition, levels = conf$levels))
+            p <- barplotpf %>% ggplot() + geom_bar(aes(x = sample_name, y = counts, fill = condition), stat = "identity") + 
+            labs(title = set_title, x = element_blank()) + 
+            facet_wrap(~gene_id, ncol = 4, scales = "free") +
+            mtclosedgridh + scale_conditions + anchorbar +
+            theme(axis.text.x=element_blank(),axis.ticks.x=element_blank())
+            tryCatch(
+                {
+                    mysaveandstore(sprintf("%s/%s/gsea/%s/core_enrichments/barplot_%s.png", params[["outputdir"]], contrast, collec, set_title),8, 2*round(ngenes/ncol))
+                },
+                error = function(e) {
+                    print(e)
+                }
+            )
+
+            pvpprep <- res %>% filter(gene_id %in% genestoplot)
+            p <- res %>% ggplot(aes(x = !!sym(contrast_l2fc), y = -log10(!!sym(contrast_padj)))) +
+                geom_point() + geom_text(aes(label = gene_id), nudge_y = 0.1) + mtclosed +
+                labs(title = set_title, x = "log2FoldChange", y = "-log10(padj)")
+
 
             heatmapprep <- res %>% filter(gene_id %in% genestoplot)
             m <- as.matrix(heatmapprep %>% dplyr::select(sample_vec))
@@ -213,7 +261,9 @@ for (contrast in params[["contrasts"]]) {
             pch[!is_sig] <- NA
             pvalue_adj_col_fun <- colorRamp2(c(0, 2, 3), c("white", "blue", "red"))
             ha <- rowAnnotation(pvalue_adj = anno_simple(-log10(pvalue_adj), col = pvalue_adj_col_fun, pch = pch))
-            topAnn <- HeatmapAnnotation(Condition = condition_vec, col = list(Condition = unlist(condition_palette[condition_vec])))
+            conditions <- sample_table[match(colnames(m), sample_table$sample_name),]$condition
+            topAnn <- ComplexHeatmap::HeatmapAnnotation(Condition = conditions, col = list(Condition = condition_palette))
+                    
             hm <- scaledm %>%
                 Heatmap(
                     name = "Scaled Normalized Counts",
@@ -241,19 +291,35 @@ for (contrast in params[["contrasts"]]) {
     }
 }
 
-EAheatmaps <- list()
+
 for (geneset in names(params[["genesets_for_heatmaps"]])) {
     # geneset <- geneset
     genestoplot <- read_csv(params[["genesets_for_heatmaps"]][[geneset]], col_names = FALSE) %>% pull(X1)
     set_title <- geneset
 
+    
     # first for all conditions
+    #make data long using samples
+    ngenes <- length(genestoplot)
+    ncol <- 4
+    barplotpf <- res %>% filter(gene_id %in% genestoplot) %>% pivot_longer(cols = conf$samples, names_to = "sample_name", values_to = "counts") %>% left_join(sample_table) %>%
+        mutate(sample_name = factor(sample_name, levels = conf$samples)) %>%
+        mutate(condition = factor(condition, levels = conf$levels))
+    p <- barplotpf %>% ggplot() + geom_bar(aes(x = sample_name, y = counts, fill = condition), stat = "identity") + 
+    labs(title = set_title, x = element_blank()) + 
+    facet_wrap(~gene_id, ncol = 4, scales = "free") +
+    mtclosedgridh + scale_conditions + anchorbar +
+    theme(axis.text.x=element_blank(),axis.ticks.x=element_blank())
+    mysaveandstore(sprintf("%s/barplot_%s.png", params[["outputdir"]], set_title), 8, 2*round(ngenes/ncol))
+
     heatmapprep <- res %>% filter(gene_id %in% genestoplot)
     m <- as.matrix(heatmapprep %>% dplyr::select(conf$samples))
     rownames(m) <- heatmapprep %$% gene_id
     scaledm <- t(scale(t(m))) %>% na.omit()
 
-    topAnn <- HeatmapAnnotation(Condition = sample_table[sample_table$sample_name %in% conf$samples, ]$condition, col = list(Condition = unlist(conf$condition_colors[sample_table[sample_table$sample_name %in% conf$samples, ]$condition])))
+    conditions <- sample_table[match(colnames(m), sample_table$sample_name),]$condition
+    topAnn <- ComplexHeatmap::HeatmapAnnotation(Condition = conditions, col = list(Condition = condition_palette))
+
     hm <- scaledm %>%
         Heatmap(
             name = "Scaled Normalized Counts",
@@ -267,7 +333,7 @@ for (geneset in names(params[["genesets_for_heatmaps"]])) {
             # border_gp = gpar(col = "black")
         )
     p <- draw(hm, heatmap_legend_side = "bottom", annotation_legend_side = "bottom")
-    mysaveandstore(sprintf("%s/heatmap_%s.png", params[["outputdir"]], set_title), w = min(dim(scaledm)[2], 12), h = min(dim(scaledm)[1], 12), res = 300)
+    mysaveandstore(sprintf("%s/heatmap_%s.png", params[["outputdir"]], set_title), w = min(dim(scaledm)[2]*2, 12), h = min(dim(scaledm)[1]*2, 12), res = 300)
 
     # now for each contrast
     for (contrast in params[["contrasts"]]) {
@@ -276,7 +342,7 @@ for (geneset in names(params[["genesets_for_heatmaps"]])) {
         contrast_padj <- paste0("padj_", contrast)
         res <- res %>% arrange(-!!sym(contrast_stat))
 
-        contrastconditions <- str_split(contrast, "_")[[1]][c(2, 4)]
+        contrastconditions <- gsub("condition_", "", contrast) %>% str_split("_vs_") %>% pluck(1)
         sample_vec <- sample_table %>%
             filter(condition %in% contrastconditions) %>%
             pull(sample_name)
@@ -303,7 +369,8 @@ for (geneset in names(params[["genesets_for_heatmaps"]])) {
         pch[!is_sig] <- NA
         pvalue_adj_col_fun <- colorRamp2(c(0, 2, 3), c("white", "blue", "red"))
         ha <- rowAnnotation(pvalue_adj = anno_simple(-log10(pvalue_adj), col = pvalue_adj_col_fun, pch = pch))
-        topAnn <- HeatmapAnnotation(Condition = condition_vec, col = list(Condition = unlist(condition_palette[condition_vec])))
+        conditions <- sample_table[match(colnames(m), sample_table$sample_name),]$condition
+        topAnn <- ComplexHeatmap::HeatmapAnnotation(Condition = conditions, col = list(Condition = condition_palette))
         hm <- scaledm %>%
             Heatmap(
                 name = "Scaled Normalized Counts",
@@ -327,6 +394,84 @@ for (geneset in names(params[["genesets_for_heatmaps"]])) {
         # these two self-defined legends are added to the plot by `annotation_legend_list`
         p <- draw(hm, annotation_legend_list = list(lgd_pvalue_adj, lgd_sig), heatmap_legend_side = "bottom", annotation_legend_side = "bottom")
         mysaveandstore(sprintf("%s/%s/heatmap_%s.png", params[["outputdir"]], contrast, set_title), w = min(dim(scaledm)[2], 12), h = min(dim(scaledm)[1], 12), res = 300)
+    }
+}
+
+
+# GSEA untargeted 
+gene_sets = msigdbr(species = "human")
+rm(gse_df)
+for (contrast in params[["contrasts"]]) {
+    # PREP RESULTS FOR GSEA
+    contrast_stat <- paste0("stat_", contrast)
+    contrast_l2fc <- paste0("log2FoldChange_", contrast)
+    res <- res %>% arrange(-!!sym(contrast_stat))
+
+    ordered_by_stat <- setNames(res[[contrast_stat]], res$gene_id) %>% na.omit()
+    resl2fc <- res %>% arrange(-!!sym(contrast_l2fc))
+    ordered_by_l2fc <- setNames(resl2fc[[contrast_l2fc]], resl2fc$gene_id) %>% na.omit()
+    for (category in gene_sets %$% gs_cat %>% unique()) {
+        cat(category, "\n")
+        tryCatch(
+            {
+                collection <- category
+                msigdbr_df <- gene_sets %>% filter(gs_cat == category)
+                msigdbr_t2g = msigdbr_df %>% dplyr::distinct(gs_name, gene_symbol) %>% as.data.frame()
+                gse <- GSEA(ordered_by_stat, TERM2GENE = msigdbr_t2g, maxGSSize = 100000, minGSSize = 1)
+                df <- gse@result %>% tibble()
+                df$collection <- collection
+                df$contrast <- contrast
+                # gse_results[[contrast]][[collection]] <- as.data.frame(df) %>% tibble()
+                if (!exists("gse_df")) {
+                    gse_df <<- df
+                } else {
+                    gse_df <<- rbind(gse_df, df)
+                }
+                genesettheme <- theme_gray() + theme(axis.text.x = element_text(colour = "black"), axis.text.y = element_text(colour = "black"))
+                p <- dotplot(gse, showCategory = 20) + ggtitle(paste("GSEA", contrast, sep = " ")) + genesettheme + mtopen
+                mysaveandstore(sprintf("%s/%s/gsea/%s/dotplot.png", params[["outputdir"]], contrast, collection), w = 6, h = 6, res = 300)
+
+                p <- cnetplot(gse, foldChange = ordered_by_l2fc, cex_label_category = 2)
+                mysaveandstore(sprintf("%s/%s/gsea/%s/cnetplot.png", params[["outputdir"]], contrast, collection), w = 10, h = 9, res = 300)
+
+                p <- cnetplot(gse, foldChange = ordered_by_l2fc, cex_label_category = 2, circular = TRUE, colorEdge = TRUE)
+                mysaveandstore(sprintf("%s/%s/gsea/%s/cnetplot2.png", params[["outputdir"]], contrast, collection), w = 10, h = 9, res = 300)
+
+                p <- ridgeplot(gse) + ggtitle(paste("GSEA", contrast, sep = " ")) + genesettheme + mtopen
+                mysaveandstore(sprintf("%s/%s/gsea/%s/ridgeplot.png", params[["outputdir"]], contrast, collection), w = 6, h = 6, res = 300)
+
+                gsep <- pairwise_termsim(gse)
+                p <- emapplot(gsep, color = "enrichmentScore", showCategory = 20, layout = "nicely") + ggtitle(paste("GSEA", contrast, sep = " "))
+                mysaveandstore(sprintf("%s/%s/gsea/%s/network.png", params[["outputdir"]], contrast, collection), w = 10, h = 9, res = 300)
+
+
+                tryCatch(
+                    {
+                        for (num in c(5, 10, 15)) {
+                            df <- arrange(gse, -abs(NES)) %>%
+                                group_by(sign(NES)) %>%
+                                slice(1:num)
+                            df <- df@result %>% mutate(Description = str_wrap(as.character(Description) %>% gsub("_", " ", .), width = 40)) 
+
+                            p <- ggplot(df, aes(NES, fct_reorder(Description, NES), fill = p.adjust)) +
+                                geom_col(orientation = "y") +
+                                scale_fill_continuous(low = "red", high = "blue", guide = guide_colorbar(reverse = TRUE)) +
+                                mtopen +
+                                theme(axis.text.y = element_text(colour = "black")) +
+                                ylab(NULL)
+
+                            mysaveandstore(sprintf("%s/%s/gsea/%s/nes%s.png", params[["outputdir"]], contrast, collection, num), w = 8, h = min(num, 7), res = 300)
+                        }
+                    },
+                    error = function(e) {
+                        print("")
+                    }
+                )
+            },
+            error = function(e) {
+                print("probably no enrichments in this collection")
+            }
+        )
     }
 }
 

@@ -15,11 +15,12 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            r_annotation_fragmentsjoined = "aref/annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv",
-            ref = "aref/A.REF.fa"
+            r_annotation_fragmentsjoined = "aref/A.REF_annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv",
+            ref = "aref/A.REF.fa",
+        txdbrefseq = "aref/A.REF_annotations/refseq.sqlite"
         ), env = globalenv())
         assign("outputs", list(
-            r_repeatmasker_annotation = "aref/annotations/repeatmasker_annotation.csv"
+            r_repeatmasker_annotation = "aref/A.REF_annotations/repeatmasker_annotation.csv"
         ), env = globalenv())
     }
 )
@@ -32,6 +33,7 @@ rmfamilies <- rmfragments %>%
         str_detect(family, "^LINE") ~ "LINE",
         str_detect(family, "^SINE") ~ "SINE",
         str_detect(family, "^LTR") ~ "LTR",
+        str_detect(family, "^Retroposon") ~ "Retroposon",
         str_detect(family, "^DNA") ~ "DNA",
         str_detect(family, "^Satellite") ~ "SAT",
     )) %>%
@@ -46,6 +48,7 @@ rmfamilies <- rmfragments %>%
         str_detect(family, "^LINE/L1") ~ "L1",
         str_detect(family, "^SINE/Alu") ~ "Alu",
         str_detect(family, "^LTR/ERV") ~ "ERV",
+        str_detect(family, "^Retroposon/SVA") ~ "SVA",
     )) %>%
     mutate(rte_family = replace_na(rte_family, "Other")) %>%
     mutate(rte_subfamily = case_when(
@@ -61,13 +64,19 @@ rmfamilies <- rmfragments %>%
         grepl("LTR/ERVL/LTR5A.*ERVL$", family, perl = TRUE) ~ "HERVL_LTR",
         grepl("LTR/ERVL/LTR5B.*ERVL$", family, perl = TRUE) ~ "HERVL_LTR",
         grepl("LTR/ERVL/LTR5_Hs.*ERVL$", family, perl = TRUE) ~ "HERVL_LTR",
-        grepl("^SINE/Alu/AluY$", family, perl = TRUE) ~ "AluY",
+        grepl("^SINE/Alu/AluY.*$", family, perl = TRUE) ~ "AluY",
         grepl("^LINE/L1/L1HS$", family, perl = TRUE) ~ "L1HS",
         grepl("^LINE/L1/L1PA2$", family, perl = TRUE) ~ "L1PA2",
         grepl("^LINE/L1/L1PA3$", family, perl = TRUE) ~ "L1PA3",
         grepl("^LINE/L1/L1PA4$", family, perl = TRUE) ~ "L1PA4",
         grepl("^LINE/L1/L1PA5$", family, perl = TRUE) ~ "L1PA5",
-        grepl("^LINE/L1/L1PA6$", family, perl = TRUE) ~ "L1PA6"
+        grepl("^LINE/L1/L1PA6$", family, perl = TRUE) ~ "L1PA6",
+        grepl("^Retroposon/SVA/SVA_A$", family, perl = TRUE) ~ "SVA_A",
+        grepl("^Retroposon/SVA/SVA_B$", family, perl = TRUE) ~ "SVA_B",
+        grepl("^Retroposon/SVA/SVA_C$", family, perl = TRUE) ~ "SVA_C",
+        grepl("^Retroposon/SVA/SVA_D$", family, perl = TRUE) ~ "SVA_D",
+        grepl("^Retroposon/SVA/SVA_E$", family, perl = TRUE) ~ "SVA_E",
+        grepl("^Retroposon/SVA/SVA_F$", family, perl = TRUE) ~ "SVA_F",
     )) %>%
     mutate(rte_subfamily = replace_na(rte_subfamily, "Other")) %>%
     mutate(rte_subfamily_limited = case_when(
@@ -77,7 +86,7 @@ rmfamilies <- rmfragments %>%
         grepl("LTR/ERVK/LTR5A.*ERVK$", family, perl = TRUE) ~ "HERVK_LTR",
         grepl("LTR/ERVK/LTR5B.*ERVK$", family, perl = TRUE) ~ "HERVK_LTR",
         grepl("LTR/ERVK/LTR5_Hs.*ERVK$", family, perl = TRUE) ~ "HERVK_LTR",
-        grepl("^SINE/Alu/AluY$", family, perl = TRUE) ~ "AluY",
+        grepl("^SINE/Alu/AluY.*$", family, perl = TRUE) ~ "AluY",
         grepl("^LINE/L1/L1HS$", family, perl = TRUE) ~ "L1HS"
     )) %>%
     mutate(rte_subfamily_limited = replace_na(rte_subfamily_limited, "Other")) %>%
@@ -134,10 +143,21 @@ rmlengthreq <- rmfragments %>%
         str_detect(rte_subfamily, "HERVK_INT") & length <= 6999 ~ "HERVK_INT <7kb",
         str_detect(rte_subfamily, "AluY") & length > 299 ~ "AluY >300bp",
         str_detect(rte_subfamily, "AluY") & length <= 299 ~ "AluY <300bp",
+        str_detect(rte_subfamily, "SVA_A") & length > 1999 ~ "SVA_A >2kb",
+        str_detect(rte_subfamily, "SVA_A") & length <= 1999 ~ "SVA_A <2kb",
+        str_detect(rte_subfamily, "SVA_B") & length > 1999 ~ "SVA_B >2kb",
+        str_detect(rte_subfamily, "SVA_B") & length <= 1999 ~ "SVA_B <2kb",
+        str_detect(rte_subfamily, "SVA_C") & length > 1999 ~ "SVA_C >2kb",
+        str_detect(rte_subfamily, "SVA_C") & length <= 1999 ~ "SVA_C <2kb",
+        str_detect(rte_subfamily, "SVA_D") & length > 1999 ~ "SVA_D >2kb",
+        str_detect(rte_subfamily, "SVA_D") & length <= 1999 ~ "SVA_D <2kb",
+        str_detect(rte_subfamily, "SVA_E") & length > 1999 ~ "SVA_E >2kb",
+        str_detect(rte_subfamily, "SVA_E") & length <= 1999 ~ "SVA_E <2kb",
+        str_detect(rte_subfamily, "SVA_F") & length > 1999 ~ "SVA_F >2kb",
+        str_detect(rte_subfamily, "SVA_F") & length <= 1999 ~ "SVA_F <2kb",
         str_detect(rte_subfamily, "Other") ~ "Other",
     )) %>%
     dplyr::select(gene_id, rte_length)
-
 
 # Annotate Intactness
 fa <- Rsamtools::FaFile(inputs$ref)
@@ -172,6 +192,16 @@ intactness <- rmfragments %>%
         gene_id %in% l1pa2pass ~ "L1PA2 ORFs Intact",
         TRUE ~ "Other"
     ))
+
+
+req_annot <- full_join(intactness, rmlengthreq)
+req_annot <- req_annot %>% mutate(req_integrative = case_when(
+    l1_intactness == "L1HS ORFs Intact" ~ "L1HS ORFs Intact",
+    l1_intactness == "L1PA2 ORFs Intact" ~ "L1PA2 ORFs Intact",
+    str_detect(rte_length, ">") ~ "Full Length",
+    str_detect(rte_length, "<") ~ "Truncated",  
+    TRUE ~ "Other"
+))
 
 
 # HERV ltr status
@@ -276,11 +306,35 @@ tryCatch(
     }
 )
 
+library(GenomicFeatures)
+library(genomation)
 
 # genes, centromere and telomere
 refseq <- import(conf$ref_refseq_gtf)
-refseqdf <- as.data.frame(refseq) %>% tibble()
 coding_transcripts <- refseq[(mcols(refseq)$type == "transcript" & grepl("^NM", mcols(refseq)$transcript_id))]
+noncoding_transcripts <- refseq[(mcols(refseq)$type == "transcript" & grepl("^NR", mcols(refseq)$transcript_id))]
+transcripts <- c(coding_transcripts, noncoding_transcripts)
+
+coding_transcript_upstream <- coding_transcripts %>% flank(10000)
+noncoding_transcript_upstream <- noncoding_transcripts %>% flank(10000)
+coding_transcript_downstream <- coding_transcripts %>% flank(10000,start=FALSE)
+noncoding_transcript_downstream <- noncoding_transcripts %>% flank(10000,start=FALSE)
+
+coding_transcript_adjacent <- c(coding_transcript_upstream, coding_transcript_downstream)
+noncoding_transcript_adjacent <- c(noncoding_transcript_upstream, noncoding_transcript_downstream)
+ 
+
+txdb <- loadDb(inputs$txdbrefseq)
+
+introns <- intronsByTranscript(txdb, use.names = TRUE)
+introns <- introns[grepl("^NM", names(introns))]
+exons <- exonsBy(txdb, by = "tx", use.names = TRUE)
+exons <- exons[grepl("^NM", names(exons))]
+fiveUTRs <- fiveUTRsByTranscript(txdb, use.names = TRUE)
+fiveUTRs <- fiveUTRs[grepl("^NM", names(fiveUTRs))]
+threeUTRs <- threeUTRsByTranscript(txdb, use.names = TRUE)
+threeUTRs <- threeUTRs[grepl("^NM", names(threeUTRs))]
+
 
 cytobandsdf <- read_delim(conf$ref_cytobands, col_names = FALSE, delim = "\t")
 cytobands <- cytobandsdf %>%
@@ -309,20 +363,57 @@ getannotation <- function(to_be_annotated, regions_of_interest, property, name_i
     annot <- annot %>% dplyr::select(-prop)
     return(annot)
 }
-genic_annot <- getannotation(rmfragmentsgr_properinsertloc, coding_transcripts, "genic", "Genic", "NonGenic")
+genic_annot <- getannotation(rmfragmentsgr_properinsertloc, transcripts, "genic", "Genic", "NonGenic")
+coding_tx_annot <- getannotation(rmfragmentsgr_properinsertloc, coding_transcripts, "coding_tx", "CodingTx", "NonCodingTx")
+noncoding_tx_annot <- getannotation(rmfragmentsgr_properinsertloc, noncoding_transcripts, "noncoding_tx", "NoncodingTx", "NonNonCodingTx")
+coding_tx_adjacent_annot <- getannotation(rmfragmentsgr_properinsertloc, coding_transcript_adjacent, "coding_tx_adjacent", "CodingTxAdjacent", "NonCodingTxAdjacent")
+noncoding_tx_adjacent_annot <- getannotation(rmfragmentsgr_properinsertloc, noncoding_transcript_adjacent, "noncoding_tx_adjacent", "NoncodingTxAdjacent", "NonNonCodingTxAdjacent")
+exonic_annot <- getannotation(rmfragmentsgr_properinsertloc, exons, "exonic", "Exonic", "NonExonic")
+intron_annot <- getannotation(rmfragmentsgr_properinsertloc, introns, "intronic", "Intronic", "NonIntronic")
+utr5_annot <- getannotation(rmfragmentsgr_properinsertloc, fiveUTRs, "utr5", "5UTR", "Non5UTR")
+utr3_annot <- getannotation(rmfragmentsgr_properinsertloc, threeUTRs, "utr3", "3UTR", "Non3UTR")
+
 cent_annot <- getannotation(rmfragmentsgr_properinsertloc, centromere, "centromeric", "Centromeric", "NonCentromeric")
 telo_annot <- getannotation(rmfragmentsgr_properinsertloc, telomere, "telomeric", "Telomeric", "NonTelomeric")
 genic_annot %$% genic %>% table()
 cent_annot %$% centromeric %>% table()
 telo_annot %$% telomeric %>% table()
 
-region_annot <- full_join(genic_annot, cent_annot) %>% full_join(telo_annot)
 
+
+region_annot <- full_join(genic_annot, coding_tx_annot) %>%
+    full_join(noncoding_tx_annot) %>%
+    full_join(coding_tx_adjacent_annot) %>%
+    full_join(noncoding_tx_adjacent_annot) %>%
+    full_join(cent_annot) %>%
+    full_join(telo_annot) %>%
+    full_join(exonic_annot) %>%
+    full_join(intron_annot) %>%
+    full_join(utr5_annot) %>%
+    full_join(utr3_annot)
+
+
+region_annot <- region_annot %>% mutate(loc_integrative = case_when(
+    exonic == "Exonic" ~ "Exonic",
+    utr5 == "5utr" ~ "5utr",
+    utr3 == "3utr" ~ "3utr",
+    intronic == "Intronic" ~ "Intronic",
+    noncoding_tx == "NoncodingTx" ~ "NoncodingTx",
+    coding_tx == "CodingTx" ~ "CodingTxOther",
+    coding_tx_adjacent == "CodingTxAdjacent" ~ "CodingTxAdjacent",
+    noncoding_tx_adjacent == "NoncodingTxAdjacent" ~ "NoncodingTxAdjacent",
+    centromeric == "Centromeric" ~ "Centromeric",
+    telomeric == "Telomeric" ~ "Telomeric",
+    genic == "NonGenic" ~ "NonGenic",
+    TRUE ~ "Other"
+))
 
 annots <- rmfamilies %>%
-    full_join(rmlengthreq %>% rename_at(vars(-gene_id), ~ paste0(., "_req"))) %>%
-    full_join(intactness %>% rename_at(vars(-gene_id), ~ paste0(., "_req"))) %>%
+    full_join(req_annot %>% rename_at(vars(-gene_id, -req_integrative), ~ paste0(., "_req"))) %>%
     full_join(ltr_viral_status %>% rename_at(vars(-gene_id), ~ paste0(., "_req"))) %>%
-    full_join(region_annot %>% rename_at(vars(-gene_id), ~ paste0(., "_loc")))
+    full_join(region_annot %>% rename_at(vars(-gene_id, -loc_integrative), ~ paste0(., "_loc")))
 
 write_csv(annots, outputs$r_repeatmasker_annotation)
+rmann <- left_join(rmfragments, annots) 
+write_csv(rmann, outputs$rmann)
+write_csv(rmann %>% filter(refstatus == "NonRef"), outputs$rmann_nonref)

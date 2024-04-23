@@ -24,6 +24,8 @@ library("biomaRt")
 library(stringr)
 library("dplyr")
 library(EnhancedVolcano)
+library(limma)
+
 
 
 
@@ -62,6 +64,7 @@ contrasts <- params[["contrasts"]]
 levels <- params[["levels"]]
 outputdir <- params[["outputdir"]]
 countspath <- paste(outputdir, tecounttype, "counttablesizenormed.csv", sep = "/")
+countsbatchnotremovedpath <- paste(outputdir, tecounttype, "counttablesizenormedbatchnotremoved.csv", sep = "/")
 print("countspath")
 print(countspath)
 coldata <- read.csv(params[["sample_table"]])
@@ -158,14 +161,23 @@ for (baselevel in baselevels) {
 ####
 counttablesizenormedrtes <- counts(ddsrteslist[[1]], normalized = TRUE)
 counttablesizenormedgenes <- counts(ddsgeneslist[[1]], normalized = TRUE)
-counttablesizenormed <- rbind(as.data.frame(counttablesizenormedrtes), as.data.frame(counttablesizenormedgenes))
+counttablesizenormedbatchnotremoved <- rbind(as.data.frame(counttablesizenormedrtes), as.data.frame(counttablesizenormedgenes))
+colnames(counttablesizenormedbatchnotremoved) == coldata$sample_name
+
+counttablesizenormed <- removeBatchEffect(counttablesizenormedbatchnotremoved, batch=coldata$batch, design=model.matrix(~coldata$condition))
+
+
 countspath <- paste(outputdir, tecounttype, "counttablesizenormed.csv", sep = "/")
+countsbatchnotremovedpath <- paste(outputdir, tecounttype, "counttablesizenormedbatchnotremoved.csv", sep = "/")
 dir.create(dirname(countspath), recursive = TRUE, showWarnings = FALSE)
 write.csv(counttablesizenormed, file = countspath)
+write.csv(counttablesizenormedbatchnotremoved, file = countsbatchnotremovedpath)
+
 # write.csv(as.data.frame(assay(vst_assaydf)), file = paste(outputdir, tecounttype, "vstcounts.csv", sep = "/"))
 
 # tag PLOTS
-deseq_plots <- list()
+
+for (batchnormed in c("yes", "no")) {
 for (subset in c("rtes", "genes")) {
     if (subset == "rtes") {
         ddstemplist <- ddsrteslist
@@ -186,6 +198,9 @@ for (subset in c("rtes", "genes")) {
             res <- res[rownames(res) %in% gene_cts$gene_id, ]
         }
 
+        DE_UP <- res %>% as.data.frame() %>% tibble() %>% filter(log2FoldChange > 0) %>% filter(padj < 0.05) %>% nrow()
+        DE_DOWN <- res %>% as.data.frame() %>% tibble() %>% filter(log2FoldChange < 0) %>% filter(padj < 0.05) %>% nrow()
+        TOTAL <- res %>% as.data.frame() %>% tibble() %>% nrow()
         p <- EnhancedVolcano(res,
             lab = rownames(res),
             selectLab = c(""),
@@ -193,32 +208,32 @@ for (subset in c("rtes", "genes")) {
             drawConnectors = TRUE,
             x = "log2FoldChange",
             y = "padj",
+            legendPosition = 'none',
             ylab = expression(-Log[10] ~ P["adj"]),
-            legendPosition = "none",
             pCutoff = 0.05,
-            xlim = c(-10, 10),
-            ylim = c(-1, 15)
-        ) + theme(axis.line = element_blank(), aspect.ratio = 1, panel.border = element_rect(color = "black", linetype = 1, linewidth = 1, fill = NA))
-        mysaveandstore(paste(outputdir, tecounttype, subset, contrast, "deplot.png", sep = "/"), 8, 8)
-        deseq_plots[[tecounttype]][[subset]][["volcano"]][[contrast]] <- p
+        ) + mtopen + labs(subtitle = NULL, caption = sprintf("DE UP: %s\nDE DOWN: %s\nTOTAL: %s", DE_UP, DE_DOWN, TOTAL)) + theme(legend.position = "none")
+        mysaveandstore(paste(outputdir, tecounttype, subset, contrast, "deplot.png", sep = "/"), 6, 6)
     }
 
     vst <- varianceStabilizingTransformation(ddstemp, blind = FALSE)
     vst_assay <- assay(vst)
+    if (batchnormed == "yes") {
+        vst_assay <- removeBatchEffect(vst_assay, batch = colData(ddstemp)$batch, design = model.matrix(~colData(ddstemp)$condition))
+    }
     sampleDists <- dist(t(vst_assay))
 
     ## PCA plots
     pcaObj <- pca(vst_assay, metadata = colData(ddstemp), removeVar = 0.1)
 
     p <- screeplot(pcaObj, title = "") + mtopen + anchorbar
-    mysaveandstore(paste(outputdir, tecounttype, subset, "screeplot.png", sep = "/"), 4, 4)
+    mysaveandstore(paste(outputdir, tecounttype, subset,sprintf("batchRemoved_%s", batchnormed), "screeplot.png", sep = "/"), 4, 4)
 
 
     p <- plotloadings(pcaObj,
         components = getComponents(pcaObj, seq_len(3)),
         rangeRetain = 0.045, labSize = 4
     ) + mtopen
-    mysaveandstore(paste(outputdir, tecounttype, subset, "loadings.png", sep = "/"), 10, 7)
+    mysaveandstore(paste(outputdir, tecounttype, subset,sprintf("batchRemoved_%s", batchnormed), "loadings.png", sep = "/"), 10, 7)
 
 
     p <- biplot(pcaObj,
@@ -226,40 +241,40 @@ for (subset in c("rtes", "genes")) {
         colby = "condition", legendPosition = "right", shape = "batch",
         labSize = 5, pointSize = 5, sizeLoadingsNames = 5
     ) + mtopen + scale_conditions
-    mysaveandstore(paste(outputdir, tecounttype, subset, "pca.png", sep = "/"), 5, 5)
+    mysaveandstore(paste(outputdir, tecounttype, subset,sprintf("batchRemoved_%s", batchnormed), "pca.png", sep = "/"), 5, 5)
 
     p <- biplot(pcaObj,
         showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0,
         colby = "batch", legendPosition = "right",
         labSize = 5, pointSize = 5, sizeLoadingsNames = 5
     ) + mtopen
-    mysaveandstore(paste(outputdir, tecounttype, subset, "pca_batch.png", sep = "/"), 5, 5)
+    mysaveandstore(paste(outputdir, tecounttype, subset,sprintf("batchRemoved_%s", batchnormed), "pca_batch.png", sep = "/"), 5, 5)
 
     p <- biplot(pcaObj,
         showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0,
         colby = "condition", legendPosition = "right",
         labSize = 5, pointSize = 5, sizeLoadingsNames = 5
     ) + mtopen + scale_conditions
-    mysaveandstore(paste(outputdir, tecounttype, subset, "pca_large.png", sep = "/"), 16, 16)
+    mysaveandstore(paste(outputdir, tecounttype, subset,sprintf("batchRemoved_%s", batchnormed), "pca_large.png", sep = "/"), 16, 16)
 
     p <- biplot(pcaObj,
         showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0,
         colby = "batch", legendPosition = "right",
         labSize = 5, pointSize = 5, sizeLoadingsNames = 5
     ) + mtopen
-    mysaveandstore(paste(outputdir, tecounttype, subset, "pca_batch_large.png", sep = "/"), 16, 16)
+    mysaveandstore(paste(outputdir, tecounttype, subset,sprintf("batchRemoved_%s", batchnormed), "pca_batch_large.png", sep = "/"), 16, 16)
 
 
 
     p <- pairsplot(pcaObj, colby = 'batch', title = 'Batch', legendPosition = "right")
-    mysaveandstore(paste(outputdir, tecounttype, subset, "pca_pairs_batch.png", sep = "/"), 15, 15)
+    mysaveandstore(paste(outputdir, tecounttype, subset,sprintf("batchRemoved_%s", batchnormed), "pca_pairs_batch.png", sep = "/"), 15, 15)
 
     p <- pairsplot(pcaObj, colby = "condition", title = 'Condition', legendPosition = "right")
-    mysaveandstore(paste(outputdir, tecounttype, subset, "pca_pairs_condition.png", sep = "/"), 15, 15)
+    mysaveandstore(paste(outputdir, tecounttype, subset,sprintf("batchRemoved_%s", batchnormed), "pca_pairs_condition.png", sep = "/"), 15, 15)
 
 
     p <- eigencorplot(pcaObj,metavars = c("batch", "condition"))
-    mysaveandstore(paste(outputdir, tecounttype, subset, "pca_pairs.png", sep = "/"), 8, 4)
+    mysaveandstore(paste(outputdir, tecounttype, subset,sprintf("batchRemoved_%s", batchnormed), "pca_pairs.png", sep = "/"), 8, 4)
 
 
     p <- biplot(pcaObj,
@@ -267,7 +282,7 @@ for (subset in c("rtes", "genes")) {
         colby = "condition", legendPosition = "right",
         labSize = 5, pointSize = 5, sizeLoadingsNames = 5
     ) + mtopen + scale_conditions
-    mysaveandstore(paste(outputdir, tecounttype, subset, "pca34.png", sep = "/"), 4, 4)
+    mysaveandstore(paste(outputdir, tecounttype, subset,sprintf("batchRemoved_%s", batchnormed), "pca34.png", sep = "/"), 4, 4)
 
 
 
@@ -281,7 +296,8 @@ for (subset in c("rtes", "genes")) {
         clustering_distance_cols = sampleDists,
         col = colors
     )
-    mysaveandstore(paste(outputdir, tecounttype, subset, "pheatmap.png", sep = "/"), 4, 4)
+    mysaveandstore(paste(outputdir, tecounttype, subset,sprintf("batchRemoved_%s", batchnormed), "pheatmap.png", sep = "/"), 4, 4)
+}
 }
 
 save(ddsrteslist, file = paste(outputdir, tecounttype, "dds_rtes.RData", sep = "/"))
