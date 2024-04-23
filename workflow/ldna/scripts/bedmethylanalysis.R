@@ -1537,9 +1537,9 @@ library(scales)
     hyporegions <- dmrsgr[grepl("Hypo", dmrsgr$direction)]
     hyperregions <- dmrsgr[grepl("Hyper", dmrsgr$direction)]
 
-    write_delim(tibble(as.data.frame(GenomicRanges::intersect(promoters, dmrsgr, ignore.strand = TRUE))), "ldna/Rintermediates/promoters_dmregions.bed", col_names = FALSE, delim = "\t")
-    write_delim(tibble(as.data.frame(GenomicRanges::intersect(promoters, hyporegions, ignore.strand = TRUE))), "ldna/Rintermediates/promoters_dmhyporegions.bed", col_names = FALSE, delim = "\t")
-    write_delim(tibble(as.data.frame(GenomicRanges::intersect(promoters, hyperregions, ignore.strand = TRUE))), "ldna/Rintermediates/promoters_dmhyperregions.bed", col_names = FALSE, delim = "\t")
+    write_delim(tibble(as.data.frame(GenomicRanges::intersect(promoters, dmrsgr, ignore.strand = TRUE))), outputs$promoters_bed, col_names = FALSE, delim = "\t")
+    write_delim(tibble(as.data.frame(GenomicRanges::intersect(promoters, hyporegions, ignore.strand = TRUE))), outputs$dmrpromoterhypo_bed, col_names = FALSE, delim = "\t")
+    write_delim(tibble(as.data.frame(GenomicRanges::intersect(promoters, hyperregions, ignore.strand = TRUE))), outputs$dmrpromoterhyper_bed, col_names = FALSE, delim = "\t")
 
     mbo <- mergeByOverlaps(promoters, dmrsgr)
 

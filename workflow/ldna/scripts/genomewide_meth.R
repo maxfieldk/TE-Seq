@@ -16,14 +16,9 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            bedmethlpaths = sprintf("ldna/intermediates/%s/methylation/%s_CG_bedMethyl.bed", sample_table$sample_name, sample_table$sample_name),
-            data = sprintf("ldna/intermediates/%s/methylation/%s_CG_m_dss.tsv", sample_table$sample_name, sample_table$sample_name),
-            dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
-            dmls = "ldna/results/tables/dmls.CG_m.tsv",
-            read_mods = sprintf("ldna/intermediates/%s/methylation/%s_readmods_%s_%s.tsv", sample_table$sample_name, sample_table$sample_name, "NoContext", conf$rte_subfamily_read_level_analysis),
-            read_mods_cg = sprintf("ldna/intermediates/%s/methylation/%s_readmods_%s_%s.tsv", sample_table$sample_name, sample_table$sample_name, "CpG", conf$rte_subfamily_read_level_analysis)
+            dss = sprintf("ldna/intermediates/%s/methylation/%s_CG_m_dss.tsv", sample_table$sample_name, sample_table$sample_name),
         ), env = globalenv())
-        assign("outputs", list(outfile = "ldna/outfiles/bedmethylanalysis.txt"), env = globalenv())
+        assign("outputs", list(plots = "ldna/results/plots/genomewide/genomewide_meth_plots.rds"), env = globalenv())
     }
 )
 #couldn't load dss, here is a function from that package
@@ -92,7 +87,7 @@ makeBSseqData <- function(dat, sampleNames) {
 
 sample_dfs <- list()
 for (sample in sample_table$sample_name) {
-    sample_dfs[[sample]] <- read_delim(grep(sprintf("/%s/", sample), inputs$data, value = TRUE), col_names = TRUE)
+    sample_dfs[[sample]] <- read_delim(grep(sprintf("/%s/", sample), inputs$dss, value = TRUE), col_names = TRUE)
 }
 
 BSobj <- makeBSseqData(sample_dfs, names(sample_dfs))
@@ -101,54 +96,83 @@ mParam <- MulticoreParam(workers = 12, progressbar = TRUE)
 conditions <- conf$levels
 condition1samples <- sample_table[sample_table$condition == conditions[1], ]$sample_name
 condition2samples <- sample_table[sample_table$condition == conditions[2], ]$sample_name
+condition1 <- sample_table$condition[1]
+condition2 <- sample_table$condition[2]
 # condition1samples <- sample_table[sample_table$condition == conditions[1], ]$sample_name[1]
 # condition2samples <- sample_table[sample_table$condition == conditions[2], ]$sample_name[1]
 # need to adjust numbering given idiosyncracies of dmltest
-BSobj <- realize(BSobj, "HDF5Array")
-BSobj <- BSmooth(BSobj, BPPARAM = mParam)
-BSobj
-
-head(BSobj)
+# BSobj <- realize(BSobj, "HDF5Array")
+# BSobj <- BSmooth(BSobj, BPPARAM = mParam)
+# BSobj
 
 chrSizesdf <- read_delim("aref/A.REF.fa.fai", delim = "\t", col_names = FALSE) %>% dplyr::select(X1, X2) %>% dplyr::rename(chr = X1, seqlengths = X2) 
 #centromere
-chrSizesCSdf <- chrSizesdf %>% mutate(cumsum = cumsum(seqlengths)) %>% mutate(cumsum_zerostart = cumsum - chrSizesdf[1,]$seqlengths) 
-
+chrSizesCSdf <- chrSizesdf %>% mutate(cumsum = cumsum(seqlengths))
+cumsum_zerostart = c(0, chrSizesCSdf$cumsum[1:length(chrSizesCSdf$cumsum)-1])
+chrSizesCSdf$cumsum_zerostart = cumsum_zerostart
 
 chrSizes <- setNames(chrSizesdf$seqlengths, chrSizesdf$chr)
 bins   <- tileGenome(chrSizes, tilewidth=50000, cut.last.tile.in.chrom=T)
-
-
 globalmeth <- getMeth(BSobj, bins, type = "raw", what = "perRegion")
 head(globalmeth)
 mcols(bins) <- globalmeth
-globalmeth <- as.data.frame(bins) %>% tibble() %>% mutate(dif = CTRL1 - AD1) %>% mutate(csum=cumsum(as.numeric(width)))
-
+globalmeth <- as.data.frame(bins) %>% tibble() %>% mutate(csum=cumsum(as.numeric(width)))
 
 cytobands <- read.delim(conf$ref_cytobands, header = FALSE, sep = "\t", col.names = c("chr", "start", "end", "name", "gieStain")) %>% tibble() %>%
-mutate(chr = factor(chr, levels = levels(globalmeth$seqnames)))
+    mutate(chr = factor(chr, levels = levels(globalmeth$seqnames)))
 
 centromeres <- cytobands %>% filter(gieStain == "acen") %>%
     group_by(chr) %>% summarize(start = min(start), end = max(end)) %>% as.data.frame() %>% tibble() %>%
     left_join(chrSizesCSdf) %>%
     mutate(start_cumsum = cumsum_zerostart + start) %>% mutate(end_cumsum = cumsum_zerostart + end)
 
-
 axis_set <- globalmeth %>%
   group_by(seqnames) %>%
   summarize(center = mean(csum))
 
+for (sample in sample_table$sample_name) {
 p <- globalmeth %>% 
     ggplot() +
-        geom_point(aes(x = csum, y = dif, color = factor(seqnames)), alpha = 0.5) +
-        geom_segment(data = centromeres, aes(x = start_cumsum, xend = end_cumsum, y = 0, yend = 0), color = "red", size = 3) +
+        geom_point(aes(x = csum, y = !!sym(sample), color = factor(seqnames)), alpha = 0.2) +
+        geom_segment(data = centromeres, aes(x = start_cumsum, xend = end_cumsum, y = 1.05, yend = 1.05), color = "red", size = 3) +
         scale_color_manual(values = rep(c("#276FBF", "#183059"), unique(length(axis_set$seqnames)))) +
         scale_x_continuous(label = axis_set$seqnames, breaks = axis_set$center) +
-        labs(x = "Genomic Position", y = "Difference in Methylation") +
-        ggtitle("Global Methylation Difference") +
+        labs(x = "", y = "Pct CpG Methylation", title = "Global Methylation") +
         mtopengridh + theme(legend.position = "none") +
         theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
 
-mysave(pl = p, fn = "ldna/results/plots/genomewide/globalmethdiff.png", w = 14, h = 4, res = 300)
-# p <- plotRegion(chr23, "chr23:1-1000000")
+mysaveandstore(pl = p, fn = sprintf("ldna/results/plots/genomewide/globalmeth_%s.png", sample), w = 14, h = 4, res = 300)
+}
 
+
+tryCatch(
+    {
+    globalmeth <- globalmeth %>% pivot_longer(cols = sample_table$sample_name, names_to = "sample", values_to = "methylation") %>% left_join(sample_table) %>% group_by(condition, csum, seqnames) %>% summarize(methylation = mean(methylation, na.rm = TRUE)) %>%
+        pivot_wider(names_from = condition, values_from = methylation) %>% mutate(diff = !!sym(condition2) - !!sym(condition1)) %>% mutate(direction = factor(ifelse(diff > 0, "Hyper", "Hypo"), levels = c("Hyper", "Hypo")))
+    p <- globalmeth %>% 
+        ggplot() +
+            geom_point(aes(x = csum, y = !!sym(sample), color = factor(seqnames)), alpha = 0.2) +
+            geom_segment(data = centromeres, aes(x = start_cumsum, xend = end_cumsum, y = 1.05, yend = 1.05), color = "red", size = 3) +
+            scale_color_manual(values = rep(c("#276FBF", "#183059"), unique(length(axis_set$seqnames)))) +
+            scale_x_continuous(label = axis_set$seqnames, breaks = axis_set$center) +
+            labs(x = "", y = sprintf("%s - %s CpG Methylation", condition2, condition1), title = "Global Methylation") +
+            mtopengridh + theme(legend.position = "none") +
+            theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+    mysaveandstore(pl = p, fn = sprintf("ldna/results/plots/genomewide/globalmeth_diff.png", sample), w = 14, h = 4, res = 300)
+    
+    p <- globalmeth %>% ggplot(aes(x = direction)) +
+        geom_bar(aes(fill = direction), position = "dodge") +
+        labs(x = "", y = "Number of Regions", title = "Global Methylation") +
+        mtopen +
+        scale_methylation +
+        theme(legend.position = "none")
+    mysaveandstore(pl = p, fn = sprintf("ldna/results/plots/genomewide/globalmeth_diff_bar.png", sample), w = 4, h = 4, res = 300)
+
+    },
+    error = function(e) {
+        message("No difference plot generated")
+    }
+)
+
+
+save(mysaveandstoreplots, file = outputs$plots)

@@ -1527,77 +1527,8 @@ library(scales)
     promoters <- promoters(genes_gr, upstream = 5000, downstream = 1000)
     write_delim(tibble(as.data.frame(promoters)) %>% mutate(score = 1000) %>% dplyr::select(seqnames, start, end, gene_id, score, strand), "ldna/Rintermediates/promoters.bed", col_names = FALSE, delim = "\t")
 
-    hyporegions <- dmrsgr[grepl("Hypo", dmrsgr$direction)]
-    hyperregions <- dmrsgr[grepl("Hyper", dmrsgr$direction)]
+    write_delim(tibble(as.data.frame(GenomicRanges::intersect(promoters, dmrsgr, ignore.strand = TRUE))), outputs$promoters_bed, col_names = FALSE, delim = "\t")
 
-    write_delim(tibble(as.data.frame(GenomicRanges::intersect(promoters, dmrsgr, ignore.strand = TRUE))), "ldna/Rintermediates/promoters_dmregions.bed", col_names = FALSE, delim = "\t")
-    write_delim(tibble(as.data.frame(GenomicRanges::intersect(promoters, hyporegions, ignore.strand = TRUE))), "ldna/Rintermediates/promoters_dmhyporegions.bed", col_names = FALSE, delim = "\t")
-    write_delim(tibble(as.data.frame(GenomicRanges::intersect(promoters, hyperregions, ignore.strand = TRUE))), "ldna/Rintermediates/promoters_dmhyperregions.bed", col_names = FALSE, delim = "\t")
-
-    mbo <- mergeByOverlaps(promoters, dmrsgr)
-
-
-    mergeddf <- tibble(as.data.frame(mbo))
-    # having to deal with elements matching multiple dmrs, and marking them as discordant in the event that the dmrs go in different directions.
-    mm <- mergeddf %>%
-        group_by(promoters.seqnames, promoters.start, promoters.end, promoters.width, promoters.strand, promoters.gene_id) %>%
-        summarise(max_val = max(dmrsgr.diff_c2_minus_c1), min_val = min(dmrsgr.diff_c2_minus_c1))
-    mm[(mm$max_val > 0 & mm$min_val < 0), "concordance"] <- "discordant"
-    mm[!(mm$max_val > 0 & mm$min_val < 0), "concordance"] <- "concordant"
-
-    mergeddf <- mm %>% mutate(direction = ifelse(is.na(concordance), NA_character_, ifelse(concordance == "discordant", "Discordant", ifelse(max_val > 0, "Hyper", "Hypo"))))
-
-    merged <- GRanges(
-        seqnames = mergeddf$promoters.seqnames,
-        ranges = IRanges(start = mergeddf$promoters.start, end = mergeddf$promoters.end),
-        strand = mergeddf$promoters.strand,
-        gene_id = mergeddf$promoters.gene_id,
-        max_val = mergeddf$max_val,
-        min_val = mergeddf$min_val,
-        concordance = mergeddf$concordance,
-        direction = mergeddf$direction
-    )
-
-    p <- mergeddf %>%
-        group_by(direction) %>%
-        summarise(n = n()) %>%
-        ggplot() +
-        geom_col(aes(x = direction, y = n, fill = direction), color = "black") +
-        ggtitle("Promoter Methylation") +
-        labs(x = "", y = "count") +
-        theme(legend.position = "none") +
-        mtopen +
-        scale_methylation +
-        anchorbar
-
-    mysaveandstore(pl = p, "ldna/results/plots/genes/genes_concordance.png", 4, 4)
-
-    p <- mergeddf %>%
-        filter(concordance == "concordant") %>%
-        ggplot() +
-        geom_density(aes(x = max_val), fill = mycolor) +
-        geom_vline(xintercept = 0, linetype = "dashed") +
-        labs(x = sprintf("DMR Methylation (%s-%s)", condition2, condition1), y = "Density") +
-        ggtitle("DM Promoters") +
-        annotate("label", x = -Inf, y = Inf, label = "Hyper", hjust = 0, vjust = 1) +
-        annotate("label", x = Inf, y = Inf, label = "Hypo", hjust = 1, vjust = 1) +
-        theme(legend.position = "none") +
-        mtopen +
-        anchorbar
-
-    mysaveandstore(pl = p, "ldna/results/plots/genes/genes_density.png", 4, 4)
-
-    # highly_enriched_notch_sets <- tablesReactome[["Higher_in_Alz"]] %>% head(n = 15) %>% filter(grepl("NOTCH", anno.result) | grepl("LFNG", anno.result))
-    # highly_enriched_notch_sets$id
-    # gs[highly_enriched_notch_sets$id]
-
-    # library(ComplexHeatmap)
-    # m1 = make_comb_mat(gs[highly_enriched_notch_sets$id])
-    # m1
-    # p = UpSet(m1)
-    # png("ldna/results/plots/genes/notch_upset_plot.png", 4, 4, units = "in", res = 300)
-    # print(p)
-    # dev.off()
 }
 
 
