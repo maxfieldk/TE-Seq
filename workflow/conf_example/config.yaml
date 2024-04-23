@@ -3,18 +3,18 @@
 
 #META PIPELINE SETTINGS
 pipelines_to_deploy:
+  - aref
   # - srna
-  # - aref
-  # - ldna
-  - lrna
+  - ldna
+  # - lrna
 
 #PIPELINE SETTINGS - Ignore settings for pipelines not being deployed
 aref:
   prefix: aref
   sample_table: "conf/sample_table_aref.csv"
   levels:
-    - "PRO"
-    - "SEN"
+    - "CTRL"
+    - "AD"
   default_palette: "ggsci::default_aaas"
   #MODULE PATHS
   dorado: "/users/mkelsey/data/tools/dorado-0.5.1-linux-x64/bin/dorado"
@@ -27,22 +27,32 @@ aref:
 
   rate: "5khz"
   type: "hac"
-  modification_string: "6mA-5mC_5hmC"
+  modification_string: "5mCG_5hmCG"
   #note separete modifications with dashes
 
   #MODULE LOGIC
   symlink_aref:
     response: "no"
     aref_symlinkdir: "/oscar/data/jsedivy/mkelsey/ref/pipeline_annotations/hs1/RTE/aref"
-      
-    samples: 
-    - "PRO1"
-    - "SEN1"
-    
+  symlink_aref_contents:
+    response: "no"
+  samples:
+    - "AD1"
+    - "AD2"
+    - "AD3"
+    - "AD4"
+    - "AD5"
+    - "AD6"
+    - "CTRL1"
+    - "CTRL2"
+    - "CTRL3"
+    - "CTRL4"
+    - "CTRL5"
+    - "CTRL6"
   update_ref_with_tldr:
     response: "yes"
     #if making one ref per sample (i.e. each sample has unique inserts), then "yes", else "no"
-    per_sample: "no"
+    per_sample: "yes"
     #IF updating reference with tldr inserts; else NULL
     tldr_input_bam_ref: /users/mkelsey/data/ref/pipeline_annotations/hs1/RTE/aref/A.REF.fa
     #ensure tldr_input_bams are a full path, not relative paths
@@ -51,7 +61,7 @@ aref:
   #IF annotating existing reference, else NULL
   starting_ref: /users/mkelsey/data/ref/pipeline_annotations/hs1/RTE/aref/A.REF.fa
 
-  starting_ref_repeatmasker: /users/mkelsey/data/ref/pipeline_annotations/hs1/RTE/aref/repeatmasker/A.REF_repeatmasker_raw.gtf
+  starting_ref_repeatmasker: /users/mkelsey/data/ref/pipeline_annotations/hs1/RTE/aref/A.REF_repeatmasker/A.REF_repeatmasker_raw.gtf
 
   ref: aref/A.REF.fa
   ref_index: aref/A.REF.fa.fai
@@ -78,18 +88,28 @@ ldna:
   use_aref_basecalls: "yes"
   tldr_input_bams:
   samples:
-    - "PRO1"
-    - "SEN1"
+    - "AD1"
+    - "AD2"
+    - "AD3"
+    - "AD4"
+    - "AD5"
+    - "AD6"
+    - "CTRL1"
+    - "CTRL2"
+    - "CTRL3"
+    - "CTRL4"
+    - "CTRL5"
+    - "CTRL6"
 
   #order with base comparator as first (dss will have 2 - 1)
-  conditions:
-    - "PRO"
-    - "SEN"
+  levels:
+    - "CTRL"
+    - "AD"
   contrasts:
-    - "condition_SEN_vs_PRO"
+    - "condition_AD_vs_CTRL"
   condition_colors:
-    PRO: "#3C5488FF"
-    SEN: "#F39B7FFF"
+    CTRL: "#3C5488FF"
+    AD: "#F39B7FFF"
 
   barcoding: "inactive"
   barcodingKit: ""
@@ -105,34 +125,41 @@ ldna:
   dorado: "/users/mkelsey/data/tools/dorado-0.5.1-linux-x64/bin/dorado"
   ##      ANALYSIS PATHS       ##
   MINIMUM_COVERAGE_FOR_METHYLATION_ANALYSIS: 7
-  SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS: ""
+  SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS: "chrY"
   reference_annotation_dir: "aref"
   reference: "aref/A.REF.fa"
-  annotation: "aref/annotations/A.REF_repeatmasker_refseq.complete.gtf"
-  refseq_unaltered: "aref/annotations/refseq.gff3"
-  refseq: "aref/annotations/refseq.complete.gtf"
-  refseqbgz: "aref/annotations/refseq.complete.gff3.gz"
-  repeatmasker: "aref/annotations/A.REF_repeatmasker.complete.gtf"
-  repeatmaskerbgz: "aref/annotations/A.REF_repeatmasker.complete.gff3.gz"
-  cpg_islands: aref/annotations/cpg_islands.bed
-  cpgi_shores: aref/annotations/cpgi_shores.bed
-  cpgi_shelves: aref/annotations/cpgi_shelves.bed
-  clinvar_bgz: aref/annotations/clinvar.vcf.gz
-  clinvar_tbi: aref/annotations/clinvar.vcf.tbi
+  annotation: "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf"
+  refseq_unaltered: "aref/A.REF_annotations/refseq.gff3"
+  refseq: "aref/A.REF_annotations/refseq.complete.gtf"
+  cytobands: aref/A.REF_annotations/cytobands.bed
+  ccres: /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations3/cCREs/hs1-imr90-cCREsCuratedWithClosestGene.bed
+  telomere: aref/A.REF_annotations/telomeres.bed
+  censat: /users/mkelsey/data/ref/genomes/hs1/annotations7/chm13v2.0_censat_v2.0.bed
+  refseqbgz: "aref/A.REF_annotations/refseq.complete.gff3.gz"
+  repeatmasker: "aref/A.REF_annotations/A.REF_repeatmasker.complete.gtf"
+  repeatmaskerbgz: "aref/A.REF_annotations/A.REF_repeatmasker.complete.gff3.gz"
+  ref_cytobands: "aref/A.REF_annotations/cytobands.bed"
+  cpg_islands: aref/A.REF_annotations/cpg_islands.bed
+  cpgi_shores: aref/A.REF_annotations/cpgi_shores.bed
+  cpgi_shelves: aref/A.REF_annotations/cpgi_shelves.bed
+  clinvar_bgz: aref/A.REF_annotations/clinvar.vcf.gz
+  clinvar_tbi: aref/A.REF_annotations/clinvar.vcf.tbi
   vcfanno_clinvar_toml: conf/clinvar.vcfanno.toml
   intact_l1_anatomy_coordinates: aref/intact_l1_anatomy_coordinates.tsv
-  r_annotation_fragmentsjoined: "aref/annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv"
-  r_repeatmasker_annotation: "aref/annotations/A.REF_repeatmasker_annotation.csv"
-  l1hsintact: "aref/annotations/l1hsintact.bed"
+  r_annotation_fragmentsjoined: "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv"
+  r_repeatmasker_annotation: "aref/A.REF_annotations/A.REF_repeatmasker_annotation.csv"
+  rmann: "aref/A.REF_annotations/A.REF_rmann.csv"
+  l1hsintact: "aref/A.REF_annotations/l1hsintact.bed"
   methylartist_loci_of_interest: "conf/ldna_methylartist_loci_of_interest.bed"
   methylartist_bam_config: "conf/ldna_methylartist_bam_config.txt"
   l13orfs: "/users/mkelsey/data/ref/sequences/l1.3.orfs.txt"
   l13: "/users/mkelsey/data/ref/sequences/l1.3.fa"
+  tf_position_weighted_matrices: "/oscar/data/jsedivy/mkelsey/ref/pwms/hocomoco_jasperformat.txt"
 
   rate: "5khz"
   type: "hac"
-  modification_string: "6mA-5mC_5hmC"
-  
+  modification_string: "5mCG_5hmCG"
+
   #note separete modifications with dashes
 
   basecallingModel:
@@ -153,6 +180,15 @@ ldna:
 
   rte_subfamily_read_level_analysis:
     - "L1HS_l1_intactness_req_ALL"
+
+  genesets_for_great:
+    msigdbH: /users/mkelsey/data/ref/genesets/human/msigdb/h.all.v2023.2.Hs.symbols.gmt
+    msigdbC2_CPG: /users/mkelsey/data/ref/genesets/human/msigdb/c2.cgp.v2023.2.Hs.symbols.gmt
+    msigdbC2_CP: /users/mkelsey/data/ref/genesets/human/msigdb/c2.cp.v2023.2.Hs.symbols.gmt
+    msigdbC3_TFT: /users/mkelsey/data/ref/genesets/human/msigdb/c3.tft.v2023.2.Hs.symbols.gmt
+    msigdbC5_GO: /users/mkelsey/data/ref/genesets/human/msigdb/c5.go.v2023.2.Hs.symbols.gmt
+    msigdbC2_CPG_SENMAYO: /users/mkelsey/data/ref/genesets/human/msigdb/SAUL_SEN_MAYO.v2023.2.Hs.gmt
+
 
 lrna:
   prefix: "lrna"
@@ -211,23 +247,23 @@ lrna:
   guppy_config: "/oscar/data/jsedivy/mkelsey/tools/ont-guppy/data/rna_r9.4.1_70bps_sup.cfg"
 
   reference: "aref/A.REF.fa"
-  rtes_genes_gtf: "aref/annotations/A.REF_repeatmasker_refseq.complete.gtf"
+  rtes_genes_gtf: "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf"
 
   basecallingModel: "/users/mkelsey/data/tools/dorado-0.5.1-linux-x64/models/rna002_70bps_hac@v3"
   junctionbed: "/users/mkelsey/data/ref/genomes/hs1/refseq_2023_10/GCF_009914755.1_T2T-CHM13v2.0_genomic.ucscnames.bed"
   referencetranscriptome: "/oscar/data/jsedivy/mkelsey/ref/transcriptome/GRCh38_latest_rna_andRCS.fna"
 
   ## new additions
-  annotation_genes: "aref/annotations/refseq.gtf"
+  annotation_genes: "aref/A.REF_annotations/refseq.gtf"
   annotation_genes_bed12: "/oscar/data/jsedivy/mkelsey/ref/genomes/hs1/refseq_2023_10/GCF_009914755.1_T2T-CHM13v2.0_genomic.ucscnames.bed"
-  annotation_genesandrtes: "aref/annotations/A.REF_repeatmasker_refseq.complete.gtf"
-  annotation_rtes: "aref/annotations/A.REF_repeatmasker.gff2"
-  annotation_genesandrtes_fasta: "aref/annotations/A.REF_repeatmasker_refseq.complete.fa"
+  annotation_genesandrtes: "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf"
+  annotation_rtes: "aref/A.REF_annotations/A.REF_repeatmasker.gff2"
+  annotation_genesandrtes_fasta: "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.fa"
 
-  r_annotation_fragmentsjoined: "aref/annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv"
-  r_repeatmasker_annotation: "aref/annotations/A.REF_repeatmasker_annotation.csv"
-  txdb: "aref/annotations/A.REF_repeatmasker_refseq.complete.sqlite"
-  cytobands: "aref/annotations/cytobands.bed"
+  r_annotation_fragmentsjoined: "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv"
+  r_repeatmasker_annotation: "aref/A.REF_annotations/A.REF_repeatmasker_annotation.csv"
+  txdb: "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.sqlite"
+  cytobands: "aref/A.REF_annotations/cytobands.bed"
   mycoplasma: "/users/mkelsey/data/ref/genomes/mycoplasma/mycoplasma.fa"
 
 srna:
@@ -236,12 +272,27 @@ srna:
   peptable: "conf/peptable_srna.csv"
   default_palette: "ggsci::default_aaas"
   samples:
-    - "PRO1"
-    - "PRO2"
-    - "PRO3"
-    - "SEN1"
-    - "SEN2"
-    - "SEN3"
+    - "RS_0w_low_O2_1"
+    - "RS_0w_low_O2_2"
+    - "RS_0w_low_O2_3"
+    - "RS_4w_low_O2_1"
+    - "RS_4w_low_O2_2"
+    - "RS_4w_low_O2_3"
+    - "RS_8w_low_O2_1"
+    - "RS_8w_low_O2_2"
+    - "RS_8w_low_O2_3"
+    - "RS_12w_low_O2_1"
+    - "RS_12w_low_O2_2"
+    - "RS_12w_low_O2_3"
+    - "PRO_normoxic_1"
+    - "PRO_normoxic_2"
+    - "PRO_normoxic_3"
+    - "DDIS_8w_low_O2_1"
+    - "DDIS_8w_low_O2_2"
+    - "DDIS_8w_low_O2_3"
+    - "PRO_low_O2_1"
+    - "PRO_low_O2_2"
+    - "PRO_low_O2_3"
 
   paralellize_bioc: 8
   counttypes:
@@ -253,24 +304,49 @@ srna:
   library_type: PE
   #order matters for levels! first is the base comparator
   levels:
-    - "PRO"
-    - "SEN"
+    - "PRO_low_O2"
+    - "RS_0w_low_O2"
+    - "RS_4w_low_O2"
+    - "RS_8w_low_O2"
+    - "RS_12w_low_O2"
+    - "PRO_normoxic"
+    - "DDIS_8w_low_O2"
 
   #mappings
   levelslegendmap:
-    SEN: "SEN"
-    PRO: "PRO"
+    PRO_low_O2: "PRO_low_O2"
+    RS_0w_low_O2: "RS_0w_low_O2"
+    RS_4w_low_O2: "RS_4w_low_O2"
+    RS_8w_low_O2: "RS_8w_low_O2"
+    RS_12w_low_O2: "RS_12w_low_O2"
+    PRO_normoxic: "PRO_normoxic"
+    DDIS_8w_low_O2: "DDIS_8w_low_O2"
 
   #analysis settings
   contrasts:
-    - "condition_SEN_vs_PRO"
+    - "condition_RS_0w_low_O2_vs_PRO_low_O2"
+    - "condition_RS_4w_low_O2_vs_PRO_low_O2"
+    - "condition_RS_8w_low_O2_vs_PRO_low_O2"
+    - "condition_RS_12w_low_O2_vs_PRO_low_O2"
+    - "condition_PRO_normoxic_vs_PRO_low_O2"
+    - "condition_DDIS_8w_low_O2_vs_PRO_low_O2"
 
   contrast_colors:
-    condition_SEN_vs_PRO: "red"
+    condition_RS_0w_low_O2_vs_PRO_low_O2: yellow
+    condition_RS_4w_low_O2_vs_PRO_low_O2: orange
+    condition_RS_8w_low_O2_vs_PRO_low_O2: red
+    condition_RS_12w_low_O2_vs_PRO_low_O2: purple
+    condition_PRO_normoxic_vs_PRO_low_O2: blue
+    condition_DDIS_8w_low_O2_vs_PRO_low_O2: magenta
 
   condition_colors:
-    SEN: "red"
-    PRO: "blue"
+    PRO_low_O2: grey
+    RS_0w_low_O2: yellow
+    RS_4w_low_O2: orange
+    RS_8w_low_O2: red
+    RS_12w_low_O2: purple
+    PRO_normoxic: blue
+    DDIS_8w_low_O2: magenta
 
   genesets_for_gsea:
     msigdbH: /users/mkelsey/data/ref/genesets/human/msigdb/h.all.v2023.2.Hs.symbols.gmt
@@ -284,13 +360,13 @@ srna:
     Senescence: /users/mkelsey/data/ref/genesets/human/mycustom/senescence.txt
     InflammatoryGenes: /users/mkelsey/data/ref/genesets/human/mycustom/inflammatory.txt
 
-  annotation_genes: "aref/annotations/refseq.gtf"
-  annotation_genes_bed12: "aref/annotations/refseq.complete.bed"
+  annotation_genes: "aref/A.REF_annotations/refseq.gtf"
+  annotation_genes_bed12: "aref/A.REF_annotations/refseq.complete.bed"
   annotation_genesandrtes: "A.REF_repeatmasker_refseq.complete.gtf"
-  annotation_rtes: "aref/annotations/A.REF_repeatmasker.gff2"
+  annotation_rtes: "aref/A.REF_annotations/A.REF_repeatmasker.gff2"
 
-  r_annotation_fragmentsjoined: "aref/annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv"
-  r_repeatmasker_annotation: "aref/annotations/A.REF_repeatmasker_annotation.csv"
+  r_annotation_fragmentsjoined: "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv"
+  r_repeatmasker_annotation: "aref/A.REF_annotations/A.REF_repeatmasker_annotation.csv"
 
   #genomes
   reference: "aref/A.REF.fa"
