@@ -38,7 +38,6 @@ basecaller \
 --reference {params.reference} > {output.calls}
         """
 
-
 rule mod_bam_to_fastq:
     input:
         bam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
