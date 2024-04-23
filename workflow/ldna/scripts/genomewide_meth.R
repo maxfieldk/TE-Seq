@@ -1,8 +1,31 @@
+
+source("workflow/scripts/defaults.R")
+module_name <- "ldna"
+conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/generate_colors_to_source.R")
 ### BSSEQ
 library(readr)
 library(bsseq)
 library(BiocParallel)
 
+tryCatch(
+    {
+        params <- snakemake@params
+        inputs <- snakemake@input
+        outputs <- snakemake@output
+    },
+    error = function(e) {
+        assign("inputs", list(
+            bedmethlpaths = sprintf("ldna/intermediates/%s/methylation/%s_CG_bedMethyl.bed", sample_table$sample_name, sample_table$sample_name),
+            data = sprintf("ldna/intermediates/%s/methylation/%s_CG_m_dss.tsv", sample_table$sample_name, sample_table$sample_name),
+            dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
+            dmls = "ldna/results/tables/dmls.CG_m.tsv",
+            read_mods = sprintf("ldna/intermediates/%s/methylation/%s_readmods_%s_%s.tsv", sample_table$sample_name, sample_table$sample_name, "NoContext", conf$rte_subfamily_read_level_analysis),
+            read_mods_cg = sprintf("ldna/intermediates/%s/methylation/%s_readmods_%s_%s.tsv", sample_table$sample_name, sample_table$sample_name, "CpG", conf$rte_subfamily_read_level_analysis)
+        ), env = globalenv())
+        assign("outputs", list(outfile = "ldna/outfiles/bedmethylanalysis.txt"), env = globalenv())
+    }
+)
 #couldn't load dss, here is a function from that package
 makeBSseqData <- function(dat, sampleNames) {
     n0 <- length(dat)
@@ -82,7 +105,7 @@ condition2samples <- sample_table[sample_table$condition == conditions[2], ]$sam
 # condition2samples <- sample_table[sample_table$condition == conditions[2], ]$sample_name[1]
 # need to adjust numbering given idiosyncracies of dmltest
 BSobj <- realize(BSobj, "HDF5Array")
-BSobj <- BSmooth(BSobj, BPPARAM = mParam, BACKEND = "HDF5Array", filepath = "ldna/Rintermediates/BSmooth.h5" )
+BSobj <- BSmooth(BSobj, BPPARAM = mParam)
 BSobj
 
 head(BSobj)

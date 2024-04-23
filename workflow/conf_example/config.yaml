@@ -34,7 +34,8 @@ aref:
   symlink_aref:
     response: "no"
     aref_symlinkdir: "/oscar/data/jsedivy/mkelsey/ref/pipeline_annotations/hs1/RTE/aref"
-  samples: 
+      
+    samples: 
     - "PRO1"
     - "SEN1"
     
