@@ -38,7 +38,6 @@ basecaller \
 --reference {params.reference} > {output.calls}
         """
 
-
 rule mod_bam_to_fastq:
     input:
         bam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
@@ -433,24 +432,24 @@ awk -v s=1 '$4=="h" {{OFS = "\t"; print $1, $2+s, $10, $12}}' {output.bed} >> {o
 awk -v s=1 '$4=="a" {{OFS = "\t"; print $1, $2+s, $10, $12}}' {output.bed} >> {output.dssInput_a}
         """
 
-rule modbamtobedTLDRinsertions:
-    input:
-        tldr = "aref/{sample}_tldr/{sample}.table.txt"
-    params:
-        ref = config["aref"]["update_ref_with_tldr"]["tldr_te_ref"],
-        indir = "ldna/tldr/{sample}"
-    resources:
-        cpus_per_task = 4,
-        mem_mb = 30000
-    output:
-        outfile = "outfiles/{sample}.bedmethyltldr.txt"
-    conda:
-        "omics"
-    shell: 
-        """
-bash scripts/bedmethtldr.sh {params.indir}
-touch {output.outfile}
-        """
+# rule modbamtobedTLDRinsertions:
+#     input:
+#         tldr = "aref/{sample}_tldr/{sample}.table.txt"
+#     params:
+#         ref = config["aref"]["update_ref_with_tldr"]["tldr_te_ref"],
+#         indir = "ldna/tldr/{sample}"
+#     resources:
+#         cpus_per_task = 4,
+#         mem_mb = 30000
+#     output:
+#         outfile = "outfiles/{sample}.bedmethyltldr.txt"
+#     conda:
+#         "omics"
+#     shell: 
+#         """
+# bash scripts/bedmethtldr.sh {params.indir}
+# touch {output.outfile}
+#         """
 
 rule dss:
     input:
@@ -509,7 +508,7 @@ rule extractmods:
     input:
         sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
         sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-        region = "aref/{sample}_annotations/{sample}_rte_beds/outfile.txt"
+        region = lambda w: "aref/{sample}_annotations/{sample}_rte_beds/outfile.txt" if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF_annotations/A.REF_rte_beds/outfile.txt"
     output:
         read_mods = 'ldna/intermediates/{sample}/methylation/{sample}_readmods_NoContext_{region}.tsv'
     params:
@@ -537,7 +536,7 @@ rule extractmods_cg_context:
     input:
         sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
         sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-        region = "aref/{sample}_annotations/{sample}_rte_beds/outfile.txt"
+        region = lambda w: "aref/{sample}_annotations/{sample}_rte_beds/outfile.txt" if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF_annotations/A.REF_rte_beds/outfile.txt"
     output:
         read_mods = 'ldna/intermediates/{sample}/methylation/{sample}_readmods_CpG_{region}.tsv'
     params:
