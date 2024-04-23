@@ -57,9 +57,9 @@ samtools fastq -TMM,ML {input.bam} > {output.fastq}
 rule align_to_updated_ref:
     input:
         fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq",
-        ref = "aref/{sample}.fa"
+        ref = lambda w: "aref/{sample}.fa" if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF.fa"
     output:
-        sam = expand("ldna/intermediates/{{sample}}/alignments_updated_ref/{rate}/{{sample}}.{type}.{modification_string}.sam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+        sam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
     resources:
         cpus_per_task =20,
         runtime = 1200,
@@ -67,7 +67,7 @@ rule align_to_updated_ref:
     conda: "minimap2"
     shell:
         """
-mkdir -p $(dirname {output.bam})
+mkdir -p $(dirname {output.sam})
 minimap2 -a -x map-ont -t 14 -y {input.ref} {input.fastq} > {output.sam}
         """
 
@@ -348,7 +348,7 @@ rule modbamtobed:
     input:
         sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
         sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-        ref = "aref/{sample}.fa"
+        ref = lambda w: "aref/{sample}.fa" if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF.fa"
     resources:
         cpus_per_task = 36,
         mem_mb = 128000
@@ -563,6 +563,19 @@ mkdir -p $(dirname {output})
 {output.read_mods}
         """
 
+rule genomewide_meth:
+    input:
+        dss = expand("ldna/intermediates/{sample}/methylation/{sample}_CG_m_dss.tsv", sample = samples)
+    output:
+        plots = "ldna/results/plots/genomewide/genomewide_meth_plots.rds"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 200000,
+        runtime = 400
+    conda:
+        "ds"
+    script:
+        "scripts/bedmethylanalysis.R"
 
 rule bedmethylanalysis:
     input:
@@ -572,10 +585,10 @@ rule bedmethylanalysis:
         read_mods = expand('ldna/intermediates/{sample}/methylation/{sample}_readmods_{context}_{region}.tsv', sample = samples, region = config["ldna"]["rte_subfamily_read_level_analysis"], context = ["CpG", "NoContext"])
     output:
         outfile = "ldna/outfiles/bedmethylanalysis.txt",
+        plots = "ldna/results/plots/bedmethylanalysis.rds",
         promoters_bed = "ldna/Rintermediates/promoters.bed",
         dmrpromoterhyper_bed = "ldna/Rintermediates/promoters_dmhyperregions.bed",
         dmrpromoterhypo_bed = "ldna/Rintermediates/promoters_dmhyporegions.bed",
-
     resources:
         cpus_per_task =10,
         mem_mb = 200000,
@@ -584,6 +597,23 @@ rule bedmethylanalysis:
         "ds"
     script:
         "scripts/bedmethylanalysis.R"
+
+rule bedmethylanalysis_single_sample:
+    input:
+        bedmethylpaths = expand("ldna/intermediates/{sample}/methylation/{sample}_CG_bedMethyl.bed", sample = samples),
+        read_mods = expand('ldna/intermediates/{sample}/methylation/{sample}_readmods_{context}_{region}.tsv', sample = samples, region = config["ldna"]["rte_subfamily_read_level_analysis"], context = ["CpG", "NoContext"])
+    output:
+        outfile = "ldna/outfiles/bedmethylanalysis_single_sample.txt",
+        promoters_bed = "ldna/Rintermediates/promoters.bed"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 200000,
+        runtime = 400
+    conda:
+        "ds"
+    script:
+        "scripts/bedmethylanalysis_single_sample.R"
+
 
 
 rule insertion_analysis:

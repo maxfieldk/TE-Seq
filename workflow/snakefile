@@ -23,9 +23,9 @@ for pipeline in config["pipelines_to_deploy"]:
                 final_input.append("aref_contents.symlinked.outfile")
             if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
                 if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
-                    use rule * from aref exclude tldr_aggregate_multiple_samples as aref_*
+                    use rule * from aref exclude tldr_aggregate_multiple_samples,get_repeatmasker_raw as aref_*
                 else: 
-                    use rule * from aref exclude move_starting_reference,process_gtf,tldr_per_sample as aref_*
+                    use rule * from aref exclude move_starting_reference,process_gtf,tldr_per_sample,get_repeatmasker_raw as aref_*
             else:
                 use rule * from aref exclude dorado_seqsummary,pycoQC,process_gtf_tldr,cleanup_updated_ref,repeatmasker,getGtfs as aref_*
 
@@ -73,19 +73,20 @@ for pipeline in config["pipelines_to_deploy"]:
             tldr_analysis_per_sample = expand("ldna/tldr/{sample}.table.txt", sample = config["ldna"]["samples"])
             pycoQC = expand("ldna/qc/{sample}/{sample}pycoQC.html", sample = config["ldna"]["samples"])
             final_input.append(list(flatten([tldr_analysis_per_sample, pycoQC])))
-        def ldna_rally():
-            dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
-            haplotaggedbam = expand("ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.haplotagged.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = config["ldna"]["samples"])
-            m1 = "ldna/results/plots/methylartist/locus/methylartistlocusplot_loci_of_interest.outfile"
-            bedmethanalysis = "ldna/outfiles/bedmethylanalysis.txt"
-            sniffles = expand("ldna/intermediates/{sample}/sniffles/sniffles.vcf", sample = config["ldna"]["samples"])
-            clair3 = expand("ldna/intermediates/{sample}/clair3/full_alignment.vcf.gz", sample = config["ldna"]["samples"])
-            methylartist = "ldna/results/plots/methylartist/locus/methylartistlocusplot_loci_of_interest.outfile"
-            gimme = "ldna/results/gimme/gimme_plots.rds"
-            return list(flatten([dmrs]))
-            #m1, haplotaggedbam,bedmethanalysis , sniffles, clair3, pycoQC, seqsummary, methylartist, haplotaggedbam
-        for e in ldna_rally():
-            final_input.append(e)
+        dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
+        haplotaggedbam = expand("ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.haplotagged.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = config["ldna"]["samples"])
+        bedmethanalysis = "ldna/outfiles/bedmethylanalysis.txt"
+        bedmethanalysis_single_sample = "ldna/outfiles/bedmethylanalysis_single_sample.txt"
+        sniffles = expand("ldna/intermediates/{sample}/sniffles/sniffles.vcf", sample = config["ldna"]["samples"])
+        clair3 = expand("ldna/intermediates/{sample}/clair3/full_alignment.vcf.gz", sample = config["ldna"]["samples"])
+        methylartist = "ldna/results/plots/methylartist/locus/methylartistlocusplot_loci_of_interest.outfile"
+        gimme = "ldna/results/gimme/gimme_plots.rds"
+        if config["ldna"]["single_condition"] == "yes":
+            for e in list(flatten([bedmethanalysis_single_sample,sniffles, clair3, methylartist, haplotaggedbam])):
+                final_input.append(e)
+        else:
+            for e in list(flatten([bedmethanalysis,dmrs, sniffles, clair3, methylartist, haplotaggedbam])):
+                final_input.append(e)
 
     if pipeline == "lrna":
         module lrna:
