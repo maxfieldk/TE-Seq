@@ -34,6 +34,7 @@ tryCatch(
     {
         inputs <- snakemake@input
         outputs <- snakemake@output
+        params <- snakemake@params
     },
     error = function(e) {
         assign("inputs", list(
@@ -47,6 +48,9 @@ tryCatch(
             plots = "aref/A.REF_Analysis/tldr_plots/transduction_mapping.rds",
             transduction_df = "aref/A.REF_Analysis/transduction_df.csv"
         ), env = globalenv())
+        assign("params", list(
+            sample_or_ref = "aref/A.REF"
+        ), env = globalenv())
     }
 )
 
@@ -59,6 +63,7 @@ rmfamilies <- read_csv(inputs$r_repeatmasker_annotation, col_names = TRUE)
 rmann <- left_join(rmfragments, rmfamilies)
 
 df_filtered <- read_delim(inputs$filtered_tldr)
+df_filtered <- df_filtered %>% mutate(nonref_chrom_id = sprintf("nonrefins_%s_%s_%s_%s", Subfamily, Chrom, Start, End))
 
 l1ta <- df_filtered %>%
     filter(Subfamily == "L1Ta")
@@ -80,7 +85,7 @@ at_content <- letterFrequency(trsd_ss, letters = "AT", as.prob = TRUE)
 trsd_ss_for_blast <- trsd_ss[which(at_content < 0.9)]
 trsd_ss_for_blast_sankey <-names(trsd_ss_for_blast)
 
-bl <- blast(db = "aref/A.REF")
+bl <- blast(db = sprintf("aref/%s", params$sample_or_ref))
 bres <- tibble(predict(bl, trsd_ss_for_blast)) %>% left_join(rmfragments, by = c("QueryID" = "gene_id"))
 
 
@@ -110,6 +115,9 @@ bresgrs <- GRanges(bres_hits_grs_prep)
 bresgrs <- resize(bresgrs, width = width(bresgrs) + 10000, fix = "center")
 
 trsd_adjacent_l1 <- subsetByOverlaps(bresgrs, l1grs)
+
+
+
 trsd_adjacent_l1_sankey <- trsd_adjacent_l1$QueryID
 
 save(mysaveandstoreplots, file = outputs$plots)
@@ -161,31 +169,68 @@ mysaveandstore(sprintf("%s/transduction_sankey.png", outputdir), 7, 5)
 
 
 
-# l1hs_intact_aln <- read.alignment("aref/A.REF_Analysis/l1hs_intact.aln.fa", format = "fasta")
-# d <- dist.alignment(l1hs_intact_aln, "identity", gap = FALSE)
-# d_gapped <- dist.alignment(l1hs_intact_aln, "identity", gap = TRUE)
+l1hs_intact_aln <- read.alignment("aref/A.REF_Analysis/l1hs_intact.aln.fa", format = "fasta")
+d <- dist.alignment(l1hs_intact_aln, "identity", gap = FALSE)
+d_gapped <- dist.alignment(l1hs_intact_aln, "identity", gap = TRUE)
 
-# # this is the pct difference in identity between sequences
-# dsqaured <- 100 * d**2
-# d_gappedsquared <- 100 * d_gapped**2
+# this is the pct difference in identity between sequences
+dsqaured <- 100 * d**2
+d_gappedsquared <- 100 * d_gapped**2
 
-# str(dsqaured)
-# tree_raw <- as.treedata(fastme.bal(dsqaured))
-# treegapped_raw <- as.treedata(fastme.bal(d_gappedsquared))
-# # to df for further modifications
-# ttibble_raw <- as_tibble(tree_raw)
-# ttibblegapped_raw <- as_tibble(treegapped_raw)
+dist_matrix <- as.matrix(dsqaured)
+
+rmannl1 <- rmann %>% filter(grepl("L1HS|L1PA[2]", rte_subfamily))
+rmannl1nonref <- rmannl1 %>% filter(refstatus == "NonRef") %$% gene_id
+rmannl1ref <- rmannl1 %>% filter(refstatus == "Ref") %$% gene_id
+
+"L1HS_Xp21.1_5" %in% rmannl1ref
+"L1HS_Xp21.1_5" %in% rmannl1nonref
 
 
-# rmannl1 <- rmann %>% filter(grepl("L1HS|L1PA[2]", rte_subfamily))
 
-# non_ref_tree <- as.phylo(ttibble_raw %>% left_join(rmannl1 %>% dplyr::select(gene_id, refstatus), by = c("label" = "gene_id")))
+dists <- dist_matrix[rownames(dist_matrix) %in% rmannl1nonref,][,colnames(dist_matrix) %in% rmannl1ref]
 
-# non_ref_nodes <- ttibble_raw %>% left_join(rmannl1 %>% dplyr::select(gene_id, refstatus), by = c("label" = "gene_id")) %>% filter(refstatus == "NonRef") %>% pull(node)
-# ref_nodes <- ttibble_raw %>% left_join(rmannl1 %>% dplyr::select(gene_id, refstatus), by = c("label" = "gene_id")) %>% filter(refstatus == "Ref") %>% pull(node)
-# ttibble_raw %>% left_join(rmannl1 %>% dplyr::select(gene_id, refstatus), by = c("label" = "gene_id")) %>% head(n = 200) %>% print(n = 200)
+source_element <- c()
+child_element <- c()
+for (element in rownames(dists)) {
+    source_element <- c(source_element, colnames(dists)[which.min(dists[element,])])
+    child_element <- c(child_element, element)
 
-# castor::find_nearest_tips(as.phylo(ttibble_raw), target_tips = ref_nodes)
+}
 
-# tip_to_tip <- castor::find_nearest_tips(as.phylo(ttibble_raw), target_tips = ref_nodes)$nearest_tip_per_tip
-# data.frame(from = seq(1:length(tip_to_tip)), to = tip_to_tip)
+relatedness_df_phylogeny <- tibble(
+    source_element = source_element,
+    child_element = child_element,
+    evidence = "phylogeny"
+)
+
+
+
+UUID_to_source_gene_id_mbo <- mergeByOverlaps(trsd_adjacent_l1, l1grs) %>% as.data.frame() %>% tibble()
+UUID_to_source_gene_id <- UUID_to_source_gene_id_mbo %>% dplyr::select(QueryID, gene_id) %>% dplyr::rename(source_element = gene_id)
+
+UUID_to_child_gene_id <- tibble()
+for (QueryID in trsd_adjacent_l1$QueryID) {
+nonref_chrom_id <- df_filtered %>% filter(UUID == QueryID) %$% nonref_chrom_id
+child_element <- rmann %>% filter(seqnames == nonref_chrom_id) %>% filter(refstatus == "NonRef") %$% gene_id
+
+UUID_to_child_gene_id <- rbind(UUID_to_child_gene_id, tibble(QueryID = QueryID, child_element = child_element))
+}
+
+relatedness_df_transduction <- left_join(UUID_to_child_gene_id, UUID_to_source_gene_id) %>% dplyr::select(-QueryID) %>% mutate(evidence = "transduction")
+
+transd_df <- bind_rows(relatedness_df_phylogeny, relatedness_df_transduction)
+ 
+transd_df %>% write_csv(outputs$transduction_df)
+
+
+table(transd_df$source_element)
+
+transd_df %>% left_join(rmann, by = c("source_element" = "gene_id"))
+
+
+
+source_element <- transd_df %$% source_element
+child_element <- transd_df %$% child_element
+evidence <- transd_df %$% evidence
+
