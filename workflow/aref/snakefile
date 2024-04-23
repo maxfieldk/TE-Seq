@@ -181,6 +181,7 @@ tldr -b {input.bams} \
 -e {params.tldr_te_ref} \
 -r {params.tldr_input_bam_ref} \
 -p 20 \
+--minreads 1 \
 --outbase A.REF \
 --detail_output \
 --extend_consensus 4000 \
@@ -188,7 +189,7 @@ tldr -b {input.bams} \
 
 mkdir -p $(dirname {output.tldr})
 mv A.REF.table.txt {output.tldr}
-mv ref $(dirname {output.tldr})/
+mv A.REF $(dirname {output.tldr})/
         """
 
 rule tldr_per_sample:
@@ -213,6 +214,7 @@ tldr -b {input.bam} \
 -e {params.tldr_te_ref} \
 -r {params.tldr_input_bam_ref} \
 -p 20 \
+--minreads 1 \
 --outbase {wildcards.sample} \
 --detail_output \
 --extend_consensus 4000 \
