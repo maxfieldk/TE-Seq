@@ -37,6 +37,7 @@ tryCatch(
         inputs <- snakemake@input
         outputs <- snakemake@output
         params <- snakemake@params
+        params <- snakemake@params
     },
     error = function(e) {
         assign("inputs", list(
@@ -53,6 +54,9 @@ tryCatch(
         assign("params", list(
             sample_or_ref = "aref/A.REF"
         ), env = globalenv())
+        assign("params", list(
+            sample_or_ref = "aref/A.REF"
+        ), env = globalenv())
     }
 )
 
@@ -65,7 +69,7 @@ rmfamilies <- read_csv(inputs$r_repeatmasker_annotation, col_names = TRUE)
 rmann <- left_join(rmfragments, rmfamilies)
 
 df_filtered <- read_delim(inputs$filtered_tldr)
-df_nonfiltered <- read_delim("aref/tldr/A.REF.table.txt")
+df_nonfiltered <- read_delim(inputs$unfiltered_tldr)
 l1ta <- df_nonfiltered %>%
     filter(Family %in% c("L1")) %>% 
     filter(Filter == "PASS")
@@ -73,7 +77,7 @@ l1ta_sankey <- l1ta %$% UUID
 
 trsd <- l1ta %>%
     mutate(TransductionLen = nchar(Transduction_3p)) %>%
-    filter(TransductionLen > 29)
+    filter(TransductionLen > 20)
 trsd_sankey <- trsd %$% UUID
 trsd %>% head(n = 4) %$% Transduction_3p
 
@@ -117,6 +121,9 @@ bresgrs <- GRanges(bres_hits_grs_prep)
 bresgrs <- resize(bresgrs, width = width(bresgrs) + 20000, fix = "center")
 
 trsd_adjacent_l1 <- subsetByOverlaps(bresgrs, l1grs)
+
+
+
 trsd_adjacent_l1_sankey <- trsd_adjacent_l1$QueryID
 
 trsd_adjacent_l1 <- subsetByOverlaps(bresgrs, l1grs)
@@ -171,7 +178,7 @@ mysaveandstore(sprintf("%s/transduction_sankey.png", outputdir), 7, 5)
 
 
 
-l1hs_intact_aln <- read.alignment("aref/A.REF_Analysis/l1hs_intact.aln.fa", format = "fasta")
+l1hs_intact_aln <- read.alignment(sprintf("aref/%s_Analysis/l1hs_intact.aln.fa", params$sample_or_ref), format = "fasta")
 d <- dist.alignment(l1hs_intact_aln, "identity", gap = FALSE)
 d_gapped <- dist.alignment(l1hs_intact_aln, "identity", gap = TRUE)
 
@@ -230,7 +237,7 @@ cytobands <- read.cytoband(
 png(outputs$circlize_phylogeny, width = 6, height = 6, units = "in", res = 300)
 
 circos.initializeWithIdeogram(
-    cytoband = "/users/mkelsey/data/LF1/RTE/aref/annotations/cytobands.bed",
+    cytoband = conf$ref_cytobands,
     sort.chr = TRUE,
     major.by = NULL,
     plotType = c("ideogram", "axis", "labels"),
@@ -244,8 +251,8 @@ dev.off()
 
 
 
-number_of_offspring <- new_treedf %>% group_by(from_gene_id) %>% summarize(n = n())
-p <- number_of_offspring  %>% ggplot(aes(x = fct_reorder(from_gene_id, n), y = n)) + geom_col() + mtopen + coord_flip() +
+number_of_offspring <- from_df %>% group_by(gene_id) %>% summarize(n = n())
+p <- number_of_offspring  %>% ggplot(aes(x = fct_reorder(gene_id, n), y = n)) + geom_col() + mtopen + coord_flip() +
     scale_y_continuous(labels = scales::number_format(accuracy = 1)) +
     labs(x = "Source Element", y = "Number of Offspring", caption = "Phylogeny-based Source Element Mapping") +
     anchorbar

@@ -5,7 +5,7 @@
 pipelines_to_deploy:
   - aref
   # - srna
-  # - ldna
+  - ldna
   # - lrna
 
 #PIPELINE SETTINGS - Ignore settings for pipelines not being deployed
@@ -13,7 +13,8 @@ aref:
   prefix: aref
   sample_table: "conf/sample_table_aref.csv"
   levels:
-    - "N2102EP"
+    - "CTRL"
+    - "AD"
   default_palette: "ggsci::default_aaas"
   #MODULE PATHS
   dorado: "/users/mkelsey/data/tools/dorado-0.5.1-linux-x64/bin/dorado"
@@ -35,13 +36,23 @@ aref:
     aref_symlinkdir: "/oscar/data/jsedivy/mkelsey/ref/pipeline_annotations/hs1/RTE/aref"
   symlink_aref_contents:
     response: "no"
-  samples: 
-    - "N2102EP1"
-    
+  samples:
+    - "AD1"
+    - "AD2"
+    - "AD3"
+    - "AD4"
+    - "AD5"
+    - "AD6"
+    - "CTRL1"
+    - "CTRL2"
+    - "CTRL3"
+    - "CTRL4"
+    - "CTRL5"
+    - "CTRL6"
   update_ref_with_tldr:
-    response: "no"
+    response: "yes"
     #if making one ref per sample (i.e. each sample has unique inserts), then "yes", else "no"
-    per_sample: "no"
+    per_sample: "yes"
     #IF updating reference with tldr inserts; else NULL
     tldr_input_bam_ref: /users/mkelsey/data/ref/pipeline_annotations/hs1/RTE/aref/A.REF.fa
     #ensure tldr_input_bams are a full path, not relative paths
@@ -77,17 +88,28 @@ ldna:
   use_aref_basecalls: "yes"
   tldr_input_bams:
   samples:
-    - "N2102EP1"
+    - "AD1"
+    - "AD2"
+    - "AD3"
+    - "AD4"
+    - "AD5"
+    - "AD6"
+    - "CTRL1"
+    - "CTRL2"
+    - "CTRL3"
+    - "CTRL4"
+    - "CTRL5"
+    - "CTRL6"
 
   #order with base comparator as first (dss will have 2 - 1)
   levels:
-    - "N2102EP"
-
+    - "CTRL"
+    - "AD"
   contrasts:
-    - ""
-
+    - "condition_AD_vs_CTRL"
   condition_colors:
-    N2102EP: "#3C5488FF"
+    CTRL: "#3C5488FF"
+    AD: "#F39B7FFF"
 
   barcoding: "inactive"
   barcodingKit: ""
@@ -103,15 +125,20 @@ ldna:
   dorado: "/users/mkelsey/data/tools/dorado-0.5.1-linux-x64/bin/dorado"
   ##      ANALYSIS PATHS       ##
   MINIMUM_COVERAGE_FOR_METHYLATION_ANALYSIS: 7
-  SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS: ""
+  SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS: "chrY"
   reference_annotation_dir: "aref"
   reference: "aref/A.REF.fa"
   annotation: "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf"
   refseq_unaltered: "aref/A.REF_annotations/refseq.gff3"
   refseq: "aref/A.REF_annotations/refseq.complete.gtf"
+  cytobands: aref/A.REF_annotations/cytobands.bed
+  ccres: /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations3/cCREs/hs1-imr90-cCREsCuratedWithClosestGene.bed
+  telomere: aref/A.REF_annotations/telomeres.bed
+  censat: /users/mkelsey/data/ref/genomes/hs1/annotations7/chm13v2.0_censat_v2.0.bed
   refseqbgz: "aref/A.REF_annotations/refseq.complete.gff3.gz"
   repeatmasker: "aref/A.REF_annotations/A.REF_repeatmasker.complete.gtf"
   repeatmaskerbgz: "aref/A.REF_annotations/A.REF_repeatmasker.complete.gff3.gz"
+  ref_cytobands: "aref/A.REF_annotations/cytobands.bed"
   cpg_islands: aref/A.REF_annotations/cpg_islands.bed
   cpgi_shores: aref/A.REF_annotations/cpgi_shores.bed
   cpgi_shelves: aref/A.REF_annotations/cpgi_shelves.bed
@@ -121,11 +148,13 @@ ldna:
   intact_l1_anatomy_coordinates: aref/intact_l1_anatomy_coordinates.tsv
   r_annotation_fragmentsjoined: "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv"
   r_repeatmasker_annotation: "aref/A.REF_annotations/A.REF_repeatmasker_annotation.csv"
+  rmann: "aref/A.REF_annotations/A.REF_rmann.csv"
   l1hsintact: "aref/A.REF_annotations/l1hsintact.bed"
   methylartist_loci_of_interest: "conf/ldna_methylartist_loci_of_interest.bed"
   methylartist_bam_config: "conf/ldna_methylartist_bam_config.txt"
   l13orfs: "/users/mkelsey/data/ref/sequences/l1.3.orfs.txt"
   l13: "/users/mkelsey/data/ref/sequences/l1.3.fa"
+  tf_position_weighted_matrices: "/oscar/data/jsedivy/mkelsey/ref/pwms/hocomoco_jasperformat.txt"
 
   rate: "5khz"
   type: "hac"
@@ -151,6 +180,15 @@ ldna:
 
   rte_subfamily_read_level_analysis:
     - "L1HS_l1_intactness_req_ALL"
+
+  genesets_for_great:
+    msigdbH: /users/mkelsey/data/ref/genesets/human/msigdb/h.all.v2023.2.Hs.symbols.gmt
+    msigdbC2_CPG: /users/mkelsey/data/ref/genesets/human/msigdb/c2.cgp.v2023.2.Hs.symbols.gmt
+    msigdbC2_CP: /users/mkelsey/data/ref/genesets/human/msigdb/c2.cp.v2023.2.Hs.symbols.gmt
+    msigdbC3_TFT: /users/mkelsey/data/ref/genesets/human/msigdb/c3.tft.v2023.2.Hs.symbols.gmt
+    msigdbC5_GO: /users/mkelsey/data/ref/genesets/human/msigdb/c5.go.v2023.2.Hs.symbols.gmt
+    msigdbC2_CPG_SENMAYO: /users/mkelsey/data/ref/genesets/human/msigdb/SAUL_SEN_MAYO.v2023.2.Hs.gmt
+
 
 lrna:
   prefix: "lrna"
@@ -234,15 +272,9 @@ srna:
   peptable: "conf/peptable_srna.csv"
   default_palette: "ggsci::default_aaas"
   samples:
-    - "PRO_low_O2_1"
-    - "PRO_low_O2_2"
-    - "PRO_low_O2_3"
     - "RS_0w_low_O2_1"
     - "RS_0w_low_O2_2"
     - "RS_0w_low_O2_3"
-    - "RS_0w_low_O2_4"
-    - "RS_0w_low_O2_5"
-    - "RS_0w_low_O2_6"
     - "RS_4w_low_O2_1"
     - "RS_4w_low_O2_2"
     - "RS_4w_low_O2_3"
@@ -258,6 +290,9 @@ srna:
     - "DDIS_8w_low_O2_1"
     - "DDIS_8w_low_O2_2"
     - "DDIS_8w_low_O2_3"
+    - "PRO_low_O2_1"
+    - "PRO_low_O2_2"
+    - "PRO_low_O2_3"
 
   paralellize_bioc: 8
   counttypes:

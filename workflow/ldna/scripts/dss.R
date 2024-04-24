@@ -1,4 +1,11 @@
-library(readr)
+library("stringr")
+library("dplyr")
+library("ggplot2")
+library("readr")
+library("magrittr")
+library("purrr")
+library("tibble")
+
 
 module_name <- "ldna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
@@ -9,11 +16,13 @@ library(DSS)
 library(BiocParallel)
 library(readr)
 require(bsseq)
+library(Biostrings)
 
 
 tryCatch(
     {
         inputs <- snakemake@input
+        params <- snakemake@params
         outputs <- snakemake@output
         print("sourced snake variables")
     },
@@ -33,16 +42,19 @@ tryCatch(
             dmrs_hypo_bed = "ldna/results/tables/dmrs_hypo.CG_m.bed",
             dmrs_hyper_bed = "ldna/results/tables/dmrs_hyper.CG_m.bed"
         ), env = globalenv())
+        assign("params", list(
+            chromosome = "chr10"
+        ), env = globalenv())
     }
 )
 
 
 
-
+print(sprintf("chromosome is %s", params$chromosome))
 
 sample_dfs <- list()
-for (sample in sample_table$sample_name) {
-    sample_dfs[[sample]] <- read.table(grep(sprintf("/%s/", sample), inputs$data, value = TRUE), header = TRUE)
+for (sample in sample_table$sample_name[c(1,8)]) {
+    sample_dfs[[sample]] <- read_delim(grep(sprintf("/%s/", sample), inputs$data, value = TRUE), col_names = TRUE) %>% filter(chr == params$chromosome)
 }
 
 BSobj <- makeBSseqData(sample_dfs, names(sample_dfs))
@@ -56,8 +68,7 @@ condition2samples <- sample_table[sample_table$condition == conditions[2], ]$sam
 # need to adjust numbering given idiosyncracies of dmltest
 dmlTest <- DMLtest(BSobj, group1 = condition2samples, group2 = condition1samples, smoothing = TRUE)
 
-str(dmlTest)
-
+dmlTestNONAMECHANGE <- dmlTest
 tryCatch(
     {
         head(dmlTest)
@@ -142,7 +153,3 @@ dmls$direction <- factor(dmls$direction, levels = c("Hyper", "Hypo"))
 
 write_delim(dmls, outputs$dmls, delim = "\t", col_names = TRUE)
 write_delim(dmrs, outputs$dmrs, delim = "\t", col_names = TRUE)
-
-write_delim(dmrs %>% dplyr::select(chr, start, end), outputs$dmrs_bed, delim = "\t", col_names = FALSE)
-write_delim(dmrs %>% filter(direction == grep("Hypo", dmrs %$% direction %>% unique(), value = TRUE)) %>% dplyr::select(chr, start, end), outputs$dmrs_hypo_bed, delim = "\t", col_names = FALSE)
-write_delim(dmrs %>% filter(direction == grep("Hyper", dmrs %$% direction %>% unique(), value = TRUE)) %>% dplyr::select(chr, start, end), outputs$dmrs_hyper_bed, delim = "\t", col_names = FALSE)

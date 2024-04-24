@@ -38,7 +38,6 @@ basecaller \
 --reference {params.reference} > {output.calls}
         """
 
-
 rule mod_bam_to_fastq:
     input:
         bam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
@@ -57,9 +56,9 @@ samtools fastq -TMM,ML {input.bam} > {output.fastq}
 rule align_to_updated_ref:
     input:
         fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq",
-        ref = "aref/{sample}.fa"
+        ref = lambda w: "aref/{sample}.fa" if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF.fa"
     output:
-        sam = expand("ldna/intermediates/{{sample}}/alignments_updated_ref/{rate}/{{sample}}.{type}.{modification_string}.sam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+        sam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
     resources:
         cpus_per_task =20,
         runtime = 1200,
@@ -67,7 +66,7 @@ rule align_to_updated_ref:
     conda: "minimap2"
     shell:
         """
-mkdir -p $(dirname {output.bam})
+mkdir -p $(dirname {output.sam})
 minimap2 -a -x map-ont -t 14 -y {input.ref} {input.fastq} > {output.sam}
         """
 
@@ -348,7 +347,7 @@ rule modbamtobed:
     input:
         sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
         sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-        ref = "aref/{sample}.fa"
+        ref = lambda w: "aref/{sample}.fa" if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF.fa"
     resources:
         cpus_per_task = 36,
         mem_mb = 128000
@@ -433,56 +432,59 @@ awk -v s=1 '$4=="h" {{OFS = "\t"; print $1, $2+s, $10, $12}}' {output.bed} >> {o
 awk -v s=1 '$4=="a" {{OFS = "\t"; print $1, $2+s, $10, $12}}' {output.bed} >> {output.dssInput_a}
         """
 
-rule modbamtobedTLDRinsertions:
-    input:
-        tldr = "aref/{sample}_tldr/{sample}.table.txt"
-    params:
-        ref = config["aref"]["update_ref_with_tldr"]["tldr_te_ref"],
-        indir = "ldna/tldr/{sample}"
-    resources:
-        cpus_per_task = 4,
-        mem_mb = 30000
-    output:
-        outfile = "outfiles/{sample}.bedmethyltldr.txt"
-    conda:
-        "omics"
-    shell: 
-        """
-bash scripts/bedmethtldr.sh {params.indir}
-touch {output.outfile}
-        """
+# rule modbamtobedTLDRinsertions:
+#     input:
+#         tldr = "aref/{sample}_tldr/{sample}.table.txt"
+#     params:
+#         ref = config["aref"]["update_ref_with_tldr"]["tldr_te_ref"],
+#         indir = "ldna/tldr/{sample}"
+#     resources:
+#         cpus_per_task = 4,
+#         mem_mb = 30000
+#     output:
+#         outfile = "outfiles/{sample}.bedmethyltldr.txt"
+#     conda:
+#         "omics"
+#     shell: 
+#         """
+# bash scripts/bedmethtldr.sh {params.indir}
+# touch {output.outfile}
+#         """
 
 rule dss:
     input:
         data = expand("ldna/intermediates/{sample}/methylation/{sample}_{{type}}_dss.tsv", sample = samples),
+    params:
+        chromosome = lambda w: w.chr
     output:
-        dmls_unfiltered = "ldna/results/tables/dmls.{type}.unfiltered.tsv",
-        dmrs_unfiltered = "ldna/results/tables/dmrs.{type}.unfiltered.tsv",
-        dmls = "ldna/results/tables/dmls.{type}.tsv",
-        dmrs = "ldna/results/tables/dmrs.{type}.tsv",
-        dmrs_bed = "ldna/results/tables/dmrs.{type}.bed",
-        dmrs_hypo_bed = "ldna/results/tables/dmrs_hypo.{type}.bed",
-        dmrs_hyper_bed = "ldna/results/tables/dmrs_hyper.{type}.bed"
+        dmls_unfiltered = "ldna/results/tables/dmls.{chr}.{type}.unfiltered.tsv",
+        dmrs_unfiltered = "ldna/results/tables/dmrs.{chr}.{type}.unfiltered.tsv",
+        dmls = "ldna/results/tables/dmls.{chr}.{type}.tsv",
+        dmrs = "ldna/results/tables/dmrs.{chr}.{type}.tsv"
     conda:
         "dss2"
     resources:
         cpus_per_task = 10,
-        mem_mb = 200000
+        mem_mb = 60000
     script:
         "scripts/dss.R"
 
 
-rule calldss_C:
+rule merge_dss:
     input:
-        expand("ldna/results/tables/dmrs.CG_m.tsv")
+        dmrs = expand("ldna/results/tables/dmrs.{chr}.CG_m.tsv", chr = ["chr%s"%chrid for chrid in list(range(1, 23)) + ["X", "Y"]]),
+        dmls = expand("ldna/results/tables/dmls.{chr}.CG_m.tsv", chr = ["chr%s"%chrid for chrid in list(range(1, 23)) + ["X", "Y"]])
     output:
-        "ldna/outfiles/dss.txt"
+        dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
+        dmls = "ldna/results/tables/dmls.CG_m.tsv",
+        dmrs_bed = "ldna/results/tables/dmrs.CG_m.bed",
+        dmrs_hypo_bed = "ldna/results/tables/dmrs_hypo.CG_m.bed",
+        dmrs_hyper_bed = "ldna/results/tables/dmrs_hyper.CG_m.bed"
+    conda:
+        "omics"
+    script:
+        "scripts/merge_dss.R"
 
-rule calldss:
-    input:
-        "ldna/results/tables/dmrs.CG_m.tsv",
-        "ldna/results/tables/dmrs.CG_h.tsv",
-        expand("ldna/results/tables/dmrs.{element}_{mod}.tsv", element = config["ldna"]["rte_subfamily_extra_modification_analysis"], mod = ["nocontext.m", "nocontext.h", "nocontext.a"])
 
 
 # #something odd about running python scripts, you need to run in snakelocal mode.
@@ -506,7 +508,7 @@ rule extractmods:
     input:
         sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
         sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-        region = "aref/{sample}_annotations/{sample}_rte_beds/outfile.txt"
+        region = lambda w: "aref/{sample}_annotations/{sample}_rte_beds/outfile.txt" if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF_annotations/A.REF_rte_beds/outfile.txt"
     output:
         read_mods = 'ldna/intermediates/{sample}/methylation/{sample}_readmods_NoContext_{region}.tsv'
     params:
@@ -534,7 +536,7 @@ rule extractmods_cg_context:
     input:
         sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
         sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-        region = "aref/{sample}_annotations/{sample}_rte_beds/outfile.txt"
+        region = lambda w: "aref/{sample}_annotations/{sample}_rte_beds/outfile.txt" if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF_annotations/A.REF_rte_beds/outfile.txt"
     output:
         read_mods = 'ldna/intermediates/{sample}/methylation/{sample}_readmods_CpG_{region}.tsv'
     params:
@@ -560,19 +562,11 @@ mkdir -p $(dirname {output})
 {output.read_mods}
         """
 
-
-rule bedmethylanalysis:
+rule genomewide_meth:
     input:
-        bedmethylpaths = expand("ldna/intermediates/{sample}/methylation/{sample}_CG_bedMethyl.bed", sample = samples),
-        dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
-        dmls = "ldna/results/tables/dmls.CG_m.tsv",
-        read_mods = expand('ldna/intermediates/{sample}/methylation/{sample}_readmods_{context}_{region}.tsv', sample = samples, region = config["ldna"]["rte_subfamily_read_level_analysis"], context = ["CpG", "NoContext"])
+        dss = expand("ldna/intermediates/{sample}/methylation/{sample}_CG_m_dss.tsv", sample = samples)
     output:
-        outfile = "ldna/outfiles/bedmethylanalysis.txt",
-        promoters_bed = "ldna/Rintermediates/promoters.bed",
-        dmrpromoterhyper_bed = "ldna/Rintermediates/promoters_dmhyperregions.bed",
-        dmrpromoterhypo_bed = "ldna/Rintermediates/promoters_dmhyporegions.bed",
-
+        plots = "ldna/results/plots/genomewide/genomewide_meth_plots.rds"
     resources:
         cpus_per_task =10,
         mem_mb = 200000,
@@ -581,6 +575,44 @@ rule bedmethylanalysis:
         "ds"
     script:
         "scripts/bedmethylanalysis.R"
+
+rule bedmethylanalysis:
+    input:
+        dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
+        dmls = "ldna/results/tables/dmls.CG_m.tsv",
+        bedmethylpaths = expand("ldna/intermediates/{sample}/methylation/{sample}_CG_bedMethyl.bed", sample = samples),
+        read_mods = expand('ldna/intermediates/{sample}/methylation/{sample}_readmods_{context}_{region}.tsv', sample = samples, region = config["ldna"]["rte_subfamily_read_level_analysis"], context = ["CpG", "NoContext"])
+    output:
+        outfile = "ldna/outfiles/bedmethylanalysis.txt",
+        plots = "ldna/results/plots/bedmethylanalysis.rds",
+        promoters_bed = "ldna/Rintermediates/promoters.bed",
+        dmrpromoterhyper_bed = "ldna/Rintermediates/promoters_dmhyperregions.bed",
+        dmrpromoterhypo_bed = "ldna/Rintermediates/promoters_dmhyporegions.bed",
+    resources:
+        cpus_per_task =10,
+        mem_mb = 200000,
+        runtime = 400
+    conda:
+        "ds"
+    script:
+        "scripts/bedmethylanalysis.R"
+
+rule bedmethylanalysis_single_sample:
+    input:
+        bedmethylpaths = expand("ldna/intermediates/{sample}/methylation/{sample}_CG_bedMethyl.bed", sample = samples),
+        read_mods = expand('ldna/intermediates/{sample}/methylation/{sample}_readmods_{context}_{region}.tsv', sample = samples, region = config["ldna"]["rte_subfamily_read_level_analysis"], context = ["CpG", "NoContext"])
+    output:
+        outfile = "ldna/outfiles/bedmethylanalysis_single_sample.txt",
+        promoters_bed = "ldna/Rintermediates/promoters.bed"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 200000,
+        runtime = 400
+    conda:
+        "ds"
+    script:
+        "scripts/bedmethylanalysis_single_sample.R"
+
 
 
 rule insertion_analysis:
