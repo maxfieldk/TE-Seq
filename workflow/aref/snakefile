@@ -353,11 +353,10 @@ rule analyze_insertions:
 
 rule analyze_nongermline_insertions:
     input:
-        json = expand("aref/qc/{sample}/{sample}pycoQC.json", sample = config[["samples"]]),
-        tldroutput = lambda w: expand("aref/{sample}_tldr/{sample}.table.txt", sample = config[["samples"]]) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF_tldr/A.REF.table.txt"
-
+        json = expand("aref/qc/{sample}/{sample}pycoQC.json", sample = config["samples"]),
+        tldroutput = lambda w: expand("aref/{sample}_tldr/{sample}.table.txt", sample = config["samples"]) if config["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF_tldr/A.REF.table.txt"
     output:
-        plots = "aref/results/insertions/analyze_nongermline_insertions.rds",
+        plots = "aref/results/insertions/analyze_nongermline_insertions.rds"
     conda:
         "ds"
     script:
@@ -573,7 +572,7 @@ rule makeTxDB:
         txdbrefseq = "aref/A.REF_annotations/refseq.sqlite",
         txdbrepeatmasker = "aref/A.REF_annotations/A.REF_repeatmasker.complete.sqlite"
     resources:
-        mem_mb = 40000
+        mem_mb = 120000
     conda:
         "repeatanalysis"
     script:

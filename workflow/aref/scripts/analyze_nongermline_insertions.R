@@ -2,7 +2,7 @@ source("workflow/scripts/defaults.R")
 module_name <- "aref"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
 source("workflow/scripts/generate_colors_to_source.R")
-source("workflow/scripts/sample_table_source.R")
+source("conf/sample_table_source.R")
 
 library(readr)
 library(magrittr)
@@ -48,8 +48,14 @@ dir.create(outputdir, recursive = TRUE, showWarnings = FALSE)
 dflist <- list()
 rm(sample_sequencing_data)
 for (sample in sample_table$sample_name) {
+    if (conf$update_ref_with_tldr$per_sample == "yes") {
     df <- read.table(grep(sprintf("%s_tldr", sample), inputs$tldroutput, value = TRUE), header = TRUE) %>%
-        mutate(faName = paste0("nonrefins_", Subfamily, "_", Chrom, "_", Start, "_", End))
+        mutate(faName = paste0("nonrefins_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>% tibble()
+    } else {
+    df <- read.table(inputs$tldroutput, header = TRUE) %>%
+        mutate(faName = paste0("nonrefins_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>% tibble()
+    }
+
     df$sample_name <- sample
     dflist[[sample]] <- df
 
@@ -96,104 +102,6 @@ for (sample in unique(dffilt$sample_name)) {
 
 }
 
-
-
-pf <- dfall %>% mutate(SingleReadSupport = ifelse(UsedReads == 1, "SingleReadSupport", "MultiReadSupport")) %>% group_by(SingleReadSupport, sample_name, condition, N50, reads_number, bases_number, age, sex, braak) %>% summarise(nins = n()) %>% ungroup()
-pfsrs <- pf %>% filter(SingleReadSupport == "SingleReadSupport")
-pfpass <- dfall %>% filter(Filter == "PASS") %>% mutate(SingleReadSupport = ifelse(UsedReads == 1, "SingleReadSupport", "MultiReadSupport")) %>% group_by(SingleReadSupport, sample_name, condition, N50, reads_number, bases_number, age, sex, braak) %>% summarise(nins = n()) %>% ungroup()
-pfpasssrs <- pfpass %>% filter(SingleReadSupport == "SingleReadSupport")
-
-p<- pf %>% ggplot(aes(x = N50, y = nins, color = sample_name)) + geom_point() +
-    facet_wrap(~SingleReadSupport) + labs(x = "N50", y = "Number of Insertions") + mtclosed + scale_samples_unique
-mysaveandstore(sprintf("%s/n50_vs_insertions_facet.png", outputdir), 7, 4)
-
-p<- pf %>% ggplot(aes(x = reads_number, y = nins, color = sample_name)) + geom_point() +
-    facet_wrap(~SingleReadSupport) + labs(x = "Total Reads Count", y = "Number of Insertions") + mtclosed + scale_samples_unique
-mysaveandstore(sprintf("%s/reads_number_vs_insertions_facet.png", outputdir), 7, 4)
-
-p<- pf %>% ggplot(aes(x = bases_number, y = nins, color = sample_name)) + geom_point() +
-    facet_wrap(~SingleReadSupport) + labs(x = "Total Bases Count", y = "Number of Insertions") + mtclosed + scale_samples_unique
-mysaveandstore(sprintf("%s/bases_number_vs_insertions_facet.png", outputdir), 7, 4)
-
-sink(sprintf("%s/lm_allins.txt", outputdir))
-model <- lm(nins ~ age + sex + braak + condition + N50 + reads_number + bases_number, data = pf)
-model %>% summary()
-sink()
-
-sink(sprintf("%s/lm_srsins.txt", outputdir))
-model <- lm(nins ~ age + sex + braak + condition + N50 + reads_number + bases_number, data = pfsrs)
-model %>% summary()
-sink()
-
-
-for (mvar in colnames(sample_table)[!(colnames(sample_table) %in% c("sample_name", "condition")) ]) {
-    tryCatch({
-    if (sample_table[[mvar]] %>% is.numeric()) {
-        p <- pf %>% ggplot(aes(x = !!sym(mvar), y = nins, color = sample_name)) + geom_point() + 
-            labs(y = "Number of Insertions", title = "RTE Somatic Insertions", subtitle = "Multi and Single Read Supported") + mtopen +
-            scale_samples_unique + theme(axis.text.x = element_text(angle = 45, hjust = 1))
-    } else {
-        p <- pf %>% ggplot(aes(x = sample_name, y = nins,fill = condition)) + facet_grid(cols = vars(!!sym(mvar)), scales = "free_x", space = "free") + geom_col() + 
-            labs(x = "", y = "Number of Insertions",, title = "RTE Somatic Insertions", subtitle = "Multi and Single Read Supported") + mtclosed + anchorbar +
-            scale_conditions + theme(axis.text.x = element_text(angle = 45, hjust = 1))
-    }
-    mysaveandstore(sprintf("%s/ins_by_%s.png", outputdir, mvar), 5, 4)
-    }, error = function(e) {
-        print(e)
-    })
-}
-for (mvar in colnames(sample_table)[!(colnames(sample_table) %in% c("sample_name", "condition")) ]) {
-    tryCatch({
-    if (sample_table[[mvar]] %>% is.numeric()) {
-        p <- pfsrs %>% ggplot(aes(x = !!sym(mvar), y = nins, color = sample_name)) + geom_point() + 
-            labs(y = "Number of Insertions", title = "RTE Somatic Insertions", subtitle = "Single Read Supported") + mtopen +
-            scale_samples_unique + theme(axis.text.x = element_text(angle = 45, hjust = 1))
-    } else {
-        p <- pfsrs %>% ggplot(aes(x = sample_name, y = nins,fill = condition)) + facet_grid(cols = vars(!!sym(mvar)), scales = "free_x", space = "free") + geom_col() + 
-            labs(x = "", y = "Number of Insertions",, title = "RTE Somatic Insertions", subtitle = "Single Read Supported") + mtclosed + anchorbar +
-            scale_conditions + theme(axis.text.x = element_text(angle = 45, hjust = 1))
-    }
-    mysaveandstore(sprintf("%s/ins_by_%s_singleread.png", outputdir, mvar), 5, 4)
-    }, error = function(e) {
-        print(e)
-    })
-}
-for (mvar in colnames(sample_table)[!(colnames(sample_table) %in% c("sample_name", "condition")) ]) {
-    tryCatch({
-    if (sample_table[[mvar]] %>% is.numeric()) {
-        p <- pfpass %>% ggplot(aes(x = !!sym(mvar), y = nins, color = sample_name)) + geom_point() + 
-            labs(y = "Number of Insertions", title = "RTE Somatic Insertions", subtitle = "Multi and Single Read Supported") + mtopen +
-            scale_samples_unique + theme(axis.text.x = element_text(angle = 45, hjust = 1))
-    } else {
-        p <- pfpass %>% ggplot(aes(x = sample_name, y = nins,fill = condition)) + facet_grid(cols = vars(!!sym(mvar)), scales = "free_x", space = "free") + geom_col() + 
-            labs(x = "", y = "Number of Insertions",, title = "RTE Somatic Insertions", subtitle = "Multi and Single Read Supported") + mtclosed + anchorbar +
-            scale_conditions + theme(axis.text.x = element_text(angle = 45, hjust = 1))
-    }
-    mysaveandstore(sprintf("%s/ins_by_%s_pass.png", outputdir, mvar), 5, 4)
-    }, error = function(e) {
-        print(e)
-    })
-}
-for (mvar in colnames(sample_table)[!(colnames(sample_table) %in% c("sample_name", "condition")) ]) {
-    tryCatch({
-    if (sample_table[[mvar]] %>% is.numeric()) {
-        p <- pfpasssrs %>% ggplot(aes(x = !!sym(mvar), y = nins, color = sample_name)) + geom_point() + 
-            labs(y = "Number of Insertions", title = "RTE Somatic Insertions", subtitle = "Single Read Supported") + mtopen +
-            scale_samples_unique + theme(axis.text.x = element_text(angle = 45, hjust = 1))
-    } else {
-        p <- pfpasssrs %>% ggplot(aes(x = sample_name, y = nins,fill = condition)) + facet_grid(cols = vars(!!sym(mvar)), scales = "free_x", space = "free") + geom_col() + 
-            labs(x = "", y = "Number of Insertions",, title = "RTE Somatic Insertions", subtitle = "Single Read Supported") + mtclosed + anchorbar +
-            scale_conditions + theme(axis.text.x = element_text(angle = 45, hjust = 1))
-    }
-    mysaveandstore(sprintf("%s/ins_by_%s_singleread_pass.png", outputdir, mvar), 5, 4)
-    }, error = function(e) {
-        print(e)
-    })
-}
-
-
-
-
 p <- dffilt %>% filter(UsedReads == 1) %>% ggplot(aes(x = sample_name, fill = Filter == "PASS")) + geom_bar() + facet_wrap(~Family) + labs(x = "Supporting Read Count", title = "RTE Somatic Insertions") + mtopen + anchorbar + scale_palette+ theme(axis.text.x = element_text(angle = 45, hjust = 1))
 mysaveandstore(sprintf("%s/single_read_bar.png", outputdir), 8, 5)
 
@@ -208,7 +116,114 @@ mysaveandstore(sprintf("%s/single_read_pass_bar.png", outputdir), 8, 5)
 p <- dffilt %>% filter(UsedReads == 1) %>% filter(Filter == "PASS") %>% ggplot(aes(x = LengthIns)) + geom_histogram() + labs(x = "Insertion Length", y = "Count", title = "RTE Somatic Insertions", subtitle = "Single Read Supported") + facet_wrap(sample_name~Family) + mtclosed + anchorbar + scale_palette+ theme(axis.text.x = element_text(angle = 45, hjust = 1))
 mysaveandstore(sprintf("%s/single_read_pass_insertion_length.png", outputdir), 10, 10)
 
-#caveats will be total number of reads, read length (since you need to span the insertion), 
+
+tryCatch(
+    {
+        metadata_vars <- colnames(sample_table)[!(colnames(sample_table) %in% c("sample_name", "condition")) ]
+        sequencing_metadata_vars <- c("N50", "reads_number", "bases_number")
+
+
+        grouping_vars <- c("SingleReadSupport", "sample_name", "condition", sequencing_metadata_vars, metadata_vars)
+        pf <- dfall %>% mutate(SingleReadSupport = ifelse(UsedReads == 1, "SingleReadSupport", "MultiReadSupport")) %>% group_by(across(grouping_vars)) %>% summarise(nins = n()) %>% ungroup()
+        pfsrs <- pf %>% filter(SingleReadSupport == "SingleReadSupport")
+        pfpass <- dfall %>% filter(Filter == "PASS") %>% mutate(SingleReadSupport = ifelse(UsedReads == 1, "SingleReadSupport", "MultiReadSupport")) %>% group_by(across(grouping_vars)) %>% summarise(nins = n()) %>% ungroup()
+        pfpasssrs <- pfpass %>% filter(SingleReadSupport == "SingleReadSupport")
+
+        p<- pf %>% ggplot(aes(x = N50, y = nins, color = sample_name)) + geom_point() +
+            facet_wrap(~SingleReadSupport) + labs(x = "N50", y = "Number of Insertions") + mtclosed + scale_samples_unique
+        mysaveandstore(sprintf("%s/n50_vs_insertions_facet.png", outputdir), 7, 4)
+
+        p<- pf %>% ggplot(aes(x = reads_number, y = nins, color = sample_name)) + geom_point() +
+            facet_wrap(~SingleReadSupport) + labs(x = "Total Reads Count", y = "Number of Insertions") + mtclosed + scale_samples_unique
+        mysaveandstore(sprintf("%s/reads_number_vs_insertions_facet.png", outputdir), 7, 4)
+
+        p<- pf %>% ggplot(aes(x = bases_number, y = nins, color = sample_name)) + geom_point() +
+            facet_wrap(~SingleReadSupport) + labs(x = "Total Bases Count", y = "Number of Insertions") + mtclosed + scale_samples_unique
+        mysaveandstore(sprintf("%s/bases_number_vs_insertions_facet.png", outputdir), 7, 4)
+
+        predictors <- c(sequencing_metadata_vars, metadata_vars, "condition")
+        model_formula <- paste("nins ~ ",paste(predictors, collapse="+"),sep = "")
+        sink(sprintf("%s/lm_allins.txt", outputdir))
+        model <- lm(as.formula(model_formula), data = pf)
+        model %>% summary()
+        sink()
+
+        sink(sprintf("%s/lm_srsins.txt", outputdir))
+        model <- lm(as.formula(model_formula), data = pfsrs)
+        model %>% summary()
+        sink()
+
+
+        for (mvar in metadata_vars) {
+            tryCatch({
+            if (sample_table[[mvar]] %>% is.numeric()) {
+                p <- pf %>% ggplot(aes(x = !!sym(mvar), y = nins, color = sample_name)) + geom_point() + 
+                    labs(y = "Number of Insertions", title = "RTE Somatic Insertions", subtitle = "Multi and Single Read Supported") + mtopen +
+                    scale_samples_unique + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+            } else {
+                p <- pf %>% ggplot(aes(x = sample_name, y = nins,fill = condition)) + facet_grid(cols = vars(!!sym(mvar)), scales = "free_x", space = "free") + geom_col() + 
+                    labs(x = "", y = "Number of Insertions",, title = "RTE Somatic Insertions", subtitle = "Multi and Single Read Supported") + mtclosed + anchorbar +
+                    scale_conditions + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+            }
+            mysaveandstore(sprintf("%s/ins_by_%s.png", outputdir, mvar), 5, 4)
+            }, error = function(e) {
+                print(e)
+            })
+        }
+        for (mvar in metadata_vars) {
+            tryCatch({
+            if (sample_table[[mvar]] %>% is.numeric()) {
+                p <- pfsrs %>% ggplot(aes(x = !!sym(mvar), y = nins, color = sample_name)) + geom_point() + 
+                    labs(y = "Number of Insertions", title = "RTE Somatic Insertions", subtitle = "Single Read Supported") + mtopen +
+                    scale_samples_unique + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+            } else {
+                p <- pfsrs %>% ggplot(aes(x = sample_name, y = nins,fill = condition)) + facet_grid(cols = vars(!!sym(mvar)), scales = "free_x", space = "free") + geom_col() + 
+                    labs(x = "", y = "Number of Insertions",, title = "RTE Somatic Insertions", subtitle = "Single Read Supported") + mtclosed + anchorbar +
+                    scale_conditions + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+            }
+            mysaveandstore(sprintf("%s/ins_by_%s_singleread.png", outputdir, mvar), 5, 4)
+            }, error = function(e) {
+                print(e)
+            })
+        }
+        for (mvar in metadata_vars) {
+            tryCatch({
+            if (sample_table[[mvar]] %>% is.numeric()) {
+                p <- pfpass %>% ggplot(aes(x = !!sym(mvar), y = nins, color = sample_name)) + geom_point() + 
+                    labs(y = "Number of Insertions", title = "RTE Somatic Insertions", subtitle = "Multi and Single Read Supported") + mtopen +
+                    scale_samples_unique + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+            } else {
+                p <- pfpass %>% ggplot(aes(x = sample_name, y = nins,fill = condition)) + facet_grid(cols = vars(!!sym(mvar)), scales = "free_x", space = "free") + geom_col() + 
+                    labs(x = "", y = "Number of Insertions",, title = "RTE Somatic Insertions", subtitle = "Multi and Single Read Supported") + mtclosed + anchorbar +
+                    scale_conditions + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+            }
+            mysaveandstore(sprintf("%s/ins_by_%s_pass.png", outputdir, mvar), 5, 4)
+            }, error = function(e) {
+                print(e)
+            })
+        }
+        for (mvar in metadata_vars) {
+            tryCatch({
+            if (sample_table[[mvar]] %>% is.numeric()) {
+                p <- pfpasssrs %>% ggplot(aes(x = !!sym(mvar), y = nins, color = sample_name)) + geom_point() + 
+                    labs(y = "Number of Insertions", title = "RTE Somatic Insertions", subtitle = "Single Read Supported") + mtopen +
+                    scale_samples_unique + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+            } else {
+                p <- pfpasssrs %>% ggplot(aes(x = sample_name, y = nins,fill = condition)) + facet_grid(cols = vars(!!sym(mvar)), scales = "free_x", space = "free") + geom_col() + 
+                    labs(x = "", y = "Number of Insertions",, title = "RTE Somatic Insertions", subtitle = "Single Read Supported") + mtclosed + anchorbar +
+                    scale_conditions + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+            }
+            mysaveandstore(sprintf("%s/ins_by_%s_singleread_pass.png", outputdir, mvar), 5, 4)
+            }, error = function(e) {
+                print(e)
+            })
+        }
+
+    },
+    error = function(e) {
+        message("Likely single condition")
+    }
+)
 
 ##########
 

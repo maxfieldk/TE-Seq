@@ -39,7 +39,8 @@ for pipeline in config["pipelines_to_deploy"]:
                     "aref/A.REF_annotations/A.REF_rte_beds/outfile.txt",
                     "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.sqlite",
                     "aref/A.REF_annotations/cytobands.bed",
-                    "aref/A.REF_annotations/cpg_islands.bed"
+                    "aref/A.REF_annotations/cpg_islands.bed",
+                    "aref/results/insertions/analyze_nongermline_insertions.rds"
                 ]
                 if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
                     paths.append(expand("aref/qc/{sample_or_ref}/{sample_or_ref}pycoQC.html", sample_or_ref = config["aref"]["samples"]))
@@ -82,8 +83,9 @@ for pipeline in config["pipelines_to_deploy"]:
         clair3 = expand("ldna/intermediates/{sample}/clair3/full_alignment.vcf.gz", sample = config["ldna"]["samples"])
         methylartist = "ldna/results/plots/methylartist/locus/methylartistlocusplot_loci_of_interest.outfile"
         gimme = "ldna/results/gimme/gimme_plots.rds"
+        pepper = expand("ldna/intermediates/{sample}/pepper/out.outfile", sample = config["ldna"]["samples"])
         if config["ldna"]["single_condition"] == "yes":
-            for e in list(flatten([bedmethanalysis_single_sample,sniffles, clair3, methylartist])):
+            for e in list(flatten([pepper, bedmethanalysis_single_sample,sniffles, clair3, methylartist])):
                 final_input.append(e)
         else:
             for e in list(flatten([bedmethanalysis,dmrs, sniffles, clair3, methylartist])):

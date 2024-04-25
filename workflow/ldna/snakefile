@@ -1254,9 +1254,9 @@ rule pepper:
     output:
         outfile = "ldna/intermediates/{sample}/pepper/out.outfile"
     resources:
-        cpus_per_task =10,
-        runtime = 2000,
-        mem_mb = 80000
+        cpus_per_task =32,
+        runtime = 4000,
+        mem_mb = 156000
     container:
         "docker://kishwars/pepper_deepvariant:r0.8"
     shell:	

@@ -32,13 +32,13 @@ library(rtracklayer)
 
 tryCatch(
     {
-        inputs <- inputs
-        outputs <- outputs
+        inputs <- snakemake@input
+        outputs <- snakemake@output
     },
     error = function(e) {
         assign("inputs", list(
             refseq = "aref/A.REF_annotations/refseq.gff3",
-            repeatmasker = "aref/A.REF_annotations/repeatmasker.complete.gff3",
+            repeatmasker = "aref/A.REF_repeatmasker.complete.gff3",
             genome2bit = "aref/ref.2bit"
         ), env = globalenv())
         assign("outputs", list(
