@@ -204,10 +204,10 @@ for (contrast in params[["contrasts"]]) {
         }
     }
 }
-gse_df %$% collection
+
 gres <- gse_df %>% tibble()
 for (ontology in ontologies) {
-    grestemp <- gres %>% filter(collection == collec) %>% left_join(contrast_label_map)
+    grestemp <- gres %>% filter(collection == ontology) %>% left_join(contrast_label_map)
     sigIDs <- grestemp %>% group_by(contrast) %>% arrange(p.adjust) %>% slice_head(n = 10) %$% ID %>% unique()
     p <- grestemp %>% dplyr::filter(ID %in% sigIDs) %>% mutate(sig = ifelse(p.adjust < 0.05, "*", "")) %>%
         mutate(ID = str_wrap(as.character(ID) %>% gsub("_", " ", .), width = 40)) %>%
@@ -222,7 +222,7 @@ for (ontology in ontologies) {
         labs(x = "", y = "", title = ontology) +
         theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
         coord_equal()
-    mysaveandstore(sprintf("%s/gsea_top_rtes.png", params[["outputdir"]], collec), 7,12)
+    mysaveandstore(sprintf("%s/gsea_top_rtes.png", params[["outputdir"]], ontology), 7,12)
 }
 
 save(mysaveandstoreplots, file = outputs$plots)

@@ -181,25 +181,36 @@ mysaveandstore(sprintf("%s/%s/rte_genic_cor_pval_%s_%s.png", outputdir, tecountt
 
 #### PLOTTING FUNCTIONS
 
-pvp <- function(df, facet_var = "ALL", filter_var = "ALL", labels = "no") {
+pvp <- function(df, facet_var = "ALL", filter_var = "ALL", labels = "no", scale_log2 = "no") {
     if (filter_var != "ALL") {
         df <- df %>% filter(str_detect(!!sym(filter_var), ">|Intact|towards"))
     }
+    if (scale_log2 == "no") {
     pf <- df %>%
         group_by(across(all_of(c(colsToKeep, "condition")))) %>%
         summarise(mean(counts), padj = dplyr::first(!!sym(contrast_padj))) %>%
         pivot_wider(names_from = condition, values_from = `mean(counts)`) 
+    } else {
+    pf <- df %>%
+        group_by(across(all_of(c(colsToKeep, "condition")))) %>%
+        summarise(mean(counts), padj = dplyr::first(!!sym(contrast_padj))) %>%
+        pivot_wider(names_from = condition, values_from = `mean(counts)`) %>%
+        mutate(across(conf$levels, ~ log2(.x + 1)))
+    }
+
     top_sig <- pf %>% filter(!!sym(contrast_padj) < 0.05) %>% arrange(padj) %>% head(6) %>% pull(gene_id) 
     if (labels != "no") {
     p <- pf %>%
         {
             ggplot(data = ., mapping = aes(x = !!sym(contrast_level_1), y = !!sym(contrast_level_2))) +
                 geom_abline(intercept = 0, slope = 1, alpha = 0.5) +
-                geom_point(aes(color = loc_integrative, size = padj < 0.05, shape = padj < 0.05)) +
+                geom_point(aes(color = loc_integrative, shape = ifelse(is.na(padj), FALSE, ifelse(padj < 0.05, TRUE, FALSE)))) +
+                scale_shape_manual(values = c(1, 19, 3)) +
                 scale_size_manual(values = c(1,2,1)) +
                 labs(x = sprintf("%s Norm Counts", contrast_level_1), y = sprintf("%s Norm Counts", contrast_level_2), 
                     caption = counttype_label,
-                    color = "Genomic Context") +
+                    color = "Genomic Context",
+                    shape = "padj < 0.05") +
                 mtclosed + scale_palette_alt +
                 theme(aspect.ratio = 1) +
                 coord_cartesian(clip = "off") +
@@ -215,11 +226,13 @@ pvp <- function(df, facet_var = "ALL", filter_var = "ALL", labels = "no") {
         {
             ggplot(data = ., mapping = aes(x = !!sym(contrast_level_1), y = !!sym(contrast_level_2))) +
                 geom_abline(intercept = 0, slope = 1, alpha = 0.5) +
-                geom_point(aes(color = loc_integrative, size = padj < 0.05, shape = padj < 0.05)) +
+                geom_point(aes(color = loc_integrative, shape = ifelse(is.na(padj), FALSE, ifelse(padj < 0.05, TRUE, FALSE)))) +
+                scale_shape_manual(values = c(1, 19, 3)) +
                 scale_size_manual(values = c(1,2,1)) +
                 labs(x = sprintf("%s Norm Counts", contrast_level_1), y = sprintf("%s Norm Counts", contrast_level_2), 
                     caption = counttype_label,
-                    color = "Genomic Context") +
+                    color = "Genomic Context",
+                    shape = "padj < 0.05") +
                 mtclosed + scale_palette_alt +
                 theme(aspect.ratio = 1) +
                 coord_cartesian(clip = "off") +
@@ -233,15 +246,18 @@ pvp <- function(df, facet_var = "ALL", filter_var = "ALL", labels = "no") {
     if (facet_var != "ALL") {
         p <- p + facet_wrap(facet_var)
     }
+    if (scale_log2 == "yes") {
+        p <- p + labs(x = sprintf("log2(%s Norm Counts)", contrast_level_1), y = sprintf("log2(%s Norm Counts)", contrast_level_2))
+    }
     return(p)
 }
-# df <- tidydf %>% filter(rte_subfamily == "L1HS")
-# p <- pvp(tidydf %>% filter(rte_subfamily == "L1HS"), filter_var = "ALL", facet_var = "genic_loc") + ggtitle("L1HS")
-# mysave("temp1.png", 8, 8)
+df <- tidydf %>% filter(rte_subfamily == "L1HS")
+p <- pvp(tidydf %>% filter(rte_subfamily == "L1HS"), filter_var = "ALL", facet_var = "genic_loc", scale_log2 = "yes") + ggtitle("L1HS")
+mysave("temp1.png", 8, 8)
 
 dep <- function(df, facet_var = "ALL", filter_var = "ALL") {
     if (filter_var != "ALL") {
-        df <- df %>% filter(str_detect(!!sym(filter_var), ">|Intact|^Fl|^LTR"))
+        df <- df %>% filter(str_detect(!!sym(filter_var), ">|Intact"))
     }
     if (facet_var == "ALL") {
         facet_var_1 <- NULL
@@ -294,7 +310,7 @@ stripp <- function(df, stats = "no", extraGGoptions = NULL, facet_var = "ALL", f
         stats <- "no"
     }
     if (filter_var != "ALL") {
-        df <- df %>% filter(str_detect(!!sym(filter_var), ">|Intact|^Fl|^LTR"))
+        df <- df %>% filter(str_detect(!!sym(filter_var), ">|Intact"))
     }
     
     stat.test <- df %>%
@@ -597,6 +613,10 @@ for (ontology in ontologies) {
                             if (function_name == "pvp") {
                                 p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, labels = "yes") + ggtitle(plot_title)
                                 mysaveandstore(sprintf("% s/%s/%s/%s/%s_%s_%s_labels.png", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height)
+                                p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, labels = "no", scale_log2 = "yes") + ggtitle(plot_title)
+                                mysaveandstore(sprintf("% s/%s/%s/%s/%s_%s_%s_log2.png", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height)
+                                p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, labels = "yes", scale_log2 = "yes") + ggtitle(plot_title)
+                                mysaveandstore(sprintf("% s/%s/%s/%s/%s_%s_%s_log2labels.png", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height)
                             }
                             if (function_name == "stripp") {
                                 p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, stats = "yes") + ggtitle(plot_title)

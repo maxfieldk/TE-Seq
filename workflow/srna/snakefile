@@ -623,7 +623,8 @@ rule getBigWigR:
 rule bigwigplots:
     input:
         bwF = expand("srna/outs/{sample}/star_output/{sample}.F.bw", sample = samples),
-        bwR = expand("srna/outs/{sample}/star_output/{sample}.R.bw", sample = samples)
+        bwR = expand("srna/outs/{sample}/star_output/{sample}.R.bw", sample = samples),
+        txdbrefseq = "aref/A.REF_annotations/refseq.sqlite"
     params:
         r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
         r_repeatmasker_annotation = config["r_repeatmasker_annotation"]
