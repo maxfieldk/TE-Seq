@@ -177,7 +177,10 @@ rule tldr_aggregate_multiple_samples:
         "tldr"
     shell:
         """
-tldr -b {input.bams} \
+bams=$(echo {input.bams})
+commabams=$(echo $bams | tr ' ' ',')
+
+tldr -b $commabams \
 -e {params.tldr_te_ref} \
 -r {params.tldr_input_bam_ref} \
 -p 20 \
