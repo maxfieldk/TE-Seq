@@ -157,7 +157,7 @@ pvp <- function(df, facet_var = "ALL", filter_var = "ALL") {
 
 dep <- function(df, facet_var = "ALL", filter_var = "ALL") {
     if (filter_var != "ALL") {
-        df <- df %>% filter(str_detect(!!sym(filter_var), ">|Intact"))
+        df <- df %>% filter(str_detect(!!sym(filter_var), ">|Intact|^Fl|^LTR"))
     }
     if (facet_var == "ALL") {
         facet_var_1 <- NULL
@@ -212,7 +212,7 @@ stripp <- function(df, stats = "yes", extraGGoptions = NULL, facet_var = "ALL", 
         stats <- "no"
     }
     if (filter_var != "ALL") {
-        df <- df %>% filter(str_detect(!!sym(filter_var), ">|Intact"))
+        df <- df %>% filter(str_detect(!!sym(filter_var), ">|Intact|^Fl|^LTR"))
     }
     stat.test <- df %>%
         group_by(sample) %>%
