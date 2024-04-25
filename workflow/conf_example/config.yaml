@@ -86,6 +86,8 @@ ldna:
   sample_table: "conf/sample_table_ldna.csv"
   default_palette: "ggsci::default_aaas"
   use_aref_basecalls: "yes"
+  single_condition: "no"
+
   tldr_input_bams:
   samples:
     - "AD1"
