@@ -411,6 +411,7 @@ rule deseq_telescope:
         results_genes = expand("srna/results/agg/deseq_telescope/{{tecounttype}}/{contrast}/results_genes.csv", contrast = config["contrasts"]),
         results_rtes = expand("srna/results/agg/deseq_telescope/{{tecounttype}}/{contrast}/results_rtes.csv", contrast = config["contrasts"]),
         counts_normed = "srna/results/agg/deseq_telescope/{tecounttype}/counttablesizenormed.csv",
+        sizefactors = "srna/results/agg/deseq_telescope/{tecounttype}/sizefactors.csv",
         plots = "srna/results/agg/deseq_telescope/{tecounttype}/deseq_plots.RData"
     script:
         "scripts/deseq_telescope.R"
@@ -579,6 +580,9 @@ rule repeatanalysis_plots:
 rule getBigWigF:
     input:
         sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.primary.bam",
+        sizefactors = "srna/results/agg/deseq_telescope/telescope_multi/sizefactors.csv"
+    params:
+        sample_size_factor = lambda w: 1/float(pd.read_csv("srna/results/agg/deseq_telescope/telescope_multi/sizefactors.csv").set_index("sample_name").loc[w.sample, "sizefactor"])
     output:
         bwF = "srna/outs/{sample}/star_output/{sample}.F.bw"
     resources:
@@ -586,17 +590,20 @@ rule getBigWigF:
         mem_mb = 40000
     conda:
         "omics"
-    shell: "bamCoverage -b {input.sortedbam} -o {output.bwF} --numberOfProcessors max --normalizeUsing CPM --samFlagExclude 256 --filterRNAstrand forward --binSize 50"
+    shell: "bamCoverage -b {input.sortedbam} -o {output.bwF} --numberOfProcessors max --scaleFactor {params.sample_size_factor} --samFlagExclude 256 --filterRNAstrand forward --binSize 50"
 #The --filterRNAstrand option assumes the sequencing library generated from ILLUMINA
 # dUTP/NSR/NNSR methods, which are the most commonly used method for library preparation, 
 #where Read 2 (R2) is in the direction of RNA strand (reverse-stranded library). 
 #However other methods exist, which generate read R1 in the direction of RNA strand 
 #(see this review). For these libraries, --filterRNAstrand will have an opposite behavior, 
 #i.e. --filterRNAstrand forward will give you reverse strand signal and vice-versa.
-
+#https://www.biostars.org/p/413626/#414440 useful thread about scaling factors
 rule getBigWigR:
     input:
         sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.primary.bam",
+        sizefactors = "srna/results/agg/deseq_telescope/telescope_multi/sizefactors.csv"
+    params:
+        sample_size_factor = lambda w: 1/float(pd.read_csv("srna/results/agg/deseq_telescope/telescope_multi/sizefactors.csv").set_index("sample_name").loc[w.sample, "sizefactor"])
     output:
         bwR = "srna/outs/{sample}/star_output/{sample}.R.bw"
     resources:
@@ -604,17 +611,22 @@ rule getBigWigR:
         mem_mb = 40000
     conda:
         "omics"
-    shell: "bamCoverage -b {input.sortedbam} -o {output.bwR} --numberOfProcessors max --normalizeUsing CPM --samFlagExclude 256 --filterRNAstrand reverse --binSize 50"
+    shell: "bamCoverage -b {input.sortedbam} -o {output.bwR} --numberOfProcessors max --scaleFactor {params.sample_size_factor} --samFlagExclude 256 --filterRNAstrand reverse --binSize 50"
 #The --filterRNAstrand option assumes the sequencing library generated from ILLUMINA
 # dUTP/NSR/NNSR methods, which are the most commonly used method for library preparation, 
 #where Read 2 (R2) is in the direction of RNA strand (reverse-stranded library). 
 #However other methods exist, which generate read R1 in the direction of RNA strand 
 #(see this review). For these libraries, --filterRNAstrand will have an opposite behavior, 
 #i.e. --filterRNAstrand forward will give you reverse strand signal and vice-versa.
+#https://www.biostars.org/p/413626/#414440 useful thread about scaling factors
+
 rule bigwigplots:
     input:
         bwF = expand("srna/outs/{sample}/star_output/{sample}.F.bw", sample = samples),
         bwR = expand("srna/outs/{sample}/star_output/{sample}.R.bw", sample = samples)
+    params:
+        r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
+        r_repeatmasker_annotation = config["r_repeatmasker_annotation"]
     output:
         plots = "srna/results/agg/bigwig_plots/plots.rds"
     resources:
