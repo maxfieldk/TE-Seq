@@ -30,6 +30,9 @@ library(GenomicRanges)
 library(paletteer)
 library(patchwork)
 library(zoo)
+library("GenomicRanges")
+library(rtracklayer)
+library(genomation)
 
 
 tryCatch(
@@ -50,7 +53,9 @@ tryCatch(
         ), env = globalenv())
         assign("inputs", list(
             bwF = sprintf("srna/outs/%s/star_output/%s.F.bw", conf$samples, conf$samples),
-            bwR = sprintf("srna/outs/%s/star_output/%s.R.bw", conf$samples, conf$samples)
+            bwR = sprintf("srna/outs/%s/star_output/%s.R.bw", conf$samples, conf$samples),
+            txdbrefseq = "aref/A.REF_annotations/refseq.sqlite"
+
         ), env = globalenv())
         assign("outputs", list(
             "plots" = "srna/results/agg/bigwig_plots/plots.rds"
@@ -68,33 +73,32 @@ rmann <-r_annotation_fragmentsjoined %>%
 
 refseq <- import(conf$annotation_genes)
 coding_transcripts <- refseq[(mcols(refseq)$type == "transcript" & grepl("^NM", mcols(refseq)$transcript_id))]
+temptxs <- coding_transcripts[!is.na(mcols(coding_transcripts)$tag)]
+refseq_select <- temptxs[mcols(temptxs)$tag == "RefSeq Select"]
 noncoding_transcripts <- refseq[(mcols(refseq)$type == "transcript" & grepl("^NR", mcols(refseq)$transcript_id))]
 transcripts <- c(coding_transcripts, noncoding_transcripts)
-
+table(mcols(coding_transcripts)$tag)
 
 ### ONTOLOGY DEFINITION
-{
-    annot_colnames <- colnames(r_repeatmasker_annotation)
-    annot_colnames_good <- annot_colnames[!(annot_colnames %in% c("gene_id", "family"))]
-    ontologies <- annot_colnames_good[str_detect(annot_colnames_good, "family")]
-    small_ontologies <- ontologies[grepl("subfamily", ontologies)]
+# {
+#     annot_colnames <- colnames(r_repeatmasker_annotation)
+#     annot_colnames_good <- annot_colnames[!(annot_colnames %in% c("gene_id", "family"))]
+#     ontologies <- annot_colnames_good[str_detect(annot_colnames_good, "family")]
+#     small_ontologies <- ontologies[grepl("subfamily", ontologies)]
 
-    big_ontologies <- ontologies[!grepl("subfamily", ontologies)]
-    big_ontology_groups <- c()
-    for (ontology in big_ontologies) {
-        big_ontology_groups <- c(big_ontology_groups, resultsdf %>%
-            pull(!!sym(ontology)) %>%
-            unique())
-    }
-    big_ontology_groups <- big_ontology_groups %>% unique()
+#     big_ontologies <- ontologies[!grepl("subfamily", ontologies)]
+#     big_ontology_groups <- c()
+#     for (ontology in big_ontologies) {
+#         big_ontology_groups <- c(big_ontology_groups, resultsdf %>%
+#             pull(!!sym(ontology)) %>%
+#             unique())
+#     }
+#     big_ontology_groups <- big_ontology_groups %>% unique()
 
-    modifiers <- annot_colnames_good[!str_detect(annot_colnames_good, "family")]
-    region_modifiers <- modifiers[str_detect(modifiers, "_loc$")]
-    element_req_modifiers <- modifiers[str_detect(modifiers, "_req$")]
-}
-library("GenomicRanges")
-library(rtracklayer)
-library(genomation)
+#     modifiers <- annot_colnames_good[!str_detect(annot_colnames_good, "family")]
+#     region_modifiers <- modifiers[str_detect(modifiers, "_loc$")]
+#     element_req_modifiers <- modifiers[str_detect(modifiers, "_req$")]
+# }
 
 
 # windowsR <- coding_transcripts %>% as.data.frame() %>% tibble() %>% filter(gene_id %in% c("BRD1", "CPT1B", "ACE2", "STAU1")) %>% GRanges()
@@ -188,6 +192,63 @@ mysaveandstore(sprintf("srna/results/agg/bigwig_plots/%s_profile_by_condition_st
 }
 }
 
+grs_list <- list()
+for (sample in sample_table$sample_name) {
+    bwF <- import(grep(sprintf("/%s/", sample), inputs$bwF, value = TRUE))
+    strand(bwF) <- "+"
+    bwR <- import(grep(sprintf("/%s/", sample), inputs$bwR, value = TRUE))
+    strand(bwR) <- "-"
+    grstemp <- c(bwF, bwR)
+    mcols(grstemp)$sample_name <- sample
+    grs_list[[sample]] <- grstemp
+}
+grs <- Reduce(c, grs_list)
 
+
+
+txdb <- loadDb(inputs$txdbrefseq)
+introns <- intronsByTranscript(txdb, use.names = TRUE)
+introns <- introns[grepl("^NM", names(introns))]
+introns <- introns[names(introns) %in% mcols(refseq_select)$transcript_id]
+exons <- exonsBy(txdb, by = "tx", use.names = TRUE)
+exons <- exons[grepl("^NM", names(exons))]
+exons <- exons[names(exons) %in% mcols(refseq_select)$transcript_id]
+fiveUTRs <- fiveUTRsByTranscript(txdb, use.names = TRUE)
+fiveUTRs <- fiveUTRs[grepl("^NM", names(fiveUTRs))]
+fiveUTRs <- fiveUTRs[names(fiveUTRs) %in% mcols(refseq_select)$transcript_id]
+threeUTRs <- threeUTRsByTranscript(txdb, use.names = TRUE)
+threeUTRs <- threeUTRs[grepl("^NM", names(threeUTRs))]
+threeUTRs <- threeUTRs[names(threeUTRs) %in% mcols(refseq_select)$transcript_id]
+
+getannotation <- function(to_be_annotated, regions_of_interest, property, name_in, name_out) {
+    inregions <- to_be_annotated %>% subsetByOverlaps(regions_of_interest, invert = FALSE, ignore.strand = FALSE)
+    mcols(inregions)[[property]] <- name_in
+    outregions <- to_be_annotated %>% subsetByOverlaps(regions_of_interest, invert = TRUE, ignore.strand = FALSE)
+    mcols(outregions)[[property]] <- name_out
+    merged <- c(inregions, outregions)
+    return(merged)
+}
+
+exonic_annot <- getannotation(grs, exons, "exonic", "Exonic", "NonExonic")%>% as.data.frame() %>% tibble()
+intron_annot <- getannotation(grs, introns, "intronic", "Intronic", "NonIntronic")%>% as.data.frame() %>% tibble()
+
+region_annot <- left_join(exonic_annot, intron_annot)
+
+region_annot1 <- region_annot %>% mutate(loc_integrative = case_when(
+    exonic == "Exonic" ~ "Exonic",
+    intronic == "Intronic" ~ "Intronic",
+    TRUE ~ "NonGenic"
+))
+
+pf <- region_annot1 %>% group_by(sample_name, loc_integrative) %>% summarise(score_sum = sum(score)) %>% left_join(sample_table) %>% ungroup()
+
+barframe <- pf %>% group_by(condition, loc_integrative) %>% summarise(score_condition_mean = mean(score_sum)) 
+
+p<- pf %>% ggplot(aes(x = loc_integrative, y = score_sum, fill = sample_name)) + geom_col(position = position_dodge(preserve = "single")) + scale_samples_unique + mtopen + anchorbar
+mysaveandstore("srna/results/agg/bigwig_plots/gene_oriented_signal.png", 12,5)
+
+p<- pf %>% ggplot(aes(x = sample_name, y = score_sum, fill = sample_name)) + geom_col(position = position_dodge(preserve = "single")) +
+    facet_wrap(~loc_integrative, scale = "free_y") + scale_samples_unique + mtclosed + anchorbar + theme(axis.text.x = element_blank())
+mysaveandstore("srna/results/agg/bigwig_plots/gene_oriented_signal_faceted.png", 12,5)
 
 save(mysaveandstoreplots, file = outputs$plots)
