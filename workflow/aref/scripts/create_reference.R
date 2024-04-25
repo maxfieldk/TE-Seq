@@ -22,7 +22,8 @@ tryCatch(
     }
 )
 
-df <- read_delim(inputs$tldroutput) %>%
+df <- read_delim(inputs$tldroutput) %>% separate_wider_delim(EmptyReads,delim = "|", names = c("sample_name", "emptyreadsnum"))  %>% mutate(fraction_reads_count = UsedReads / (UsedReads + as.numeric(emptyreadsnum))) %>% 
+    filter(fraction_reads_count > 0.20)
     mutate(faName = paste0("nonrefins_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>%
     filter(!is.na(Family)) %>%
     filter(!is.na(StartTE)) %>%

@@ -192,6 +192,9 @@ mv A.REF.table.txt {output.tldr}
 mv A.REF $(dirname {output.tldr})/
         """
 
+rule call_tldr_per_sample:
+    input:
+        expand("aref/{sample_or_ref}_tldr/{sample_or_ref}.table.txt", sample = config["samples"], sample_or_ref = config["samples"])
 rule tldr_per_sample:
     input:
         bam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
@@ -347,6 +350,18 @@ rule analyze_insertions:
         "repeatanalysis"
     script:
         "scripts/analyze_insertions.R"
+
+rule analyze_nongermline_insertions:
+    input:
+        json = expand("aref/qc/{sample}/{sample}pycoQC.json", sample = config[["samples"]]),
+        tldroutput = lambda w: expand("aref/{sample}_tldr/{sample}.table.txt", sample = config[["samples"]]) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF_tldr/A.REF.table.txt"
+
+    output:
+        plots = "aref/results/insertions/analyze_nongermline_insertions.rds",
+    conda:
+        "ds"
+    script:
+        "scripts/analyze_nongermline_insertions.R"
         
 rule cleanup_updated_ref:
     input:
