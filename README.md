@@ -1,20 +1,31 @@
 # RTE Analysis
 
-- Create a project directory
-- Clone this pipeline into said directory
-- Copy the workflow/conf_example directory to ./conf
-  ```
-  cp workflow/conf_example conf
-  ```
+This project consists of a snakemake pipeline to analyze transposable element omics data. It consists of 4 modules, "Annotate Referene" (AREF), short-read RNA-Seq (SRNA), long-read RNA-Seq (LRNA), and long-read DNA-Seq (LDNA). LRNA and LDNA remain in active development, while AREF and SRNA are comparatively stable. Nevertheless changes to these modules will no doubt be forthcoming. A snakemake pipeline consists of several parts: a main "snakefile" which can deploy a number of module level snakefile, which contain rules. These rules take in inputs and produce outputs. In order to run this pipeline, a number of configuration files must be edited to reflect the end user's data and analytical desires. This README will walk you through the setup and runtime steps to run the AREF and SRNA modules. Accordingly, to get a particular "frozen" version of the pipeline, please specify a tag when cloning the pipeline (as shown below).
+## Install snakemake
+- Create a snakemake conda environment from which you can run the snakemake pipeline, and install the required snakemake executor plugins in your snamemake conda environment, e.g.
+    ```
+    mamba create --name snakemake snakemake snakemake-executor-plugin-slurm
+    ```
 - If you are not able to use docker/singularity and/or want to be able to modify environements, you can create the environments in the envs/ directory. E.g.:
    ```
    mamba env create --file envs/rseqc.yaml
    ```
    It will take time and occupy a substantial amount of disk space to recreate all of these environments. Using a container is the prefered way to deploy this pipeline.
-- Modify the contents of conf/private/sample_table. Make sure sample names do not start with numbers; add an X in front if they do.
-- Modify the contents of conf/config.yaml; make sure the samples, contrast, library_type are modified properly; are all paths you have access to and don't give you permissions errors
+
+## Setup your project directory
+- Create a project directory
+- Clone this pipeline into said directory, using a tag to specify a frozen version, or without one to get the latest version (this may give you more errors than a stable version).
   ```
-  cat {path}
+  git clone -b rnaseq-stable-v0.1.0 https://github.com/maxfieldk/RTE.git
+  ```
+- Copy the workflow/conf_example directory to ./conf
+  ```
+  cp workflow/conf_example conf
+  ```
+- Modify the contents of conf/sample_table_srna. Make sure sample names do not start with numbers; add an X in front if they do.
+- Modify the contents of conf/config.yaml; make sure the samples, contrast, library_type are modified properly; also make sure that paths are present on your system and do not give you permissions errors. You will need to provide a number of standard genome annotation files, such as a gtf file, etc. This pipeline expects chromosome names to be in UCSC format ie. "chr1, chr2, ...".
+  ```
+  head {path}
   ```
 - Create, in your project directory, the rawdata directory, and move your fastqs there. Make sure the naming is consistent with the naming scheme set forth in the conf/project_config_srna.yaml, which uses sample_name from the conf/sample_table_srna.csv i.e.:
 ```
@@ -38,10 +49,7 @@ Then you would modify the "derive" block in your conf/project_config_srna.yaml a
   becomes
   singularity-args: '--bind /users/other_user/data'
   ```
-- Create a snakemake conda environment from which you can run the snakemake pipeline, and install the required snakemake executor plugins in your snamemake conda environment, e.g.
-    ```
-    mamba create --name snakemake snakemake snakemake-executor-plugin-slurm
-    ```
+
 - Performe a pipeline dry-run, which tells you which rules snakemake will deploy once really called
   ```
   conda activate snakemake
@@ -50,5 +58,9 @@ Then you would modify the "derive" block in your conf/project_config_srna.yaml a
   ```
 - For help with snakemake, consult its highly usable and detailed docs at https://snakemake.readthedocs.io/en/stable/index.html
 - For help with git, consult https://git-scm.com/docs/gittutorial
-  
+
+## Annotations
+- T2T-hs1 annotations can be found at:
+  https://ftp.ncbi.nlm.nih.gov/refseq/H_sapiens/annotation/annotation_releases/current/
+  Wherein *_T2T-CHM13v2.0_genomic.*.gz correspond to the refseq gtf or gff commonly used for RNA-Seq analysis.
 
