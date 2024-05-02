@@ -920,6 +920,26 @@ gimme motifs ${{{input.dmrpromoterhyper_bed}%.*}}.fa $(dirname {output.hyper}) -
 gimme motifs ${{{input.dmrpromoterhypo_bed}%.*}}.fa $(dirname {output.hypo}) --background gc -g {params.ref} --known --nthreads 24 -p {params.pwms} --size 500 --noreport
         """
 
+
+rule gimme_maelstrom:
+    input:
+        clusters = "/users/mkelsey/data/n2102ep/RTE/ldna/Rintermediates/l1_dif_meth_for_motif_analysis.tsv"
+    params:
+        ref = config["ldna"]["reference"],
+        pwms = config["ldna"]["tf_position_weighted_matrices"]
+    output:
+        out = "ldna/results/gimme/l1hs_promoter_methylation_dif_motif.out75.outfile"
+    container: "https://depot.galaxyproject.org/singularity/gimmemotifs:0.17.1--py39h67e14b5_1"
+    resources:
+        cpus_per_task = 26,
+        mem_mb = 64000,
+        runtime = 300
+    shell:
+        """
+gimme maelstrom  --nthreads 24  {input.clusters} {params.ref} $(dirname {output.out})
+touch {output.out}
+        """
+
 rule gimmeplots:
     input:
         hypo = "ldna/results/gimme/hypo/gimme.roc.report.txt",
@@ -1152,64 +1172,64 @@ flye --nano-raw {input.fq} --out-dir $(dirname {output.outfile}) --threads 30
         """
 
 
-#tag VARIANT_CALLING
-rule clair3:
-    input:
-        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
-    output:
-        vcf = "ldna/intermediates/{sample}/clair3/full_alignment.vcf.gz"
-    params:
-        ref = config["ldna"]["reference"],
-        clair3model = config["ldna"]["clair3model"]
-    threads: 32
-    resources:
-        runtime = 1000,
-        mem_mb = 128000,
-    conda: "clair3"
-    shell:
-        """
-wd=$(pwd)
-mkdir -p $(dirname {output})
-run_clair3.sh \
---indel_min_af=0.05 \
---bam_fn="{input.sortedbam}" \
---ref_fn="{params.ref}" \
---threads=24 \
---platform="ont" \
---model_path={params.clair3model} --output=${{wd}}/$(dirname {output.vcf})
-        """
+# #tag VARIANT_CALLING
+# rule clair3:
+#     input:
+#         sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+#         sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+#     output:
+#         vcf = "ldna/intermediates/{sample}/clair3/full_alignment.vcf.gz"
+#     params:
+#         ref = config["ldna"]["reference"],
+#         clair3model = config["ldna"]["clair3model"]
+#     threads: 32
+#     resources:
+#         runtime = 1000,
+#         mem_mb = 128000,
+#     conda: "clair3"
+#     shell:
+#         """
+# wd=$(pwd)
+# mkdir -p $(dirname {output})
+# run_clair3.sh \
+# --indel_min_af=0.05 \
+# --bam_fn="{input.sortedbam}" \
+# --ref_fn="{params.ref}" \
+# --threads=24 \
+# --platform="ont" \
+# --model_path={params.clair3model} --output=${{wd}}/$(dirname {output.vcf})
+#         """
 
-rule clair3ROI:
-    input:
-        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
-    output:
-        outfile = "ldna/intermediates/{sample}/clair3ROIAF{sample}.outfile"
-    params:
-        ref = config["ldna"]["reference"],
-        roi = "/oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations4/hs1.repeatMasker.l1hs.bed",
-        clair3model = config["ldna"]["clair3model"]
-    threads: 32
-    resources:
-        runtime = 1000,
-        mem_mb = 128000,
-    conda: "clair3"
-    shell:
-        """
-wd=$(pwd)
-mkdir -p $(dirname {output})
-run_clair3.sh \
---indel_min_af=0.05 \
---bed_fn="{params.roi}" \
---bam_fn="{input.sortedbam}" \
---ref_fn="{params.ref}" \
---threads=24 \
---platform="ont" \
---model_path={params.clair3model} --output=${{wd}}/$(dirname {output})
+# rule clair3ROI:
+#     input:
+#         sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+#         sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+#     output:
+#         outfile = "ldna/intermediates/{sample}/clair3ROIAF{sample}.outfile"
+#     params:
+#         ref = config["ldna"]["reference"],
+#         roi = "/oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations4/hs1.repeatMasker.l1hs.bed",
+#         clair3model = config["ldna"]["clair3model"]
+#     threads: 32
+#     resources:
+#         runtime = 1000,
+#         mem_mb = 128000,
+#     conda: "clair3"
+#     shell:
+#         """
+# wd=$(pwd)
+# mkdir -p $(dirname {output})
+# run_clair3.sh \
+# --indel_min_af=0.05 \
+# --bed_fn="{params.roi}" \
+# --bam_fn="{input.sortedbam}" \
+# --ref_fn="{params.ref}" \
+# --threads=24 \
+# --platform="ont" \
+# --model_path={params.clair3model} --output=${{wd}}/$(dirname {output})
 
-touch {output.outfile}
-        """
+# touch {output.outfile}
+#         """
 
 rule sniffles:
     input:
@@ -1230,20 +1250,70 @@ mkdir -p $(dirname {output})
 sniffles -i {input.sortedbam} -v {output.vcf} --threads 28 --mosaic --reference {params.ref}
         """
 
+rule snpeff_build_db:
+    input:
+        ref = config["ldna"]["reference"],
+        refseq = config["aref"]["ref_refseq_gtf"]
+    output:
+        outfile = "ldna/intermediates/snpeff/db.outfile"
+    resources:
+        runtime = 1000,
+        mem_mb = 128000,
+        cpus_per_task = 12
+    conda: "snpeff"
+    shell:
+        """
+configfile=$(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.config
+echo '# Human genome, version hs1
+hs1.genome : Human' >> $configfile
+mkdir -p $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/data/hs1
+cp {input.refseq} $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/data/hs1/genes.gtf
+cp {input.ref} $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/data/hs1/sequences.fa
+
+java -Xmx60g -jar $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.jar build -gtf22 -v hs1 -noCheckCds -noCheckProtein
+mkdir -p $(dirname {output.outfile})
+touch {output.outfile}
+        """
 
 rule snpeff:
     input: 
         vcf = "ldna/intermediates/{sample}/clair3/full_alignment.vcf.gz",
-        clinvar_bgz = config["ldna"]["clinvar_bgz"]
+        db_outfile = "ldna/intermediates/snpeff/db.outfile"
+    resources:
+        runtime = 1000,
+        mem_mb = 128000,
+        cpus_per_task = 12
+    conda: "snpeff"
     output:
-        csvStats = "ldna/intermediates/{sample}/snpeff/csvStats.csv",
-        htmlStats = "ldna/intermediates/{sample}/snpeff/snpeffStats.html",
-        annvcf = "ldna/intermediates/{sample}/snpeff/snpeff.vcf"
+        outfile = "ldna/intermediates/{sample}/snpeff/snpeff.outfile"
     shell:
         """
-snpEff -v -noGenome -interval {input.clinvar_bgz} -chr 'chr' -csvStats {output.csvStats} -htmlStats {output.htmlStats} {input.vcf} > {output.annvcf}
+cat {input.vcf} | java -Xmx60g -jar $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.jar hs1 -v -c $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.config -chr 'chr' -csvStats ldna/intermediates/{wildcards.sample}/snpeff/csvStats.csv -htmlStats ldna/intermediates/{wildcards.sample}/snpeff/snpeffStats.html {input.vcf} > ldna/intermediates/{wildcards.sample}/snpeff/snpeff.vcf
+mkdir -p $(dirname {output.outfile})
+touch {output.outfile}
         """
 
+rule snpsift_genesets:
+    input:
+        vcf = "ldna/intermediates/{sample}/snpeff/snpeff.vcf"
+    output:
+        vcf = "ldna/intermediates/{sample}/snpeff/snpeff.pass.vcf"
+    conda:
+        "omics"
+    shell:
+        """
+bcftools view -f 'PASS' {input.vcf} > {output.vcf}
+        """
+
+# rule snpsift_genesets:
+#     input:
+#         vcf = "ldna/intermediates/{sample}/snpeff/snpeff.vcf"
+#     output:
+#         outfile = "ldna/intermediates/{sample}/snpeff/snpeff.geneSets.vcf"
+#     shell:
+#         """
+# java -Xmx60g -jar $(dirname $(dirname $(which snpEff)))/share/snpsift-5.2-0/SnpSift.jar geneSets -v /users/mkelsey/data/n2102ep/RTE/aref/A.REF_annotations/msigdb.v2023.2.Hs.symbols.gmt.txt test.ann.vcf > test.eff.geneSets.vcf
+#         """
     
 rule pepper:
     input:
@@ -1252,7 +1322,8 @@ rule pepper:
     params:
         ref = config["ldna"]["reference"]
     output:
-        outfile = "ldna/intermediates/{sample}/pepper/out.outfile"
+        outfile = "ldna/intermediates/{sample}/pepper/out.outfile",
+        vcf_intermediate_for_margin_haplotag = "ldna/intermediates/{sample}/pepper/intermediate_files/PEPPER_VARIANT_FULL.vcf.gz"
     resources:
         cpus_per_task =32,
         runtime = 4000,
@@ -1270,5 +1341,48 @@ run_pepper_margin_deepvariant call_variant \
 -t {resources.cpus_per_task} \
 --ont_r10_q20
 
+touch {output.outfile}
+        """
+
+rule margin_get_haplotagged_bam:
+    input:
+        vcf_intermediate_for_margin_haplotag = "ldna/intermediates/{sample}/pepper/intermediate_files/PEPPER_VARIANT_FULL.vcf.gz",
+        bam = expand("ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
+    params:
+        ref = config["ldna"]["reference"]
+    output:
+        outfile = "ldna/intermediates/{sample}/pepper/intermediate_files/happlotagged_manual.out"
+    resources:
+        cpus_per_task = 32,
+        runtime = 1000,
+        mem_mb = 128000
+    container:
+        "docker://kishwars/pepper_deepvariant:r0.8"
+    shell:
+        """
+echo '{{
+        "include" : "/opt/margin_dir/params/base_params.json",
+        "polish": {{
+                "filterAlignmentsWithMapQBelowThisThreshold": 5,
+                "maxDepth": 32
+        }},
+        "phase" : {{
+                "onlyUseSNPVCFEntries": true,
+                "useVariantSelectionAdaptiveSampling": true,
+                "variantSelectionAdaptiveSamplingPrimaryThreshold": 15,
+                "variantSelectionAdaptiveSamplingDesiredBasepairsPerVariant": 2000,
+                "minSnpVariantQuality": 10
+        }}
+}}' > allParams.haplotag.ont-r104q20.json
+
+margin phase \
+    {input.bam} \
+    {params.ref} \
+    {input.vcf} \
+    allParams.haplotag.ont-r104q20.json \
+    --skipPhasedVCF --threads 20 --outputBase $(dirname {output.outfile})/haplotagged
+samtools index $(dirname {output.outfile})/haplotagged.haplotagged.bam
+mv $(dirname {output.outfile})/haplotagged.haplotagged.bam {input.bam}
+mv $(dirname {output.outfile})/haplotagged.haplotagged.bam.bai {input.bam}.bai
 touch {output.outfile}
         """
