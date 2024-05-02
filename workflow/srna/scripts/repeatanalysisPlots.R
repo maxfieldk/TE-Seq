@@ -29,6 +29,7 @@ library(ggpubr)
 library(GenomicRanges)
 library(paletteer)
 library(rtracklayer)
+library(ComplexUpset)                            
 
 
 tryCatch(
@@ -59,7 +60,7 @@ tryCatch(
 outputdir <- params$outputdir
 contrasts <- conf$contrasts
 levelslegendmap <- conf$levelslegendmap
-peptable <- read.csv(conf$peptable)
+sample_table <- read.csv(conf$sample_table)
 tecounttype <- "telescope_multi"
 
 
@@ -104,7 +105,7 @@ for (contrast in contrasts) {
     contrast_stat <- paste0("stat_", contrast_of_interest)
     contrast_padj <- paste0("padj_", contrast_of_interest)
     contrast_log2FoldChange <- paste0("log2FoldChange_", contrast_of_interest)
-    contrast_samples <- peptable %>%
+    contrast_samples <- sample_table %>%
         filter(condition %in% c(contrast_level_1, contrast_level_2)) %>%
         pull(sample_name)
 subset %>% pull(!!sym(contrast_log2FoldChange)) %>% length()
@@ -181,25 +182,36 @@ mysaveandstore(sprintf("%s/%s/rte_genic_cor_pval_%s_%s.png", outputdir, tecountt
 
 #### PLOTTING FUNCTIONS
 
-pvp <- function(df, facet_var = "ALL", filter_var = "ALL", labels = "no") {
+pvp <- function(df, facet_var = "ALL", filter_var = "ALL", labels = "no", scale_log2 = "no") {
     if (filter_var != "ALL") {
         df <- df %>% filter(str_detect(!!sym(filter_var), ">|Intact|towards"))
     }
+    if (scale_log2 == "no") {
     pf <- df %>%
         group_by(across(all_of(c(colsToKeep, "condition")))) %>%
         summarise(mean(counts), padj = dplyr::first(!!sym(contrast_padj))) %>%
         pivot_wider(names_from = condition, values_from = `mean(counts)`) 
+    } else {
+    pf <- df %>%
+        group_by(across(all_of(c(colsToKeep, "condition")))) %>%
+        summarise(mean(counts), padj = dplyr::first(!!sym(contrast_padj))) %>%
+        pivot_wider(names_from = condition, values_from = `mean(counts)`) %>%
+        mutate(across(conf$levels, ~ log2(.x + 1)))
+    }
+
     top_sig <- pf %>% filter(!!sym(contrast_padj) < 0.05) %>% arrange(padj) %>% head(6) %>% pull(gene_id) 
     if (labels != "no") {
     p <- pf %>%
         {
             ggplot(data = ., mapping = aes(x = !!sym(contrast_level_1), y = !!sym(contrast_level_2))) +
                 geom_abline(intercept = 0, slope = 1, alpha = 0.5) +
-                geom_point(aes(color = loc_integrative, size = padj < 0.05, shape = padj < 0.05)) +
+                geom_point(aes(color = loc_integrative, shape = ifelse(is.na(padj), FALSE, ifelse(padj < 0.05, TRUE, FALSE)))) +
+                scale_shape_manual(values = c(1, 19, 3)) +
                 scale_size_manual(values = c(1,2,1)) +
                 labs(x = sprintf("%s Norm Counts", contrast_level_1), y = sprintf("%s Norm Counts", contrast_level_2), 
                     caption = counttype_label,
-                    color = "Genomic Context") +
+                    color = "Genomic Context",
+                    shape = "padj < 0.05") +
                 mtclosed + scale_palette_alt +
                 theme(aspect.ratio = 1) +
                 coord_cartesian(clip = "off") +
@@ -215,11 +227,13 @@ pvp <- function(df, facet_var = "ALL", filter_var = "ALL", labels = "no") {
         {
             ggplot(data = ., mapping = aes(x = !!sym(contrast_level_1), y = !!sym(contrast_level_2))) +
                 geom_abline(intercept = 0, slope = 1, alpha = 0.5) +
-                geom_point(aes(color = loc_integrative, size = padj < 0.05, shape = padj < 0.05)) +
+                geom_point(aes(color = loc_integrative, shape = ifelse(is.na(padj), FALSE, ifelse(padj < 0.05, TRUE, FALSE)))) +
+                scale_shape_manual(values = c(1, 19, 3)) +
                 scale_size_manual(values = c(1,2,1)) +
                 labs(x = sprintf("%s Norm Counts", contrast_level_1), y = sprintf("%s Norm Counts", contrast_level_2), 
                     caption = counttype_label,
-                    color = "Genomic Context") +
+                    color = "Genomic Context",
+                    shape = "padj < 0.05") +
                 mtclosed + scale_palette_alt +
                 theme(aspect.ratio = 1) +
                 coord_cartesian(clip = "off") +
@@ -233,15 +247,18 @@ pvp <- function(df, facet_var = "ALL", filter_var = "ALL", labels = "no") {
     if (facet_var != "ALL") {
         p <- p + facet_wrap(facet_var)
     }
+    if (scale_log2 == "yes") {
+        p <- p + labs(x = sprintf("log2(%s Norm Counts + 1)", contrast_level_1), y = sprintf("log2(%s Norm Counts + 1)", contrast_level_2))
+    }
     return(p)
 }
 # df <- tidydf %>% filter(rte_subfamily == "L1HS")
-# p <- pvp(tidydf %>% filter(rte_subfamily == "L1HS"), filter_var = "ALL", facet_var = "genic_loc") + ggtitle("L1HS")
+# p <- pvp(tidydf %>% filter(rte_subfamily == "L1HS"), filter_var = "ALL", facet_var = "genic_loc", scale_log2 = "yes") + ggtitle("L1HS")
 # mysave("temp1.png", 8, 8)
 
 dep <- function(df, facet_var = "ALL", filter_var = "ALL") {
     if (filter_var != "ALL") {
-        df <- df %>% filter(str_detect(!!sym(filter_var), ">|Intact|^Fl|^LTR"))
+        df <- df %>% filter(str_detect(!!sym(filter_var), ">|Intact"))
     }
     if (facet_var == "ALL") {
         facet_var_1 <- NULL
@@ -290,59 +307,21 @@ dep <- function(df, facet_var = "ALL", filter_var = "ALL") {
 # mysave("temp1.png")
 
 stripp <- function(df, stats = "no", extraGGoptions = NULL, facet_var = "ALL", filter_var = "ALL") {
-    if (facet_var != "ALL") {
-        stats <- "no"
-    }
     if (filter_var != "ALL") {
-        df <- df %>% filter(str_detect(!!sym(filter_var), ">|Intact|^Fl|^LTR"))
+        df <- df %>% filter(str_detect(!!sym(filter_var), ">|Intact"))
     }
-    
-    stat.test <- df %>%
-        group_by(sample) %>%
-        summarise(sum(counts), condition = dplyr::first(condition)) %>%
-        t_test(`sum(counts)` ~ condition) %>%
-        add_significance() %>%
-        add_xy_position(x = "condition")
-    stat.test$p.format <- p_format(
-        stat.test$p,
-        accuracy = 0.001,
-        leading.zero = TRUE
-    )
     if (facet_var != "ALL") {
         pf <- df %>%
             group_by(sample, !!sym(facet_var)) %>%
             summarise(sample_sum = sum(counts), condition = dplyr::first(condition))
-        summarydf <- pf %>%
-            group_by(condition, !!sym(facet_var)) %>%
-            summarise(
-                n = n(),
-                mean = mean(sample_sum),
-                sd = sd(sample_sum)
-            ) %>%
-            mutate(se = sd / sqrt(n)) %>%
-            mutate(ic = se * qt((1 - 0.05) / 2 + .5, n - 1))
     } else {
         pf <- df %>%
             group_by(sample) %>%
             summarise(sample_sum = sum(counts), condition = dplyr::first(condition))
-        summarydf <- pf %>%
-            group_by(condition) %>%
-            summarise(
-                n = n(),
-                mean = mean(sample_sum),
-                sd = sd(sample_sum)
-            ) %>%
-            mutate(se = sd / sqrt(n)) %>%
-            mutate(ic = se * qt((1 - 0.05) / 2 + .5, n - 1))
     }
-
     p <- pf %>%
-        ggplot() +
-        geom_bar(data = summarydf, aes(x = condition, y = mean, fill = condition), stat = "identity") +
-        geom_jitter(aes(x = condition, y = sample_sum), width = 0.2, alpha = 0.4) +
-        geom_errorbar(data = summarydf, aes(x = condition, ymin = mean - se, ymax = mean + se), width = 0.2) +
+        ggbarplot(x = "condition", y = "sample_sum", fill = "condition", add = c("mean_se", "dotplot")) +
         labs(x = "", y = "Sum Normalized Counts", caption = counttype_label) +
-        extraGGoptions +
         theme(legend.position = "none") +
         mtclosedgridh +
         scale_conditions +
@@ -350,18 +329,37 @@ stripp <- function(df, stats = "no", extraGGoptions = NULL, facet_var = "ALL", f
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         guides(fill = "none")
     if (facet_var != "ALL") {
-        p <- p + facet_wrap(facet_var, scales = "free")
+        p <- pf %>%
+        ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = paste0(facet_var), add = c("mean_se", "dotplot")) +
+        labs(x = "", y = "Sum Normalized Counts", caption = counttype_label) +
+        theme(legend.position = "none") +
+        mtclosedgridh +
+        scale_conditions +
+        anchorbar +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        guides(fill = "none")
+    } else {
+        p <- pf %>%
+        ggbarplot(x = "condition", y = "sample_sum", fill = "condition", add = c("mean_se", "dotplot")) +
+        labs(x = "", y = "Sum Normalized Counts", caption = counttype_label) +
+        theme(legend.position = "none") +
+        mtclosedgridh +
+        scale_conditions +
+        anchorbar +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        guides(fill = "none")
     }
     if (stats == "yes") {
-        p <- p +
-            stat_pvalue_manual(stat.test, label = "p.format", bracket.nudge.y = 0) +
-            scale_y_continuous(expand = expansion(mult = c(0.0, 0.1)))
+        p <- p + geom_pwc(
+    method = "t_test", label = "p.adj.signif",
+    p.adjust.method = "fdr", hide.ns = TRUE
+  )
     }
     return(p)
 }
 
 # df <- tidydf %>% filter(rte_subfamily == "L1HS")
-# p <- stripp(tidydf %>% filter(rte_subfamily == "L1HS"), filter_var = "ALL", facet_var = "genic_loc") + ggtitle("L1HS")
+# p <- stripp(tidydf %>% filter(rte_subfamily == "L1HS"), filter_var = "ALL", facet_var = "genic_loc", stats = "yes") + ggtitle("L1HS")
 # mysave("temp1.png")
 
 
@@ -471,7 +469,7 @@ myheatmap <- function(df, facet_var = "ALL", filter_var = "ALL", DEvar = "ALL", 
 for (tecounttype in params$tecounttypes) {
 counttype_label <- ifelse(grepl("multi|Multi", tecounttype), "Multi", "Unique")
 #### GETTING TIDY DATA
-map <- setNames(peptable$condition, peptable$sample_name)
+map <- setNames(sample_table$condition, sample_table$sample_name)
 pvals <- colnames(resultsdf)[str_detect(colnames(resultsdf), "padj_condition")]
 l2fc <- colnames(resultsdf)[str_detect(colnames(resultsdf), "log2FoldChange_condition")]
 annotations <- c("length", colnames(r_repeatmasker_annotation))
@@ -479,7 +477,7 @@ strictly_annotations <- annotations[!(annotations %in% c("gene_id", "family"))]
 colsToKeep <- c("gene_id", "family", pvals, l2fc, strictly_annotations)
 tidydf <- resultsdf %>%
     filter(tecounttype == tecounttype) %>%
-    select(all_of(colnames(resultsdf)[(colnames(resultsdf) %in% peptable$sample_name) | (colnames(resultsdf) %in% colsToKeep)])) %>%
+    select(all_of(colnames(resultsdf)[(colnames(resultsdf) %in% sample_table$sample_name) | (colnames(resultsdf) %in% colsToKeep)])) %>%
     pivot_longer(cols = -colsToKeep) %>%
     rename(sample = name, counts = value) %>%
     mutate(condition = map_chr(sample, ~ map[[.]]))
@@ -496,43 +494,57 @@ pf <- df %>%
         group_by(sample, req_integrative, genic_loc, condition) %>%
         summarise(sample_sum = sum(counts), condition = dplyr::first(condition)) %>% ungroup() %>% 
         mutate(req_integrative = ifelse(req_integrative == "Other", "Trucated Ancient", req_integrative))
-# pf2 <- pf %>% group_by(sample, condition) %>% summarise(sample_sum = sum(sample_sum)) 
 
 p <- pf %>% arrange(req_integrative) %>%
-    ggplot() +
-    geom_bar(aes(x = sample, y = sample_sum, fill = req_integrative), stat = "identity", position = position_stack(reverse = TRUE)) +
+    ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = c("req_integrative", "genic_loc"), add = c("mean_se", "dotplot"), scales = "free_y") +
     labs(x = "", y = "Sum Normalized Counts", caption = counttype_label, title = rte_fam) +
     mtclosedgridh +
     scale_palette +
     anchorbar +
-    facet_grid(col = vars(condition), row = vars(genic_loc), scales = "free_x", space = "free") +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE)
     mysaveandstore(sprintf("%s/%s/%s_bar.png", outputdir, tecounttype, rte_fam), 15, 8)
+
+p <- pf %>% arrange(req_integrative) %>%
+    ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = c("req_integrative", "genic_loc"), add = c("mean_se", "dotplot"), scales = "free_y") +
+    labs(x = "", y = "Sum Normalized Counts", caption = counttype_label, title = rte_fam) +
+    mtclosedgridh +
+    scale_palette +
+    anchorbar +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE)
+    mysaveandstore(sprintf("%s/%s/%s_bar_stats.png", outputdir, tecounttype, rte_fam), 15, 8)
+
 }
 
 rte_subfams <- tidydf %$% rte_subfamily %>% unique() %>% na.omit()
 rte_subfams <- rte_subfams[rte_subfams != "Other"]
 for (rte_subfam in rte_subfams) {
 
-df <- tidydf %>% filter(rte_subfamily == rte_subfam) %>% filter(tecounttype == "telescope_multi")
+    df <- tidydf %>% filter(rte_subfamily == rte_subfam) %>% filter(tecounttype == "telescope_multi")
 
-pf <- df %>%
-        group_by(sample, req_integrative, genic_loc, condition) %>%
-        summarise(sample_sum = sum(counts), condition = dplyr::first(condition)) %>% ungroup()  %>%
-        mutate(req_integrative = ifelse(req_integrative == "Other", "Trucated Ancient", req_integrative))
+    pf <- df %>%
+            group_by(sample, req_integrative, genic_loc, condition) %>%
+            summarise(sample_sum = sum(counts), condition = dplyr::first(condition)) %>% ungroup()  %>%
+            mutate(req_integrative = ifelse(req_integrative == "Other", "Trucated Ancient", req_integrative))
+    p <- pf %>% arrange(req_integrative) %>%
+        ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = c("req_integrative", "genic_loc"), add = c("mean_se", "dotplot"), scales = "free_y") +
+        labs(x = "", y = "Sum Normalized Counts", caption = counttype_label, title = rte_subfam) +
+        mtclosedgridh +
+        scale_palette +
+        anchorbar +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1))
+        mysaveandstore(sprintf("%s/%s/%s_bar.png", outputdir, tecounttype, rte_subfam), 15, 8)
 
-# pf2 <- pf %>% group_by(sample, condition) %>% summarise(sample_sum = sum(sample_sum)) 
-
-p <- pf %>% arrange(req_integrative) %>%
-    ggplot() +
-    geom_bar(aes(x = sample, y = sample_sum, fill = req_integrative), stat = "identity", position = position_stack(reverse = TRUE)) +
-    labs(x = "", y = "Sum Normalized Counts", caption = counttype_label, title = rte_subfam) +
-    mtclosedgridh +
-    scale_palette +
-    anchorbar +
-    facet_grid(col = vars(condition), row = vars(genic_loc), scales = "free_x", space = "free") +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1))
-    mysaveandstore(sprintf("%s/%s/%s_bar.png", outputdir, tecounttype, rte_subfam), 15, 8)
+    p <- pf %>% arrange(req_integrative) %>%
+        ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = c("req_integrative", "genic_loc"), add = c("mean_se", "dotplot"), scales = "free_y") +
+        labs(x = "", y = "Sum Normalized Counts", caption = counttype_label, title = rte_subfam) +
+        mtclosedgridh +
+        scale_palette +
+        anchorbar +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE)
+        mysaveandstore(sprintf("%s/%s/%s_bar_stats.png", outputdir, tecounttype, rte_subfam), 15, 8)
 }
 
 
@@ -597,6 +609,10 @@ for (ontology in ontologies) {
                             if (function_name == "pvp") {
                                 p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, labels = "yes") + ggtitle(plot_title)
                                 mysaveandstore(sprintf("% s/%s/%s/%s/%s_%s_%s_labels.png", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height)
+                                p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, labels = "no", scale_log2 = "yes") + ggtitle(plot_title)
+                                mysaveandstore(sprintf("% s/%s/%s/%s/%s_%s_%s_log2.png", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width +2, plot_height +2)
+                                p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, labels = "yes", scale_log2 = "yes") + ggtitle(plot_title)
+                                mysaveandstore(sprintf("% s/%s/%s/%s/%s_%s_%s_log2labels.png", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width + 2, plot_height + 2)
                             }
                             if (function_name == "stripp") {
                                 p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, stats = "yes") + ggtitle(plot_title)
@@ -633,10 +649,10 @@ for (contrast in contrasts) {
     contrast_stat <- paste0("stat_", contrast_of_interest)
     contrast_padj <- paste0("padj_", contrast_of_interest)
     contrast_log2FoldChange <- paste0("log2FoldChange_", contrast_of_interest)
-    contrast_samples <- peptable %>%
+    contrast_samples <- sample_table %>%
         filter(condition %in% c(contrast_level_1, contrast_level_2)) %>%
         pull(sample_name)
-    condition_vec <- peptable %>% filter(sample_name %in% contrast_samples) %$% condition
+    condition_vec <- sample_table %>% filter(sample_name %in% contrast_samples) %$% condition
     groups_that_have_been_run <- c()
     groups_not_to_run <- c()
     for (ontology in ontologies) {
@@ -740,10 +756,10 @@ for (contrast in contrasts) {
     contrast_stat <- paste0("stat_", contrast_of_interest)
     contrast_padj <- paste0("padj_", contrast_of_interest)
     contrast_log2FoldChange <- paste0("log2FoldChange_", contrast_of_interest)
-    contrast_samples <- peptable %>%
+    contrast_samples <- sample_table %>%
         filter(condition %in% c(contrast_level_1, contrast_level_2)) %>%
         pull(sample_name)
-    condition_vec <- peptable %>% filter(sample_name %in% contrast_samples) %$% condition
+    condition_vec <- sample_table %>% filter(sample_name %in% contrast_samples) %$% condition
     groups_that_have_been_run <- c()
     groups_not_to_run <- c("AluY")
     for (ontology in small_ontologies) {
@@ -819,58 +835,49 @@ for (contrast in contrasts) {
 
 tryCatch(
     {
-        for (direction in c("UP", "DOWN")) {
-            for (tecounttype in params$tecounttypes) {
-                results <- resultsdf %>% filter(tecounttype == tecounttype)
-                ggvenn <- list()
-                for (ontology in ontologies) {
-                    for (group in r_repeatmasker_annotation %>%
-                        dplyr::select(!!sym(ontology)) %>%
-                        unique() %>%
-                        unlist()) {
-                        contrastL <- list()
-                        for (contrast in contrasts) {
-                            contrast_of_interest <- contrast
-                            contrast_level_2 <- contrast_of_interest %>%
-                                gsub("condition_", "", .) %>%
-                                gsub("_vs_.*", "", .)
-                            contrast_level_1 <- contrast_of_interest %>%
-                                gsub(".*_vs_", "", .)
-                            contrast_padj <- paste0("padj_", contrast_of_interest)
-                            contrast_log2FoldChange <- paste0("log2FoldChange_", contrast_of_interest)
+        for (tecounttype in params$tecounttypes) {
+            results <- resultsdf %>% filter(tecounttype == tecounttype)
+            ggvenn <- list()
+            for (ontology in ontologies) {
+                ontology_groups <- r_repeatmasker_annotation %>%
+                    pull(!!sym(ontology)) %>%
+                    unique() %>% unlist()
+                ontology_groups <- ontology_groups[ontology_groups != "Other"]
+                for (group in ontology_groups) {
+                    df <- results %>%
+                        dplyr::filter((!!sym(ontology)) == group) 
 
-                            if (direction == "UP") {
-                                sigsearched <- results %>%
-                                    dplyr::filter((!!sym(ontology)) == group) %>%
-                                    dplyr::filter((!!sym(contrast_padj)) < 0.05) %>%
-                                    dplyr::filter((!!sym(contrast_log2FoldChange)) > 0)
-                            } else {
-                                sigsearched <- results %>%
-                                    dplyr::filter((!!sym(ontology)) == group) %>%
-                                    dplyr::filter((!!sym(contrast_padj)) < 0.05) %>%
-                                    dplyr::filter((!!sym(contrast_log2FoldChange)) < 0)
+                        vdf <- df %>% mutate(across(starts_with("padj"), ~ ifelse(is.na(.), FALSE, ifelse(. < 0.05, TRUE, FALSE)))) %>%
+                                    mutate(req_integrative = ifelse(req_integrative == "Other", "Trucated Ancient", req_integrative))
+                        categories <- colnames(vdf) %>% grep("^padj", ., value = TRUE) %>% gsub("padj_condition_", "", .) %>% gsub("_vs.*", "", .)
+                        colnames(vdf) <- colnames(vdf) %>% gsub("padj_condition_", "", .) %>% gsub("_vs.*", "", .)
+                        up_set <- vdf %>% dplyr::filter(if_all(starts_with("log2F"), ~ .x > 0))
+                        down_set <- vdf %>% dplyr::filter(if_all(starts_with("log2F"), ~ .x < 0))
+                        tryCatch(
+                            {
+                            p1 <- up_set %>%
+                                    upset(categories, name='condition', width_ratio=0.3,  min_degree=1,
+                                    base_annotations=list(
+                                    'Intersection size'= intersection_size(counts=FALSE,mapping=aes(fill=req_integrative)) + scale_palette + guides(fill = guide_legend(title="Element Features")))) +
+                                    labs(title = sprintf("%s","UP"), caption = tecounttype) + 
+                                    scale_y_continuous(breaks= pretty_breaks())
+
+                            p2 <- down_set %>%
+                                    upset(categories, name='condition', width_ratio=0.3,  min_degree=1,
+                                    base_annotations=list(
+                                    'Intersection size'= intersection_size(counts=FALSE,mapping=aes(fill=req_integrative)) + scale_palette + guides(fill = guide_legend(title="Element Features")))) +
+                                    labs(title = sprintf("%s","DOWN"), caption = tecounttype) + 
+                                    scale_y_continuous(breaks= pretty_breaks())
+                            ncondtions <- length(categories)
+                            mysave(pl = p1, sprintf("%s/%s/venn/upset_%s_UP.png", outputdir, tecounttype, group), ncondtions*2, 6)
+                            mysave(pl = p2, sprintf("%s/%s/venn/upset_%s_DOWN.png", outputdir, tecounttype, group), ncondtions*2, 6)
+                            p <- ((p1)/(p2)) + plot_annotation(title = sprintf("%s DE", group))
+                            mysave(sprintf("%s/%s/venn/upset_%s.png", outputdir, tecounttype, group), ncondtions*2, 10)
+                            },
+                            error = function(e) {
+                                print(e)
                             }
-                            if (!is.null(filter_var)) {
-                                sigsearched <- sigsearched %>%
-                                    dplyr::filter(str_detect(!!sym(filter_var), ">"))
-                            }
-                            sigsearched <- sigsearched %>%
-                                dplyr::select(gene_id) %>%
-                                na.omit() %$%
-                                unlist(gene_id) %>%
-                                list()
-                            names(sigsearched) <- gsub("condition_", "", contrast)
-                            contrastL <- c(contrastL, sigsearched)
-                        }
-                        p <- ggVennDiagram(contrastL, label_color = "black", set_color = "black") +
-                            scale_fill_distiller(palette = "RdBu") +
-                            scale_x_continuous(expand = expansion(mult = .2)) +
-                            ggtitle(paste(group, direction, sep = " "))
-                        if (!is.null(filter_var)) {
-                            mysaveandstore(sprintf("%s/%s/%s/ggVenn_%s_%s_%s.png", outputdir, tecounttype, modifier, group, modifier, direction), 6, 6)
-                        }
-                        mysaveandstore(sprintf("%s/%s/ggVenn_%s_%s.png", outputdir, tecounttype, group, direction), 6, 6)
-                    }
+                        )
                 }
             }
         }
