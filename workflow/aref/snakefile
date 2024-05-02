@@ -1,3 +1,5 @@
+container: "docker://maxfieldkelsey/pipelinertedocker"
+
 rule sym_link:
     input:
         aref_dir = config["symlink_aref"]["aref_symlinkdir"]

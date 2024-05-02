@@ -17,7 +17,7 @@ aref:
   #MODULE LOGIC
   symlink_aref:
     response: "no"
-    aref_symlinkdir: "/oscar/data/jsedivy/mkelsey/ref/pipeline_annotations/hs1/RTE/aref"
+    aref_symlinkdir: "/oscar/data/jsedivy/mkelsey/ref/pipeline_annotations/hs1_stable_05-2024/RTE/aref"
   #USER PROVIDED ANNOTATIONS - CHANGE PATHS AS NEEDED
       #Be sure to follow ucsc naming conventions, e.g. chr1, chr2, ...
   starting_ref: /users/mkelsey/data/ref/pipeline_annotations/hs1/RTE/aref/A.REF.fa
