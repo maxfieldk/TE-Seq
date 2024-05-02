@@ -352,6 +352,7 @@ stripp <- function(df, stats = "no", extraGGoptions = NULL, facet_var = "ALL", f
     if (stats == "yes") {
         p <- p + geom_pwc(
     method = "t_test", label = "p.adj.signif",
+    ref.group = conf$levels[1],
     p.adjust.method = "fdr", hide.ns = TRUE
   )
     }
