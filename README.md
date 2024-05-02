@@ -32,12 +32,12 @@ Then you would modify the "derive" block in your conf/project_config_srna.yaml a
 
 - peptable_srna.csv, is automatically updated each time you call snakemake, according to the rules set out in conf/project_config_srna.yaml applied to conf/sample_table.csv. This is how rawdata paths can be generated dynamically.
 - Modify the contents of workflow/profile/default/config.yaml such that singularity containers have access to your data directory, or in general a directory which contains all files which are referenced in the pipeline and which contains your project directory.
+  The workflow/profile/default/config.yaml instructs snakemake how to be run. More information on snakemake profiles can be found at https://snakemake.readthedocs.io/en/stable/executing/cli.html under the "Profiles" section header.
   ```
   singularity-args: '--bind /users/mkelsey/data'
   becomes
   singularity-args: '--bind /users/other_user/data'
   ```
-
 - Create a snakemake conda environment from which you can run the snakemake pipeline, and install the required snakemake executor plugins in your snamemake conda environment, e.g.
     ```
     mamba create --name snakemake snakemake snakemake-executor-plugin-slurm
@@ -48,5 +48,7 @@ Then you would modify the "derive" block in your conf/project_config_srna.yaml a
   #ensure you are in the pipeline directory which lives in your project folder, i.e. myproject/RTE/
   snakemake -n
   ```
+- For help with snakemake, consult its highly usable and detailed docs at https://snakemake.readthedocs.io/en/stable/index.html
+- For help with git, consult https://git-scm.com/docs/gittutorial
   
 
