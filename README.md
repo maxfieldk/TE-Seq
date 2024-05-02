@@ -16,7 +16,7 @@ This project consists of a snakemake pipeline to analyze transposable element om
 - Create a project directory
 - Clone this pipeline into said directory, using a tag to specify a frozen version, or without one to get the latest version (this may give you more errors than a stable version).
   ```
-  git clone -b rnaseq-stable-v0.1.0 https://github.com/maxfieldk/RTE.git
+  git clone -b rnaseq-stable-v0.1.2 https://github.com/maxfieldk/RTE.git
   ```
 - Copy the workflow/conf_example directory to ./conf
   ```
