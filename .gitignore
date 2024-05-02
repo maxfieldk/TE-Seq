@@ -1,4 +1,6 @@
 *
 !/workflow/
 !/workflow/**
+!/resources/
+!/resources/**
 !.gitignore
