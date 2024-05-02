@@ -135,7 +135,8 @@ do
 cat $file >> {wildcards.sample}_temp_fq.txt
 done
 gzip {wildcards.sample}_temp_fq.txt
-mv {wildcards.sample}_temp_fq.txt.gz > {output.fq}
+mkdir -p $(dirname {output.fq})
+mv {wildcards.sample}_temp_fq.txt.gz {output.fq}
         """
 
 rule gunzipfq:
@@ -208,7 +209,7 @@ rule m6a_dataprep:
         json = "lrna/intermediates/{sample}/m6a/prep/data.json"
     resources:
         cpus_per_task = 32,
-        runtime = 2000,
+        runtime = 3000,
         mem_mb = 128000,
     conda: "m6anet"
     shell:
@@ -227,7 +228,7 @@ rule m6a_inference:
         csv = "lrna/intermediates/{sample}/m6a/results/data.indiv_proba.csv"
     resources:
         cpus_per_task = 32,
-        runtime = 2000,
+        runtime = 3000,
         mem_mb = 128000,
     conda: "m6anet"
     shell:
