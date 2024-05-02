@@ -1,6 +1,6 @@
 # RTE Analysis
 
-This project consists of a snakemake pipeline to analyze transposable element omics data. It consists of 4 modules, "Annotate Referene" (AREF), short-read RNA-Seq (SRNA), long-read RNA-Seq (LRNA), and long-read DNA-Seq (LDNA). LRNA and LDNA remain in active development, while AREF and SRNA are comparatively stable. Nevertheless changes to these modules will no doubt be forthcoming. A snakemake pipeline consists of several parts: a main "snakefile" which can deploy a number of module level snakefile, which contain rules. These rules take in inputs and produce outputs. In order to run this pipeline, a number of configuration files must be edited to reflect the end user's data and analytical desires. This README will walk you through the setup and runtime steps to run the AREF and SRNA modules.
+This project consists of a snakemake pipeline to analyze transposable element omics data. It consists of 4 modules, "Annotate Referene" (AREF), short-read RNA-Seq (SRNA), long-read RNA-Seq (LRNA), and long-read DNA-Seq (LDNA). LRNA and LDNA remain in active development, while AREF and SRNA are comparatively stable. Nevertheless changes to these modules will no doubt be forthcoming. A snakemake pipeline consists of several parts: a main "snakefile" which can deploy a number of module level snakefile, which contain rules. These rules take in inputs and produce outputs. In order to run this pipeline, a number of configuration files must be edited to reflect the end user's data and analytical desires. This README will walk you through the setup and runtime steps to run the AREF and SRNA modules. Accordingly, to get a particular "frozen" version of the pipeline, please specify a tag when cloning the pipeline (as shown below).
 ## Install snakemake
 - Create a snakemake conda environment from which you can run the snakemake pipeline, and install the required snakemake executor plugins in your snamemake conda environment, e.g.
     ```
@@ -14,7 +14,10 @@ This project consists of a snakemake pipeline to analyze transposable element om
 
 ## Setup your project directory
 - Create a project directory
-- Clone this pipeline into said directory
+- Clone this pipeline into said directory, using a tag to specify a frozen version, or without one to get the latest version (this may give you more errors than a stable version).
+  ```
+  git clone 
+  ```
 - Copy the workflow/conf_example directory to ./conf
   ```
   cp workflow/conf_example conf
