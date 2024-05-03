@@ -27,9 +27,9 @@ This project consists of a snakemake pipeline to analyze transposable element om
   ```
   head {path}
   ```
-- Create, in your project directory, the rawdata directory, and move your fastqs there. Make sure the naming is consistent with the naming scheme set forth in the conf/project_config_srna.yaml, which uses sample_name from the conf/sample_table_srna.csv i.e.:
+- Create, in your project directory, the srna/rawdata directory structure, and move your fastqs there. Make sure the naming is consistent with the naming scheme set forth in the conf/project_config_srna.yaml, which uses sample_name from the conf/sample_table_srna.csv i.e.:
 ```
-source1: "rawdata/{sample_name}_R1.fastq.gz" source2: "rawdata/{sample_name}_R2.fastq.gz"
+source1: "srna/rawdata/{sample_name}_R1.fastq.gz" source2: "srna/rawdata/{sample_name}_R2.fastq.gz"
 ```
 If rawdata identifiers do not match with sample names, either you can rename them, or you can provide a mapping from sample_name to rawdata identifier. In this case you would add a column to your conf/sample_table_srna.csv titled something like 
 Then you would modify the "derive" block in your conf/project_config_srna.yaml as follows, chaning {sample_name} to your new column in conf/sample_table_csv, which in this case I titled {fq_sample_name}:
@@ -50,17 +50,38 @@ Then you would modify the "derive" block in your conf/project_config_srna.yaml a
   singularity-args: '--bind /users/other_user/data'
   ```
 
-- Performe a pipeline dry-run, which tells you which rules snakemake will deploy once really called
-  ```
-  conda activate snakemake
-  #ensure you are in the pipeline directory which lives in your project folder, i.e. myproject/RTE/
-  snakemake -n
-  ```
-- For help with snakemake, consult its highly usable and detailed docs at https://snakemake.readthedocs.io/en/stable/index.html
-- For help with git, consult https://git-scm.com/docs/gittutorial
+## Workflow Logic:
+
+### AREF
+In the spirit of use case flexibility, the AREF module has a number of workflow modifying parameters. These live in the aref section of the config.yaml file. 
+These paraters allow you to decide whether to create new annotations from scratch, to update annotations using long read sequencing data, or to use existing annotations which you had created during a previous run of the pipeline in another project (but which uses the same reference genome).
+
+"symlink_aref" determines whether to run all the rules in aref module and thereby create an annotation set from scratch, or whether to merely symlink an existing directory of annotation files. If "symlink_aref" is set to "no", the "aref" module will be run. If "symlink_aref" is set to "yes", the "aref" module will not be run, and the "aref" directory will be symlinked to the directory specified in "aref_dir".
+
+If you are not merely symlinking an existing AREF directory, you will need to specify whether you are creating an annotation set using long read DNA sequences (to call non-reference RTE insertions) or not.
+The "update_ref_with_tldr" "response" value (yes or no) turn this feature on or off. If turning it on you can specify whether to create one custom reference which all samples will use (e.g. if you had a number of long read sequencing data on spanning several conditions in ONE cell line) or to create one custom reference per sample (e.g. if you had long read sequencing done on multiple individuals). The "per_sample" key toggles between these two modes.
+
+The "samples" , "sample_table", and "levels" keys in the aref section of the config is only relevant if creating a custom reference genome using long-read dna sequencing, and you can ignore its value if you are not using this feature. The same is true for the associated sample_table file, conf/sample_table_aref.csv.
+
+### SRNA
+This module does not have workflow modifying parameters.
 
 ## Annotations
 - T2T-hs1 annotations can be found at:
   https://ftp.ncbi.nlm.nih.gov/refseq/H_sapiens/annotation/annotation_releases/current/
   Wherein *_T2T-CHM13v2.0_genomic.*.gz correspond to the refseq gtf or gff commonly used for RNA-Seq analysis.
 
+## Deploying the pipeline
+- First perform a pipeline dry-run - this tells you which rules snakemake will deploy once really called
+  ```
+  conda activate snakemake
+  #ensure you are in the pipeline directory which lives in your project folder, i.e. myproject/RTE/
+  snakemake -n
+  ```
+- If you are happy with this plan of action, deploy the pipeline by calling snakemake
+  ```
+  snakemake
+  ```
+- I highly recommend familiarizing yourself with the basics of snakemake before embarking on a complex analysis with this pipelin. For help with snakemake, consult its highly usable and detailed docs at https://snakemake.readthedocs.io/en/stable/index.html
+- For help with git, consult https://git-scm.com/docs/gittutorial
+- If you encounter problems, please create a new issue on the github page. 
