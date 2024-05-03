@@ -72,26 +72,26 @@ def getTelescopeStrandParam():
 
 
 #tag PREPROCESSING
-rule prefetch:
-    output:
-        sra = temp("srna/rawdata/{sample}/{sample}.sra")
-    threads: 4
-    conda:
-        "omics"
-    shell: "prefetch {wildcards.sample} --output-directory rawdata"
+# rule prefetch:
+#     output:
+#         sra = temp("srna/rawdata/{sample}/{sample}.sra")
+#     threads: 4
+#     conda:
+#         "omics"
+#     shell: "prefetch {wildcards.sample} --output-directory rawdata"
 
-rule fastqdump:
-    input: "srna/rawdata/{sample}/{sample}.sra"
-    threads: 4
-    params:
-        outdir = "rawdata/{sample}"
-    log: "logs/{sample}/fastqdump.log"
-    output:
-        r1 = temp("rawdata/{sample}_1.fastq"),
-        r2 = temp("rawdata/{sample}_2.fastq")
-    conda:
-        "omics"
-    shell: "fastq-dump --split-files --outdir {params.outdir} {input} 2> {log}"
+# rule fastqdump:
+#     input: "srna/rawdata/{sample}/{sample}.sra"
+#     threads: 4
+#     params:
+#         outdir = "rawdata/{sample}"
+#     log: "logs/{sample}/fastqdump.log"
+#     output:
+#         r1 = temp("rawdata/{sample}_1.fastq"),
+#         r2 = temp("rawdata/{sample}_2.fastq")
+#     conda:
+#         "omics"
+#     shell: "fastq-dump --split-files --outdir {params.outdir} {input} 2> {log}"
 
 rule fastp_PE:
     input:
