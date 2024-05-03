@@ -16,7 +16,7 @@ This project consists of a snakemake pipeline to analyze transposable element om
 - Create a project directory
 - Clone this pipeline into said directory, using a tag to specify a frozen version, or without one to get the latest version (this may give you more errors than a stable version).
   ```
-  git clone -b v0.1.3 https://github.com/maxfieldk/RTE.git
+  git clone -b v0.1.5 https://github.com/maxfieldk/RTE.git
   ```
 - Copy the workflow/conf_example directory to ./conf
   ```
@@ -45,9 +45,9 @@ Then you would modify the "derive" block in your conf/project_config_srna.yaml a
 - Modify the contents of workflow/profile/default/config.yaml such that singularity containers have access to your data directory, or in general a directory which contains all files which are referenced in the pipeline and which contains your project directory.
   The workflow/profile/default/config.yaml instructs snakemake how to be run. More information on snakemake profiles can be found at https://snakemake.readthedocs.io/en/stable/executing/cli.html under the "Profiles" section header.
   ```
-  singularity-args: '--bind /users/mkelsey/data'
+  singularity-args: '--bind /users/mkelsey/data,/oscar/data/jsedivy/mkelsey'
   becomes
-  singularity-args: '--bind /users/other_user/data'
+  singularity-args: '--bind /users/YOURUSERNAME/data,/oscar/data/jsedivy/YOURUSERNAME'
   ```
 
 ## Workflow Logic:
