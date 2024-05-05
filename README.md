@@ -1,5 +1,7 @@
 # Pipeline for the analysis of retrotransposable element (RTE) sequencing data
-  This project consists of a snakemake pipeline to analyze transposable element 'omics data. It consists of 4 modules, "Annotate Referene" (AREF), short-read RNA-Seq (SRNA), long-read RNA-Seq (LRNA), and long-read DNA-Seq (LDNA). LRNA and LDNA remain in active development, while AREF and SRNA are comparatively stable.  
+  This project consists of a snakemake pipeline to analyze transposable element 'omics data. It consists of 4 modules, "Annotate Referene" (AREF), short-read RNA-Seq (SRNA), long-read RNA-Seq (LRNA), and long-read DNA-Seq (LDNA). LRNA and LDNA remain in active development, while AREF and SRNA are comparatively stable.
+  ![Asset 3](https://github.com/maxfieldk/RTE/assets/44215152/3d01d6e6-84e6-4ab8-9bf6-df43d7cbf5ad)
+
 ## The trouble with repetitive sequences
 To the unacquainted, the analysis of retrotransposable element (RTE), and more generally repetitive element, sequencing data can be a daunting task: the repetitive nature of these elements imposes  analytical pitfalls and raises a number of practical questions including:
 Should I examine individual repetitive elements or rather groups of similar elements? Which elements and groups are most biologically significant?
@@ -120,3 +122,6 @@ If you are happy with this plan of action, deploy the pipeline by calling snakem
 I highly recommend familiarizing yourself with the basics of snakemake before embarking on a complex analysis with this pipelin. For help with snakemake, consult its highly usable and detailed docs at https://snakemake.readthedocs.io/en/stable/index.html
 For help with git, consult https://git-scm.com/docs/gittutorial
 If you encounter problems, please create a new issue on the github page.
+
+## Attribution
+The workflow graphic was adapted from work by Zandra Fagernas and carries a CC-BY 4.0 license.
