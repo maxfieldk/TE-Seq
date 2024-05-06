@@ -1,12 +1,12 @@
 # RTE-Seq: A Retrotransposable Element RNA-Seq Pipeline
-    This project consists of a __snakemake pipeline__ to analyze transposable element 'omics data. It consists of 4 modules, "Annotate Referene" (AREF), short-read RNA-Seq (SRNA), long-read RNA-Seq (LRNA), and long-read DNA-Seq (LDNA). LRNA and LDNA remain in active development, while AREF and SRNA are comparatively stable. 
+This project consists of a __snakemake pipeline__ to analyze transposable element 'omics data. It consists of 4 modules, "Annotate Referene" (AREF), short-read RNA-Seq (SRNA), long-read RNA-Seq (LRNA), and long-read DNA-Seq (LDNA). LRNA and LDNA remain in active development, while AREF and SRNA are comparatively stable. 
 To the unacquainted, the analysis of retrotransposable element (RTE), and more generally repetitive element, sequencing data can be a daunting task: the repetitive nature of these elements imposes  analytical pitfalls and raises a number of practical questions including:  
 - Should I examine individual repetitive elements or rather groups of similar elements?
 - Which elements and groups are most biologically significant?
 - How do I deal with multi-mapping reads?
-For these reasons, __repetitive elements are often neglected in RNA-sequencing analyses__.
-This pipeline hopes to render investigation into these elements more tractable for those not steeped in the RTE literature.
-It also aims address concerns pertaining to:
+  For these reasons, __repetitive elements are often neglected in RNA-sequencing analyses__.
+  This pipeline hopes to render investigation into these elements more tractable for those not steeped in the RTE literature.
+  It also aims address concerns pertaining to:
 - non-referernce elements
 - non-autonomous transcription driven by adjacent genes
 - the quality of RTE annotations.
