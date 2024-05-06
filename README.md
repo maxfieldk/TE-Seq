@@ -1,7 +1,7 @@
 # RTE-Seq: A Retrotransposable Element RNA-Seq Pipeline
-This project consists of a __snakemake pipeline__ to analyze transposable element 'omics data.
+This project consists of a __snakemake pipeline__ to analyze retrotransposable element (RTE) 'omics data.
 
-To the unacquainted, the analysis of retrotransposable element (RTE), and more generally repetitive element, sequencing data can be a daunting task: the repetitive nature of these elements imposes  analytical pitfalls and raises a number of practical questions including:  
+To the unacquainted, the analysis of RTE, and more generally repetitive element, sequencing data can be a daunting task: the repetitive nature of these elements imposes  analytical pitfalls and raises a number of practical questions including:  
 - Should I examine individual repetitive elements or rather groups of similar elements?
 - Which elements and groups are most biologically significant?
 - How do I deal with multi-mapping reads?
@@ -14,6 +14,7 @@ It also aims address concerns pertaining to:
 - the quality of RTE annotations.
 
 This project derives from my work in the __Sedivy Lab at Brown University__, where we study transposable elements, in particular __LINE1__.
+#
 ![Asset 4](https://github.com/maxfieldk/RTE/assets/44215152/0978c8b2-71ab-436a-b564-dd8498ee2882)
 
 ## Pipeline Overview
