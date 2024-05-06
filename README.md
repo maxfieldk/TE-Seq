@@ -1,5 +1,5 @@
 # RTE-Seq: A Retrotransposable Element RNA-Seq Pipeline
-** This project consists of a snakemake pipeline to analyze transposable element 'omics data. It consists of 4 modules, "Annotate Referene" (AREF), short-read RNA-Seq (SRNA), long-read RNA-Seq (LRNA), and long-read DNA-Seq (LDNA). LRNA and LDNA remain in active development, while AREF and SRNA are comparatively stable. **
+__This project consists of a snakemake pipeline to analyze transposable element 'omics data. It consists of 4 modules, "Annotate Referene" (AREF), short-read RNA-Seq (SRNA), long-read RNA-Seq (LRNA), and long-read DNA-Seq (LDNA). LRNA and LDNA remain in active development, while AREF and SRNA are comparatively stable.__
 ![Asset 3](https://github.com/maxfieldk/RTE/assets/44215152/3d01d6e6-84e6-4ab8-9bf6-df43d7cbf5ad)
 
 ## Problem statement
