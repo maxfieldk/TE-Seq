@@ -89,14 +89,27 @@ In the __"srna" section__, make sure that the values associated with the keys: "
 
 Then if you have genesets of interest, you can modify the "genesets_for_gsea" and "genesets_for_heatmaps" keys, adding a key-value pair for your geneset of interest. Please use gmt format for the former and a list of gene symbols in a text file for the latter (you can look at the provided genesets in the resources/ directory for further guidance).
 
-In the __"aref" section__, locate the comment "#USER PROVIDED ANNOTATIONS - CHANGE PATHS AS NEEDED" and do as instructed. This set of annotations is all that you will need to provide to the pipeline, and consists of: (example urls to fetch the T2T-HS1 human reference are provided in parentheses)
-- A reference genome (wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/009/914/755/GCF_009914755.1_T2T-CHM13v2.0/GCF_009914755.1_T2T-CHM13v2.0_genomic.fna.gz)
-- The repeatmasker.out file for this genome (wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/009/914/755/GCF_009914755.1_T2T-CHM13v2.0/GCF_009914755.1_T2T-CHM13v2.0_rm.out.gz)
-- Refseq gtf file (wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/009/914/755/GCF_009914755.1_T2T-CHM13v2.0/GCF_009914755.1_T2T-CHM13v2.0_genomic.gtf.gz; wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/009/914/755/GCF_009914755.1_T2T-CHM13v2.0/GCF_009914755.1_T2T-CHM13v2.0_genomic.gff.gz)
-- If using using nanopore reads to update your reference, a path to the repeatmasker executable on your system (https://www.repeatmasker.org/RepeatMasker/)
-- Decompress all these files with the gunzip command, e.g.
+In the __"aref" section__, locate the comment "#USER PROVIDED ANNOTATIONS - CHANGE PATHS AS NEEDED". This set of annotations is all that you will need to provide to the pipeline, and consists of several files. You will have to obtain these files, and specify their paths in the config.yaml aref section. Here I show how to do this for the T2T-HS1 human genome.
+- Download these files, and place them in a genome directory adjacent to your project directory
+```
+mkdir genome_files
+cd genome_files
+#reference genome
+wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/009/914/755/GCF_009914755.1_T2T-CHM13v2.0/GCF_009914755.1_T2T-CHM13v2.0_genomic.fna.gz
+#repeatmasker.out file
+wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/009/914/755/GCF_009914755.1_T2T-CHM13v2.0/GCF_009914755.1_T2T-CHM13v2.0_rm.out.gz
+#Refseq gtf file
+wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/009/914/755/GCF_009914755.1_T2T-CHM13v2.0/GCF_009914755.1_T2T-CHM13v2.0_genomic.gtf.gz
+#Refseq gff3 file
+wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/009/914/755/GCF_009914755.1_T2T-CHM13v2.0/GCF_009914755.1_T2T-CHM13v2.0_genomic.gff.gz
+```
+- If using using nanopore reads to update your reference, you will also need to provide a path to the repeatmasker executable on your system (download at https://www.repeatmasker.org/RepeatMasker/)
+- These files will need to be decompressed
   ```
-  gunzip hs1.fa.gz
+  gunzip GCF_009914755.1_T2T-CHM13v2.0_genomic.fna.gz; mv GCF_009914755.1_T2T-CHM13v2.0_genomic.fna reference.fa
+  gunzip GCF_009914755.1_T2T-CHM13v2.0_genomic.gtf.gz; mv GCF_009914755.1_T2T-CHM13v2.0_genomic.gtf refseq.gtf
+  gunzip GCF_009914755.1_T2T-CHM13v2.0_genomic.gff.gz; mv GCF_009914755.1_T2T-CHM13v2.0_genomic.gff refseq.gff3
+  gunzip GCF_009914755.1_T2T-CHM13v2.0_rm.out.gz; mv GCF_009914755.1_T2T-CHM13v2.0_rm.out repeatmasker.out
   ```
 This pipeline expects chromosome names to be in UCSC format ie. "chr1, chr2, ...". You can easily inspect your annotation files to ensure they conform to this convention by using the following command:
   ```
@@ -109,11 +122,11 @@ This pipeline expects chromosome names to be in UCSC format ie. "chr1, chr2, ...
   sort -k1,1V -k4,4n -k5,5n refseq.gff3 > refseq.sorted.gff3
   wget https://hgdownload.soe.ucsc.edu/goldenPath/hs1/bigZips/hs1.chromAlias.txt
   chmod +x resources/programs/chromToUcsc
-  resources/programs/chromToUcsc -i refseq.sorted.gtf -a resources/genomes/hs1/hs1.chromAlias.tsv > refseq.sorted.ucsc.gtf
-  resources/programs/chromToUcsc -i reference.fa -a resources/genomes/hs1/hs1.chromAlias.tsv > reference.ucsc.fa
-  resources/programs/chromToUcsc -i refseq.sorted.gff3 -a resources/genomes/hs1/hs1.chromAlias.tsv > refseq.sorted.ucsc.gff3
+  resources/programs/chromToUcsc -i refseq.sorted.gtf -a hs1.chromAlias.tsv > refseq.sorted.ucsc.gtf
+  resources/programs/chromToUcsc -i reference.fa -a hs1.chromAlias.tsv > reference.ucsc.fa
+  resources/programs/chromToUcsc -i refseq.sorted.gff3 -a hs1.chromAlias.tsv > refseq.sorted.ucsc.gff3
   ```
-  I recommend you store these downloaded annotations in a directory one level above your project directory. Don't store any large files in resources/ seeing as it is under git control (git does not like large files). Just ensure that the paths are nested within a singularity bound directory if using the containerized workflow (read on to the segment on "workflow/profile/default/config.yaml" below for more details).  
+  I recommend you store these downloaded annotations in a directory one level above your project directory (place genomes_files/ adjacent to the RTE/ directory). Don't store any large files in resources/ seeing as it is under git control (git does not like large files). Just ensure that the paths are nested within a singularity bound directory if using the containerized workflow (read on to the segment on "workflow/profile/default/config.yaml" below for more details).  
   
 Create, in your project directory, the srna/rawdata directory structure, and move your fastqs there. Make sure the naming is consistent with the naming scheme set forth in the conf/project_config_srna.yaml, which uses sample_name from the conf/sample_table_srna.csv i.e.:  
   ```
