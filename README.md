@@ -90,9 +90,9 @@ In the __"srna" section__, make sure that the values associated with the keys: "
 Then if you have genesets of interest, you can modify the "genesets_for_gsea" and "genesets_for_heatmaps" keys, adding a key-value pair for your geneset of interest. Please use gmt format for the former and a list of gene symbols in a text file for the latter (you can look at the provided genesets in the resources/ directory for further guidance).
 
 In the __"aref" section__, locate the comment "#USER PROVIDED ANNOTATIONS - CHANGE PATHS AS NEEDED" and do as instructed. This set of annotations is all that you will need to provide to the pipeline, and consists of: (example urls to fetch the T2T-HS1 human reference are provided in parentheses)
-- A reference genome (wget https://hgdownload.soe.ucsc.edu/goldenPath/hs1/bigZips/hs1.fa.gz)
-- The repeatmasker.out file for this genome (wget https://hgdownload.soe.ucsc.edu/goldenPath/hs1/bigZips/hs1.repeatMasker.out.gz)
-- Refseq gtf file (wget https://hgdownload.soe.ucsc.edu/goldenPath/hs1/bigZips/genes/hs1.ncbiRefSeq.gtf.gz)
+- A reference genome (wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/009/914/755/GCF_009914755.1_T2T-CHM13v2.0/GCF_009914755.1_T2T-CHM13v2.0_genomic.fna.gz)
+- The repeatmasker.out file for this genome (wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/009/914/755/GCF_009914755.1_T2T-CHM13v2.0/GCF_009914755.1_T2T-CHM13v2.0_rm.out.gz)
+- Refseq gtf file (wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/009/914/755/GCF_009914755.1_T2T-CHM13v2.0/GCF_009914755.1_T2T-CHM13v2.0_genomic.gtf.gz; wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/009/914/755/GCF_009914755.1_T2T-CHM13v2.0/GCF_009914755.1_T2T-CHM13v2.0_genomic.gff.gz)
 - If using using nanopore reads to update your reference, a path to the repeatmasker executable on your system (https://www.repeatmasker.org/RepeatMasker/)
 - Decompress all these files with the gunzip command, e.g.
   ```
@@ -103,11 +103,15 @@ This pipeline expects chromosome names to be in UCSC format ie. "chr1, chr2, ...
   less {path_to_annotation}
   ```
   Annotations obtained from ncbi will typically need to have their naming convention changed.  
-  To do so one need only run the chromToUcsc program, providing it with an annotation file and a chromAlias file. This is shown here: https://www.biostars.org/p/75369/#76420  
+  To do so one need only run the resources/programs/chromToUcsc program, providing it with a sorted annotation (or genome reference) file and a chromAlias file. This is shown here: https://www.biostars.org/p/75369/#76420  
   ```
+  sort -k1,1V -k4,4n -k5,5n refseq.gtf > refseq.sorted.gtf
+  sort -k1,1V -k4,4n -k5,5n refseq.gff3 > refseq.sorted.gff3
   wget https://hgdownload.soe.ucsc.edu/goldenPath/hs1/bigZips/hs1.chromAlias.txt
   chmod +x resources/programs/chromToUcsc
-  chromToUcsc -g hs1 --get && chromToUcsc -i test.wig -o test.ucsc.wig -a hs1.chromAlias.tsv -g hs1
+  resources/programs/chromToUcsc -i refseq.sorted.gtf -a resources/genomes/hs1/hs1.chromAlias.tsv > refseq.sorted.ucsc.gtf
+  resources/programs/chromToUcsc -i reference.fa -a resources/genomes/hs1/hs1.chromAlias.tsv > reference.ucsc.fa
+  resources/programs/chromToUcsc -i refseq.sorted.gff3 -a resources/genomes/hs1/hs1.chromAlias.tsv > refseq.sorted.ucsc.gff3
   ```
   I recommend you store these downloaded annotations in a directory one level above your project directory. Don't store any large files in resources/ seeing as it is under git control (git does not like large files). Just ensure that the paths are nested within a singularity bound directory if using the containerized workflow (read on to the segment on "workflow/profile/default/config.yaml" below for more details).  
   
