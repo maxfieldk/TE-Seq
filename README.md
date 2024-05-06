@@ -1,21 +1,26 @@
 # RTE-Seq: A Retrotransposable Element RNA-Seq Pipeline
-This project consists of a __snakemake pipeline__ to analyze transposable element 'omics data. It consists of 4 modules, "Annotate Referene" (AREF), short-read RNA-Seq (SRNA), long-read RNA-Seq (LRNA), and long-read DNA-Seq (LDNA). LRNA and LDNA remain in active development, while AREF and SRNA are comparatively stable. 
+This project consists of a __snakemake pipeline__ to analyze transposable element 'omics data.
+
 To the unacquainted, the analysis of retrotransposable element (RTE), and more generally repetitive element, sequencing data can be a daunting task: the repetitive nature of these elements imposes  analytical pitfalls and raises a number of practical questions including:  
 - Should I examine individual repetitive elements or rather groups of similar elements?
 - Which elements and groups are most biologically significant?
 - How do I deal with multi-mapping reads?
-  For these reasons, __repetitive elements are often neglected in RNA-sequencing analyses__.
-  This pipeline hopes to render investigation into these elements more tractable for those not steeped in the RTE literature.
-  It also aims address concerns pertaining to:
+
+For these reasons, __repetitive elements are often neglected in RNA-sequencing analyses__.
+This pipeline hopes to render investigation into these elements more tractable for those not steeped in the RTE literature.
+It also aims address concerns pertaining to:
 - non-referernce elements
 - non-autonomous transcription driven by adjacent genes
 - the quality of RTE annotations.
+
 This project derives from my work in the __Sedivy Lab at Brown University__, where we study transposable elements, in particular __LINE1__.
 ![Asset 3](https://github.com/maxfieldk/RTE/assets/44215152/3d01d6e6-84e6-4ab8-9bf6-df43d7cbf5ad)
-## Pipeline Description
-  This pipeline conducts an end-to-end analysis of raw sequencing data, implementing state of the art RTE-minded computational methods. It produces a comprehensive analyses of repetitive element expression at both the level of an individual repetitive element as well as family groupings of these elements.  
-  Briefly, starting with raw sequencing reads (fastq files), this pipeline begins with standard read level quality control, genomic alignment, and quantification of gene counts. Repeat-specific tools are then deployed to quantify repeat element expression by using both only uniquely mapped reads, or by using the information provided by unique mappings to guide probabilistic assignment of multi-mapping reads to specific repetitive elements. Differential transcript expression of repetitive and non-repetitive elements is assessed using DESeq2. Gene-set enrichment analyses are performed for both genes and families of repetitive elements.  
+## Pipeline Overview
+  This pipeline conducts an end-to-end analysis of raw sequencing data, implementing state of the art RTE-minded computational methods. It produces a comprehensive analyses of repetitive element expression at both the level of an individual repetitive element as well as family groupings of these elements. It consists of 4 modules, "Annotate Referene" (AREF), short-read RNA-Seq (SRNA), long-read RNA-Seq (LRNA), and long-read DNA-Seq (LDNA). LRNA and LDNA remain in active development, while AREF and SRNA are comparatively stable.
+
   This pipeline will begin by fully annotating a user-provided genome for repetitive element content and identifying functionally important grouping of elements. This enriched annotation set allows the subsequent analysis to probe distinctions in expression between truncated, full-length, open reading-frame intact, RTEs as well as intergenic versus intragenic elements. Additionally, if provided with long-read DNA sequencing data derived from the specimens under investigation, this pipeline will call non-reference insertions using TLRD in order to create a custom genome and associated annotations describing all non-reference RTE element insertions. This enables the analysis of polymorphic RTE elements, which are likely to be the most active elements.  
+    
+  Then starting with raw sequencing reads (fastq files), this pipeline performs standard read level quality control, genomic alignment, and quantification of gene counts. Repeat-specific tools are then deployed to quantify repeat element expression by using both only uniquely mapped reads, or by using the information provided by unique mappings to guide probabilistic assignment of multi-mapping reads to specific repetitive elements. Differential transcript expression of repetitive and non-repetitive elements is assessed using DESeq2. Gene-set enrichment analyses are performed for both genes and families of repetitive elements. 
 ### Inputs
 - Raw short-read RNA-Seq data stored in fastq file format.
 - Optionally, long-read Nanopore DNA-Seq data
@@ -56,8 +61,7 @@ This project derives from my work in the __Sedivy Lab at Brown University__, whe
   ```
    conda env create --file envs/rseqc.yaml
   ```
-   It will take time and occupy a substantial amount of disk space to recreate all of these environments. Using a container is the prefered way to deploy this pipeline. I also recommend using the mamba command over the conda command if possible, environment building will proceed much more quickly  
--
+   It will take time and occupy a substantial amount of disk space to recreate all of these environments. Using a container is the prefered way to deploy this pipeline. I also recommend using the mamba command over the conda command if possible, environment building will proceed much more quickly
   ```
    mamba env create --file envs/rseqc.yaml
   ```
@@ -72,28 +76,27 @@ This project derives from my work in the __Sedivy Lab at Brown University__, whe
   cp workflow/conf_example conf
   ```
 ## Configure your analysis
-  In order to run this pipeline, a number of configuration files must be edited to reflect your data and analytical decisions. Here I will walk you through the setup and runtime steps needed to execute the AREF and SRNA modules.  
-  Modify the contents of conf/sample_table_srna. Make sure sample names do not start with numbers; add an X in front if they do.  
-- If you have added meta-data columns to your sample_table_srna which you would like to be represented as ordered factors in downstream visualizations (e.g. you are studying Alzheimer's samples and want Braak stage I to be followed by stages II, III, etc. in your plots), modify the contents of conf/sample_table_source.R as suggested in the commented out code block
-- Modify the contents of conf/config.yaml.
-- This files contents determine the way in which the pipeline is run.
-- In the "srna" section, make sure that the values associated with the keys: "samples", "contrast", "library_type" are set. Then if you have genesets of interest, you can modify the "genesets_for_gsea" and "genesets_for_heatmaps" keys, adding a key-value pair for your geneset of interest. Please use gmt format for the former and a list of gene symbols in a text file for the latter (you can look at the provided genesets in the resources/ directory for further guidance).
-- In the "aref" section, locate the comment "#USER PROVIDED ANNOTATIONS - CHANGE PATHS AS NEEDED" and do as instructed. This set of annotations is all that you will need to provide to the pipeline, and consists of: (example urls to fetch the T2T-HS1 human reference are provided in parentheses)
+  In order to run this pipeline, a number of configuration files must be edited to reflect your data and analytical decisions. Here I will walk you through the setup needed to execute the AREF and SRNA modules.
+  
+  Modify the contents of __conf/sample_table_srna.csv__. You provide two mandatory columns "sample_names" (e.g. Profiferating_1) and "condition" (e.g. Proliferating), and optionally meta-data variables, such as "batch" (which will be used to batch correct the differential expression analysis and provide batch-corrected counts, e.g. A). Make sure sample names do not start with numbers; add an X in front if they do.
+  If you have added meta-data columns to your sample_table_srna which you would like to be represented as ordered factors in downstream visualizations (e.g. you are studying Alzheimer's samples and want Braak stage I to be followed by stages II, III, etc. in your plots), modify the contents of __conf/sample_table_source.R__ as suggested in the commented out code block of the script.
+
+Modify the contents of __conf/config.yaml__. This file's contents determine the way in which the pipeline is run.
+
+In the __"srna" section__, make sure that the values associated with the keys: "samples", "levels", "contrast", "library_type" are set. "samples" should be a list with every sample you plan to run the analysis on. Each value in "samples" and "levels" needs to have a corresponding entry in conf/sample_table_srna.csv, where "samples" corresponds to "sample_name", "levels" to "condition". "contrast" determines which contrasts are run in the differential expression analysis (e.g. if you have 9 samples spanning conditions A, B, and C, you can provide any or all of the following contrasts: "condition_B_vs_A", "condition_C_vs_A", "condition_C_vs_B". The condition which follows the _vs_ is the base comparator of the contrast, i.e. it is what the first condition is compared to. 
+
+Then if you have genesets of interest, you can modify the "genesets_for_gsea" and "genesets_for_heatmaps" keys, adding a key-value pair for your geneset of interest. Please use gmt format for the former and a list of gene symbols in a text file for the latter (you can look at the provided genesets in the resources/ directory for further guidance).
+
+In the __"aref" section__, locate the comment "#USER PROVIDED ANNOTATIONS - CHANGE PATHS AS NEEDED" and do as instructed. This set of annotations is all that you will need to provide to the pipeline, and consists of: (example urls to fetch the T2T-HS1 human reference are provided in parentheses)
 - A reference genome (wget https://hgdownload.soe.ucsc.edu/goldenPath/hs1/bigZips/hs1.fa.gz)
-  logseq.order-list-type:: number
 - The repeatmasker.out file for this genome (wget https://hgdownload.soe.ucsc.edu/goldenPath/hs1/bigZips/hs1.repeatMasker.out.gz)
-  logseq.order-list-type:: number
 - Refseq gtf file (wget https://hgdownload.soe.ucsc.edu/goldenPath/hs1/bigZips/genes/hs1.ncbiRefSeq.gtf.gz)
-  logseq.order-list-type:: number
 - If using using nanopore reads to update your reference, a path to the repeatmasker executable on your system (https://www.repeatmasker.org/RepeatMasker/)
-  logseq.order-list-type:: number
 - Decompress all these files with the gunzip command, e.g.
-  logseq.order-list-type:: number
--
   ```
   gunzip hs1.fa.gz
   ```
-- This pipeline expects chromosome names to be in UCSC format ie. "chr1, chr2, ...". You can easily inspect your annotation files to ensure they conform to this convention by using the following command:
+This pipeline expects chromosome names to be in UCSC format ie. "chr1, chr2, ...". You can easily inspect your annotation files to ensure they conform to this convention by using the following command:
   ```
   less {path_to_annotation}
   ```
@@ -106,7 +109,7 @@ This project derives from my work in the __Sedivy Lab at Brown University__, whe
   ```
   I recommend you store these downloaded annotations in a directory one level above your project directory. Don't store any large files in resources/ seeing as it is under git control (git does not like large files). Just ensure that the paths are nested within a singularity bound directory if using the containerized workflow (read on to the segment on "workflow/profile/default/config.yaml" below for more details).  
   
-  Create, in your project directory, the srna/rawdata directory structure, and move your fastqs there. Make sure the naming is consistent with the naming scheme set forth in the conf/project_config_srna.yaml, which uses sample_name from the conf/sample_table_srna.csv i.e.:  
+Create, in your project directory, the srna/rawdata directory structure, and move your fastqs there. Make sure the naming is consistent with the naming scheme set forth in the conf/project_config_srna.yaml, which uses sample_name from the conf/sample_table_srna.csv i.e.:  
   ```
   source1: "srna/rawdata/{sample_name}_R1.fastq.gz" source2: "srna/rawdata/{sample_name}_R2.fastq.gz"
   ```
