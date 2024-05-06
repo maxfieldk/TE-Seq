@@ -1,7 +1,6 @@
 #notes:
 #sample names cannot contain dash - or period . characters, wildcard constraints occasionally prevent these
 #DO NOT delete any keys, as this will cause snakemake to throw a key error. 
-#As a general rule, absolute file paths can be changed, but relative paths should not be changed.
 
 ############################################################################
 #META PIPELINE SETTINGS
@@ -20,11 +19,10 @@ aref:
     aref_symlinkdir: "/oscar/data/jsedivy/mkelsey/ref/pipeline_annotations/hs1_stable_05-2024/RTE/aref"
   #USER PROVIDED ANNOTATIONS - CHANGE PATHS AS NEEDED
       #Be sure to follow ucsc naming conventions, e.g. chr1, chr2, ...
-  starting_ref: /users/mkelsey/data/ref/pipeline_annotations/hs1/RTE/aref/A.REF.fa
-  starting_ref_repeatmasker: /users/mkelsey/data/ref/pipeline_annotations/hs1/RTE/aref/repeatmasker/A.REF_repeatmasker_raw.gtf
-  ref_refseq_gtf: /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/refseq_2023_10/GCF_009914755.1_T2T-CHM13v2.0_genomic.ucscnames.gtf
-  ref_refseq_bed: /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/refseq_2023_10/GCF_009914755.1_T2T-CHM13v2.0_genomic.ucscnames.bed
-  ref_refseq_gff3: /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/refseq_2023_10/GCF_009914755.1_T2T-CHM13v2.0_genomic.ucscnames.gff
+  starting_ref: ../genome_files/reference.ucsc.fa
+  starting_ref_repeatmasker: ../genome_files/repeatmasker.out
+  ref_refseq_gtf: ../genome_files/refseq.sorted.ucsc.gtf
+  ref_refseq_gff3: ../genome_files/refseq.sorted.ucsc.gff3
   repeatmaskerpath: /oscar/data/jsedivy/mkelsey/tools/RepeatMasker/RepeatMasker
 
   #PIPELINE INCLUDED ANNOTATIONS FOR T2T-HS1 genome - LEAVE PATHS UNCHANGED OR CHANGE AS NEEDED
