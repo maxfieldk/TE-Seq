@@ -264,6 +264,7 @@ rule get_repeatmasker_raw:
     shell:
         """
 cp {params.repeatmasker} {output.repeatmasker}
+workflow/aref/scripts/outToGtf.sh {params.repeatmasker} {output.repeatmasker}
         """
 
 rule index_reference:
@@ -424,26 +425,21 @@ cp {input.ref_refseq_gff3} {output.refseq_gff3}
 cp {input.ref_refseq_gtf} {output.refseq_gtf}
         """
 
-rule sort_and_convert_refseq:
+rule sort_refseq_get_bed:
     input:
+        refseq_gff3 = "aref/{sample_or_ref}_annotations/refseq.possibly_unsorted.gff3",
         refseq_gtf = "aref/{sample_or_ref}_annotations/refseq.possibly_unsorted.gtf"
     output:
+        refseq_gff3 = "aref/{sample_or_ref}_annotations/refseq.gff3",
         refseq_gtf = "aref/{sample_or_ref}_annotations/refseq.gtf",
-        refseq_gff3 = "aref/{sample_or_ref}_annotations/refseq.complete.gff3",
         refseq_bed = "aref/{sample_or_ref}_annotations/refseq.bed"
-    conda: "omics"
-    resources:
-        mem_mb = 128000,
-        runtime = 300
+    conda:
+        "omics"
     shell:
         """
-sort -k1,1V -k4,4n -k5,5n {input.refseq_gtf} > {output.refseq_gtf}
+awk '!/#/ {{print}}' {input.refseq_gff3} | sort -k1,1V -k4,4n -k5,5n > {output.refseq_gff3}
+awk '!/#/ {{print}}' {input.refseq_gtf} | sort -k1,1V -k4,4n -k5,5n > {output.refseq_gtf}
 gtf2bed < {output.refseq_gtf} > {output.refseq_bed}
-agat_convert_sp_gxf2gxf.pl -g {output.refseq_gtf} -o {output.refseq_gff3}
-awk '!/#/ {{print}}' {output.refseq_gff3}.temp | awk '{{FS="\t";OFS="\t"}} $4 < 900000000000 {{print}}' | sort -k1,1V -k4,4n -k5,5n > {output.refseq_gff3}
-rm  {output.refseq_gff3}.temp
-rm {input.refseq_gtf}
-rm {input.refseq_gff3}
         """
 
 rule complete_gff3:
@@ -462,6 +458,7 @@ agat_convert_sp_gxf2gxf.pl --gff {input.gff3} -o {output.complete_gff3}.temp
 awk '!/#/ {{print}}' {output.complete_gff3}.temp | awk '{{FS="\t";OFS="\t"}} $4 < 900000000000 {{print}}' | sort -k1,1V -k4,4n -k5,5n > {output.complete_gff3}
 rm  {output.complete_gff3}.temp
         """
+
 
 rule gff_to_gtf:
     input:
@@ -515,10 +512,10 @@ awk '!/#/ {{print}}' {output.merged_gff3}.temp | awk '{{FS="\t";OFS="\t"}} $4 < 
 rm {output.merged_gff3}.temp
         """
 
-rule merge_genes_and_OG_repeats_gff3:
+rule merge_OG_genes_and_repeats_gff3:
     input:
         repeatmasker = "aref/A.REF_annotations/A.REF_repeatmasker.gff3",
-        refseq = "aref/{sample_or_ref}_annotations/refseq.complete.gff3"
+        refseq = "aref/{sample_or_ref}_annotations/refseq.gff3"
     output:
         merged_gff3 = "aref/A.REF_annotations/A.REF_repeatmasker_refseq.gff3"
     resources:
@@ -586,8 +583,8 @@ faToTwoBit {input.ref} {output.genome2bit}
 
 rule makeTxDB:
     input:
-        refseq = "aref/A.REF_annotations/refseq.gtf",
-        repeatmasker = "aref/A.REF_annotations/A.REF_repeatmasker_raw.gtf",
+        refseq = "aref/A.REF_annotations/refseq.gff3",
+        repeatmasker = "aref/A.REF_annotations/A.REF_repeatmasker.complete.gff3",
         genome2bit = "aref/A.REF.2bit"
     output:
         txdb = "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.sqlite",
