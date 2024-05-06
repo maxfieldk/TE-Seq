@@ -2,32 +2,17 @@ source("workflow/scripts/defaults.R")
 module_name <- "srna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
 source("workflow/scripts/generate_colors_to_source.R")
+source("conf/sample_table_source.R")
 
-library(knitr)
-library(rmarkdown)
-library(circlize)
-library(ComplexHeatmap)
-library("ggplot2")
-library("RColorBrewer")
-library("magrittr")
-library("cowplot")
-library("ggVennDiagram")
-library("org.Hs.eg.db")
-library("ggrepel")
-library("grid")
-library("readr")
-library("stringr")
-library("dplyr")
+
 library("tibble")
 library("tidyr")
-library(plotly)
 library(DT)
-library(ggExtra)
-library(rstatix)
-library(purrr)
 library(ggpubr)
 library(GenomicRanges)
 library(paletteer)
+library(ggplot2)
+library(scales)
 
 
 tryCatch(
@@ -48,8 +33,8 @@ tryCatch(
         ), env = globalenv())
         assign("inputs", list(
         repeatanalysis_plots <- "srna/results/agg/repeatanalysis_telescope/repeatanalysisplots_plots.RData",
-        enrichment_analysis_repeats_plots = "srna/results/agg/enrichment_analysis_repeats/{tecounttype}/enrichment_analysis_repeats_plots.RData",
-        deseq_plots = "srna/results/agg/deseq_telescope/{tecounttype}/deseq_plots.RData",
+        enrichment_analysis_repeats_plots = sprintf("srna/results/agg/enrichment_analysis_repeats/%s/enrichment_analysis_repeats_plots.RData", params$tecounttypes),
+        deseq_plots = sprintf("srna/results/agg/deseq_telescope/%s/deseq_plots.RData", params$tecounttypes),
         enrichment_analysis_plots = "srna/results/agg/enrichment_analysis/enrichment_analysis_plots.RData"
         ), env = globalenv())
         assign("outputs", list(
@@ -58,12 +43,12 @@ tryCatch(
     }
 )
 
+load(inputs$deseq_plots)
+deseqplots <- mysaveandstoreplots
+names(deseqplots)
 
-
-
-
-
-
+p <- deseqplots[["srna/results/agg/deseq_telescope/telescope_multi/genes/batchRemoved_yes/screeplot.png"]]
+mysave()
 
 
 

@@ -125,7 +125,7 @@ rule mycoplasmaCheck:
     shell:
         """
 mkdir -p $(dirname {output.sam})
-bowtie2 --threads 10 -x /users/mkelsey/data/ref/genomes/mycoplasma/mycoplasma_index -1 {input.r1} -2 {input.r2} -S {output.sam}
+bowtie2 --threads 10 -x resources/genomes/mycoplasma/mycoplasma_index -1 {input.r1} -2 {input.r2} -S {output.sam}
 samtools stats {output.sam} > {output.sam}.stats.txt
         """
 
@@ -224,7 +224,7 @@ rule featurecounts_genesandrtes_PE:
         countsmessy = "srna/outs/agg/featurecounts_genesandrtes/counts_messy.txt",
         counts = "srna/outs/agg/featurecounts_genesandrtes/counts.txt",
     params: 
-        gtf = "/oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations4/hs1.repMask.refseq.sorted.gtf",
+        gtf = "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf",
         featureCountsstrandparam = getFeatureCountsStrandParam()
     conda:
         "omics"
@@ -291,7 +291,7 @@ rule featurecounts_genesandrtes_SE:
         countsmessy = "srna/outs/agg/featurecounts_genesandrtes/counts_messy.txt",
         counts = "srna/outs/agg/featurecounts_genesandrtes/counts.txt",
     params: 
-        gtf = "/oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations4/hs1.repMask.refseq.sorted.gtf",
+        gtf = "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf",
         featureCountsstrandparam = getFeatureCountsStrandParam()
     conda:
         "omics"
@@ -559,11 +559,11 @@ rule repeatanalysis_plots:
 rule getBigWigF:
     input:
         sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.primary.bam",
-        sizefactors = "srna/results/agg/deseq_telescope/telescope_multi/sizefactors.csv"
+        sizefactors = "srna/results/agg/deseq_telescope/{tecounttype}/sizefactors.csv"
     params:
-        sample_size_factor = lambda w: 1/float(pd.read_csv("srna/results/agg/deseq_telescope/telescope_multi/sizefactors.csv").set_index("sample_name").loc[w.sample, "sizefactor"])
+        sample_size_factor = lambda w: 1/float(pd.read_csv("srna/results/agg/deseq_telescope/%s/sizefactors.csv"%(tecounttype)).set_index("sample_name").loc[w.sample, "sizefactor"])
     output:
-        bwF = "srna/outs/{sample}/star_output/{sample}.F.bw"
+        bwF = "srna/outs/{sample}/star_output/{sample}.{tecounttype}.F.bw"
     resources:
         cpus_per_task =10,
         mem_mb = 40000
@@ -580,11 +580,11 @@ rule getBigWigF:
 rule getBigWigR:
     input:
         sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.primary.bam",
-        sizefactors = "srna/results/agg/deseq_telescope/telescope_multi/sizefactors.csv"
+        sizefactors = "srna/results/agg/deseq_telescope/{tecounttype}/sizefactors.csv"
     params:
-        sample_size_factor = lambda w: 1/float(pd.read_csv("srna/results/agg/deseq_telescope/telescope_multi/sizefactors.csv").set_index("sample_name").loc[w.sample, "sizefactor"])
+        sample_size_factor = lambda w: 1/float(pd.read_csv("srna/results/agg/deseq_telescope/%s/sizefactors.csv"%(tecounttype)).set_index("sample_name").loc[w.sample, "sizefactor"])
     output:
-        bwR = "srna/outs/{sample}/star_output/{sample}.R.bw"
+        bwR = "srna/outs/{sample}/star_output/{sample}.{tecounttype}.R.bw"
     resources:
         cpus_per_task =10,
         mem_mb = 40000
@@ -601,8 +601,8 @@ rule getBigWigR:
 
 rule bigwigplots:
     input:
-        bwF = expand("srna/outs/{sample}/star_output/{sample}.F.bw", sample = samples),
-        bwR = expand("srna/outs/{sample}/star_output/{sample}.R.bw", sample = samples),
+        bwF = expand("srna/outs/{sample}/star_output/{sample}.{tecounttype}.F.bw", sample = samples, tecounttype = config["tecounttypes"]),
+        bwR = expand("srna/outs/{sample}/star_output/{sample}.{tecounttype}.R.bw", sample = samples, tecounttype = config["tecounttypes"]),
         txdbrefseq = "aref/A.REF_annotations/refseq.sqlite"
     params:
         r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
