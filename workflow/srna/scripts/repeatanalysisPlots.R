@@ -59,7 +59,6 @@ tryCatch(
 
 outputdir <- params$outputdir
 contrasts <- conf$contrasts
-levelslegendmap <- conf$levelslegendmap
 sample_table <- read.csv(conf$sample_table)
 tecounttype <- "telescope_multi"
 

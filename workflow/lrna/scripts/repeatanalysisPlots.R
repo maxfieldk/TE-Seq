@@ -69,7 +69,6 @@ sample_table <- sample_table[match(samples, sample_table$sample_name), ]
 
 outputdir <- params$outputdir
 contrasts <- conf$contrasts
-levelslegendmap <- conf$levelslegendmap
 
 
 

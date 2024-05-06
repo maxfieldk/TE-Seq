@@ -35,7 +35,6 @@ sample_table <- read_csv("conf/sample_table.csv")
 sample_table <- sample_table[match(samples, sample_table$sample_name), ]
 
 contrasts <- conf$contrasts
-levelslegendmap <- conf$levelslegendmap
 tecounttypes <- conf$tecounttypes
 lengthreq <- conf$lengthreq
 maincontrast <- contrasts[1]

@@ -100,9 +100,6 @@ ldna:
     - "AD"
   contrasts:
     - "condition_AD_vs_CTRL"
-  condition_colors:
-    CTRL: "#3C5488FF"
-    AD: "#F39B7FFF"
 
   barcoding: "inactive"
   barcodingKit: ""
@@ -209,8 +206,6 @@ lrna:
     PRO: "PRO"
   contrasts:
     - "condition_SEN_vs_PRO"
-  contrast_colors:
-    condition_SEN_vs_PRO: "red"
   condition_colors:
     SEN: "#F39B7FFF"
     PRO: "#3C5488FF"
@@ -299,15 +294,6 @@ srna:
     - "PRO_normoxic"
     - "DDIS_8w_low_O2"
 
-  levelslegendmap:
-    PRO_low_O2: "PRO_low_O2"
-    RS_0w_low_O2: "RS_0w_low_O2"
-    RS_4w_low_O2: "RS_4w_low_O2"
-    RS_8w_low_O2: "RS_8w_low_O2"
-    RS_12w_low_O2: "RS_12w_low_O2"
-    PRO_normoxic: "PRO_normoxic"
-    DDIS_8w_low_O2: "DDIS_8w_low_O2"
-
   contrasts:
     - "condition_RS_0w_low_O2_vs_PRO_low_O2"
     - "condition_RS_4w_low_O2_vs_PRO_low_O2"
@@ -315,23 +301,6 @@ srna:
     - "condition_RS_12w_low_O2_vs_PRO_low_O2"
     - "condition_PRO_normoxic_vs_PRO_low_O2"
     - "condition_DDIS_8w_low_O2_vs_PRO_low_O2"
-
-  contrast_colors:
-    condition_RS_0w_low_O2_vs_PRO_low_O2: yellow
-    condition_RS_4w_low_O2_vs_PRO_low_O2: orange
-    condition_RS_8w_low_O2_vs_PRO_low_O2: red
-    condition_RS_12w_low_O2_vs_PRO_low_O2: purple
-    condition_PRO_normoxic_vs_PRO_low_O2: blue
-    condition_DDIS_8w_low_O2_vs_PRO_low_O2: magenta
-
-  condition_colors:
-    PRO_low_O2: grey
-    RS_0w_low_O2: yellow
-    RS_4w_low_O2: orange
-    RS_8w_low_O2: red
-    RS_12w_low_O2: purple
-    PRO_normoxic: blue
-    DDIS_8w_low_O2: magenta
 
   paralellize_bioc: 8
   counttypes:

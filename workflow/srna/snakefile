@@ -512,7 +512,6 @@ rule repeatanalysis_plots:
         r_repeatmasker_annotation = config["r_repeatmasker_annotation"],
         contrasts = config["contrasts"],
         tecounttypes = config["tecounttypes"],
-        levelslegendmap = config["levelslegendmap"],
         inputdir = lambda w, input: os.path.dirname(input.resultsdf),
         outputdir = lambda w, output: os.path.dirname(output.outfile)
     conda:
@@ -545,7 +544,6 @@ rule repeatanalysis_plots:
 #         repeatanalysis = config["repeatanalysis"],
 #         contrasts = config["contrasts"],
 #         counttypes = config["counttypes"],
-#         levelslegendmap = config["levelslegendmap"],
 #         lengthreq = config["lengthreq"],
 #         peptable = "conf/private/peptable.csv"
 #     output:

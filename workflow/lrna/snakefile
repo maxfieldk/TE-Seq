@@ -607,7 +607,6 @@ rule repeatanalysis_plots:
         r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
         r_repeatmasker_annotation = config["r_repeatmasker_annotation"],
         contrasts = config["contrasts"],
-        levelslegendmap = config["levelslegendmap"],
         outputdir = lambda w, output: os.path.dirname(output.outfile)
     conda:
         "repeatanalysis"

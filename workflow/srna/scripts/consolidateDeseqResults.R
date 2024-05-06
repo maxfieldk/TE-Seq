@@ -33,11 +33,7 @@ tryCatch(
 
 outputdir <- params$outputdir
 dir.create(outputdir, recursive = TRUE, showWarnings = FALSE)
-# order matters for the colors!
-contrast_colors <- conf$contrast_colors
-condition_colors <- conf$condition_colors
 contrasts <- conf$contrasts
-levelslegendmap <- conf$levelslegendmap
 tecounttypes <- conf$tecounttypes
 tecounttypes <- conf$tecounttypes
 lengthreq <- conf$lengthreq
@@ -45,8 +41,6 @@ maincontrast <- contrasts[1]
 
 
 
-contrast_colors <- unname(unlist(contrast_colors))
-condition_colors <- unname(unlist(condition_colors))
 peptable <- read.csv(conf$peptable)
 
 
