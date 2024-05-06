@@ -1,8 +1,15 @@
 # RTE-Seq: A Retrotransposable Element RNA-Seq Pipeline
-This project consists of a __snakemake pipeline__ to analyze transposable element 'omics data. It consists of 4 modules, "Annotate Referene" (AREF), short-read RNA-Seq (SRNA), long-read RNA-Seq (LRNA), and long-read DNA-Seq (LDNA). LRNA and LDNA remain in active development, while AREF and SRNA are comparatively stable.   To the unacquainted, the analysis of retrotransposable element (RTE), and more generally repetitive element, sequencing data can be a daunting task: the repetitive nature of these elements imposes  analytical pitfalls and raises a number of practical questions including:  
-  Should I examine individual repetitive elements or rather groups of similar elements? Which elements and groups are most biologically significant? How do I deal with multi-mapping reads?  
-  For these reasons, __repetitive elements are often neglected in RNA-sequencing analyses__. This pipeline hopes to render investigation into these elements more tractable for those not steeped in the RTE literature. It also aims address concerns pertaining to i) non-referernce elements ii) non-autonomous transcription driven by adjacent genes, iii) the quality of RTE annotations.
-This project derives from the __Sedivy Lab at Brown University__, where we study transposable elements, in particular __LINE1__.
+  This project consists of a __snakemake pipeline__ to analyze transposable element 'omics data. It consists of 4 modules, "Annotate Referene" (AREF), short-read RNA-Seq (SRNA), long-read RNA-Seq (LRNA), and long-read DNA-Seq (LDNA). LRNA and LDNA remain in active development, while AREF and SRNA are comparatively stable. 
+To the unacquainted, the analysis of retrotransposable element (RTE), and more generally repetitive element, sequencing data can be a daunting task: the repetitive nature of these elements imposes  analytical pitfalls and raises a number of practical questions including:  
+- Should I examine individual repetitive elements or rather groups of similar elements?
+- Which elements and groups are most biologically significant?
+- How do I deal with multi-mapping reads?
+For these reasons, __repetitive elements are often neglected in RNA-sequencing analyses__. This pipeline hopes to render investigation into these elements more tractable for those not steeped in the RTE literature.
+It also aims address concerns pertaining to
+- non-referernce elements
+- non-autonomous transcription driven by adjacent genes
+- the quality of RTE annotations.
+This project derives from my work in the __Sedivy Lab at Brown University__, where we study transposable elements, in particular __LINE1__.
 ![Asset 3](https://github.com/maxfieldk/RTE/assets/44215152/3d01d6e6-84e6-4ab8-9bf6-df43d7cbf5ad)
 ## Pipeline Description
   This pipeline conducts an end-to-end analysis of raw sequencing data, implementing state of the art RTE-minded computational methods. It produces a comprehensive analyses of repetitive element expression at both the level of an individual repetitive element as well as family groupings of these elements.  
