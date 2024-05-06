@@ -55,15 +55,15 @@ This project derives from my work in the __Sedivy Lab at Brown University__, whe
   The docker container is currently built around the X86 cpu architecture, and hence will not run on ARM based systems such as the latest apple silicon chips. A docker container suitable for these systems will be forthcoming in short order.  
 # Installation
 ## Create a snakemake containing conda environment
-  Create a snakemake conda environment from which you can run the snakemake pipeline, and install the required snakemake executor plugins in your snamemake conda environment, e.g.  
+  Create a snakemake conda environment from which you can run the snakemake pipeline, and install the required snakemake executor plugins in your snamemake conda environment.  
   ```
     conda create --name snakemake snakemake snakemake-executor-plugin-slurm
   ```
-  If you are not able to use docker/singularity and/or want to be able to modify environements, you can create the environments in the envs/ directory. E.g.:  
+  If you are not able to use docker/singularity and/or want to be able to modify environements, you can create the environments in the envs/ directory.
   ```
    conda env create --file envs/rseqc.yaml
   ```
-   It will take time and occupy a substantial amount of disk space to recreate all of these environments. Using a container is the prefered way to deploy this pipeline. I also recommend using the mamba command over the conda command if possible, environment building will proceed much more quickly
+   It will take time and occupy a substantial amount of disk space to recreate all of these environments. Using a container is the prefered way to deploy this pipeline. I also recommend using the mamba command over the conda command if possible, environment building will proceed much more quickly.
   ```
    mamba env create --file envs/rseqc.yaml
   ```
