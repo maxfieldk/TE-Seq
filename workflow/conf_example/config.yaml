@@ -20,10 +20,10 @@ aref:
     aref_symlinkdir: "/oscar/data/jsedivy/mkelsey/ref/pipeline_annotations/hs1/RTE/aref"
   #USER PROVIDED ANNOTATIONS - CHANGE PATHS AS NEEDED
   #Be sure to follow ucsc naming conventions, e.g. chr1, chr2, ...
-  starting_ref: /users/mkelsey/data/ref/pipeline_annotations/hs1/RTE/aref/A.REF.fa
-  starting_ref_repeatmasker: /users/mkelsey/data/ref/pipeline_annotations/hs1/RTE/aref/repeatmasker/A.REF_repeatmasker_raw.gtf
-  ref_refseq_gtf: /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/refseq_2023_10/GCF_009914755.1_T2T-CHM13v2.0_genomic.ucscnames.gtf
-  ref_refseq_gff3: /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/refseq_2023_10/GCF_009914755.1_T2T-CHM13v2.0_genomic.ucscnames.gff
+  starting_ref: ../genome_files/reference.ucsc.fa
+  starting_ref_repeatmasker: ../genome_files/repeatmasker.ucsc.out
+  ref_refseq_gtf: ../genome_files/refseq.sorted.ucsc.gtf
+  ref_refseq_gff3: ../genome_files/refseq.sorted.ucsc.gff3
   repeatmaskerpath: /oscar/data/jsedivy/mkelsey/tools/RepeatMasker/RepeatMasker
 
   #PIPELINE INCLUDED ANNOTATIONS FOR T2T-HS1 genome - LEAVE PATHS UNCHANGED OR CHANGE AS NEEDED
@@ -51,7 +51,7 @@ aref:
   levels:
     - "N2102EP"
   update_ref_with_tldr:
-    response: "yes"
+    response: "no"
     #if making one ref per sample (i.e. each sample has unique inserts), then "yes", else "no"
     per_sample: "no"
     #IF updating reference with tldr inserts; else NULL
