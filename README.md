@@ -75,7 +75,7 @@ This project derives from my work in the __Sedivy Lab at Brown University__, whe
   ```
   Copy the workflow/conf_example directory to ./conf  
   ```
-  cp workflow/conf_example conf
+  cp -r workflow/conf_example conf
   ```
 ## Configure your analysis
   In order to run this pipeline, a number of configuration files must be edited to reflect your data and analytical decisions. Here I will walk you through the setup needed to execute the AREF and SRNA modules.
