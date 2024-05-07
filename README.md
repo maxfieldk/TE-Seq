@@ -75,7 +75,8 @@ This project derives from my work in the __Sedivy Lab at Brown University__, whe
   ```
   Copy the workflow/conf_example directory to ./conf  
   ```
-  cp -r workflow/conf_example conf
+cd RTE
+cp -r workflow/conf_example conf
   ```
 ## Configure your analysis
   In order to run this pipeline, a number of configuration files must be edited to reflect your data and analytical decisions. Here I will walk you through the setup needed to execute the AREF and SRNA modules.
@@ -92,12 +93,13 @@ Then if you have genesets of interest, you can modify the "genesets_for_gsea" an
 In the __"aref" section__, locate the comment "#USER PROVIDED ANNOTATIONS - CHANGE PATHS AS NEEDED". This set of annotations is all that you will need to provide to the pipeline, and consists of several files. You will have to obtain these files, and specify their paths in the config.yaml aref section. Here I show how to do this for the T2T-HS1 human genome.
 - Download these files, and place them in a genome directory adjacent to your project directory
 ```
+cd ..
 mkdir genome_files
 cd genome_files
 #reference genome
-wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/009/914/755/GCF_009914755.1_T2T-CHM13v2.0/GCF_009914755.1_T2T-CHM13v2.0_genomic.fna.gz
+wget https://hgdownload.soe.ucsc.edu/goldenPath/hs1/bigZips/hs1.fa.gz
 #repeatmasker.out file
-wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/009/914/755/GCF_009914755.1_T2T-CHM13v2.0/GCF_009914755.1_T2T-CHM13v2.0_rm.out.gz
+wget https://hgdownload.soe.ucsc.edu/goldenPath/hs1/bigZips/hs1.repeatMasker.out.gz
 #Refseq gtf file
 wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/009/914/755/GCF_009914755.1_T2T-CHM13v2.0/GCF_009914755.1_T2T-CHM13v2.0_genomic.gtf.gz
 #Refseq gff3 file
@@ -106,10 +108,10 @@ wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/009/914/755/GCF_009914755.1_T2
 - If using using nanopore reads to update your reference, you will also need to provide a path to the repeatmasker executable on your system (download at https://www.repeatmasker.org/RepeatMasker/)
 - These files will need to be decompressed
   ```
-  gunzip GCF_009914755.1_T2T-CHM13v2.0_genomic.fna.gz; mv GCF_009914755.1_T2T-CHM13v2.0_genomic.fna reference.fa
+  gunzip hs1.fa.gz; mv hs1.fa reference.ucsc.fa
   gunzip GCF_009914755.1_T2T-CHM13v2.0_genomic.gtf.gz; mv GCF_009914755.1_T2T-CHM13v2.0_genomic.gtf refseq.gtf
   gunzip GCF_009914755.1_T2T-CHM13v2.0_genomic.gff.gz; mv GCF_009914755.1_T2T-CHM13v2.0_genomic.gff refseq.gff3
-  gunzip GCF_009914755.1_T2T-CHM13v2.0_rm.out.gz; mv GCF_009914755.1_T2T-CHM13v2.0_rm.out repeatmasker.out
+  gunzip hs1.repeatMasker.out.gz; mv hs1.repeatMasker.out repeatmasker.ucsc.out
   ```
 This pipeline expects chromosome names to be in UCSC format ie. "chr1, chr2, ...". You can easily inspect your annotation files to ensure they conform to this convention by using the following command:
   ```
@@ -121,10 +123,10 @@ This pipeline expects chromosome names to be in UCSC format ie. "chr1, chr2, ...
   sort -k1,1V -k4,4n -k5,5n refseq.gtf > refseq.sorted.gtf
   sort -k1,1V -k4,4n -k5,5n refseq.gff3 > refseq.sorted.gff3
   wget https://hgdownload.soe.ucsc.edu/goldenPath/hs1/bigZips/hs1.chromAlias.txt
-  chmod +x resources/programs/chromToUcsc
-  resources/programs/chromToUcsc -i refseq.sorted.gtf -a hs1.chromAlias.tsv > refseq.sorted.ucsc.gtf
-  resources/programs/chromToUcsc -i reference.fa -a hs1.chromAlias.tsv > reference.ucsc.fa
-  resources/programs/chromToUcsc -i refseq.sorted.gff3 -a hs1.chromAlias.tsv > refseq.sorted.ucsc.gff3
+  chmod +x ../RTE/resources/programs/chromToUcsc
+  ../RTE/resources/programs/chromToUcsc -i refseq.sorted.gtf -a hs1.chromAlias.txt > refseq.sorted.ucsc.gtf
+  ../RTE/resources/programs/chromToUcsc -i refseq.sorted.gff3 -a hs1.chromAlias.txt > refseq.sorted.ucsc.gff3
+rm refseq.gtf; rm refseq.sorted.gtf; rm refseq.gff3; rm refseq.sorted.gff3
   ```
   I recommend you store these downloaded annotations in a directory one level above your project directory (place genomes_files/ adjacent to the RTE/ directory). Don't store any large files in resources/ seeing as it is under git control (git does not like large files). Just ensure that the paths are nested within a singularity bound directory if using the containerized workflow (read on to the segment on "workflow/profile/default/config.yaml" below for more details).  
   
