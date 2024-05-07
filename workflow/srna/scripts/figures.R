@@ -32,7 +32,7 @@ tryCatch(
             "r_repeatmasker_annotation" = conf$r_repeatmasker_annotation
         ), env = globalenv())
         assign("inputs", list(
-        repeatanalysis_plots <- "srna/results/agg/repeatanalysis_telescope/repeatanalysisplots_plots.RData",
+        repeatanalysis_plots = "srna/results/agg/repeatanalysis_telescope/repeatanalysisplots_plots.RData",
         enrichment_analysis_repeats_plots = sprintf("srna/results/agg/enrichment_analysis_repeats/%s/enrichment_analysis_repeats_plots.RData", params$tecounttypes),
         deseq_plots = sprintf("srna/results/agg/deseq_telescope/%s/deseq_plots.RData", params$tecounttypes),
         enrichment_analysis_plots = "srna/results/agg/enrichment_analysis/enrichment_analysis_plots.RData"
@@ -43,12 +43,14 @@ tryCatch(
     }
 )
 
-load(inputs$deseq_plots)
-deseqplots <- mysaveandstoreplots
-names(deseqplots)
+load(inputs$repeatanalysis_plots)
+repeatanalysis_plots <- mysaveandstoreplots
+names(repeatanalysis_plots)
 
-p <- deseqplots[["srna/results/agg/deseq_telescope/telescope_multi/genes/batchRemoved_yes/screeplot.png"]]
+p <- repeatanalysis_plots[["srna/results/agg/repeatanalysis_telescope/telescope_multi/condition_RS_0w_low_O2_vs_PRO_low_O2/pvp/L1HS_l1_intactness_req_genic_loc_log2labels.png"]]
 mysave()
+
+
 
 
 
