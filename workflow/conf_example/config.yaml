@@ -77,6 +77,7 @@ srna:
   prefix: "srna"
   sample_table: "conf/sample_table_srna.csv"
   peptable: "conf/peptable_srna.csv"
+  per_sample_ref: "no"
   default_palette: "ggsci::default_aaas" #paletteer palettes https://emilhvitfeldt.github.io/paletteer/
   samples:
     - "PRO_low_O2_1"
@@ -146,12 +147,6 @@ srna:
   r_annotation_fragmentsjoined: "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv"
   r_repeatmasker_annotation: "aref/A.REF_annotations/A.REF_repeatmasker_annotation.csv"
 
-  #genomes
-  reference: "aref/A.REF.fa"
-  starindex: "aref/A.REF_indeces/star_index"
-
-  # referencesize: "/users/mkelsey/data/ref/genomes/hs1/hs1.chrom.sizes.txt"
-  #indeces
 
 ldna:
   ##      ANALYSIS PARAMETERES       ##
@@ -245,6 +240,7 @@ ldna:
 lrna:
   prefix: "lrna"
   sample_table: "conf/sample_table_lrna.csv"
+  per_sample_ref: "no"
   default_palette: "ggsci::default_aaas" #paletteer palettes https://emilhvitfeldt.github.io/paletteer/
   samples:
     - "pro1"
