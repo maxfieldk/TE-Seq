@@ -162,7 +162,7 @@ Create, in your project directory, the srna/rawdata directory structure, and mov
   The "update_ref_with_tldr" "response" value (yes or no) turn this feature on or off. If turning it on, you can specify whether to create one custom reference which all samples will use (e.g. if you had a number of long read sequencing data on spanning several conditions in ONE cell line) or to create one custom reference per sample (e.g. if you had long read sequencing done on multiple individuals). The "per_sample" key toggles between these two modes.  
   The "samples" , "sample_table", and "levels" keys in the aref section of the config are only relevant if creating a custom reference genome using long-read dna sequencing, and you can ignore these values if you are not using this feature. The same is true for the associated sample_table file, conf/sample_table_aref.csv, which will not be used in this case.  
 ### SRNA
-  This module does not have workflow modifying parameters.  
+  The "per_sample_ref" instructs the pipeline as to whether each sample has its own unique reference and TE annotations ("yes"; this situtaion occurs when you have nanopore DNA sequencing on all samples and wish to use custom references), or whether all samples will be using the same reference and TE annotations.  
 ## Deploying the pipeline
   First perform a pipeline dry-run this tells you which rules snakemake will deploy once really called  
   ```

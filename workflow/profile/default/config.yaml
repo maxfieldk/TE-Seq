@@ -1,4 +1,6 @@
-software-deployment-method: "conda apptainer"
+software-deployment-method: 
+  - conda
+  - apptainer
 singularity-args: '--bind /users/mkelsey/data,/oscar/data/jsedivy/mkelsey'
 conda-frontend: mamba
 rerun-triggers: mtime

@@ -93,13 +93,13 @@ mkdir -p {output.dir}
 pod5 convert to_fast5 --recursive --output {output.dir} -t 10 -f {input.dir}
         """
 
+
 rule guppy:
     input:
         dir = "lrna/rawdata/fast5/{sample}"
     params:
         guppy = config["guppy"],
-        guppy_config = config["guppy_config"],
-        reference = config["reference"]
+        guppy_config = config["guppy_config"]
     output:
         summary = "lrna/intermediates/{sample}/guppy/sequencing_summary.txt"
     resources:
@@ -239,13 +239,13 @@ m6anet inference \
 --num_iterations 1000
         """
 
+
 rule dorado:
     input:
         dir = "lrna/rawdata/{sample}"
     params:
         dorado = config["dorado"],
         basecallingModel = config["basecallingModel"],
-        reference = config["reference"]
     output:
         fqcalls = "lrna/intermediates/{sample}/fastqs/dorado/{sample}.fq.gz"
     resources:
@@ -401,11 +401,17 @@ find aref/ -type d -name 'RM_*' -exec rm -r {} +
 #     script:
 #         "scripts/maskedReadAnalysis.R"
 
+def get_aligner_refernce(wildcards):
+    if config["per_sample_ref"] == "yes":
+        return "aref/{sample}.fa"
+    else:
+        return "aref/A.REF.fa"
+
 rule minimap2RNAGENOME:
     input:
-        fq = "lrna/intermediates/{sample}/fastqs/{alignmenttype}/{sample}.fq.gz"
+        fq = "lrna/intermediates/{sample}/fastqs/{alignmenttype}/{sample}.fq.gz",
+        reference = get_aligner_refernce
     params:
-        reference = config["reference"],
         junctionbed = config["junctionbed"]
     output:
         bam = "lrna/intermediates/{sample}/alignments/genome/{alignmenttype}/{sample}.sorted.bam"
@@ -417,7 +423,7 @@ rule minimap2RNAGENOME:
         "minimap2"
     shell:
         """
-minimap2 -ax splice -uf -N 10 -k14 -t 12 --junc-bed {params.junctionbed} {params.reference} {input.fq} | \
+minimap2 -ax splice -uf -N 10 -k14 -t 12 --junc-bed {params.junctionbed} {input.reference} {input.fq} | \
 samtools sort -@4 -T {wildcards.sample} -O bam -o {output.bam}
 samtools index -@8 {output.bam}
 samtools stats {output.bam} > {output.bam}.stats.txt        
@@ -461,15 +467,20 @@ rule NanoCountgenesandRTEs:
 NanoCount -i {input.sortedbam} -o {output.counts} --extra_tx_info
         """
 
+def get_fc_annotation(wildcards):
+    if config["per_sample_ref"] == "yes":
+        return "aref/{sample}_annotations/{sample}_repeatmasker_refseq.complete.gtf"
+    else:
+        return "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf"
 rule fc_relaxed:
     input:
         sortedbam = "lrna/intermediates/{sample}/alignments/genome/{alignmenttype}/{sample}.sorted.bam",
-        libtype = "lrna/qc/library_type.txt"
+        libtype = "lrna/qc/library_type.txt",
+        annotation_genesandrtes = get_fc_annotation
     output:
         countsmessy = "lrna/intermediates/{sample}/counts/genome/{alignmenttype}/relaxed/{sample}rtesandgenes.counts_messy.txt",
         counts = "lrna/intermediates/{sample}/counts/genome/{alignmenttype}/relaxed/{sample}rtesandgenes.counts.txt",
     params: 
-        annotation_genesandrtes = config["annotation_genesandrtes"],
         featureCountsstrandparam = getFeatureCountsStrandParam()
     conda:
         "omics"
@@ -480,7 +491,7 @@ rule fc_relaxed:
     shell: 
         """
 mkdir -p $(dirname {output.counts})
-featureCounts -s {params.featureCountsstrandparam} -L -O -M --primary --ignoreDup --largestOverlap -R CORE -a {params.annotation_genesandrtes} -o {output.countsmessy} {input.sortedbam}
+featureCounts -s {params.featureCountsstrandparam} -L -O -M --primary --ignoreDup --largestOverlap -R CORE -a {input.annotation_genesandrtes} -o {output.countsmessy} {input.sortedbam}
 cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
         """
 
@@ -488,12 +499,12 @@ cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
 rule fc_stringent:
     input:
         sortedbam = "lrna/intermediates/{sample}/alignments/genome/{alignmenttype}/{sample}.filtered.bam",
-        libtype = "lrna/qc/library_type.txt"
+        libtype = "lrna/qc/library_type.txt",
+        annotation_genesandrtes = get_fc_annotation
     output:
         countsmessy = "lrna/intermediates/{sample}/counts/genome/{alignmenttype}/stringent/{sample}rtesandgenes.counts_messy.txt",
         counts = "lrna/intermediates/{sample}/counts/genome/{alignmenttype}/stringent/{sample}rtesandgenes.counts.txt",
     params: 
-        annotation_genesandrtes = config["annotation_genesandrtes"],
         featureCountsstrandparam = getFeatureCountsStrandParam()
     conda:
         "omics"
@@ -504,7 +515,7 @@ rule fc_stringent:
     shell: 
         """
 mkdir -p $(dirname {output.counts})
-featureCounts -s {params.featureCountsstrandparam} -L -O -M --primary --ignoreDup --largestOverlap --fracOverlapFeature 0.5 --fracOverlap 0.5 -R CORE -a {params.annotation_genesandrtes} -o {output.countsmessy} {input.sortedbam}
+featureCounts -s {params.featureCountsstrandparam} -L -O -M --primary --ignoreDup --largestOverlap --fracOverlapFeature 0.5 --fracOverlap 0.5 -R CORE -a {input.annotation_genesandrtes} -o {output.countsmessy} {input.sortedbam}
 cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
         """
 
