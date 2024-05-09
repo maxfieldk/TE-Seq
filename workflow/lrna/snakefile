@@ -156,14 +156,14 @@ mv {input.fqcalls}.temp {output.fq}
 
 rule nanopolishindex:
     input:
-        fq = "lrna/intermediates/{sample}/fastqs/guppy/{sample}.fq",
+        fq = "lrna/intermediates/{sample}/fastqs/{alignmenttype}/{sample}.fq",
         dir = "lrna/rawdata/fast5/{sample}"
     params:
         guppy = config["guppy"],
         guppy_config = config["guppy_config"],
         reference = config["reference"]
     output:
-        outfile = "lrna/outfiles/nanopolishindex_{sample}.txt"
+        outfile = "lrna/outfiles/{alignmenttype}_nanopolishindex_{sample}.txt"
     resources:
         cpus_per_task = 8,
         runtime = 600,
@@ -177,9 +177,9 @@ touch {output.outfile}
 
 rule eventalign:
     input:
-        fq = "lrna/intermediates/{sample}/fastqs/guppy/{sample}.fq",
+        fq = "lrna/intermediates/{sample}/fastqs/{alignmenttype}/{sample}.fq",
         bam = "lrna/intermediates/{sample}/alignments/genome/{alignmenttype}/{sample}.sorted.bam",
-        nanopolishindex = "lrna/outfiles/nanopolishindex_{sample}.txt"
+        nanopolishindex = "lrna/outfiles/{alignmenttype}_nanopolishindex_{sample}.txt"
     params:
         reference = config["reference"]
     output:
