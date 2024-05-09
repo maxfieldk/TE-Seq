@@ -1,4 +1,4 @@
-container: "docker://maxfieldkelsey/rtedocker"
+container: "docker://maxfieldkelsey/pipelinertedocker"
 
 import os
 import pandas as pd
@@ -72,33 +72,13 @@ def getTelescopeStrandParam():
 
 
 #tag PREPROCESSING
-rule prefetch:
-    output:
-        sra = temp("srna/rawdata/{sample}/{sample}.sra")
-    threads: 4
-    conda:
-        "omics"
-    shell: "prefetch {wildcards.sample} --output-directory rawdata"
-
-rule fastqdump:
-    input: "srna/rawdata/{sample}/{sample}.sra"
-    threads: 4
-    params:
-        outdir = "rawdata/{sample}"
-    log: "logs/{sample}/fastqdump.log"
-    output:
-        r1 = temp("rawdata/{sample}_1.fastq"),
-        r2 = temp("rawdata/{sample}_2.fastq")
-    conda:
-        "omics"
-    shell: "fastq-dump --split-files --outdir {params.outdir} {input} 2> {log}"
-
 rule fastp_PE:
     input:
         r1=lambda wildcards: peptable.loc[peptable["sample_name"] == wildcards.sample, "file_path_R1"].iloc[0],
         r2=lambda wildcards: peptable.loc[peptable["sample_name"] == wildcards.sample, "file_path_R2"].iloc[0]
     priority: 100
     threads: 6
+    retries: 3
     output:
         r1 = "srna/outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz",
         r2 = "srna/outs/{sample}/trimmedReads/{sample}_2.trimmed.fastq.gz",
@@ -117,6 +97,7 @@ rule fastp_SE:
         # r2=lambda wildcards: peptable.loc[peptable["sample_name"] == wildcards.sample, "R2"].iloc[0]
     priority: 100
     threads: 6
+    retries: 3
     output:
         r1 = "srna/outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz",
         # r2 = "outs/{sample}/trimmedReads/{sample}_2.trimmed.fastq.gz",
@@ -146,7 +127,7 @@ rule mycoplasmaCheck:
     shell:
         """
 mkdir -p $(dirname {output.sam})
-bowtie2 --threads 10 -x /users/mkelsey/data/ref/genomes/mycoplasma/mycoplasma_index -1 {input.r1} -2 {input.r2} -S {output.sam}
+bowtie2 --threads 10 -x resources/genomes/mycoplasma/mycoplasma_index -1 {input.r1} -2 {input.r2} -S {output.sam}
 samtools stats {output.sam} > {output.sam}.stats.txt
         """
 
@@ -182,12 +163,19 @@ multiqc -f -o $(dirname {output}) --export ./
         """
 
 #tag ALIGNMENT
+def get_alignSTAR_PE_index(wildcards):
+    if config["per_sample_ref"] == "yes":
+        return "aref/{sample}_indeces/star_index"
+    else:
+        return "aref/A.REF_indeces/star_index"
+
 rule alignSTAR_PE:
     input:
         r1 = "srna/outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz",
-        r2 = "srna/outs/{sample}/trimmedReads/{sample}_2.trimmed.fastq.gz"
-    params:
-        index = config["starindex"],
+        r2 = "srna/outs/{sample}/trimmedReads/{sample}_2.trimmed.fastq.gz",
+        star_index_outfile = "aref/A.REF_indeces/make_star_index.out",
+        index = get_alignSTAR_PE_index
+    retries: 3
     output:
         bam = temp("srna/outs/{sample}/star_output/Aligned.out.sam")
     threads: 8
@@ -197,7 +185,7 @@ rule alignSTAR_PE:
         "star"
     shell:
         """
-STAR --genomeDir {params.index} --readFilesCommand zcat --readFilesIn {input.r1} {input.r2} --outFileNamePrefix $(dirname {output.bam})/ --runThreadN {threads} --winAnchorMultimapNmax 100 --outFilterMultimapNmax 100
+STAR --genomeDir {input.index} --readFilesCommand zcat --readFilesIn {input.r1} {input.r2} --outFileNamePrefix $(dirname {output.bam})/ --runThreadN {threads} --winAnchorMultimapNmax 100 --outFilterMultimapNmax 100
         """
 
 #tag COUNTS
@@ -245,7 +233,7 @@ rule featurecounts_genesandrtes_PE:
         countsmessy = "srna/outs/agg/featurecounts_genesandrtes/counts_messy.txt",
         counts = "srna/outs/agg/featurecounts_genesandrtes/counts.txt",
     params: 
-        gtf = "/oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations4/hs1.repMask.refseq.sorted.gtf",
+        gtf = "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf",
         featureCountsstrandparam = getFeatureCountsStrandParam()
     conda:
         "omics"
@@ -261,9 +249,10 @@ cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
 
 rule alignSTAR_SE:
     input:
-        r1 = "srna/outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz"
-    params:
-        index = config["starindex"]
+        r1 = "srna/outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz",
+        star_index_outfile = "aref/A.REF_indeces/make_star_index.out",
+        index = get_alignSTAR_PE_index
+    retries: 3
     output:
         bam = temp("srna/outs/{sample}/star_output/Aligned.out.sam")
     threads: 8
@@ -273,7 +262,7 @@ rule alignSTAR_SE:
         "star"
     shell:
         """
-STAR --genomeDir {params.index} --readFilesCommand zcat --readFilesIn {input.r1} --outFileNamePrefix $(dirname {output.bam}) --runThreadN {threads} --winAnchorMultimapNmax 100 --outFilterMultimapNmax 100
+STAR --genomeDir {input.index} --readFilesCommand zcat --readFilesIn {input.r1} --outFileNamePrefix $(dirname {output.bam}) --runThreadN {threads} --winAnchorMultimapNmax 100 --outFilterMultimapNmax 100
         """
 
 rule featurecounts_genes_SE:
@@ -312,7 +301,7 @@ rule featurecounts_genesandrtes_SE:
         countsmessy = "srna/outs/agg/featurecounts_genesandrtes/counts_messy.txt",
         counts = "srna/outs/agg/featurecounts_genesandrtes/counts.txt",
     params: 
-        gtf = "/oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations4/hs1.repMask.refseq.sorted.gtf",
+        gtf = "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf",
         featureCountsstrandparam = getFeatureCountsStrandParam()
     conda:
         "omics"
@@ -497,13 +486,18 @@ rule collateBam:
 samtools collate -o {output.collatedbam} {input.sortedBam}
         """
 
+def getTelescopeGff(wildcards):
+    if config["per_sample_ref"] == "yes":
+        return "aref/{sample}_annotations/{sample}_repeatmasker.gff2"
+    else:
+        return "aref/A.REF_annotations/A.REF_repeatmasker.gff2"
 rule telescope:
     input:
         collatedbam = "srna/outs/{sample}/star_output/{sample}.collated.bam",
-        libtype = "srna/qc/library_type.txt"
+        libtype = "srna/qc/library_type.txt",
+        gff = getTelescopeGff
     params:
-        gtf = config["annotation_rtes"],
-        strandparam = getTelescopeStrandParam(),
+        strandparam = getTelescopeStrandParam()
     output:
         counts = "srna/outs/{sample}/telescope/telescope-run_stats.tsv"
     threads: 4
@@ -520,7 +514,7 @@ telescope assign \
 --stranded_mode {params.strandparam} \
 --outdir $(dirname {output.counts}) \
 {input.collatedbam} \
-{params.gtf}
+{input.gff}
         """
 
 
@@ -533,7 +527,6 @@ rule repeatanalysis_plots:
         r_repeatmasker_annotation = config["r_repeatmasker_annotation"],
         contrasts = config["contrasts"],
         tecounttypes = config["tecounttypes"],
-        levelslegendmap = config["levelslegendmap"],
         inputdir = lambda w, input: os.path.dirname(input.resultsdf),
         outputdir = lambda w, output: os.path.dirname(output.outfile)
     conda:
@@ -566,7 +559,6 @@ rule repeatanalysis_plots:
 #         repeatanalysis = config["repeatanalysis"],
 #         contrasts = config["contrasts"],
 #         counttypes = config["counttypes"],
-#         levelslegendmap = config["levelslegendmap"],
 #         lengthreq = config["lengthreq"],
 #         peptable = "conf/private/peptable.csv"
 #     output:
@@ -576,15 +568,21 @@ rule repeatanalysis_plots:
 #     notebook:
 #         "scripts/rteVariance.ipynb"
 
+def bigwig_sizefactor_input(wildcards):
+    sizefactor_path = "srna/results/agg/deseq_telescope/%s/sizefactors.csv"%(wildcards.tecounttype)
+    if not Path(sizefactor_path).exists():
+        return "NA"
+    else:
+        return 1/float(pd.read_csv("srna/results/agg/deseq_telescope/%s/sizefactors.csv"%(tecounttype)).set_index("sample_name").loc[w.sample, "sizefactor"])
 
 rule getBigWigF:
     input:
         sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.primary.bam",
-        sizefactors = "srna/results/agg/deseq_telescope/telescope_multi/sizefactors.csv"
+        sizefactors = "srna/results/agg/deseq_telescope/{tecounttype}/sizefactors.csv",
     params:
-        sample_size_factor = lambda w: 1/float(pd.read_csv("srna/results/agg/deseq_telescope/telescope_multi/sizefactors.csv").set_index("sample_name").loc[w.sample, "sizefactor"])
+        sample_size_factor = bigwig_sizefactor_input
     output:
-        bwF = "srna/outs/{sample}/star_output/{sample}.F.bw"
+        bwF = "srna/outs/{sample}/star_output/{sample}.{tecounttype}.F.bw"
     resources:
         cpus_per_task =10,
         mem_mb = 40000
@@ -598,14 +596,15 @@ rule getBigWigF:
 #(see this review). For these libraries, --filterRNAstrand will have an opposite behavior, 
 #i.e. --filterRNAstrand forward will give you reverse strand signal and vice-versa.
 #https://www.biostars.org/p/413626/#414440 useful thread about scaling factors
+
 rule getBigWigR:
     input:
         sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.primary.bam",
-        sizefactors = "srna/results/agg/deseq_telescope/telescope_multi/sizefactors.csv"
+        sizefactors = "srna/results/agg/deseq_telescope/{tecounttype}/sizefactors.csv",
     params:
-        sample_size_factor = lambda w: 1/float(pd.read_csv("srna/results/agg/deseq_telescope/telescope_multi/sizefactors.csv").set_index("sample_name").loc[w.sample, "sizefactor"])
+        sample_size_factor = bigwig_sizefactor_input
     output:
-        bwR = "srna/outs/{sample}/star_output/{sample}.R.bw"
+        bwR = "srna/outs/{sample}/star_output/{sample}.{tecounttype}.R.bw"
     resources:
         cpus_per_task =10,
         mem_mb = 40000
@@ -622,8 +621,8 @@ rule getBigWigR:
 
 rule bigwigplots:
     input:
-        bwF = expand("srna/outs/{sample}/star_output/{sample}.F.bw", sample = samples),
-        bwR = expand("srna/outs/{sample}/star_output/{sample}.R.bw", sample = samples),
+        bwF = expand("srna/outs/{sample}/star_output/{sample}.{tecounttype}.F.bw", sample = samples, tecounttype = config["tecounttypes"]),
+        bwR = expand("srna/outs/{sample}/star_output/{sample}.{tecounttype}.R.bw", sample = samples, tecounttype = config["tecounttypes"]),
         txdbrefseq = "aref/A.REF_annotations/refseq.sqlite"
     params:
         r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],

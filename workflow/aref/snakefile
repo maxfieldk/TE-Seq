@@ -1,3 +1,5 @@
+container: "docker://maxfieldkelsey/pipelinertedocker"
+
 rule sym_link:
     input:
         aref_dir = config["symlink_aref"]["aref_symlinkdir"]
@@ -262,6 +264,7 @@ rule get_repeatmasker_raw:
     shell:
         """
 cp {params.repeatmasker} {output.repeatmasker}
+workflow/aref/scripts/outToGtf.sh {params.repeatmasker} {output.repeatmasker}
         """
 
 rule index_reference:
@@ -412,19 +415,32 @@ rule process_gtf:
 rule move_refseq:
     input:
         ref_refseq_gff3 = config["ref_refseq_gff3"],
-        ref_refseq_gtf = config["ref_refseq_gtf"],
-        ref_refseq_bed = config["ref_refseq_bed"]
+        ref_refseq_gtf = config["ref_refseq_gtf"]
     output:
-        refseq_gff3 = "aref/{sample_or_ref}_annotations/refseq.gff3",
-        refseq_gtf = "aref/{sample_or_ref}_annotations/refseq.gtf",
-        refseq_bed = "aref/{sample_or_ref}_annotations/refseq.bed"
+        refseq_gff3 = "aref/{sample_or_ref}_annotations/refseq.possibly_unsorted.gff3",
+        refseq_gtf = "aref/{sample_or_ref}_annotations/refseq.possibly_unsorted.gtf"
     shell:
         """
 cp {input.ref_refseq_gff3} {output.refseq_gff3}
 cp {input.ref_refseq_gtf} {output.refseq_gtf}
-cp {input.ref_refseq_bed} {output.refseq_bed}
         """
 
+rule sort_refseq_get_bed:
+    input:
+        refseq_gff3 = "aref/{sample_or_ref}_annotations/refseq.possibly_unsorted.gff3",
+        refseq_gtf = "aref/{sample_or_ref}_annotations/refseq.possibly_unsorted.gtf"
+    output:
+        refseq_gff3 = "aref/{sample_or_ref}_annotations/refseq.gff3",
+        refseq_gtf = "aref/{sample_or_ref}_annotations/refseq.gtf",
+        refseq_bed = "aref/{sample_or_ref}_annotations/refseq.bed"
+    conda:
+        "omics"
+    shell:
+        """
+awk '!/#/ {{print}}' {input.refseq_gff3} | sort -k1,1V -k4,4n -k5,5n > {output.refseq_gff3}
+awk '!/#/ {{print}}' {input.refseq_gtf} | sort -k1,1V -k4,4n -k5,5n > {output.refseq_gtf}
+gtf2bed < {output.refseq_gtf} > {output.refseq_bed}
+        """
 
 rule complete_gff3:
     input:

@@ -83,7 +83,6 @@ sample_table <- sample_table[match(samples, sample_table$sample_name), ]
 outputdir <- params$outputdir
 dir.create(outputdir, showWarnings = FALSE, recursive = TRUE)
 contrasts <- conf[["lrna"]]$contrasts
-levelslegendmap <- conf[["lrna"]]$levelslegendmap
 
 
 roi <- import("conf/integrated_regions_of_interest.bed")

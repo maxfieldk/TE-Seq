@@ -27,7 +27,7 @@ for pipeline in config["pipelines_to_deploy"]:
                 else: 
                     use rule * from aref exclude move_starting_reference,process_gtf,tldr_per_sample,get_repeatmasker_raw as aref_*
             else:
-                use rule * from aref exclude dorado_seqsummary,pycoQC,process_gtf_tldr,cleanup_updated_ref,repeatmasker,getGtfs as aref_*
+                use rule * from aref exclude dorado,dorado_seqsummary,pycoQC,process_gtf_tldr,cleanup_updated_ref,repeatmasker,getGtfs as aref_*
 
             def aref_rally():
                 paths = [
@@ -39,11 +39,10 @@ for pipeline in config["pipelines_to_deploy"]:
                     "aref/A.REF_annotations/A.REF_rte_beds/outfile.txt",
                     "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.sqlite",
                     "aref/A.REF_annotations/cytobands.bed",
-                    "aref/A.REF_annotations/cpg_islands.bed",
-                    "aref/results/insertions/analyze_nongermline_insertions.rds"
                 ]
                 if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
                     paths.append(expand("aref/qc/{sample_or_ref}/{sample_or_ref}pycoQC.html", sample_or_ref = config["aref"]["samples"]))
+                    paths.append("aref/results/insertions/analyze_nongermline_insertions.rds")
                     if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
                         paths.append(expand("aref/{sample_or_ref}_Analysis/tldr_plots/tldr_plots.rds", sample_or_ref = config["aref"]["samples"]))
                         paths.append(expand("aref/{sample_or_ref}_Analysis/tldr_plots/transduction_mapping.rds", sample_or_ref = config["aref"]["samples"]))
@@ -60,7 +59,8 @@ for pipeline in config["pipelines_to_deploy"]:
                         paths.append(expand("aref/{sample_or_ref}_Analysis/l1element_analysis.outfile", sample_or_ref = "A.REF"))
                         paths.append(expand("aref/{sample_or_ref}_annotations/{sample_or_ref}_rte_beds/outfile.txt", sample_or_ref = "A.REF"))
 
-
+                if "ldna" in config["pipelines_to_deploy"]:
+                    paths.append("aref/A.REF_annotations/cpg_islands.bed")
                 return list(flatten(paths))
             for e in aref_rally():
                 final_input.append(e)
@@ -85,10 +85,10 @@ for pipeline in config["pipelines_to_deploy"]:
         gimme = "ldna/results/gimme/gimme_plots.rds"
         pepper = expand("ldna/intermediates/{sample}/pepper/out.outfile", sample = config["ldna"]["samples"])
         if config["ldna"]["single_condition"] == "yes":
-            for e in list(flatten([pepper, bedmethanalysis_single_sample,sniffles, clair3, methylartist])):
+            for e in list(flatten([pepper, bedmethanalysis_single_sample,sniffles, methylartist])):
                 final_input.append(e)
         else:
-            for e in list(flatten([bedmethanalysis,dmrs, sniffles, clair3, methylartist])):
+            for e in list(flatten([pepper, bedmethanalysis,dmrs, sniffles, methylartist])):
                 final_input.append(e)
 
     if pipeline == "lrna":

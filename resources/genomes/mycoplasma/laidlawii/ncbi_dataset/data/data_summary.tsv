@@ -1,0 +1,3 @@
+Organism Scientific Name	Organism Common Name	Organism Qualifier	Taxonomy id	Assembly Name	Assembly Accession	Source	Annotation	Level	Contig N50	Size	Submission Date	Gene Count	BioProject	BioSample
+Acholeplasma laidlawii		strain: DSM 23060	2148	ASM338576v1	GCA_003385765.1	GenBank	Annotation submitted by DOE Joint Genome Institute	Scaffold	1103930	1491638	2018-08-14	1423	PRJNA439852	SAMN08769264
+Acholeplasma laidlawii		strain: DSM 23060	2148	ASM338576v1	GCF_003385765.1	RefSeq	NCBI Prokaryotic Genome Annotation Pipeline (PGAP)	Scaffold	1103930	1491638	2018-08-14	1425	PRJNA439852	SAMN08769264

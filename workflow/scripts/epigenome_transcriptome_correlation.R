@@ -118,7 +118,6 @@ methdif <- methdif1 %>%
 
 
 
-condition_colors <- conf[["lrna"]]$condition_colors
 conditions_to_plot <- conf[["lrna"]]$levels
 condition1 <- conditions_to_plot[1]
 condition2 <- conditions_to_plot[2]

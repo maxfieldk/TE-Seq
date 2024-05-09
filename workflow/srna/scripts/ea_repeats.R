@@ -205,6 +205,7 @@ for (contrast in params[["contrasts"]]) {
     }
 }
 
+contrast_label_map <- tibble(contrast = params[["contrasts"]], label = gsub("constrast_", "", params[["contrasts"]]))
 gres <- gse_df %>% tibble()
 for (ontology in ontologies) {
     grestemp <- gres %>% filter(collection == ontology) %>% left_join(contrast_label_map)

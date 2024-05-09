@@ -1,7 +1,6 @@
 source("workflow/scripts/defaults.R")
 module_name <- "aref"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
-source("workflow/scripts/generate_colors_to_source.R")
 
 library(GenomicFeatures)
 library(GenomicRanges)
@@ -128,5 +127,5 @@ rmfragments <- rmfragments %>%
 
 write_csv(rmfragments, outputs$r_annotation_fragmentsjoined)
 
-rtracklayer::export(rmgr[seqnames(rmgr) %in% contigs_to_keep], con = outputs$repmask_gff2, format = "GFF2")
-rtracklayer::export(rmgr[seqnames(rmgr) %in% contigs_to_keep], con = outputs$repmask_gff3, format = "GFF3")
+rtracklayer::export(rmgr, con = outputs$repmask_gff2, format = "GFF2")
+rtracklayer::export(rmgr, con = outputs$repmask_gff3, format = "GFF3")
