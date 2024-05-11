@@ -20,8 +20,6 @@ library("stringr")
 library("dplyr")
 library("tibble")
 library("tidyr")
-library(plotly)
-library(DT)
 library(ggExtra)
 library(rstatix)
 library(purrr)
@@ -44,12 +42,12 @@ tryCatch(
         assign("params", list(
             "inputdir" = "srna/results/agg/deseq_telescope",
             "outputdir" = "srna/results/agg/repeatanalysis_telescope",
-            "tecounttypes" = c("telescope_multi"),
-            "r_annotation_fragmentsjoined" = conf$r_annotation_fragmentsjoined,
-            "r_repeatmasker_annotation" = conf$r_repeatmasker_annotation
+            "tecounttypes" = c("telescope_multi")
         ), env = globalenv())
         assign("inputs", list(
-            "resultsdf" = "srna/results/agg/deseq_telescope/resultsdf.tsv"
+            "resultsdf" = "srna/results/agg/deseq_telescope/resultsdf.tsv",
+            "r_annotation_fragmentsjoined" = conf$r_annotation_fragmentsjoined,
+            "r_repeatmasker_annotation" = conf$r_repeatmasker_annotation
         ), env = globalenv())
         assign("outputs", list(
             "outfile" = "srna/results/agg/repeatanalysis_telescope/plots.outfile.txt"
@@ -65,8 +63,8 @@ tecounttype <- "telescope_multi"
 
 ## Load Data and add annotations
 resultsdf1 <- read_delim(inputs$resultsdf, delim = "\t")
-r_annotation_fragmentsjoined <- read_csv(params$r_annotation_fragmentsjoined)
-r_repeatmasker_annotation <- read_csv(params$r_repeatmasker_annotation)
+r_annotation_fragmentsjoined <- read_csv(inputs$r_annotation_fragmentsjoined)
+r_repeatmasker_annotation <- read_csv(inputs$r_repeatmasker_annotation)
 resultsdf <- resultsdf1 %>%
     left_join(r_annotation_fragmentsjoined) %>%
     left_join(r_repeatmasker_annotation)

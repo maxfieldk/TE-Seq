@@ -42,12 +42,12 @@ library(ComplexHeatmap)
                 "genesets_for_heatmaps" = conf$genesets_for_heatmaps,
                 "genesets_for_gsea" = conf$genesets_for_gsea,
                 "inputdir" = "srna/results/agg/deseq_telescope",
-                "outputdir" = "srna/results/agg/enrichment_analysis_repeats",
-                "r_annotation_fragmentsjoined" = conf$r_annotation_fragmentsjoined,
-                "r_repeatmasker_annotation" = conf$r_repeatmasker_annotation
+                "outputdir" = "srna/results/agg/enrichment_analysis_repeats"
             ), env = globalenv())
             assign("inputs", list(
-                resultsdf = paste0("srna/results/agg/deseq_telescope/resultsdf.tsv")
+                resultsdf = paste0("srna/results/agg/deseq_telescope/resultsdf.tsv"),
+                "r_annotation_fragmentsjoined" = conf$r_annotation_fragmentsjoined,
+                "r_repeatmasker_annotation" = conf$r_repeatmasker_annotation
             ), env = globalenv())
             assign("outputs", list(outfile = "srna/results/agg/enrichment_analysis_repeats/outfile.txt"), env = globalenv())
         }
@@ -60,8 +60,8 @@ library(ComplexHeatmap)
 ## Load Data and add annotations
 resultsdf1 <- read_delim(inputs$resultsdf, delim = "\t")
 resultsdf1 <- resultsdf1[resultsdf1$gene_id != "__no_feature", ]
-r_annotation_fragmentsjoined <- read_csv(params$r_annotation_fragmentsjoined)
-r_repeatmasker_annotation <- read_csv(params$r_repeatmasker_annotation)
+r_annotation_fragmentsjoined <- read_csv(inputs$r_annotation_fragmentsjoined)
+r_repeatmasker_annotation <- read_csv(inputs$r_repeatmasker_annotation)
 resultsdf <- resultsdf1 %>%
     left_join(r_annotation_fragmentsjoined) %>%
     left_join(r_repeatmasker_annotation)

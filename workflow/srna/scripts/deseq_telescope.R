@@ -112,7 +112,6 @@ cnames <- colnames(cts)
 # cts <- cts[rowSums(cts > 0) != 0, ]
 # rounding since genes are allowed fractional counts
 cts <- cts %>% mutate(across(everything(), ~ as.integer(round(.))))
-cts[rownames(cts) == "CDKN1A", ]
 if ("batch" %in% colnames(coldata)) {
     dds <- DESeqDataSetFromMatrix(
     countData = cts,
@@ -192,7 +191,9 @@ write.csv(counttablesizenormed, file = countspath)
 # tag PLOTS
 
 for (batchnormed in c("yes", "no")) {
-if ("batch" %in% colnames(coldata)) { next }
+
+if (batchnormed == "yes" & !("batch" %in% colnames(coldata))) { next }
+
 for (subset in c("rtes", "genes")) {
     if (subset == "rtes") {
         ddstemplist <- ddsrteslist
