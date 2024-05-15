@@ -52,7 +52,7 @@ tryCatch(
     }
 )
 
-fa <- FaFile(inputs$reference)
+fa <- FaFile(inputs$ref)
 rmfragments <- read_csv(inputs$r_annotation_fragmentsjoined, col_names = TRUE)
 rmfamilies <- read_csv(inputs$r_repeatmasker_annotation, col_names = TRUE)
 rmann <- left_join(rmfragments, rmfamilies) %>%

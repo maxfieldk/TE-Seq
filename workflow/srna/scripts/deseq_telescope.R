@@ -112,7 +112,6 @@ cnames <- colnames(cts)
 # cts <- cts[rowSums(cts > 0) != 0, ]
 # rounding since genes are allowed fractional counts
 cts <- cts %>% mutate(across(everything(), ~ as.integer(round(.))))
-cts[rownames(cts) == "CDKN1A", ]
 if ("batch" %in% colnames(coldata)) {
     dds <- DESeqDataSetFromMatrix(
     countData = cts,
@@ -192,7 +191,9 @@ write.csv(counttablesizenormed, file = countspath)
 # tag PLOTS
 
 for (batchnormed in c("yes", "no")) {
-if ("batch" %in% colnames(coldata)) { next }
+
+if (batchnormed == "yes" & !("batch" %in% colnames(coldata))) { next }
+
 for (subset in c("rtes", "genes")) {
     if (subset == "rtes") {
         ddstemplist <- ddsrteslist
@@ -228,6 +229,10 @@ for (subset in c("rtes", "genes")) {
             pCutoff = 0.05,
         ) + mtopen + labs(subtitle = NULL, caption = sprintf("DE UP: %s\nDE DOWN: %s\nTOTAL: %s", DE_UP, DE_DOWN, TOTAL)) + theme(legend.position = "none")
         mysaveandstore(paste(outputdir, tecounttype, subset, contrast, "deplot.png", sep = "/"), 6, 6)
+    
+        p <- DESeq2::plotMA(res, alpha = 0.05) + mtclosed
+        mysaveandstore(paste(outputdir, tecounttype, subset, contrast, "maplot.png", sep = "/"), 6, 6)   
+
     }
 
     vst <- varianceStabilizingTransformation(ddstemp, blind = FALSE)
@@ -235,6 +240,10 @@ for (subset in c("rtes", "genes")) {
     if (batchnormed == "yes") {
         vst_assay <- removeBatchEffect(vst_assay, batch = colData(ddstemp)$batch, design = model.matrix(~colData(ddstemp)$condition))
     }
+
+    p <- vsn::meanSdPlot(vst_assay)
+    mysaveandstore(paste(outputdir, tecounttype, subset,sprintf("batchRemoved_%s", batchnormed), "vstmeansdplot.png", sep = "/"), 6, 6)
+
     sampleDists <- dist(t(vst_assay))
 
     ## PCA plots

@@ -20,9 +20,6 @@ library("stringr")
 library("dplyr")
 library("tibble")
 library("tidyr")
-library(plotly)
-library(DT)
-library(ggExtra)
 library(rstatix)
 library(purrr)
 library(ggpubr)
@@ -43,16 +40,16 @@ tryCatch(
         print("not sourced snake variables")
         assign("params", list(
             "inputdir" = "srna/results/agg/deseq_telescope",
-            "outputdir" = "srna/results/agg/repeatanalysis_telescope",
-            "tecounttypes" = c("telescope_multi"),
+            "outputdir" = "srna/results/agg/repeatanalysis_telescope/telescope_multi",
+            "tecounttype" = "telescope_multi"
+        ), env = globalenv())
+        assign("inputs", list(
+            "resultsdf" = "srna/results/agg/deseq_telescope/resultsdf.tsv",
             "r_annotation_fragmentsjoined" = conf$r_annotation_fragmentsjoined,
             "r_repeatmasker_annotation" = conf$r_repeatmasker_annotation
         ), env = globalenv())
-        assign("inputs", list(
-            "resultsdf" = "srna/results/agg/deseq_telescope/resultsdf.tsv"
-        ), env = globalenv())
         assign("outputs", list(
-            "outfile" = "srna/results/agg/repeatanalysis_telescope/plots.outfile.txt"
+            "plots" = "srna/results/agg/repeatanalysis_telescope/telescope_multi/repeatanalysisplots_plots.RData"
         ), env = globalenv())
     }
 )
@@ -60,17 +57,16 @@ tryCatch(
 outputdir <- params$outputdir
 contrasts <- conf$contrasts
 sample_table <- read.csv(conf$sample_table)
-tecounttype <- "telescope_multi"
-
+tecounttype <- params$tecounttype
 
 ## Load Data and add annotations
-resultsdf1 <- read_delim(inputs$resultsdf, delim = "\t")
-r_annotation_fragmentsjoined <- read_csv(params$r_annotation_fragmentsjoined)
-r_repeatmasker_annotation <- read_csv(params$r_repeatmasker_annotation)
-resultsdf <- resultsdf1 %>%
+resultsdf1 <- read_delim(inputs$resultsdf, delim = "\t") %>% filter(tecounttype == tecounttype) %>% filter()
+r_annotation_fragmentsjoined <- read_csv(inputs$r_annotation_fragmentsjoined)
+r_repeatmasker_annotation <- read_csv(inputs$r_repeatmasker_annotation)
+resultsdfwithgenes <- resultsdf1 %>%
     left_join(r_annotation_fragmentsjoined) %>%
     left_join(r_repeatmasker_annotation)
-
+resultsdf <- resultsdfwithgenes %>% filter(gene_or_te != "gene")
 refseq <- import(conf$annotation_genes)
 coding_transcripts <- refseq[(mcols(refseq)$type == "transcript" & grepl("^NM", mcols(refseq)$transcript_id))]
 noncoding_transcripts <- refseq[(mcols(refseq)$type == "transcript" & grepl("^NR", mcols(refseq)$transcript_id))]
@@ -120,14 +116,14 @@ te_gene_matrix <- te_gene_matrix %>% drop_na()
 cor_df <- te_gene_matrix %>% mutate(req_integrative = gsub(".*Intact.*", "Full Length", req_integrative)) %>% group_by(!!sym(ontology), req_integrative, loc_integrative) %>% mutate(groupN = n()) %>% filter(groupN > 4) %>% summarise(cor = cor.test(TE, GENE, method = "spearman")$estimate, pval = cor.test(TE, GENE, method = "spearman")$p.value)
 cor_df %$% req_integrative %>% unique()
 pf <- cor_df %>% ungroup() %>% filter(loc_integrative != "Centromeric") %>% complete(!!sym(ontology), req_integrative, loc_integrative)
-p<-pf %>% mutate(genicfacet = ifelse(loc_integrative == "NonGenic", "", "Genic")) %>% ggplot() + geom_tile(aes(x = !!sym(ontology), y = loc_integrative, fill = cor)) +
+p<-pf %>% mutate(genicfacet = ifelse(loc_integrative == "Intergenic", "", "Genic")) %>% ggplot() + geom_tile(aes(x = !!sym(ontology), y = loc_integrative, fill = cor)) +
     facet_grid(genicfacet ~req_integrative, space = "free", scales = "free") +
     scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.8,0,0.8), na.value = 'dark grey') +
     mtclosed + theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
     labs(x = "", y = "")
 mysaveandstore(sprintf("%s/%s/rte_genic_cor_%s_%s.png", outputdir, tecounttype, ontology, contrast), 6, 4)
 
-p <- pf %>% mutate(genicfacet = ifelse(loc_integrative == "NonGenic", "", "Genic")) %>% ggplot(aes(x = !!sym(ontology), y = loc_integrative)) + geom_tile(aes(fill = cor)) +
+p <- pf %>% mutate(genicfacet = ifelse(loc_integrative == "Intergenic", "", "Genic")) %>% ggplot(aes(x = !!sym(ontology), y = loc_integrative)) + geom_tile(aes(fill = cor)) +
     facet_grid(genicfacet ~req_integrative, space = "free", scales = "free") +
     geom_text(aes(label = ifelse(pval < 0.05, "*", "")), size = 3) +
     scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.8,0,0.8), na.value = 'dark grey') +
@@ -140,14 +136,14 @@ cor_df <- te_gene_matrix_all %>% mutate(req_integrative = gsub(".*Intact.*", "Fu
 cor_df %$% req_integrative %>% unique()
 pf <- cor_df %>% ungroup() %>% filter(loc_integrative != "Centromeric") %>% complete(!!sym(ontology), req_integrative, loc_integrative)
 
-p<-pf %>% mutate(genicfacet = ifelse(loc_integrative == "NonGenic", "", "Genic")) %>% ggplot() + geom_tile(aes(x = !!sym(ontology), y = loc_integrative, fill = cor)) +
+p<-pf %>% mutate(genicfacet = ifelse(loc_integrative == "Intergenic", "", "Genic")) %>% ggplot() + geom_tile(aes(x = !!sym(ontology), y = loc_integrative, fill = cor)) +
     facet_grid(genicfacet ~req_integrative, space = "free", scales = "free") +
     scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.8,0,0.8), na.value = 'dark grey') +
     mtclosed + theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
     labs(x = "", y = "")
 mysaveandstore(sprintf("%s/%s/rte_genic_cor_%s_%s.png", outputdir, tecounttype, ontology, "all"), 6, 4)
 
-p <- pf %>% mutate(genicfacet = ifelse(loc_integrative == "NonGenic", "", "Genic")) %>% ggplot(aes(x = !!sym(ontology), y = loc_integrative)) + geom_tile(aes(fill = cor)) +
+p <- pf %>% mutate(genicfacet = ifelse(loc_integrative == "Intergenic", "", "Genic")) %>% ggplot(aes(x = !!sym(ontology), y = loc_integrative)) + geom_tile(aes(fill = cor)) +
     facet_grid(genicfacet ~req_integrative, space = "free", scales = "free") +
     geom_text(aes(label = ifelse(pval < 0.05, "*", "")), size = 3) +
     scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.8,0,0.8), na.value = 'dark grey') +
@@ -166,9 +162,11 @@ mysaveandstore(sprintf("%s/%s/rte_genic_cor_pval_%s_%s.png", outputdir, tecountt
     big_ontologies <- ontologies[!grepl("subfamily", ontologies)]
     big_ontology_groups <- c()
     for (ontology in big_ontologies) {
-        big_ontology_groups <- c(big_ontology_groups, resultsdf %>%
+        group <- resultsdf %>%
             pull(!!sym(ontology)) %>%
-            unique())
+            unique()
+        group <- group[!(group == "Other")]
+        big_ontology_groups <- c(big_ontology_groups, group)
     }
     big_ontology_groups <- big_ontology_groups %>% unique()
 
@@ -466,7 +464,6 @@ myheatmap <- function(df, facet_var = "ALL", filter_var = "ALL", DEvar = "ALL", 
 # mysave("temp1.png", 8, 8)
 
 
-for (tecounttype in params$tecounttypes) {
 counttype_label <- ifelse(grepl("multi|Multi", tecounttype), "Multi", "Unique")
 #### GETTING TIDY DATA
 map <- setNames(sample_table$condition, sample_table$sample_name)
@@ -479,7 +476,7 @@ tidydf <- resultsdf %>%
     filter(tecounttype == tecounttype) %>%
     select(all_of(colnames(resultsdf)[(colnames(resultsdf) %in% sample_table$sample_name) | (colnames(resultsdf) %in% colsToKeep)])) %>%
     pivot_longer(cols = -colsToKeep) %>%
-    rename(sample = name, counts = value) %>%
+    dplyr::rename(sample = name, counts = value) %>%
     mutate(condition = map_chr(sample, ~ map[[.]]))
 tidydf$condition <- factor(tidydf$condition, levels = conf$levels)
 
@@ -488,7 +485,7 @@ rte_fams <- tidydf %$% rte_family %>% unique() %>% na.omit()
 rte_fams <- rte_fams[rte_fams != "Other"]
 for (rte_fam in rte_fams) {
 
-df <- tidydf %>% filter(rte_family == rte_fam) %>% filter(tecounttype == "telescope_multi")
+df <- tidydf %>% filter(rte_family == rte_fam)
 
 pf <- df %>%
         group_by(sample, req_integrative, genic_loc, condition) %>%
@@ -501,8 +498,7 @@ p <- pf %>% arrange(req_integrative) %>%
     mtclosedgridh +
     scale_palette +
     anchorbar +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-    stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE)
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
     mysaveandstore(sprintf("%s/%s/%s_bar.png", outputdir, tecounttype, rte_fam), 15, 8)
 
 p <- pf %>% arrange(req_integrative) %>%
@@ -512,16 +508,18 @@ p <- pf %>% arrange(req_integrative) %>%
     scale_palette +
     anchorbar +
     theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-    stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE)
+    stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1])
     mysaveandstore(sprintf("%s/%s/%s_bar_stats.png", outputdir, tecounttype, rte_fam), 15, 8)
 
 }
+tidydf %$% loc_integrative %>% table()
+
 
 rte_subfams <- tidydf %$% rte_subfamily %>% unique() %>% na.omit()
 rte_subfams <- rte_subfams[rte_subfams != "Other"]
 for (rte_subfam in rte_subfams) {
 
-    df <- tidydf %>% filter(rte_subfamily == rte_subfam) %>% filter(tecounttype == "telescope_multi")
+    df <- tidydf %>% filter(rte_subfamily == rte_subfam)
 
     pf <- df %>%
             group_by(sample, req_integrative, genic_loc, condition) %>%
@@ -543,7 +541,7 @@ for (rte_subfam in rte_subfams) {
         scale_palette +
         anchorbar +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-        stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE)
+        stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1])
         mysaveandstore(sprintf("%s/%s/%s_bar_stats.png", outputdir, tecounttype, rte_subfam), 15, 8)
 }
 
@@ -738,14 +736,13 @@ for (contrast in contrasts) {
         }
     }
 }
-}
+
 
 
 
 # Heatmaps
 
 
-for (tecounttype in params$tecounttypes) {
 for (contrast in contrasts) {
     contrast_of_interest <- contrast
     contrast_level_2 <- contrast_of_interest %>%
@@ -827,7 +824,7 @@ for (contrast in contrasts) {
         }
     }
 }
-}
+
 
 
 
@@ -835,7 +832,6 @@ for (contrast in contrasts) {
 
 tryCatch(
     {
-        for (tecounttype in params$tecounttypes) {
             results <- resultsdf %>% filter(tecounttype == tecounttype)
             ggvenn <- list()
             for (ontology in ontologies) {
@@ -880,8 +876,7 @@ tryCatch(
                         )
                 }
             }
-        }
-    },
+        },
     error = function(e) {
         print(e)
         message("Venn diagrams failed - do you only have one contrast?")
@@ -897,5 +892,3 @@ tryCatch(
 )
 
 save(mysaveandstoreplots, file = outputs$plots)
-x <- data.frame()
-write.table(x, file = outputs$outfile, col.names = FALSE)

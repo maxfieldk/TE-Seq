@@ -15,12 +15,12 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            r_annotation_fragmentsjoined = "aref/A.REF_annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv",
+            r_annotation_fragmentsjoined = "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
             ref = "aref/A.REF.fa",
         txdbrefseq = "aref/A.REF_annotations/refseq.sqlite"
         ), env = globalenv())
         assign("outputs", list(
-            r_repeatmasker_annotation = "aref/A.REF_annotations/repeatmasker_annotation.csv"
+            r_repeatmasker_annotation = "aref/A.REF_annotations/A.REF_repeatmasker_annotation.csv"
         ), env = globalenv())
     }
 )
@@ -196,15 +196,13 @@ intactness <- rmfragments %>%
 
 req_annot <- full_join(intactness, rmlengthreq)
 req_annot <- req_annot %>% mutate(req_integrative = case_when(
-    l1_intactness == "L1HS ORFs Intact" ~ "L1HS ORFs Intact",
-    l1_intactness == "L1PA2 ORFs Intact" ~ "L1PA2 ORFs Intact",
-    str_detect(rte_length, ">") ~ "Full Length",
-    str_detect(rte_length, "<") ~ "Truncated",  
-    TRUE ~ "Other"
+    l1_intactness == "L1HS ORFs Intact" ~ "Young ORFs Intact",
+    l1_intactness == "L1PA2 ORFs Intact" ~ "Young ORFs Intact",
+    str_detect(rte_length, ">") ~ "Young Full Length",
+    str_detect(rte_length, "<") ~ "Young Truncated",  
+    TRUE ~ "Old"
 ))
 
-
-# HERV ltr status
 ltrs <- rmfamilies %>%
     filter(rte_subfamily == "HERVK_LTR") %>%
     left_join(rmfragments)
@@ -363,7 +361,7 @@ getannotation <- function(to_be_annotated, regions_of_interest, property, name_i
     annot <- annot %>% dplyr::select(-prop)
     return(annot)
 }
-genic_annot <- getannotation(rmfragmentsgr_properinsertloc, transcripts, "genic", "Genic", "NonGenic")
+genic_annot <- getannotation(rmfragmentsgr_properinsertloc, transcripts, "genic", "Genic", "Intergenic")
 coding_tx_annot <- getannotation(rmfragmentsgr_properinsertloc, coding_transcripts, "coding_tx", "CodingTx", "NonCodingTx")
 noncoding_tx_annot <- getannotation(rmfragmentsgr_properinsertloc, noncoding_transcripts, "noncoding_tx", "NoncodingTx", "NonNonCodingTx")
 coding_tx_adjacent_annot <- getannotation(rmfragmentsgr_properinsertloc, coding_transcript_adjacent, "coding_tx_adjacent", "CodingTxAdjacent", "NonCodingTxAdjacent")
@@ -404,16 +402,83 @@ region_annot <- region_annot %>% mutate(loc_integrative = case_when(
     noncoding_tx_adjacent == "NoncodingTxAdjacent" ~ "NoncodingTxAdjacent",
     centromeric == "Centromeric" ~ "Centromeric",
     telomeric == "Telomeric" ~ "Telomeric",
-    genic == "NonGenic" ~ "NonGenic",
+    genic == "Intergenic" ~ "Intergenic",
     TRUE ~ "Other"
-))
+)) %>% mutate(loc_lowres_integrative = case_when(
+    loc_integrative == "Centromeric" ~ "Intergenic",
+    loc_integrative == "CodingTxAdjacent" ~ "Gene Adjacent",
+    loc_integrative == "Intron" ~ "Genic",
+    loc_integrative == "Exonic" ~ "Genic",
+    loc_integrative == "Intronic" ~ "Genic",
+    loc_integrative == "NoncodingTx" ~ "Genic",
+    loc_integrative == "NoncodingTxAdjacent" ~ "Gene Adjacent",
+    loc_integrative == "Intergenic" ~ "Intergenic",
+    loc_integrative == "Telomeric" ~ "Intergenic",
+    TRUE ~ "Other"))
+
+# HERV ltr status
+herv_ltr_map = tibble(
+    name = c("HML2","HML2","HML2","HML2",
+    "HML3",
+    "HERVW",
+    "HERVH","HERVH","HERVH","HERVH","HERVH",
+    "HERV9","HERV9","HERV9","HERV9","HERV9","HERV9","HERV9",
+    "HERV-FC1","HERV-FC1","HERV-FC1",
+    "HERV-FC2"
+    ),
+    int = c("HERVK-int", "HERVK-int", "HERVK-int", "HERVK-int",
+    "HERVK9-int",
+    "HERV17-int",
+    "HERVH-int","HERVH-int","HERVH-int","HERVH-int","HERVH-int",
+    "HERV9-int","HERV9-int","HERV9-int","HERV9-int","HERV9-int","HERV9-int","HERV9-int",
+    "HERV-Fc1-int","HERV-Fc1-int","HERV-Fc1-int",
+    "HERV-Fc2-int"),
+    ltr = c("LTR5", "LTR5A", "LTR5B", "LTR5_Hs",
+    "MER9", 
+    "LTR17",
+    "LTR7", "LTR7A", "LTR7B", "LTR7C", "LTR7Y",
+    "LTR12", "LTR12B", "LTR12C", "LTR12D", "LTR12E", "LTR12F", "LTR12_",
+    "HERV-Fc1_LTR1", "HERV-Fc1_LTR2", "HERV-Fc1_LTR3",
+    "HERV-Fc2_LTR")
+)
+group_frame <- tibble()
+group_frame_any_ltr <- tibble()
+for (provirus_type in herv_ltr_map %$% name %>% unique()) {
+    int <- herv_ltr_map %>% filter(name == provirus_type) %$% int %>% unique()
+    compatible_ltrs <- herv_ltr_map %>% filter(name == provirus_type) %$% ltr %>% unique()
+    int_grs <- rmfragments %>% filter(grepl(sprintf("%s_.*", int), gene_id)) %>% GRanges()
+    ltr_grs <- rmfragments %>% filter(grepl(paste0(compatible_ltrs,"_.*") %>% str_c(collapse = "|"), gene_id)) %>% GRanges()
+    ltrs_all <- rmfragments %>% filter(grepl("LTR.*", gene_id)) %>% GRanges()
+    for (int_id in mcols(int_grs)$gene_id) {
+        print(int_id)
+        group_id <- int_id %>% gsub(".*-int", provirus_type, .)
+        int_gr <- int_grs[int_grs$gene_id == int_id]
+        int_gr_extended <- resize(int_gr, width = width(int_gr) + (1000 * 2), fix = "center")
+        ltr_ol <- subsetByOverlaps(ltr_grs, int_gr_extended, type = "any", minoverlap = 1)
+        ltr_any_ol <- subsetByOverlaps(ltrs_all, int_gr_extended, type = "any", minoverlap = 1)
+        if (length(ltr_ol) != 0) {
+            gdf <- tibble(gene_id = c(int_id, mcols(ltr_ol)$gene_id))
+            gdf$ltr_proviral_group_id <- group_id
+            group_frame <<- bind_rows(group_frame, gdf)
+        }
+        if (length(ltr_any_ol) != 0) {
+            gdf <- tibble(gene_id = c(int_id, mcols(ltr_ol)$gene_id))
+            gdf$ltr_proviral_group_id <- group_id
+            group_frame_any_ltr <<- bind_rows(group_frame_any_ltr, gdf)
+        }
+    }
+}
+ltr_proviral_groups <- group_frame
+
 
 annots <- rmfamilies %>%
     full_join(req_annot %>% rename_at(vars(-gene_id, -req_integrative), ~ paste0(., "_req"))) %>%
     full_join(ltr_viral_status %>% rename_at(vars(-gene_id), ~ paste0(., "_req"))) %>%
+    full_join(ltr_proviral_groups) %>%
     full_join(region_annot %>% rename_at(vars(-gene_id, -loc_integrative), ~ paste0(., "_loc")))
 
-write_csv(annots, outputs$r_repeatmasker_annotation)
 rmann <- left_join(rmfragments, annots) 
+
+write_csv(annots, outputs$r_repeatmasker_annotation)
 write_csv(rmann, outputs$rmann)
 write_csv(rmann %>% filter(refstatus == "NonRef"), outputs$rmann_nonref)

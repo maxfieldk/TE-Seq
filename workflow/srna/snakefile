@@ -449,11 +449,11 @@ rule enrichment_analysis:
 
 rule enrichment_analysis_repeats:
     input:
-        resultsdf ="srna/results/agg/deseq_telescope/resultsdf.tsv"
+        resultsdf ="srna/results/agg/deseq_telescope/resultsdf.tsv",
+        r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
+        r_repeatmasker_annotation = config["r_repeatmasker_annotation"]
     params:
         inputdir =lambda w, input: os.path.dirname(os.path.dirname(input.resultsdf)),
-        r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
-        r_repeatmasker_annotation = config["r_repeatmasker_annotation"],
         contrasts = config["contrasts"],
         tecounttypes = config["tecounttypes"],
         sample_table = config["sample_table"],
@@ -521,14 +521,14 @@ telescope assign \
 
 rule repeatanalysis_plots:
     input:
-        resultsdf = "srna/results/agg/deseq_telescope/resultsdf.tsv"
-    params:
+        resultsdf = "srna/results/agg/deseq_telescope/resultsdf.tsv",
         r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
-        r_repeatmasker_annotation = config["r_repeatmasker_annotation"],
+        r_repeatmasker_annotation = config["r_repeatmasker_annotation"]
+    params:
+        tecounttype = lambda w: w.tecounttype,
         contrasts = config["contrasts"],
-        tecounttypes = config["tecounttypes"],
         inputdir = lambda w, input: os.path.dirname(input.resultsdf),
-        outputdir = lambda w, output: os.path.dirname(output.outfile)
+        outputdir = lambda w, output: os.path.dirname(output.plots)
     conda:
         "repeatanalysis"
     resources:
@@ -536,8 +536,7 @@ rule repeatanalysis_plots:
         mem_mb = 164000,
         runtime = 300
     output:
-        outfile = "srna/results/agg/repeatanalysis_telescope/plots.outfile.txt",
-        plots = "srna/results/agg/repeatanalysis_telescope/repeatanalysisplots_plots.RData"
+        plots = "srna/results/agg/repeatanalysis_telescope/{tecounttype}/repeatanalysisplots_plots.RData"
     script:
         "scripts/repeatanalysisPlots.R"
     
@@ -573,7 +572,7 @@ def bigwig_sizefactor_input(wildcards):
     if not Path(sizefactor_path).exists():
         return "NA"
     else:
-        return 1/float(pd.read_csv("srna/results/agg/deseq_telescope/%s/sizefactors.csv"%(tecounttype)).set_index("sample_name").loc[w.sample, "sizefactor"])
+        return 1/float(pd.read_csv("srna/results/agg/deseq_telescope/%s/sizefactors.csv"%(wildcards.tecounttype)).set_index("sample_name").loc[wildcards.sample, "sizefactor"])
 
 rule getBigWigF:
     input:
@@ -587,7 +586,7 @@ rule getBigWigF:
         cpus_per_task =10,
         mem_mb = 40000
     conda:
-        "omics"
+        "deeptools"
     shell: "bamCoverage -b {input.sortedbam} -o {output.bwF} --numberOfProcessors max --scaleFactor {params.sample_size_factor} --samFlagExclude 256 --filterRNAstrand forward --binSize 50"
 #The --filterRNAstrand option assumes the sequencing library generated from ILLUMINA
 # dUTP/NSR/NNSR methods, which are the most commonly used method for library preparation, 
@@ -609,7 +608,7 @@ rule getBigWigR:
         cpus_per_task =10,
         mem_mb = 40000
     conda:
-        "omics"
+        "deeptools"
     shell: "bamCoverage -b {input.sortedbam} -o {output.bwR} --numberOfProcessors max --scaleFactor {params.sample_size_factor} --samFlagExclude 256 --filterRNAstrand reverse --binSize 50"
 #The --filterRNAstrand option assumes the sequencing library generated from ILLUMINA
 # dUTP/NSR/NNSR methods, which are the most commonly used method for library preparation, 

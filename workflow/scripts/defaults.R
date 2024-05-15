@@ -41,6 +41,7 @@ mysaveandstore <- function(fn = "ztmp.png", w = 5, h = 5, res = 300, pl = p) {
         mysaveandstoreplots <<- list()
     }
     mysaveandstoreplots[[fn]] <<- pl
+    print("plot_stored!")
 }
 
 

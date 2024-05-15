@@ -164,7 +164,7 @@ export(gtfpass, sprintf("%s/l1hspa23_orfsintact.gtf", outputdir))
 # dataframe
 element_annotation <- tibble(gene_id = pass, intactness = "ORFs_Intact")
 
-# location genic vs nongenic for all elements
+# location genic vs Intergenic for all elements
 # centromeric vs non centromeriuc for all elements
 
 writeXStringSet(flsspass, sprintf("%s/l1hspa23intact.fa", outputdir))

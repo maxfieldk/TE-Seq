@@ -20,9 +20,6 @@ library("stringr")
 library("dplyr")
 library("tibble")
 library("tidyr")
-library(plotly)
-library(DT)
-library(ggExtra)
 library(rstatix)
 library(purrr)
 library(ggpubr)
@@ -103,9 +100,9 @@ table(mcols(coding_transcripts)$tag)
 }
 
 
-for (tecounttype in params$tecounttypes) {
+for (tecounttype in conf$tecounttypes) {
 paths_bwF <- grep(tecounttype, inputs$bwF, value = TRUE)
-paths_bwR <- grep(tecounttype, paths_bwR, value = TRUE)
+paths_bwR <- grep(tecounttype, inputs$bwR, value = TRUE)
 
     groups_that_have_been_run <- c()
     groups_not_to_run <- c()
@@ -325,7 +322,7 @@ paths_bwR <- grep(tecounttype, paths_bwR, value = TRUE)
     region_annot1 <- region_annot %>% mutate(loc_integrative = case_when(
         exonic == "Exonic" ~ "Exonic",
         intronic == "Intronic" ~ "Intronic",
-        TRUE ~ "NonGenic"
+        TRUE ~ "Intergenic"
     ))
 
     pf <- region_annot1 %>% group_by(sample_name, loc_integrative) %>% summarise(score_sum = sum(score)) %>% left_join(sample_table) %>% ungroup()

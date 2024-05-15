@@ -192,6 +192,7 @@ for (collec in genecollections) {
 # plot core enrichments 
 n_top_sets <- 5
 for (contrast in params[["contrasts"]]) {
+    contrast_string <- gsub("condition_", "", contrast) %>% str_replace_all("_vs_", " vs ")
     contrast_stat <- paste0("stat_", contrast)
     contrast_l2fc <- paste0("log2FoldChange_", contrast)
     contrast_padj <- paste0("padj_", contrast)
@@ -558,18 +559,6 @@ for (contrast in params[["contrasts"]]) {
         }
     }
 }
-
-
-gse_df
-
-            df %>% filter(ID == geneset)
-            gene_sets
-             %>% ggscatter(df, x = "wt", y = "mpg",
-            color = "cyl", palette = c("#00AFBB", "#E7B800", "#FC4E07"),
-            label = "name", repel = TRUE)
-
-
-
 
 save(mysaveandstoreplots, file = outputs$plots)
 x <- data.frame()

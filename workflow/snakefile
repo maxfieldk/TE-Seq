@@ -40,9 +40,12 @@ for pipeline in config["pipelines_to_deploy"]:
                     "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.sqlite",
                     "aref/A.REF_annotations/cytobands.bed",
                 ]
+                paths.append(expand("aref/{sample_or_ref}_Analysis/l1element_analysis.outfile", sample_or_ref = "A.REF"))
+
                 if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
                     paths.append(expand("aref/qc/{sample_or_ref}/{sample_or_ref}pycoQC.html", sample_or_ref = config["aref"]["samples"]))
                     paths.append("aref/results/insertions/analyze_nongermline_insertions.rds")
+
                     if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
                         paths.append(expand("aref/{sample_or_ref}_Analysis/tldr_plots/tldr_plots.rds", sample_or_ref = config["aref"]["samples"]))
                         paths.append(expand("aref/{sample_or_ref}_Analysis/tldr_plots/transduction_mapping.rds", sample_or_ref = config["aref"]["samples"]))
@@ -56,8 +59,6 @@ for pipeline in config["pipelines_to_deploy"]:
                     else:
                         paths.append(expand("aref/{sample_or_ref}_Analysis/tldr_plots/tldr_plots.rds", sample_or_ref = "A.REF"))
                         paths.append(expand("aref/{sample_or_ref}_Analysis/tldr_plots/transduction_mapping.rds", sample_or_ref = "A.REF"))
-                        paths.append(expand("aref/{sample_or_ref}_Analysis/l1element_analysis.outfile", sample_or_ref = "A.REF"))
-                        paths.append(expand("aref/{sample_or_ref}_annotations/{sample_or_ref}_rte_beds/outfile.txt", sample_or_ref = "A.REF"))
 
                 if "ldna" in config["pipelines_to_deploy"]:
                     paths.append("aref/A.REF_annotations/cpg_islands.bed")
@@ -129,7 +130,7 @@ for pipeline in config["pipelines_to_deploy"]:
             deseq = expand("srna/results/agg/deseq_telescope/{tecounttype}/{contrast}/results_genes.csv", tecounttype = config["srna"]["tecounttypes"], contrast = config["srna"]["contrasts"])
             enrichment_analysis = "srna/results/agg/enrichment_analysis/outfile.txt"
             enrichment_analysis_repeats = expand("srna/results/agg/enrichment_analysis_repeats/{tecounttype}/outfile.txt", tecounttype = config["srna"]["tecounttypes"])
-            repeatanalysisplots = "srna/results/agg/repeatanalysis_telescope/plots.outfile.txt"
+            repeatanalysisplots = expand("srna/results/agg/repeatanalysis_telescope/{tecounttype}/repeatanalysisplots_plots.RData", tecounttype = config["srna"]["tecounttypes"])
             bigwigs = "srna/results/agg/bigwig_plots/plots.rds"
             qc = [expand("srna/qc/mycoplasma/mycoplasma{sample}.sam", sample = config["srna"]["samples"]), "srna/qc/multiqc/multiqc_report.html"]
             return list(flatten([bigwigs, deseq, enrichment_analysis, enrichment_analysis_repeats, repeatanalysisplots, qc]))

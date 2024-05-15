@@ -72,7 +72,6 @@ aref:
   type: "hac"
   modification_string: "6mA-5mC_5hmC" #note separete modifications with dashes
 
-
 srna:
   prefix: "srna"
   sample_table: "conf/sample_table_srna.csv"
@@ -146,7 +145,6 @@ srna:
 
   r_annotation_fragmentsjoined: "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv"
   r_repeatmasker_annotation: "aref/A.REF_annotations/A.REF_repeatmasker_annotation.csv"
-
 
 ldna:
   ##      ANALYSIS PARAMETERES       ##
@@ -325,7 +323,6 @@ lrna:
   txdb: "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.sqlite"
   cytobands: "aref/A.REF_annotations/cytobands.bed"
   mycoplasma: "/users/mkelsey/data/ref/genomes/mycoplasma/mycoplasma.fa"
-
 
 integrated:
   regions_of_interest: "conf/integrated_regions_of_interest.bed"
