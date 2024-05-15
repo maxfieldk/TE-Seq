@@ -197,20 +197,23 @@ ldna:
   refseqbgz: "aref/A.REF_annotations/refseq.complete.gff3.gz"
   repeatmasker: "aref/A.REF_annotations/A.REF_repeatmasker.complete.gtf"
   repeatmaskerbgz: "aref/A.REF_annotations/A.REF_repeatmasker.complete.gff3.gz"
-  cpg_islands: aref/annotations/cpg_islands.bed
-  cpgi_shores: aref/annotations/cpgi_shores.bed
-  cpgi_shelves: aref/annotations/cpgi_shelves.bed
-  clinvar_bgz: aref/annotations/clinvar.vcf.gz
-  clinvar_tbi: aref/annotations/clinvar.vcf.tbi
+  ref_cytobands: "aref/A.REF_annotations/cytobands.bed"
+  cpg_islands: aref/A.REF_annotations/cpg_islands.bed
+  cpgi_shores: aref/A.REF_annotations/cpgi_shores.bed
+  cpgi_shelves: aref/A.REF_annotations/cpgi_shelves.bed
+  clinvar_bgz: aref/A.REF_annotations/clinvar.vcf.gz
+  clinvar_tbi: aref/A.REF_annotations/clinvar.vcf.tbi
   vcfanno_clinvar_toml: conf/clinvar.vcfanno.toml
   intact_l1_anatomy_coordinates: aref/intact_l1_anatomy_coordinates.tsv
   r_annotation_fragmentsjoined: "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv"
   r_repeatmasker_annotation: "aref/A.REF_annotations/A.REF_repeatmasker_annotation.csv"
+  rmann: "aref/A.REF_annotations/A.REF_rmann.csv"
   l1hsintact: "aref/A.REF_annotations/l1hsintact.bed"
   methylartist_loci_of_interest: "conf/ldna_methylartist_loci_of_interest.bed"
   methylartist_bam_config: "conf/ldna_methylartist_bam_config.txt"
   l13orfs: "/users/mkelsey/data/ref/sequences/l1.3.orfs.txt"
   l13: "/users/mkelsey/data/ref/sequences/l1.3.fa"
+  tf_position_weighted_matrices: "/oscar/data/jsedivy/mkelsey/ref/pwms/hocomoco_jasperformat.txt"
 
   rate: "5khz"
   type: "hac"
@@ -236,6 +239,15 @@ ldna:
 
   rte_subfamily_read_level_analysis:
     - "L1HS_l1_intactness_req_ALL"
+
+  genesets_for_great:
+    msigdbH: /users/mkelsey/data/ref/genesets/human/msigdb/h.all.v2023.2.Hs.symbols.gmt
+    msigdbC2_CPG: /users/mkelsey/data/ref/genesets/human/msigdb/c2.cgp.v2023.2.Hs.symbols.gmt
+    msigdbC2_CP: /users/mkelsey/data/ref/genesets/human/msigdb/c2.cp.v2023.2.Hs.symbols.gmt
+    msigdbC3_TFT: /users/mkelsey/data/ref/genesets/human/msigdb/c3.tft.v2023.2.Hs.symbols.gmt
+    msigdbC5_GO: /users/mkelsey/data/ref/genesets/human/msigdb/c5.go.v2023.2.Hs.symbols.gmt
+    msigdbC2_CPG_SENMAYO: /users/mkelsey/data/ref/genesets/human/msigdb/SAUL_SEN_MAYO.v2023.2.Hs.gmt
+
 
 lrna:
   prefix: "lrna"
