@@ -1124,7 +1124,7 @@ pch[!is_sig] <- NA
 genic_locs <- l1hsintactdf %>%
     arrange(gene_id) %>%
     filter(gene_id %in% rownames(m)) %$% genic_loc
-row_ha <- rowAnnotation(pvalue = anno_simple(pch, pch = pch), genic_loc = genic_locs, col = list(genic_loc = c("Genic" = "brown", "NonGenic" = "tan")))
+row_ha <- rowAnnotation(pvalue = anno_simple(pch, pch = pch), genic_loc = genic_locs, col = list(genic_loc = c("Genic" = "brown", "Intergenic" = "tan")))
 conditions <- c(sample_table %>% filter(condition == condition1) %$% condition, sample_table %>% filter(condition == condition2) %$% condition)
 
 conditions <- sample_table[match(colnames(m), sample_table$sample_name),]$condition
@@ -1789,7 +1789,7 @@ library(scales)
 # regions <- l1hsintactdf %>%
 #     arrange(gene_id) %>%
 #     filter(gene_id %in% rownames(m)) %$% region
-# row_ha <- rowAnnotation(pvalue = anno_simple(pch, pch = pch), region = regions, col = list(region = c("intronic" = "brown", "nonGenic" = "tan")))
+# row_ha <- rowAnnotation(pvalue = anno_simple(pch, pch = pch), region = regions, col = list(region = c("intronic" = "brown", "Intergenic" = "tan")))
 # colsum <- colSums(m)
 # conditions <- rep(c("control", "alz"), each = 3)
 # topAnn <- ComplexHeatmap::HeatmapAnnotation(Sum = anno_barplot(colsum, axis = TRUE, axis_param = default_axis_param("column")), Condition = conditions, col = list(Condition = c("control" = "green", "alz" = "blue")))

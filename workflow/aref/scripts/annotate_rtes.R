@@ -196,11 +196,11 @@ intactness <- rmfragments %>%
 
 req_annot <- full_join(intactness, rmlengthreq)
 req_annot <- req_annot %>% mutate(req_integrative = case_when(
-    l1_intactness == "L1HS ORFs Intact" ~ "L1HS ORFs Intact",
-    l1_intactness == "L1PA2 ORFs Intact" ~ "L1PA2 ORFs Intact",
-    str_detect(rte_length, ">") ~ "Full Length",
-    str_detect(rte_length, "<") ~ "Truncated",  
-    TRUE ~ "Other"
+    l1_intactness == "L1HS ORFs Intact" ~ "Young ORFs Intact",
+    l1_intactness == "L1PA2 ORFs Intact" ~ "Young ORFs Intact",
+    str_detect(rte_length, ">") ~ "Young Full Length",
+    str_detect(rte_length, "<") ~ "Young Truncated",  
+    TRUE ~ "Old"
 ))
 
 ltrs <- rmfamilies %>%
@@ -361,7 +361,7 @@ getannotation <- function(to_be_annotated, regions_of_interest, property, name_i
     annot <- annot %>% dplyr::select(-prop)
     return(annot)
 }
-genic_annot <- getannotation(rmfragmentsgr_properinsertloc, transcripts, "genic", "Genic", "NonGenic")
+genic_annot <- getannotation(rmfragmentsgr_properinsertloc, transcripts, "genic", "Genic", "Intergenic")
 coding_tx_annot <- getannotation(rmfragmentsgr_properinsertloc, coding_transcripts, "coding_tx", "CodingTx", "NonCodingTx")
 noncoding_tx_annot <- getannotation(rmfragmentsgr_properinsertloc, noncoding_transcripts, "noncoding_tx", "NoncodingTx", "NonNonCodingTx")
 coding_tx_adjacent_annot <- getannotation(rmfragmentsgr_properinsertloc, coding_transcript_adjacent, "coding_tx_adjacent", "CodingTxAdjacent", "NonCodingTxAdjacent")
@@ -402,9 +402,19 @@ region_annot <- region_annot %>% mutate(loc_integrative = case_when(
     noncoding_tx_adjacent == "NoncodingTxAdjacent" ~ "NoncodingTxAdjacent",
     centromeric == "Centromeric" ~ "Centromeric",
     telomeric == "Telomeric" ~ "Telomeric",
-    genic == "NonGenic" ~ "NonGenic",
+    genic == "Intergenic" ~ "Intergenic",
     TRUE ~ "Other"
-))
+)) %>% mutate(loc_lowres_integrative = case_when(
+    loc_integrative == "Centromeric" ~ "Intergenic",
+    loc_integrative == "CodingTxAdjacent" ~ "Gene Adjacent",
+    loc_integrative == "Intron" ~ "Genic",
+    loc_integrative == "Exonic" ~ "Genic",
+    loc_integrative == "Intronic" ~ "Genic",
+    loc_integrative == "NoncodingTx" ~ "Genic",
+    loc_integrative == "NoncodingTxAdjacent" ~ "Gene Adjacent",
+    loc_integrative == "Intergenic" ~ "Intergenic",
+    loc_integrative == "Telomeric" ~ "Intergenic",
+    TRUE ~ "Other"))
 
 # HERV ltr status
 herv_ltr_map = tibble(

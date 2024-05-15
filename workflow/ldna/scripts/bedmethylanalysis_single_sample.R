@@ -761,7 +761,7 @@ l1hsintactdf <- l1hsintactmethdf %>% group_by(gene_id) %>% summarise(genic_loc =
 genic_locs <- l1hsintactdf %>%
     arrange(gene_id) %>%
     filter(gene_id %in% rownames(m)) %$% genic_loc
-row_ha <- rowAnnotation(genic_loc = genic_locs, col = list(genic_loc = c("Genic" = "brown", "NonGenic" = "tan")))
+row_ha <- rowAnnotation(genic_loc = genic_locs, col = list(genic_loc = c("Genic" = "brown", "Intergenic" = "tan")))
 conditions <- c(sample_table %>% filter(condition == condition1) %$% condition, sample_table %>% filter(condition == condition2) %$% condition)
 
 conditions <- sample_table[match(colnames(m), sample_table$sample_name),]$condition

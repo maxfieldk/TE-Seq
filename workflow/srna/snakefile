@@ -525,10 +525,10 @@ rule repeatanalysis_plots:
         r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
         r_repeatmasker_annotation = config["r_repeatmasker_annotation"]
     params:
+        tecounttype = lambda w: w.tecounttype,
         contrasts = config["contrasts"],
-        tecounttypes = config["tecounttypes"],
         inputdir = lambda w, input: os.path.dirname(input.resultsdf),
-        outputdir = lambda w, output: os.path.dirname(output.outfile)
+        outputdir = lambda w, output: os.path.dirname(output.plots)
     conda:
         "repeatanalysis"
     resources:
@@ -536,8 +536,7 @@ rule repeatanalysis_plots:
         mem_mb = 164000,
         runtime = 300
     output:
-        outfile = "srna/results/agg/repeatanalysis_telescope/plots.outfile.txt",
-        plots = "srna/results/agg/repeatanalysis_telescope/repeatanalysisplots_plots.RData"
+        plots = "srna/results/agg/repeatanalysis_telescope/{tecounttype}/repeatanalysisplots_plots.RData"
     script:
         "scripts/repeatanalysisPlots.R"
     
