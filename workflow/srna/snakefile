@@ -163,9 +163,18 @@ multiqc -f -o $(dirname {output}) --export ./
         """
 
 #tag ALIGNMENT
+def get_alignSTAR_PE_input(wildcards):
+    if config["symlink_aref"]["response"] == "yes":
+        return "aref.symlinked.outfile"
+    else:
+        if config["per_sample_ref"] == "yes":
+            return "aref/%s_indeces/star_index"%(wildcards.sample)
+        else:
+            return "aref/A.REF_indeces/star_index"
+
 def get_alignSTAR_PE_index(wildcards):
     if config["per_sample_ref"] == "yes":
-        return "aref/{sample}_indeces/star_index"
+        return "aref/%s_indeces/star_index"%(wildcards.sample)
     else:
         return "aref/A.REF_indeces/star_index"
 
@@ -173,9 +182,10 @@ rule alignSTAR_PE:
     input:
         r1 = "srna/outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz",
         r2 = "srna/outs/{sample}/trimmedReads/{sample}_2.trimmed.fastq.gz",
-        star_index_outfile = "aref/A.REF_indeces/make_star_index.out",
-        index = get_alignSTAR_PE_index
+        star_index_outfile = get_alignSTAR_PE_input
     retries: 3
+    params:
+        index = lambda wildcards: "aref/%s_indeces/star_index"%(wildcards.sample) if config["per_sample_ref"] == "yes" else "aref/A.REF_indeces/star_index"
     output:
         bam = temp("srna/outs/{sample}/star_output/Aligned.out.sam")
     threads: 8
@@ -185,7 +195,7 @@ rule alignSTAR_PE:
         "star"
     shell:
         """
-STAR --genomeDir {input.index} --readFilesCommand zcat --readFilesIn {input.r1} {input.r2} --outFileNamePrefix $(dirname {output.bam})/ --runThreadN {threads} --winAnchorMultimapNmax 100 --outFilterMultimapNmax 100
+STAR --genomeDir {params.index} --readFilesCommand zcat --readFilesIn {input.r1} {input.r2} --outFileNamePrefix $(dirname {output.bam})/ --runThreadN {threads} --winAnchorMultimapNmax 100 --outFilterMultimapNmax 100
         """
 
 #tag COUNTS
