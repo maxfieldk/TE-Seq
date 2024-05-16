@@ -73,13 +73,33 @@ noncoding_transcripts <- refseq[(mcols(refseq)$type == "transcript" & grepl("^NR
 transcripts <- c(coding_transcripts, noncoding_transcripts)
 
 
-resultsdf %$% rte_family %>% unique()
+### ONTOLOGY DEFINITION
+{
+    annot_colnames <- colnames(r_repeatmasker_annotation)
+    annot_colnames_good <- annot_colnames[!(annot_colnames %in% c("gene_id", "family"))]
+    ontologies <- annot_colnames_good[str_detect(annot_colnames_good, "family")]
+    small_ontologies <- ontologies[grepl("subfamily", ontologies)]
 
+    big_ontologies <- ontologies[!grepl("subfamily", ontologies)]
+    big_ontology_groups <- c()
+    for (ontology in big_ontologies) {
+        group <- resultsdf %>%
+            pull(!!sym(ontology)) %>%
+            unique()
+        group <- group[!(group == "Other")]
+        big_ontology_groups <- c(big_ontology_groups, group)
+    }
+    big_ontology_groups <- big_ontology_groups %>% unique()
+
+    modifiers <- annot_colnames_good[!str_detect(annot_colnames_good, "family")]
+    region_modifiers <- modifiers[str_detect(modifiers, "_loc$")]
+    element_req_modifiers <- modifiers[str_detect(modifiers, "_req$")]
+}
 # subset <- resultsdf %>% filter(grepl("*tact*", l1_intactness_req))
 for (ontology in c("rte_subfamily_limited", "l1_subfamily_limited", "rte_family")) {
     print(ontology)
 
-subset <- resultsdf %>% filter(!!sym(ontology) != "Other") %>% filter(!is.na(!!sym(ontology)))
+subset <- resultsdfwithgenes %>% filter(!!sym(ontology) != "Other") %>% filter(!is.na(!!sym(ontology)))
 query <- subset %>% GRanges()
 subject <- coding_transcripts
 hits <- GenomicRanges::nearest(query, subject)
@@ -103,10 +123,10 @@ for (contrast in contrasts) {
     contrast_samples <- sample_table %>%
         filter(condition %in% c(contrast_level_1, contrast_level_2)) %>%
         pull(sample_name)
-subset %>% pull(!!sym(contrast_log2FoldChange)) %>% length()
-resultsdf[match(subjectIDs, resultsdf$gene_id),] %>% pull(!!sym(contrast_log2FoldChange)) %>% length()
+
+resultsdfwithgenes[match(subjectIDs, resultsdfwithgenes$gene_id),] %>% pull(!!sym(contrast_log2FoldChange)) %>% length()
 te_gene_matrix <- subset %>% dplyr::select(!!sym(ontology), !!sym(contrast_log2FoldChange),loc_integrative,req_integrative ) %>% dplyr::rename(TE = !!sym(contrast_log2FoldChange)) 
-te_gene_matrix$GENE <- resultsdf[match(subjectIDs, resultsdf$gene_id),] %>% pull(!!sym(contrast_log2FoldChange))
+te_gene_matrix$GENE <- resultsdfwithgenes[match(subjectIDs, resultsdfwithgenes$gene_id),] %>% pull(!!sym(contrast_log2FoldChange))
 
 te_gene_matrix <- te_gene_matrix %>% drop_na()
 te_gene_matrix_list[[contrast]] <- te_gene_matrix
@@ -150,31 +170,8 @@ p <- pf %>% mutate(genicfacet = ifelse(loc_integrative == "Intergenic", "", "Gen
     mtclosed + theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
     labs(x = "", y = "")
 mysaveandstore(sprintf("%s/%s/rte_genic_cor_pval_%s_%s.png", outputdir, tecounttype, ontology, "all"), 6, 4)
+
 }
-
-### ONTOLOGY DEFINITION
-{
-    annot_colnames <- colnames(r_repeatmasker_annotation)
-    annot_colnames_good <- annot_colnames[!(annot_colnames %in% c("gene_id", "family"))]
-    ontologies <- annot_colnames_good[str_detect(annot_colnames_good, "family")]
-    small_ontologies <- ontologies[grepl("subfamily", ontologies)]
-
-    big_ontologies <- ontologies[!grepl("subfamily", ontologies)]
-    big_ontology_groups <- c()
-    for (ontology in big_ontologies) {
-        group <- resultsdf %>%
-            pull(!!sym(ontology)) %>%
-            unique()
-        group <- group[!(group == "Other")]
-        big_ontology_groups <- c(big_ontology_groups, group)
-    }
-    big_ontology_groups <- big_ontology_groups %>% unique()
-
-    modifiers <- annot_colnames_good[!str_detect(annot_colnames_good, "family")]
-    region_modifiers <- modifiers[str_detect(modifiers, "_loc$")]
-    element_req_modifiers <- modifiers[str_detect(modifiers, "_req$")]
-}
-
 
 
 #### PLOTTING FUNCTIONS

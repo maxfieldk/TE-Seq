@@ -40,8 +40,8 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            r_annotation_fragmentsjoined = "aref/annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
-            r_repeatmasker_annotation = "aref/annotations/A.REF_repeatmasker_annotation.csv",
+            r_annotation_fragmentsjoined = "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
+            r_repeatmasker_annotation = "aref/A.REF_annotations/A.REF_repeatmasker_annotation.csv",
             ref = "aref/A.REF.fa"
         ), env = globalenv())
         assign("params", list(l13 = conf$l13fasta), env = globalenv())
@@ -217,15 +217,19 @@ system(sprintf("mkdir -p %s/blastdb; cd %s/blastdb; makeblastdb -in ../l1.3.seqs
 ## load a BLAST database (replace db with the location + name of the BLAST DB
 ## without the extension)
 
+# will fail if you don't have any non-ref elements
+library(ggbio)
+
 bl <- blast(db = sprintf("%s/blastdb/l1.3.seqs", outputdir))
 bres <- tibble(predict(bl, hs_pa2_pa3_ss)) %>% left_join(rmfragments, by = c("QueryID" = "gene_id"))
+
+tryCatch({
 nonref_aln_l13 <- bres %>%
     filter(SubjectID == "l1.3") %>%
     filter(refstatus == "NonRef") %>%
     rowwise() %>%
     mutate(minIget = min(S.start, S.end)) %>%
     mutate(maxIget = max(S.start, S.end))
-library(ggbio)
 # needed but cannot be loaded with orfik
 {
     notsplitnonrefl1hs <- nonref_aln_l13 %>%
@@ -238,6 +242,11 @@ library(ggbio)
     p <- autoplot(notsplitnonrefl1hsgrs, aes(color = end)) + mtopen + labs(x = "Position in L1.3 (bp)", y = "Coverage", title = "L1HS Blast to L1.3")
     mysaveandstore(sprintf("%s/l13alnnotsplit.png", outputdir))
 }
+
+
+}, error = function(e) {
+    print("fails if you don't have non-ref elements")
+})
 
 p <- bres %>%
     filter(SubjectID == "l1.3") %>%
