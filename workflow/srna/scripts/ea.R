@@ -2,6 +2,7 @@ source("workflow/scripts/defaults.R")
 module_name <- "srna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
 source("workflow/scripts/generate_colors_to_source.R")
+source("conf/sample_table_source.R")
 
 library(magrittr)
 library(org.Hs.eg.db)
@@ -54,7 +55,6 @@ library(ggpubr)
 
 }
 
-sample_table <- read_csv(params[["sample_table"]])
 
 # load results
 resultsdf1 <- read_delim(inputs$resultsdf, delim = "\t")
@@ -562,4 +562,3 @@ for (contrast in params[["contrasts"]]) {
 
 save(mysaveandstoreplots, file = outputs$plots)
 x <- data.frame()
-write.table(x, file = outputs[["outfile"]], col.names = FALSE)

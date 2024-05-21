@@ -1,16 +1,82 @@
 container: "docker://maxfieldkelsey/pipelinertedocker"
+import os
+import pandas as pd
+import csv
+from pathlib import Path
+from pandas.core.common import flatten
 
+def aref_complete_input(wildcards):
+    final_input = []
+    if config["symlink_aref_contents"]["response"] == "yes":
+        final_input.append("aref_contents.symlinked.outfile")
+        return final_input
+    paths = [
+        "aref/A.REF_annotations/A.REF_repeatmasker.complete.gff3.gz.tbi",
+        "aref/A.REF_annotations/refseq.complete.gff3.gz.tbi",
+        "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf",
+        "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gff3",
+        "aref/A.REF_annotations/A.REF_repeatmasker.complete.bed",
+        "aref/A.REF_annotations/A.REF_rte_beds/outfile.txt",
+        "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.sqlite",
+        "aref/A.REF_annotations/cytobands.bed",
+    ]
+    paths.append(expand("aref/{sample_or_ref}_Analysis/l1element_analysis.outfile", sample_or_ref = "A.REF"))
+
+    if config["update_ref_with_tldr"]["response"] == "yes":
+        paths.append(expand("aref/qc/{sample_or_ref}/{sample_or_ref}pycoQC.html", sample_or_ref = config["samples"]))
+        paths.append("aref/results/insertions/analyze_nongermline_insertions.rds")
+
+        if config["update_ref_with_tldr"]["per_sample"] == "yes":
+            paths.append(expand("aref/{sample_or_ref}_Analysis/tldr_plots/tldr_plots.rds", sample_or_ref = config["samples"]))
+            paths.append(expand("aref/{sample_or_ref}_Analysis/tldr_plots/transduction_mapping.rds", sample_or_ref = config["samples"]))
+            paths.append(expand("aref/{sample_or_ref}_Analysis/l1element_analysis.outfile", sample_or_ref = config["samples"]))
+            paths.append(expand("aref/{sample_or_ref}_annotations/{sample_or_ref}_rte_beds/outfile.txt", sample_or_ref = config["samples"]))
+            paths.append(expand("aref/{sample_or_ref}_tldr/{sample_or_ref}.table.txt", sample_or_ref = config["samples"]))
+            
+            # paths.append(expand("aref/{sample_or_ref}_Analysis/l1element_analysis.outfile", sample_or_ref = "A.REF"))
+            paths.append(expand("aref/{sample_or_ref}_annotations/{sample_or_ref}_rte_beds/outfile.txt", sample_or_ref = config["samples"]))
+            paths.append(expand("aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.complete.gtf", sample_or_ref = config["samples"]))
+            paths.append(expand("aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.gff3", sample_or_ref = config["samples"]))
+            paths.append(expand("aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.complete.gff3", sample_or_ref = config["samples"]))
+            paths.append(expand("aref/{sample_or_ref}_indeces/make_star_index.out", sample_or_ref = config["samples"]))
+
+        else:
+            paths.append(expand("aref/{sample_or_ref}_Analysis/tldr_plots/tldr_plots.rds", sample_or_ref = "A.REF"))
+            paths.append(expand("aref/{sample_or_ref}_Analysis/tldr_plots/transduction_mapping.rds", sample_or_ref = "A.REF"))
+            paths.append(expand("aref/{sample_or_ref}_annotations/{sample_or_ref}_rte_beds/outfile.txt", sample_or_ref = "A.REF"))
+            paths.append(expand("aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.complete.gtf", sample_or_ref = "A.REF"))
+            paths.append(expand("aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.gff3", sample_or_ref = "A.REF"))
+            paths.append(expand("aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.complete.gff3", sample_or_ref = "A.REF"))
+            paths.append(expand("aref/{sample_or_ref}_indeces/make_star_index.out", sample_or_ref = "A.REF"))
+
+    else:
+        paths.append("aref/A.REF_indeces/make_star_index.out")
+
+
+    if config["running_ldna"]["response"] == "yes":
+        paths.append("aref/A.REF_annotations/cpg_islands.bed")
+    
+    for path in list(flatten(paths)):
+        final_input.append(path)
+    print(final_input)
+    return final_input
+
+
+
+rule aref_complete:
+    input: aref_complete_input
+    output: "aref.done.outfile"
+    shell: "touch {output}"
 rule sym_link:
     input:
         aref_dir = config["symlink_aref"]["aref_symlinkdir"]
     output:
-        sym_link_outfile = "aref.symlinked.outfile"
+        ancient("aref.done.outfile")
     shell:
         """
 ln -s {input.aref_dir} aref
-touch {output.sym_link_outfile}
+touch {output}
         """
-
 rule sym_link_aref_contents:
     input:
         aref_dir = config["symlink_aref"]["aref_symlinkdir"]
@@ -454,6 +520,7 @@ rule complete_gff3:
         "omics"
     shell:
         """
+rm -f {output.complete_gff3}.temp
 agat_convert_sp_gxf2gxf.pl --gff {input.gff3} -o {output.complete_gff3}.temp
 awk '!/#/ {{print}}' {output.complete_gff3}.temp | awk '{{FS="\t";OFS="\t"}} $4 < 900000000000 {{print}}' | sort -k1,1V -k4,4n -k5,5n > {output.complete_gff3}
 rm  {output.complete_gff3}.temp
@@ -472,6 +539,7 @@ rule gff_to_gtf:
         runtime = 300
     shell:
         """
+rm -f {output.gtf}.temp
 agat_convert_sp_gff2gtf.pl --gff {input.complete_gff3} -o {output.gtf}.temp
 awk '!/#/ {{print}}' {output.gtf}.temp | awk '{{FS="\t";OFS="\t"}} $4 < 900000000000 {{print}}' | sort -k1,1V -k4,4n -k5,5n > {output.gtf}
 rm {output.gtf}.temp
@@ -489,17 +557,19 @@ rule gff_to_bed12:
         "omics"
     shell:
         """
+rm -f {output.bed12}.temp
 agat_convert_sp_gff2bed.pl --gff {input.complete_gff3} -o {output.bed12}.temp
 awk '!/#/ {{print}}' {output.bed12}.temp | awk '{{FS="\t";OFS="\t"}} $4 < 900000000000 {{print}}' | sort -k1,1V -k2,2n -k3,3n > {output.bed12}
 rm {output.bed12}.temp
         """
 
+ruleorder: merge_genes_and_repeats_gff > complete_gff3 
 rule merge_genes_and_repeats_gff:
     input:
-        complete_repeat_gff3 = "aref/A.REF_annotations/A.REF_repeatmasker.complete.gff3",
+        complete_repeat_gff3 = "aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker.complete.gff3",
         complete_refseq_gff3 = "aref/A.REF_annotations/refseq.complete.gff3"
     output:
-        merged_gff3 = "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gff3"
+        merged_gff3 = "aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.complete.gff3"
     resources:
         mem_mb = 128000,
         runtime = 300
@@ -507,6 +577,7 @@ rule merge_genes_and_repeats_gff:
         "omics"
     shell:
         """
+rm -f {output.merged_gff3}.temp
 agat_sp_merge_annotations.pl -f {input.complete_refseq_gff3} -f {input.complete_repeat_gff3} -o {output.merged_gff3}.temp
 awk '!/#/ {{print}}' {output.merged_gff3}.temp | awk '{{FS="\t";OFS="\t"}} $4 < 900000000000 {{print}}' | sort -k1,1V -k4,4n -k5,5n >  {output.merged_gff3}
 rm {output.merged_gff3}.temp
@@ -514,10 +585,10 @@ rm {output.merged_gff3}.temp
 
 rule merge_OG_genes_and_repeats_gff3:
     input:
-        repeatmasker = "aref/A.REF_annotations/A.REF_repeatmasker.gff3",
-        refseq = "aref/{sample_or_ref}_annotations/refseq.gff3"
+        repeatmasker = "aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker.gff3",
+        refseq = "aref/A.REF_annotations/refseq.gff3"
     output:
-        merged_gff3 = "aref/A.REF_annotations/A.REF_repeatmasker_refseq.gff3"
+        merged_gff3 = "aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.gff3"
     resources:
         mem_mb = 128000,
         runtime = 300
@@ -525,19 +596,21 @@ rule merge_OG_genes_and_repeats_gff3:
         "omics"
     shell:
         """
+rm -f {output.merged_gff3}.temp
 awk '!/#/ {{print}}' {input.repeatmasker} | awk '{{FS="\t";OFS="\t"}} $4 < 900000000000 {{print}}' > {output.merged_gff3}.temp
 awk '!/#/ {{print}}' {input.refseq} | awk '{{FS="\t";OFS="\t"}} $4 < 900000000000 {{print}}' >> {output.merged_gff3}.temp
 cat {output.merged_gff3}.temp | sort -k1,1V -k4,4n -k5,5n > {output.merged_gff3}
 rm {output.merged_gff3}.temp
         """
 
+ruleorder: merge_genes_and_repeats_gtf > gff_to_gtf 
 
 rule merge_genes_and_repeats_gtf:
     input:
-        complete_repeat_gtf = "aref/A.REF_annotations/A.REF_repeatmasker.complete.gtf",
+        complete_repeat_gtf = "aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker.complete.gtf",
         complete_refseq_gtf = "aref/A.REF_annotations/refseq.complete.gtf"
     output:
-        merged_gtf = "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf"
+        merged_gtf = "aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.complete.gtf"
     resources:
         mem_mb = 128000,
         runtime = 300
@@ -545,6 +618,7 @@ rule merge_genes_and_repeats_gtf:
         "omics"
     shell:
         """
+rm -f {output.merged_gtf}.temp
 agat_sp_merge_annotations.pl -f {input.complete_refseq_gtf} -f {input.complete_repeat_gtf} -o {output.merged_gtf}.temp
 awk '!/#/ {{print}}' {output.merged_gtf}.temp | awk '{{FS="\t";OFS="\t"}} $4 < 900000000000 {{print}}' | sort -k1,1V -k4,4n -k5,5n > {output.merged_gtf}
 rm {output.merged_gtf}.temp
@@ -668,7 +742,7 @@ rule make_star_index:
     shell:
         """
 mkdir -p $(dirname {output.outfile})
-STAR --runThreadN  30 --runMode genomeGenerate --genomeDir $(dirname {output.outfile})/star_index --genomeFastaFiles {input.reference}
+STAR --runThreadN  30 --runMode genomeGenerate --genomeDir $(dirname {output.outfile})/star_index --genomeFastaFiles {input.reference} --outTmpDir $(dirname {output.outfile})/tmp
 touch {output.outfile}
         """
 

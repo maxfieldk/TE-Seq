@@ -2,6 +2,7 @@ source("workflow/scripts/defaults.R")
 module_name <- "srna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
 source("workflow/scripts/generate_colors_to_source.R")
+source("conf/sample_table_source.R")
 
 library(magrittr)
 library(org.Hs.eg.db)
@@ -52,16 +53,15 @@ library(ComplexHeatmap)
             assign("outputs", list(outfile = "srna/results/agg/enrichment_analysis_repeats/outfile.txt"), env = globalenv())
         }
     )
-        sample_table <- read_csv(params[["sample_table"]])
-    peptable <- read.csv(conf$peptable)
+
 
 }
 
 ## Load Data and add annotations
 resultsdf1 <- read_delim(inputs$resultsdf, delim = "\t")
 resultsdf1 <- resultsdf1[resultsdf1$gene_id != "__no_feature", ]
-r_annotation_fragmentsjoined <- read_csv(inputs$r_annotation_fragmentsjoined)
-r_repeatmasker_annotation <- read_csv(inputs$r_repeatmasker_annotation)
+r_annotation_fragmentsjoined <- read_csv(params$r_annotation_fragmentsjoined)
+r_repeatmasker_annotation <- read_csv(params$r_repeatmasker_annotation)
 resultsdf <- resultsdf1 %>%
     left_join(r_annotation_fragmentsjoined) %>%
     left_join(r_repeatmasker_annotation)
@@ -106,10 +106,10 @@ for (contrast in params[["contrasts"]]) {
     contrast_stat <- paste0("stat_", contrast_of_interest)
     contrast_padj <- paste0("padj_", contrast_of_interest)
     contrast_log2FoldChange <- paste0("log2FoldChange_", contrast_of_interest)
-    contrast_samples <- peptable %>%
+    contrast_samples <- sample_table %>%
         filter(condition %in% c(contrast_level_1, contrast_level_2)) %>%
         pull(sample_name)
-    condition_vec <- peptable %>% filter(sample_name %in% contrast_samples) %$% condition
+    condition_vec <- sample_table %>% filter(sample_name %in% contrast_samples) %$% condition
 
     for (tecounttype in resultsdf$tecounttype %>% unique()) {
         res <- resultsdf %>%

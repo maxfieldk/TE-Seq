@@ -46,13 +46,12 @@ tryCatch(
             "outputdir" = "srna/results/agg/repeatanalysis_telescope",
             "tecounttypes" = c("telescope_multi", "telescope_unique"),
             "r_annotation_fragmentsjoined" = conf$r_annotation_fragmentsjoined,
-            "r_repeatmasker_annotation" = conf$r_repeatmasker_annotation
+            "r_repeatmasker_annotation" = conf$r_repeatmasker_annotation,
+            txdbrefseq = "aref/A.REF_annotations/refseq.sqlite"
         ), env = globalenv())
         assign("inputs", list(
             bwF = sprintf("srna/outs/%s/star_output/%s.%s.F.bw", conf$samples, conf$samples, conf$tecounttypes),
-            bwR = sprintf("srna/outs/%s/star_output/%s.%s.R.bw", conf$samples, conf$samples, conf$tecounttypes),
-            txdbrefseq = "aref/A.REF_annotations/refseq.sqlite"
-
+            bwR = sprintf("srna/outs/%s/star_output/%s.%s.R.bw", conf$samples, conf$samples, conf$tecounttypes)
         ), env = globalenv())
         assign("outputs", list(
             "plots" = "srna/results/agg/bigwig_plots/plots.rds"
@@ -291,7 +290,7 @@ paths_bwR <- grep(tecounttype, inputs$bwR, value = TRUE)
 
 
 
-    txdb <- loadDb(inputs$txdbrefseq)
+    txdb <- loadDb(params$txdbrefseq)
     introns <- intronsByTranscript(txdb, use.names = TRUE)
     introns <- introns[grepl("^NM", names(introns))]
     introns <- introns[names(introns) %in% mcols(refseq_select)$transcript_id]

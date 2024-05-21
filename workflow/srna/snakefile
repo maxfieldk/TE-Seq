@@ -32,44 +32,63 @@ for path in paths:
             for tecounttype in config["tecounttypes"]:
                 for contrast in config["contrasts"]:
                     os.makedirs(path.format(sample=sample, counttype=counttype,tecounttype=tecounttype, contrast=contrast), exist_ok = True)
+
 #tag FUNCTIONS
+import re
 def inferLibraryType():
-        try: 
-                with open("srna/qc/library_type.txt") as f:
-                        data = f.read()
-                lines = re.findall('Fraction.*', data)
-                pctMapped = [float(line.split(": ")[1]) for line in lines]
-                if pctMapped[1] > 0.75:
-                        libraryType = "forward"
-                elif pctMapped[2] > 0.75:
-                        libraryType = "reverse"
-                else:
-                        libraryType = "unstranded"
-                return libraryType
-        except:
-                return "didn't run infer library type yet"
+    try: 
+        f = open("lrna/qc/library_type.txt")
+        data = f.read()
+        lines = re.findall('Fraction.*', data)
+        pctMapped = [float(line.split(": ")[1]) for line in lines]
+        if pctMapped[1] > 0.75:
+            libraryType = "forward"
+        elif pctMapped[2] > 0.75:
+            libraryType = "reverse"
+        else:
+            libraryType = "unstranded"
+        print("library type = ", libraryType)
+        return libraryType
+    except:
+        print("library type = didn't run infer library type yet")
+        return "didn't run infer library type yet"
 
 def getFeatureCountsStrandParam():
-        libraryType = inferLibraryType()
-        if libraryType == "forward":
-                strandParam = "1"
-        elif libraryType == "reverse":
-                strandParam = "2"
-        else:
-                strandParam = "0"
-        return strandParam
+    libraryType = inferLibraryType()
+    if libraryType == "forward":
+        strandParam = "1"
+    elif libraryType == "reverse":
+        strandParam = "2"
+    elif libraryType == "unstranded":
+        strandParam = "0"
+    else:
+        strandParam = "didn't run infer library type yet"
+    return strandParam
 
 
 def getTelescopeStrandParam():
-        libraryType = inferLibraryType()
-        if libraryType == "forward":
-                strandParam = "FR"
-        elif libraryType == "reverse":
-                strandParam = "RF"
-        else:
-                strandParam = "None"
-        return strandParam
+    libraryType = inferLibraryType()
+    if libraryType == "forward":
+        if config["READ_TYPE"] == "PE":
+            strandParam = "FR"
+        elif config["READ_TYPE"] == "SE":
+            strandParam = "F"
+    elif libraryType == "reverse":
+        if config["READ_TYPE"] == "PE":
+            strandParam = "RF"
+        elif config["READ_TYPE"] == "SE":
+            strandParam = "R"
+    elif libraryType == "unstranded":
+        strandParam = "None"
+    else:
+        strandParam = "didn't run infer library type yet"
+    return strandParam
 
+# def enforce_symlink(wildcards):
+#     if config["symlink_aref"]["response"] == "yes":
+#         return "aref.symlinked.outfile"
+#     else:
+#         return ""
 
 #tag PREPROCESSING
 rule fastp_PE:
@@ -163,26 +182,11 @@ multiqc -f -o $(dirname {output}) --export ./
         """
 
 #tag ALIGNMENT
-def get_alignSTAR_PE_input(wildcards):
-    if config["symlink_aref"]["response"] == "yes":
-        return "aref.symlinked.outfile"
-    else:
-        if config["per_sample_ref"] == "yes":
-            return "aref/%s_indeces/star_index"%(wildcards.sample)
-        else:
-            return "aref/A.REF_indeces/star_index"
-
-def get_alignSTAR_PE_index(wildcards):
-    if config["per_sample_ref"] == "yes":
-        return "aref/%s_indeces/star_index"%(wildcards.sample)
-    else:
-        return "aref/A.REF_indeces/star_index"
-
 rule alignSTAR_PE:
     input:
         r1 = "srna/outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz",
         r2 = "srna/outs/{sample}/trimmedReads/{sample}_2.trimmed.fastq.gz",
-        star_index_outfile = get_alignSTAR_PE_input
+        aref = "aref.done.outfile"
     retries: 3
     params:
         index = lambda wildcards: "aref/%s_indeces/star_index"%(wildcards.sample) if config["per_sample_ref"] == "yes" else "aref/A.REF_indeces/star_index"
@@ -214,6 +218,7 @@ rule featurecounts_genes_PE:
     threads: 4
     shell: 
         """
+echo {params.featureCountsstrandparam}
 featureCounts -p -s {params.featureCountsstrandparam} -O -M -T {threads} -t exon -a {params.gtf} -o {output.countsmessy} -R CORE  --minOverlap 25 --fraction --primary {input.primaryBams}
 cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
         """
@@ -253,16 +258,17 @@ rule featurecounts_genesandrtes_PE:
         mem_mb = 32000,
     shell: 
         """
+echo {params.featureCountsstrandparam}
 featureCounts -p -s {params.featureCountsstrandparam} -M -T 8 --primary --ignoreDup --largestOverlap -a {params.gtf} -o {output.countsmessy} {input.sortedSTARbams}
 cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
         """
 
 rule alignSTAR_SE:
     input:
-        r1 = "srna/outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz",
-        star_index_outfile = "aref/A.REF_indeces/make_star_index.out",
-        index = get_alignSTAR_PE_index
+        r1 = "srna/outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz"
     retries: 3
+    params:
+        index = lambda wildcards: "aref/%s_indeces/star_index"%(wildcards.sample) if config["per_sample_ref"] == "yes" else "aref/A.REF_indeces/star_index"
     output:
         bam = temp("srna/outs/{sample}/star_output/Aligned.out.sam")
     threads: 8
@@ -272,7 +278,7 @@ rule alignSTAR_SE:
         "star"
     shell:
         """
-STAR --genomeDir {input.index} --readFilesCommand zcat --readFilesIn {input.r1} --outFileNamePrefix $(dirname {output.bam}) --runThreadN {threads} --winAnchorMultimapNmax 100 --outFilterMultimapNmax 100
+STAR --genomeDir {params.index} --readFilesCommand zcat --readFilesIn {input.r1} --outFileNamePrefix $(dirname {output.bam}) --runThreadN {threads} --winAnchorMultimapNmax 100 --outFilterMultimapNmax 100
         """
 
 rule featurecounts_genes_SE:
@@ -293,6 +299,7 @@ rule featurecounts_genes_SE:
     threads: 4
     shell: 
         """
+echo {params.featureCountsstrandparam}
 featureCounts -s {params.featureCountsstrandparam} -T {threads} -t exon -a {params.gtf} -o {output.countsmessy} {input.sortedSTARbams}
 cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
 featureCounts -s {params.featureCountsstrandparam} -T {threads} -B -O -a {params.gtf} -o {output.countsstrandnonspecificmessy} {input.sortedSTARbams}
@@ -321,6 +328,7 @@ rule featurecounts_genesandrtes_SE:
         mem_mb = 32000,
     shell: 
         """
+echo {params.featureCountsstrandparam}
 featureCounts -s {params.featureCountsstrandparam} -M -T 8 --primary --ignoreDup --largestOverlap -a {params.gtf} -o {output.countsmessy} {input.sortedSTARbams}
 cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
         """
@@ -452,7 +460,6 @@ rule enrichment_analysis:
         mem_mb = 164000,
         runtime = 300
     output:
-        outfile = "srna/results/agg/enrichment_analysis/outfile.txt",
         plots = "srna/results/agg/enrichment_analysis/enrichment_analysis_plots.RData"
     script:
         "scripts/ea.R"
@@ -460,14 +467,15 @@ rule enrichment_analysis:
 rule enrichment_analysis_repeats:
     input:
         resultsdf ="srna/results/agg/deseq_telescope/resultsdf.tsv",
-        r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
-        r_repeatmasker_annotation = config["r_repeatmasker_annotation"]
+
     params:
         inputdir =lambda w, input: os.path.dirname(os.path.dirname(input.resultsdf)),
         contrasts = config["contrasts"],
         tecounttypes = config["tecounttypes"],
         sample_table = config["sample_table"],
         outputdir = lambda w, output: os.path.dirname(output.outfile)
+        r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
+        r_repeatmasker_annotation = config["r_repeatmasker_annotation"]
     conda:
         "ea"
     resources:
@@ -475,7 +483,6 @@ rule enrichment_analysis_repeats:
         mem_mb = 164000,
         runtime = 300
     output:
-        outfile = "srna/results/agg/enrichment_analysis_repeats/{tecounttype}/outfile.txt",
         plots = "srna/results/agg/enrichment_analysis_repeats/{tecounttype}/enrichment_analysis_repeats_plots.RData"
     script:
         "scripts/ea_repeats.R"
@@ -496,18 +503,13 @@ rule collateBam:
 samtools collate -o {output.collatedbam} {input.sortedBam}
         """
 
-def getTelescopeGff(wildcards):
-    if config["per_sample_ref"] == "yes":
-        return "aref/{sample}_annotations/{sample}_repeatmasker.gff2"
-    else:
-        return "aref/A.REF_annotations/A.REF_repeatmasker.gff2"
 rule telescope:
     input:
         collatedbam = "srna/outs/{sample}/star_output/{sample}.collated.bam",
         libtype = "srna/qc/library_type.txt",
-        gff = getTelescopeGff
     params:
         strandparam = getTelescopeStrandParam()
+        gff = lambda wildcards: "aref/%s_annotations/%s_repeatmasker.gff2"%(wildcards.sample, wildcards.sample) if config["per_sample_ref"] == "yes" else "aref/A.REF_annotations/A.REF_repeatmasker.gff2"
     output:
         counts = "srna/outs/{sample}/telescope/telescope-run_stats.tsv"
     threads: 4
@@ -518,13 +520,14 @@ rule telescope:
         runtime = 600
     shell: 
         """
+echo {params.strandparam}
 telescope assign \
 --attribute gene_id \
 --ncpu 1 \
 --stranded_mode {params.strandparam} \
 --outdir $(dirname {output.counts}) \
 {input.collatedbam} \
-{input.gff}
+{params.gff}
         """
 
 
@@ -632,10 +635,10 @@ rule bigwigplots:
     input:
         bwF = expand("srna/outs/{sample}/star_output/{sample}.{tecounttype}.F.bw", sample = samples, tecounttype = config["tecounttypes"]),
         bwR = expand("srna/outs/{sample}/star_output/{sample}.{tecounttype}.R.bw", sample = samples, tecounttype = config["tecounttypes"]),
-        txdbrefseq = "aref/A.REF_annotations/refseq.sqlite"
     params:
         r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
-        r_repeatmasker_annotation = config["r_repeatmasker_annotation"]
+        r_repeatmasker_annotation = config["r_repeatmasker_annotation"],
+        txdbrefseq = "aref/A.REF_annotations/refseq.sqlite"
     output:
         plots = "srna/results/agg/bigwig_plots/plots.rds"
     resources:

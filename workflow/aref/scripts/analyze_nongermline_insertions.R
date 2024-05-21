@@ -79,7 +79,7 @@ dffilt <- dfall %>%  separate_wider_delim(EmptyReads,delim = "|", names = c("bam
 
 
 for (sample in unique(dffilt$sample_name)) {
-    tempoutputdir <- sprintf("%s_Analysis/tldr_plots/nongermline", sample)
+    tempoutputdir <- sprintf("aref/%s_Analysis/tldr_plots/nongermline", sample)
     p <- dfall %>% ggplot(aes(x = UsedReads, fill = Filter == "PASS")) + geom_histogram() + labs(x = "Supporting Read Count", title = "RTE Somatic Insertions") + mtopen + anchorbar + scale_palette
     mysaveandstore(sprintf("%s/usedreads_hist.png", tempoutputdir), 5, 4)
 

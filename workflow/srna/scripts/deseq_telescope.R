@@ -110,7 +110,7 @@ cnames <- colnames(cts)
 
 # keep only genes with counts in at least one sample
 # cts <- cts[rowSums(cts > 0) != 0, ]
-# rounding since genes are allowed fractional counts
+# rounding since genes are not allowed fractional counts
 cts <- cts %>% mutate(across(everything(), ~ as.integer(round(.))))
 if ("batch" %in% colnames(coldata)) {
     dds <- DESeqDataSetFromMatrix(

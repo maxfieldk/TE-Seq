@@ -2,6 +2,7 @@ source("workflow/scripts/defaults.R")
 module_name <- "srna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
 source("workflow/scripts/generate_colors_to_source.R")
+source("conf/sample_table_source.R")
 
 library(knitr)
 library(rmarkdown)
