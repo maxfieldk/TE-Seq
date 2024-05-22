@@ -265,7 +265,7 @@ rule dorado:
     conda: "minimap2"
     shell:
         """
-mkdir -p $(dirname {output.calls})
+mkdir -p $(dirname {output})
 mod_string=$(echo {wildcards.modification_string} | tr "-" ",")
 
 {params.dorado} \
@@ -277,6 +277,41 @@ basecaller \
 --estimate-poly-a \
 --reference {params.reference} \
 --mm2-preset "splice" > {output}
+        """
+
+rule dorado_fastq:
+    input:
+        dir = "lrna/rawdata/{rate}/{sample}",
+        aref = "aref.done.outfile"
+    params:
+        dorado = config["dorado"],
+        reference = lambda wildcards: "aref/%s.fa"%(wildcards.sample) if config["per_sample_ref"] == "yes" else "aref/A.REF.fa"
+    output:
+        protected("lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.nopolya.unaligned.bam")
+    wildcard_constraints:
+        sample="[0-9A-Za-z_]+",
+        type = "[0-9A-Za-z]+",
+        rate = "[0-9A-Za-z]+",
+        modification_string = "[0-9A-Za-z_-]+"
+    resources:
+        cpus_per_task =12,
+        threads = 12,
+        slurm_partition="gpu-he",
+        mem_mb = 128000,
+        slurm_extra="--time=48:00:00 --constraint=a6000 --gres=gpu:2"
+    conda: "minimap2"
+    shell:
+        """
+mkdir -p $(dirname {output})
+mod_string=$(echo {wildcards.modification_string} | tr "-" ",")
+
+{params.dorado} \
+basecaller \
+{wildcards.type},$mod_string \
+{input.dir} \
+--recursive \
+--verbose \
+ > {output}
         """
 
 rule call_dorado:
@@ -525,6 +560,29 @@ featureCounts -s 0 -L -O -M --primary --ignoreDup --largestOverlap -R CORE -a {p
 cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
         """
 
+rule fc_relaxedunstrandedmapped:
+    input:
+        sortedbam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.good.mapped.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
+        libtype = "lrna/qc/library_type.txt"
+    output:
+        countsmessy = "lrna/intermediates/{sample}/counts/relaxedunstrandedmapped/{sample}rtesandgenes.counts_messy.txt",
+        counts = "lrna/intermediates/{sample}/counts/relaxedunstrandedmapped/{sample}rtesandgenes.counts.txt",
+    params: 
+        annotation_genesandrtes = lambda wildcards: "aref/%s_annotations/%s_repeatmasker_refseq.complete.gtf"%(wildcards.sample, wildcards.sample) if config["per_sample_ref"] == "yes" else "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf"
+    conda:
+        "subread"
+    resources:
+        cpus_per_task =4,
+        runtime = 3000,
+        mem_mb = 100000,
+    shell: 
+        """
+echo "unstranded"
+mkdir -p $(dirname {output.counts})
+featureCounts -s 0 -L -O -M --primary --ignoreDup --largestOverlap -R CORE -a {params.annotation_genesandrtes} -o {output.countsmessy} {input.sortedbam}
+cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
+        """
+
 rule fc_stringent:
     input:
         sortedbam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.good.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
@@ -552,7 +610,7 @@ cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
 rule deseq:
     input:
         counts = expand("lrna/intermediates/{sample}/counts/{{counttype}}/{sample}rtesandgenes.counts.txt", sample = samples),
-        unstranded = "lrna/intermediates/{sample}/counts/relaxed_unstranded/{sample}rtesandgenes.counts.txt"
+        unstranded = expand("lrna/intermediates/{sample}/counts/relaxed_unstranded/{sample}rtesandgenes.counts.txt", sample = samples)
     params:
         sample_table = config["sample_table"],
         contrasts = config["contrasts"],
@@ -773,7 +831,7 @@ rule filterbam:
 
 rule mod_bam_to_fastq:
     input:
-        sortedbam = "lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam",
+        sortedbam = "lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.nopolya.unaligned.bam",
     output:
         fastq = "lrna/intermediates/{sample}/fastqs/{rate}/{sample}.{type}.{modification_string}.fq.gz",
     conda: 
@@ -804,6 +862,26 @@ rule realign:
     shell:
         """
 minimap2 -a -x splice -t 12 {params.reference} {input.fastq} | \
+samtools sort -@4 -T {wildcards.sample} -O bam -o {output.bam}
+samtools index -@8 {output.bam}
+samtools stats {output.bam} > {output.bam}.stats.txt        
+        """
+rule realign_only_mapped:
+    input:
+        fastq = expand("lrna/intermediates/{{sample}}/fastqs/{rate}/{{sample}}.{type}.{modification_string}.fq.gz", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
+    params:
+        reference = lambda wildcards: "aref/%s.fa"%(wildcards.sample) if config["per_sample_ref"] == "yes" else "aref/A.REF.fa"
+    output:
+        bam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.good.mapped.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
+    resources:
+        cpus_per_task =20,
+        runtime = 900,
+        mem_mb = 80000
+    conda:
+        "minimap2"
+    shell:
+        """
+minimap2 -a -x splice --sam-hit-only -t 12 {params.reference} {input.fastq} | \
 samtools sort -@4 -T {wildcards.sample} -O bam -o {output.bam}
 samtools index -@8 {output.bam}
 samtools stats {output.bam} > {output.bam}.stats.txt        
