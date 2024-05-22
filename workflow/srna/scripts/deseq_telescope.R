@@ -130,6 +130,7 @@ colData(dds)
 # I estimate the size factors using genes, and not RTEs, since there are 5M repeats and most have very very low counts
 dds <- estimateSizeFactors(dds, controlGenes = rownames(dds) %in% gene_cts$gene_id)
 sf <- as.data.frame(sizeFactors(dds)) %>% as_tibble(rownames = "sample_name") %>% dplyr::rename(sizefactor = `sizeFactors(dds)`)
+dir.create(dirname(outputs$sizefactors), recursive = TRUE, showWarnings = FALSE)
 write_csv(sf, outputs$sizefactors)
 
 is.na(colnames(dds)) %>% sum()
