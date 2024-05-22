@@ -29,6 +29,7 @@ mysave <- function(fn = "ztmp.png", w = 5, h = 5, res = 300, pl = p) {
     png(fn, width = w, height = h, units = "in", res = res)
     print(pl)
     dev.off()
+    print(fn)
 }
 
 mysaveandstore <- function(fn = "ztmp.png", w = 5, h = 5, res = 300, pl = p) {
@@ -42,6 +43,7 @@ mysaveandstore <- function(fn = "ztmp.png", w = 5, h = 5, res = 300, pl = p) {
     }
     mysaveandstoreplots[[fn]] <<- pl
     print("plot_stored!")
+    print(fn)
 }
 
 

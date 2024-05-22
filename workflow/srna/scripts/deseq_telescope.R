@@ -64,7 +64,7 @@ print(tecounttype)
 contrasts <- params[["contrasts"]]
 levels <- params[["levels"]]
 outputdir <- params[["outputdir"]]
-countspath <- paste(outputdir, tecounttype, "counttablesizenormed.csv", sep = "/")
+countspath <- outputs$counts_normed
 countsbatchnotremovedpath <- paste(outputdir, tecounttype, "counttablesizenormedbatchnotremoved.csv", sep = "/")
 print("countspath")
 print(countspath)
@@ -207,13 +207,17 @@ for (subset in c("rtes", "genes")) {
         colData(ddstemp)$condition
         res <- results(ddstemp, name = contrast)
         res <- res[order(res$pvalue), ]
-        respath <- paste(outputdir, tecounttype, contrast, sprintf("results_%s.csv", subset), sep = "/")
-        dir.create(dirname(respath), recursive = TRUE, showWarnings = FALSE)
-        write.csv(as.data.frame(res), file = respath)
+
 
         if (subset == "genes") {
             res <- res[rownames(res) %in% gene_cts$gene_id, ]
+        } else {
+            res <- res[!(rownames(res) %in% gene_cts$gene_id), ]
         }
+
+        respath <- paste(outputdir, tecounttype, contrast, sprintf("results_%s.csv", subset), sep = "/")
+        dir.create(dirname(respath), recursive = TRUE, showWarnings = FALSE)
+        write.csv(as.data.frame(res), file = respath)
 
         DE_UP <- res %>% as.data.frame() %>% tibble() %>% filter(log2FoldChange > 0) %>% filter(padj < 0.05) %>% nrow()
         DE_DOWN <- res %>% as.data.frame() %>% tibble() %>% filter(log2FoldChange < 0) %>% filter(padj < 0.05) %>% nrow()
