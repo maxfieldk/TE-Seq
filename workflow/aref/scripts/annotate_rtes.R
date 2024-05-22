@@ -20,7 +20,9 @@ tryCatch(
         txdbrefseq = "aref/A.REF_annotations/refseq.sqlite"
         ), env = globalenv())
         assign("outputs", list(
-            r_repeatmasker_annotation = "aref/A.REF_annotations/A.REF_repeatmasker_annotation.csv"
+            r_repeatmasker_annotation = "aref/A.REF_annotations/A.REF_repeatmasker_annotation.csv",
+            rmann_nonref = "aref/A.REF_annotations/A.REF_repeatmasker_rmann_nonref.csv",
+            rmann = "aref/A.REF_annotations/A.REF_repeatmasker_rmann.csv"
         ), env = globalenv())
     }
 )
@@ -471,7 +473,9 @@ for (provirus_type in herv_ltr_map %$% name %>% unique()) {
         }
     }
 }
+
 ltr_proviral_groups <- group_frame
+ltr_proviral_groups <- ltr_proviral_groups[!(ltr_proviral_groups %$% gene_id %>% duplicated()),] #for ltrs which overlap 2 ints, in order not to duplicate the feature I remove them from their second proviral group affiliation
 
 
 annots <- rmfamilies %>%
@@ -479,6 +483,16 @@ annots <- rmfamilies %>%
     full_join(ltr_viral_status %>% rename_at(vars(-gene_id), ~ paste0(., "_req"))) %>%
     full_join(ltr_proviral_groups) %>%
     full_join(region_annot %>% rename_at(vars(-gene_id, -loc_integrative), ~ paste0(., "_loc")))
+
+
+
+region_annot %$% gene_id %>% duplicated() %>% sum()
+ltr_proviral_groups %$% gene_id %>% duplicated() %>% sum()
+ltr_viral_status %$% gene_id %>% duplicated() %>% sum()
+req_annot %$% gene_id %>% duplicated() %>% sum()
+
+rmfamilies %$% gene_id %>% duplicated() %>% sum()
+annots %$% gene_id %>% duplicated() %>% sum()
 
 rmann <- left_join(rmfragments, annots) 
 
