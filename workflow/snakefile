@@ -93,7 +93,7 @@ for pipeline in config["pipelines_to_deploy"]:
             enrichment_analysis = "srna/results/agg/enrichment_analysis/outfile.txt"
             enrichment_analysis_repeats = expand("srna/results/agg/enrichment_analysis_repeats/{tecounttype}/outfile.txt", tecounttype = config["srna"]["tecounttypes"])
             repeatanalysisplots = expand("srna/results/agg/repeatanalysis_telescope/{tecounttype}/repeatanalysisplots_plots.RData", tecounttype = config["srna"]["tecounttypes"])
-            bigwigs = "srna/results/agg/bigwig_plots/plots.rds"
+            bigwigs = expand("srna/results/agg/bigwig_plots/{tecounttype}/plots.rds", tecounttype = config["srna"]["tecounttypes"])
             qc = [expand("srna/qc/mycoplasma/mycoplasma{sample}.sam", sample = config["srna"]["samples"]), "srna/qc/multiqc/multiqc_report.html"]
             return list(flatten([bigwigs, deseq, enrichment_analysis, enrichment_analysis_repeats, repeatanalysisplots, qc]))
        

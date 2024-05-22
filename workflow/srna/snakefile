@@ -467,13 +467,12 @@ rule enrichment_analysis:
 rule enrichment_analysis_repeats:
     input:
         resultsdf ="srna/results/agg/deseq_telescope/resultsdf.tsv",
-
     params:
         inputdir =lambda w, input: os.path.dirname(os.path.dirname(input.resultsdf)),
         contrasts = config["contrasts"],
         tecounttypes = config["tecounttypes"],
         sample_table = config["sample_table"],
-        outputdir = lambda w, output: os.path.dirname(output.outfile)
+        outputdir = lambda w, output: os.path.dirname(output.outfile),
         r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
         r_repeatmasker_annotation = config["r_repeatmasker_annotation"]
     conda:
@@ -508,7 +507,7 @@ rule telescope:
         collatedbam = "srna/outs/{sample}/star_output/{sample}.collated.bam",
         libtype = "srna/qc/library_type.txt",
     params:
-        strandparam = getTelescopeStrandParam()
+        strandparam = getTelescopeStrandParam(),
         gff = lambda wildcards: "aref/%s_annotations/%s_repeatmasker.gff2"%(wildcards.sample, wildcards.sample) if config["per_sample_ref"] == "yes" else "aref/A.REF_annotations/A.REF_repeatmasker.gff2"
     output:
         counts = "srna/outs/{sample}/telescope/telescope-run_stats.tsv"
@@ -549,7 +548,12 @@ rule repeatanalysis_plots:
         mem_mb = 164000,
         runtime = 300
     output:
-        plots = "srna/results/agg/repeatanalysis_telescope/{tecounttype}/repeatanalysisplots_plots.RData"
+        plots = "srna/results/agg/repeatanalysis_telescope/{tecounttype}/repeatanalysisplots_plots.RData", 
+        report = report(
+            directory("srna/results/agg/repeatanalysis_telescope/{tecounttype}"),
+            patterns=["{contrast}/{name}.png"],
+            category="Repeat Analysis {tecounttype}",
+            subcategory="{contrast}")
     script:
         "scripts/repeatanalysisPlots.R"
     
@@ -633,14 +637,20 @@ rule getBigWigR:
 
 rule bigwigplots:
     input:
-        bwF = expand("srna/outs/{sample}/star_output/{sample}.{tecounttype}.F.bw", sample = samples, tecounttype = config["tecounttypes"]),
-        bwR = expand("srna/outs/{sample}/star_output/{sample}.{tecounttype}.R.bw", sample = samples, tecounttype = config["tecounttypes"]),
+        bwF = expand("srna/outs/{sample}/star_output/{sample}.{{tecounttype}}.F.bw", sample = samples),
+        bwR = expand("srna/outs/{sample}/star_output/{sample}.{{tecounttype}}.R.bw", sample = samples),
     params:
         r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
         r_repeatmasker_annotation = config["r_repeatmasker_annotation"],
-        txdbrefseq = "aref/A.REF_annotations/refseq.sqlite"
+        txdbrefseq = "aref/A.REF_annotations/refseq.sqlite",
+        tecounttype = lambda w: w.tecounttype
     output:
-        plots = "srna/results/agg/bigwig_plots/plots.rds"
+        plots = "srna/results/agg/bigwig_plots/{tecounttype}/plots.rds",
+        report = report(
+            directory("srna/results/agg/bigwig_plots/{tecounttype}"),
+            patterns=["{sub_grouping}/{name}.png"],
+            category="BigWig Analysis {tecounttype}",
+            subcategory="{sub_grouping}")
     resources:
         cpus_per_task =10,
         mem_mb = 40000
