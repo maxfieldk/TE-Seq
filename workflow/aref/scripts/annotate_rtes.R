@@ -26,6 +26,7 @@ tryCatch(
 )
 
 rmfragments <- read_csv(inputs$r_annotation_fragmentsjoined, col_names = TRUE)
+rmfragments %$% gene_id %>% duplicated() %>% sum()
 
 rmfamilies <- rmfragments %>%
     dplyr::select(gene_id, family) %>%
@@ -114,6 +115,8 @@ rmfamilies <- rmfragments %>%
         grepl("LTR/ERVL/LTR5_Hs.*ERVL$", family, perl = TRUE) ~ "HERVL_LTR",
     )) %>%
     mutate(herv_subfamily_limited = replace_na(herv_subfamily_limited, "Other"))
+
+rmfamilies %$% gene_id %>% duplicated() %>% sum()
 
 
 
