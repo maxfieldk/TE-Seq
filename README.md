@@ -171,11 +171,11 @@ Create, in your project directory, the srna/rawdata directory structure, and mov
   ```
   conda activate snakemake
   #ensure you are in the pipeline directory which lives in your project folder, i.e. myproject/RTE/
-  snakemake -n
+  snakemake --profile workflow/profile/default -n
   ```
   If you are happy with this plan of action, deploy the pipeline by calling snakemake  
   ```
-  snakemake
+  snakemake --profile workflow/profile/default
   ```
   I highly recommend familiarizing yourself with the basics of snakemake before embarking on a complex analysis with this pipelin. For help with snakemake, consult its highly usable and detailed docs at https://snakemake.readthedocs.io/en/stable/index.html  
   For help with git, consult https://git-scm.com/docs/gittutorial  
