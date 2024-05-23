@@ -74,7 +74,7 @@ This project derives from my work in the __Sedivy Lab at Brown University__, whe
   Create a project directory  
   Clone this pipeline into said directory, using a tag to specify a frozen version, or without one to get the latest version (this may give you more errors than a stable version).  
   ```
-  git clone -b v0.1.7 https://github.com/maxfieldk/RTE.git
+  git clone https://github.com/maxfieldk/RTE.git
   ```
   Copy the workflow/conf_example directory to ./conf  
   ```
