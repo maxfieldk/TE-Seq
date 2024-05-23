@@ -130,6 +130,9 @@ srna:
     - "telescope_multi"
     - "telescope_unique"
 
+  repeat_ontologies_to_scrutinize: #leave empty for all ontologies to be included
+    - ""
+    
   genesets_for_gsea:
     msigdbH: resources/genesets/human/msigdb/h.all.v2023.2.Hs.symbols.gmt
     msigdbC2_CPG: resources/genesets/human/msigdb/c2.cgp.v2023.2.Hs.symbols.gmt

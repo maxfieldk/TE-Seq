@@ -168,7 +168,7 @@ for (collec in genecollections) {
         labs(x = "", y = "", title = collec) +
         theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
         coord_equal()
-    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/gsea_top_%s.png", collec), 7,12)
+    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/gsea_top_%s_grid.png", collec), 7,12)
 }
 for (collec in genecollections) {
     grestemp <- gres %>% filter(collection == collec) %>% left_join(contrast_label_map)
@@ -561,4 +561,3 @@ for (contrast in params[["contrasts"]]) {
 }
 
 save(mysaveandstoreplots, file = outputs$plots)
-x <- data.frame()

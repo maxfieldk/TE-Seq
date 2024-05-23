@@ -291,8 +291,6 @@ for (sample in sample_table$sample_name) {
 }
 grs <- Reduce(c, grs_list)
 
-introns
-
 txdb <- loadDb(params$txdbrefseq)
 introns <- intronsByTranscript(txdb, use.names = TRUE)
 # introns <- introns[grepl("^NM", names(introns))]

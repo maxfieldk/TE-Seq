@@ -36,19 +36,20 @@ library(ComplexHeatmap)
         },
         error = function(e) {
             assign("params", list(
-                "counttypes" = conf$counttypes,
+                "tecounttype" = "telocal_multi",
                 "sample_table" = conf$sample_table,
                 "contrasts" = conf$contrasts,
                 "SenMayoHuman" = conf$SenMayoHuman,
                 "genesets_for_heatmaps" = conf$genesets_for_heatmaps,
                 "genesets_for_gsea" = conf$genesets_for_gsea,
                 "inputdir" = "srna/results/agg/deseq_telescope",
-                "outputdir" = "srna/results/agg/enrichment_analysis_repeats"
-            ), env = globalenv())
-            assign("inputs", list(
-                resultsdf = paste0("srna/results/agg/deseq_telescope/resultsdf.tsv"),
+                "outputdir" = "srna/results/agg/enrichment_analysis_repeats/telocal_multi",
                 "r_annotation_fragmentsjoined" = conf$r_annotation_fragmentsjoined,
                 "r_repeatmasker_annotation" = conf$r_repeatmasker_annotation
+            ), env = globalenv())
+            assign("inputs", list(
+                resultsdf = paste0("srna/results/agg/deseq_telescope/resultsdf.tsv")
+
             ), env = globalenv())
             assign("outputs", list(outfile = "srna/results/agg/enrichment_analysis_repeats/outfile.txt"), env = globalenv())
         }
@@ -56,6 +57,8 @@ library(ComplexHeatmap)
 
 
 }
+
+tecounttype <- params$tecounttype
 
 ## Load Data and add annotations
 resultsdf1 <- read_delim(inputs$resultsdf, delim = "\t")
@@ -111,96 +114,94 @@ for (contrast in params[["contrasts"]]) {
         pull(sample_name)
     condition_vec <- sample_table %>% filter(sample_name %in% contrast_samples) %$% condition
 
-    for (tecounttype in resultsdf$tecounttype %>% unique()) {
-        res <- resultsdf %>%
-            filter(tecounttype == tecounttype) %>%
-            arrange(-!!sym(contrast_stat)) %>%
-            filter(gene_or_te == "repeat")
-        ordered_by_stat <- setNames(res %>% pull(!!sym(contrast_stat)), res$gene_id) %>% na.omit()
+    res <- resultsdf %>%
+        filter(tecounttype == tecounttype) %>%
+        arrange(-!!sym(contrast_stat)) %>%
+        filter(gene_or_te == "repeat")
+    ordered_by_stat <- setNames(res %>% pull(!!sym(contrast_stat)), res$gene_id) %>% na.omit()
 
-        for (ontology in ontologies) {
-            print(ontology)
-            ontology_groups <- r_repeatmasker_annotation %>%
-                pull(!!sym(ontology)) %>%
+    for (ontology in ontologies) {
+        print(ontology)
+        ontology_groups <- r_repeatmasker_annotation %>%
+            pull(!!sym(ontology)) %>%
+            unique()
+        ontology_groups <- ontology_groups[ontology_groups != "Other"]
+
+        eligible_modifiers <- c()
+        for (modifier in modifiers) {
+            values_present <- resultsdf %>%
+                filter(!!sym(ontology) != "Other") %>%
+                pull(!!sym(modifier)) %>%
                 unique()
-            ontology_groups <- ontology_groups[ontology_groups != "Other"]
 
-            eligible_modifiers <- c()
-            for (modifier in modifiers) {
-                values_present <- resultsdf %>%
-                    filter(!!sym(ontology) != "Other") %>%
-                    pull(!!sym(modifier)) %>%
-                    unique()
-
-                if (!("Other" %in% values_present)) {
-                    eligible_modifiers <- c(eligible_modifiers, modifier)
-                }
+            if (!("Other" %in% values_present)) {
+                eligible_modifiers <- c(eligible_modifiers, modifier)
             }
-            eligible_filter_modifiers <- c(eligible_modifiers[grepl("_req$", eligible_modifiers)], "ALL")
-            eligible_facet_modifiers <- c(eligible_modifiers[grepl("genic_loc$", eligible_modifiers)], "ALL")
-            eligible_modifier_combinations <- expand.grid(filter_var = eligible_filter_modifiers, facet_var = eligible_facet_modifiers, stringsAsFactors = FALSE)
+        }
+        eligible_filter_modifiers <- c(eligible_modifiers[grepl("_req$", eligible_modifiers)], "ALL")
+        eligible_facet_modifiers <- c(eligible_modifiers[grepl("genic_loc$", eligible_modifiers)], "ALL")
+        eligible_modifier_combinations <- expand.grid(filter_var = eligible_filter_modifiers, facet_var = eligible_facet_modifiers, stringsAsFactors = FALSE)
 
-            for (filter_var in eligible_filter_modifiers) {
-                tryCatch(
-                    {
-                        if (filter_var != "ALL") {
-                            genesets <- resultsdf %>%
-                                filter(!!sym(ontology) != "Other") %>%
-                                filter(str_detect(!!sym(filter_var), ">|Intact|^Fl|^LTR")) %>%
-                                select(!!sym(filter_var), gene_id)
-                        } else {
-                            genesets <- resultsdf %>%
-                                select(!!sym(ontology), gene_id) %>%
-                                filter(!!sym(ontology) != "Other")
-                        }
-
-                        gse <- GSEA(ordered_by_stat, TERM2GENE = genesets, maxGSSize = 10000, minGSSize = 1)
-                        df <- gse@result %>% tibble()
-                        df$collection <- ontology
-                        df$contrast <- contrast
-                        df$filter_var <- filter_var
-                        if (!exists("gse_df")) {
-                            gse_df <<- df
-                        } else {
-                            gse_df <<- rbind(gse_df, df)
-                        }
-
-                        genesettheme <- theme_gray() + theme(axis.text.y = element_text(colour = "black"))
-                        # p <- dotplot(gse, showCategory = 20) + ggtitle(paste("GSEA", contrast, sep = " ")) + genesettheme + mtopen
-                        # mysaveandstore(sprintf("%s/%s/%s/gsea/%s/%s/dotplot.png", params[["outputdir"]], tecounttype, contrast, ontology, filter_var), w = 3, h = 4, res = 300)
-
-                        # p <- ridgeplot(gse, core_enrichment = FALSE) + ggtitle(paste("GSEA", contrast, sep = " ")) + xlab("Log2 FC") + xlim(c(-4, 4)) + genesettheme + mtopen
-                        # mysaveandstore(sprintf("%s/%s/%s/gsea/%s/%s/ridgeplot.png", params[["outputdir"]], tecounttype, contrast, ontology, filter_var), w = 3, h = 4, res = 300)
-
-
-                        # tryCatch(
-                        #     {
-                        #         for (num in c(5, 10, 15, 30)) {
-                        #             df <- arrange(gse, -abs(NES)) %>%
-                        #                 group_by(sign(NES)) %>%
-                        #                 slice(1:num)
-                        #             df <- df@result
-
-                        #             p <- ggplot(df, aes(NES, fct_reorder(Description, NES), fill = p.adjust)) +
-                        #                 geom_col(orientation = "y") +
-                        #                 scale_fill_continuous(low = "red", high = "blue", guide = guide_colorbar(reverse = TRUE)) +
-                        #                 mtopen +
-                        #                 theme(axis.text.y = element_text(colour = "black")) +
-                        #                 ylab(NULL)
-
-                        #             mysaveandstore(sprintf("%s/%s/%s/gsea/%s/%s/nes%s.png", params[["outputdir"]], tecounttype, contrast, ontology, filter_var, num), w = 3, h = min(num/2, 7), res = 300)
-                        #         }
-                        #     },
-                        #     error = function(e) {
-                        #         print("")
-                        #     }
-                        # )
-                    },
-                    error = function(e) {
-                        print(e)
+        for (filter_var in eligible_filter_modifiers) {
+            tryCatch(
+                {
+                    if (filter_var != "ALL") {
+                        genesets <- resultsdf %>%
+                            filter(!!sym(ontology) != "Other") %>%
+                            filter(str_detect(!!sym(filter_var), ">|Intact|^Fl|^LTR")) %>%
+                            select(!!sym(filter_var), gene_id)
+                    } else {
+                        genesets <- resultsdf %>%
+                            select(!!sym(ontology), gene_id) %>%
+                            filter(!!sym(ontology) != "Other")
                     }
-                )
-            }
+
+                    gse <- GSEA(ordered_by_stat, TERM2GENE = genesets, maxGSSize = 10000, minGSSize = 1)
+                    df <- gse@result %>% tibble()
+                    df$collection <- ontology
+                    df$contrast <- contrast
+                    df$filter_var <- filter_var
+                    if (!exists("gse_df")) {
+                        gse_df <<- df
+                    } else {
+                        gse_df <<- rbind(gse_df, df)
+                    }
+
+                    genesettheme <- theme_gray() + theme(axis.text.y = element_text(colour = "black"))
+                    # p <- dotplot(gse, showCategory = 20) + ggtitle(paste("GSEA", contrast, sep = " ")) + genesettheme + mtopen
+                    # mysaveandstore(sprintf("%s/%s/%s/gsea/%s/%s/dotplot.png", params[["outputdir"]], tecounttype, contrast, ontology, filter_var), w = 3, h = 4, res = 300)
+
+                    # p <- ridgeplot(gse, core_enrichment = FALSE) + ggtitle(paste("GSEA", contrast, sep = " ")) + xlab("Log2 FC") + xlim(c(-4, 4)) + genesettheme + mtopen
+                    # mysaveandstore(sprintf("%s/%s/%s/gsea/%s/%s/ridgeplot.png", params[["outputdir"]], tecounttype, contrast, ontology, filter_var), w = 3, h = 4, res = 300)
+
+
+                    # tryCatch(
+                    #     {
+                    #         for (num in c(5, 10, 15, 30)) {
+                    #             df <- arrange(gse, -abs(NES)) %>%
+                    #                 group_by(sign(NES)) %>%
+                    #                 slice(1:num)
+                    #             df <- df@result
+
+                    #             p <- ggplot(df, aes(NES, fct_reorder(Description, NES), fill = p.adjust)) +
+                    #                 geom_col(orientation = "y") +
+                    #                 scale_fill_continuous(low = "red", high = "blue", guide = guide_colorbar(reverse = TRUE)) +
+                    #                 mtopen +
+                    #                 theme(axis.text.y = element_text(colour = "black")) +
+                    #                 ylab(NULL)
+
+                    #             mysaveandstore(sprintf("%s/%s/%s/gsea/%s/%s/nes%s.png", params[["outputdir"]], tecounttype, contrast, ontology, filter_var, num), w = 3, h = min(num/2, 7), res = 300)
+                    #         }
+                    #     },
+                    #     error = function(e) {
+                    #         print("")
+                    #     }
+                    # )
+                },
+                error = function(e) {
+                    print(e)
+                }
+            )
         }
     }
 }
@@ -227,5 +228,3 @@ for (ontology in ontologies) {
 }
 
 save(mysaveandstoreplots, file = outputs$plots)
-x <- data.frame()
-write.table(x, file = outputs[["outfile"]], col.names = FALSE)

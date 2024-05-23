@@ -554,9 +554,6 @@ for (rte_fam in rte_fams) {
         mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_reqintegrative_stats_allsigannot.png", outputdir, tecounttype, rte_fam), 15, 12)
 
 
-
-    p <- myheatmap()
-
 }
   
 

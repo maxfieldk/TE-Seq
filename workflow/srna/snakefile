@@ -419,7 +419,12 @@ rule deseq_telescope:
         results_rtes = expand("srna/results/agg/deseq_telescope/{{tecounttype}}/{contrast}/results_rtes.csv", contrast = config["contrasts"]),
         counts_normed = "srna/results/agg/deseq_telescope/{tecounttype}/counttablesizenormed.csv",
         sizefactors = "srna/results/agg/deseq_telescope/{tecounttype}/sizefactors.csv",
-        plots = "srna/results/agg/deseq_telescope/{tecounttype}/deseq_plots.RData"
+        plots = "srna/results/agg/deseq_telescope/{tecounttype}/deseq_plots.RData",
+        report = report(
+            directory("srna/results/agg/deseq_telescope/{tecounttype}"),
+            patterns=["{gene_or_te}/{name}.png"],
+            category="Differential Expression {tecounttype}",
+            subcategory="{gene_or_te}")
     script:
         "scripts/deseq_telescope.R"
 
@@ -452,7 +457,7 @@ rule enrichment_analysis:
         genesets_for_heatmaps = config["genesets_for_heatmaps"],
         genesets_for_gsea = config["genesets_for_gsea"],
         sample_table = config["sample_table"],
-        outputdir =lambda w, output: os.path.dirname(output.outfile)
+        outputdir =lambda w, output: os.path.dirname(output.plots)
     conda:
         "ea"
     resources:
@@ -460,7 +465,11 @@ rule enrichment_analysis:
         mem_mb = 164000,
         runtime = 300
     output:
-        plots = "srna/results/agg/enrichment_analysis/enrichment_analysis_plots.RData"
+        plots = "srna/results/agg/enrichment_analysis/enrichment_analysis_plots.RData",
+        report = report(
+            directory("srna/results/agg/enrichment_analysis"),
+            patterns=["gsea_top_{name}_grid.png", "{leading_path}heatmap_{trailingpath}.png"],
+            category="Gene Enrichment")
     script:
         "scripts/ea.R"
 
@@ -470,9 +479,9 @@ rule enrichment_analysis_repeats:
     params:
         inputdir =lambda w, input: os.path.dirname(os.path.dirname(input.resultsdf)),
         contrasts = config["contrasts"],
-        tecounttypes = config["tecounttypes"],
+        tecounttype = lambda w: w.tecounttype, 
         sample_table = config["sample_table"],
-        outputdir = lambda w, output: os.path.dirname(output.outfile),
+        outputdir = lambda w, output: os.path.dirname(output.plots),
         r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
         r_repeatmasker_annotation = config["r_repeatmasker_annotation"]
     conda:
@@ -482,7 +491,11 @@ rule enrichment_analysis_repeats:
         mem_mb = 164000,
         runtime = 300
     output:
-        plots = "srna/results/agg/enrichment_analysis_repeats/{tecounttype}/enrichment_analysis_repeats_plots.RData"
+        plots = "srna/results/agg/enrichment_analysis_repeats/{tecounttype}/enrichment_analysis_repeats_plots.RData",
+        report = report(
+            directory("srna/results/agg/enrichment_analysis_repeats/{tecounttype}"),
+            patterns=["{tecounttype}/gsea_top_{name}.png"],
+            category="RTE Enrichment")
     script:
         "scripts/ea_repeats.R"
 
@@ -551,9 +564,8 @@ rule repeatanalysis_plots:
         plots = "srna/results/agg/repeatanalysis_telescope/{tecounttype}/repeatanalysisplots_plots.RData", 
         report = report(
             directory("srna/results/agg/repeatanalysis_telescope/{tecounttype}"),
-            patterns=["{contrast}/{name}.png"],
-            category="Repeat Analysis {tecounttype}",
-            subcategory="{contrast}")
+            patterns=["pan_contrast/{rte}_{restofstring}.png", "{contrast}/{rte}_{restofstring}rte_length_req_genic_loc.png"],
+            category="Repeat Analysis {tecounttype}")
     script:
         "scripts/repeatanalysisPlots.R"
     
