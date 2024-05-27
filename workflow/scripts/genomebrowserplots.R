@@ -1,4 +1,3 @@
-source("workflow/scripts/defaults.R")
 library(igvR)
 library(knitr)
 library(rmarkdown)
@@ -30,7 +29,7 @@ library(zoo)
 library(rtracklayer)
 
 conf <- configr::read.config(file = "conf/config.yaml")
-
+source("workflow/scripts/defaults.R")
 
 tryCatch(
     {

@@ -20,9 +20,9 @@ for pipeline in config["pipelines_to_deploy"]:
             final_input.append("aref.done.outfile")
             if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
                 if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
-                    use rule * from aref exclude sym_link,tldr_aggregate_multiple_samples,get_repeatmasker_raw as aref_*
+                    use rule * from aref exclude sym_link,tldr_aggregate_multiple_samples,get_repeatmasker_raw,process_gtf as aref_*
                 else: 
-                    use rule * from aref exclude sym_link,move_starting_reference,tldr_per_sample,get_repeatmasker_raw as aref_*
+                    use rule * from aref exclude sym_link,move_starting_reference,tldr_per_sample,get_repeatmasker_raw,process_gtf as aref_*
             else:
                 use rule * from aref exclude sym_link,dorado,dorado_seqsummary,pycoQC,process_gtf_tldr,cleanup_updated_ref,repeatmasker,getGtfs as aref_*
 
@@ -60,9 +60,9 @@ for pipeline in config["pipelines_to_deploy"]:
         use rule * from lrna as lrna_*
         def lrna_rally():
             deseq = expand("lrna/results/agg/deseq/{counttype}/{contrast}/results_genes.csv", alignmenttype = config["lrna"]["alignmenttypes"], counttype = config["lrna"]["counttypes"], contrast = config["lrna"]["contrasts"])
-            enrichment_analysis = expand("lrna/results/agg/enrichment_analysis/{counttype}/outfile.txt", alignmenttype = config["lrna"]["alignmenttypes"], counttype = config["lrna"]["counttypes"])
-            enrichment_analysis_repeats = expand("lrna/results/agg/enrichment_analysis_repeats/{counttype}/outfile.txt", alignmenttype = config["lrna"]["alignmenttypes"], counttype = config["lrna"]["counttypes"])
-            repeatanalysisplots = expand("lrna/results/agg/repeatanalysis/{counttype}/plots.outfile.txt", alignmenttype = config["lrna"]["alignmenttypes"], counttype = config["lrna"]["counttypes"])
+            enrichment_analysis = expand("lrna/results/agg/enrichment_analysis/{counttype}/enrichment_analysis_plots.RData", alignmenttype = config["lrna"]["alignmenttypes"], counttype = config["lrna"]["counttypes"])
+            enrichment_analysis_repeats = expand("lrna/results/agg/enrichment_analysis_repeats/{counttype}/enrichment_analysis_repeats_plots.RData", alignmenttype = config["lrna"]["alignmenttypes"], counttype = config["lrna"]["counttypes"])
+            repeatanalysisplots = expand("lrna/results/agg/repeatanalysis/{counttype}/repeatanalysisplots_plots.RData", alignmenttype = config["lrna"]["alignmenttypes"], counttype = config["lrna"]["counttypes"])
             # genomebrowserplots = expand("lrna/outfiles/genomebrowserplots{alignmenttype}.out", alignmenttype = config["lrna"]["alignmenttypes"])
             qc = [expand("lrna/qc/mycoplasma/mycoplasma{sample}.bam", sample = config["lrna"]["samples"]), "lrna/qc/multiqc_report.html"]
 
@@ -82,6 +82,11 @@ for pipeline in config["pipelines_to_deploy"]:
         else:
                 use rule * from srna exclude fastp_PEalignSTAR_PE,featurecounts_genes_PE,featurecounts_genesandrtes_PE as srna_*
 
+        if config["srna"]["downsample_for_test"]["response"] == "yes":
+            use rule fastp_PE from srna as srna_fastp_PE with:
+                input:
+                    r1 = "srna/outs/{sample}/subsampled/{sample}_1.subsampled.fastq.gz",
+                    r2 = "srna/outs/{sample}/subsampled/{sample}_2.subsampled.fastq.gz"
 
         samples = config["srna"]["samples"]
         tecounttypes = config["srna"]["tecounttypes"]
@@ -90,8 +95,8 @@ for pipeline in config["pipelines_to_deploy"]:
 
         def srna_rally():
             deseq = expand("srna/results/agg/deseq_telescope/{tecounttype}/{contrast}/results_genes.csv", tecounttype = config["srna"]["tecounttypes"], contrast = config["srna"]["contrasts"])
-            enrichment_analysis = "srna/results/agg/enrichment_analysis/outfile.txt"
-            enrichment_analysis_repeats = expand("srna/results/agg/enrichment_analysis_repeats/{tecounttype}/outfile.txt", tecounttype = config["srna"]["tecounttypes"])
+            enrichment_analysis = "srna/results/agg/enrichment_analysis/enrichment_analysis_plots.RData"
+            enrichment_analysis_repeats = expand("srna/results/agg/enrichment_analysis_repeats/{tecounttype}/enrichment_analysis_repeats_plots.RData", tecounttype = config["srna"]["tecounttypes"])
             repeatanalysisplots = expand("srna/results/agg/repeatanalysis_telescope/{tecounttype}/repeatanalysisplots_plots.RData", tecounttype = config["srna"]["tecounttypes"])
             bigwigs = expand("srna/results/agg/bigwig_plots/{tecounttype}/plots.rds", tecounttype = config["srna"]["tecounttypes"])
             qc = [expand("srna/qc/mycoplasma/mycoplasma{sample}.sam", sample = config["srna"]["samples"]), "srna/qc/multiqc/multiqc_report.html"]

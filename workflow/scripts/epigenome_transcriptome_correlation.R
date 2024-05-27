@@ -1,4 +1,3 @@
-source("workflow/scripts/defaults.R")
 library(knitr)
 library(rmarkdown)
 library(circlize)
@@ -25,7 +24,7 @@ library(GGally)
 
 
 conf <- configr::read.config(file = "conf/config.yaml")
-
+source("workflow/scripts/defaults.R")
 
 tryCatch(
     {

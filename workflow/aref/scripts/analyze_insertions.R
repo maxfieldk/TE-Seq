@@ -1,6 +1,6 @@
-source("workflow/scripts/defaults.R")
 module_name <- "aref"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 
 library(readr)
@@ -67,7 +67,7 @@ p <- df %>%
     paletteer::scale_fill_paletteer_d(conf$default_palette) +
     ggtitle("Non-reference RTE Insertions") +
     mtopen + anchorbar
-mysaveandstore(sprintf("%s/insertions.png", outputdir), 5, 5)
+mysaveandstore(sprintf("%s/insertions.pdf", outputdir), 5, 5)
 
 
 p <- df %>%
@@ -80,7 +80,7 @@ p <- df %>%
     ggtitle("Non-reference RTE Insertions") +
     mtclosed + anchorbar +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
-mysaveandstore(sprintf("%s/insertions_subfamily.png", outputdir), 5, 5)
+mysaveandstore(sprintf("%s/insertions_subfamily.pdf", outputdir), 5, 5)
 
 p <- df %>%
     filter(Subfamily == "L1Ta") %>%
@@ -91,7 +91,7 @@ p <- df %>%
     labs(x = "Length (bp)", y = "Count") +
     mtopen +
     anchorbar
-mysaveandstore(sprintf("%s/l1hs_length.png", outputdir), 5, 5)
+mysaveandstore(sprintf("%s/l1hs_length.pdf", outputdir), 5, 5)
 
 
 # only insertions that are in the updated reference
@@ -106,7 +106,7 @@ p <- df_filtered %>%
     ggtitle("Non-reference RTE Insertions") +
     mtopen + anchorbar
 
-mysaveandstore(sprintf("%s/insertions_in_updated_ref.png", outputdir), 3, 4)
+mysaveandstore(sprintf("%s/insertions_in_updated_ref.pdf", outputdir), 3, 4)
 
 
 p <- df_filtered %>%
@@ -119,7 +119,7 @@ p <- df_filtered %>%
     ggtitle("Non-reference RTE Insertions") +
     mtclosed + anchorbar +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
-mysaveandstore(sprintf("%s/insertions_subfamily_in_updated_ref.png", outputdir), 6, 4)
+mysaveandstore(sprintf("%s/insertions_subfamily_in_updated_ref.pdf", outputdir), 6, 4)
 
 p <- df_filtered %>%
     filter(Subfamily == "L1Ta") %>%
@@ -130,7 +130,7 @@ p <- df_filtered %>%
     labs(x = "Length (bp)", y = "Count") +
     mtopen + paletteer::scale_fill_paletteer_d(conf$default_palette) +
     anchorbar
-mysaveandstore(sprintf("%s/l1hs_length_in_updated_ref.png", outputdir), 5, 5)
+mysaveandstore(sprintf("%s/l1hs_length_in_updated_ref.pdf", outputdir), 5, 5)
 
 ###############
 

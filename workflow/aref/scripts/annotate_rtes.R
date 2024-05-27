@@ -1,6 +1,6 @@
-source("workflow/scripts/defaults.R")
 module_name <- "aref"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 
 library(GenomicFeatures)
@@ -28,7 +28,6 @@ tryCatch(
 )
 
 rmfragments <- read_csv(inputs$r_annotation_fragmentsjoined, col_names = TRUE)
-rmfragments %$% gene_id %>% duplicated() %>% sum()
 
 rmfamilies <- rmfragments %>%
     dplyr::select(gene_id, family) %>%
@@ -118,7 +117,7 @@ rmfamilies <- rmfragments %>%
     )) %>%
     mutate(herv_subfamily_limited = replace_na(herv_subfamily_limited, "Other"))
 
-rmfamilies %$% gene_id %>% duplicated() %>% sum()
+
 
 
 
@@ -167,6 +166,7 @@ rmlengthreq <- rmfragments %>%
 # Annotate Intactness
 fa <- Rsamtools::FaFile(inputs$ref)
 
+rmfragments %$% refstatus %>% unique()
 ranges <- GRanges(rmfragments)
 l1hsranges <- ranges[grepl("L1HS", ranges$gene_id)]
 l1pa2ranges <- ranges[grepl("L1PA2", ranges$gene_id)]

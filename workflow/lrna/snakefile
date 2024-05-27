@@ -43,10 +43,8 @@ def inferLibraryType():
             libraryType = "reverse"
         else:
             libraryType = "unstranded"
-        print("library type = ", libraryType)
         return libraryType
     except:
-        print("library type = didn't run infer library type yet")
         return "didn't run infer library type yet"
 
 def getFeatureCountsStrandParam():

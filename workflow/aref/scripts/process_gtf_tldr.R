@@ -1,6 +1,6 @@
-source("workflow/scripts/defaults.R")
 module_name <- "aref"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/defaults.R")
 
 library(GenomicFeatures)
 library(GenomicRanges)
@@ -16,20 +16,17 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            gtf = "aref/A.REF_repeatmasker/repeatmasker_raw.gtf",
-            contigs_to_keep = "aref/contigs_to_keep.txt",
+            gtf = "aref/A.REF_repeatmasker/A.REF_repeatmasker_raw.gtf",
             ref_cytobands = "aref/A.REF_annotations/cytobands.bed",
-            tldroutput = "aref/A.REF_tldr/tldr.table.txt",
-            ref = "aref/ref_pre_ins_filtering.fa"
+            tldroutput = "aref/A.REF_tldr/A.REF.table.txt",
+            ref = "aref/A.REF-pre-ins-filtering.fa"
         ), env = globalenv())
         assign("outputs", list(
             contigs_to_keep = "aref/contigs_to_keep.txt",
-            filtered_tldr = "aref/A.REF_tldr/tldr.table.kept_in_updated_ref.txt",
-            repmask_gff2 = "aref/A.REF_annotations/repeatmasker.gff2",
-            repmask_gff3 = "aref/A.REF_annotations/repeatmasker.gff3",
-            r_annotation = "aref/A.REF_annotations/repeatmasker.gtf.rformatted.csv",
-            r_annotation_fragmentsjoined = "aref/A.REF_annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv",
-            r_annotation_families = "aref/A.REF_annotations/families_annotation.csv"
+            filtered_tldr = "aref/A.REF_tldr/A.REF.table.kept_in_updated_ref.txt",
+            repmask_gff2 = "aref/A.REF_annotations/A.REF_repeatmasker.gff2",
+            repmask_gff3 = "aref/A.REF_annotations/A.REF_repeatmasker.gff3",
+            r_annotation_fragmentsjoined = "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv"
         ), env = globalenv())
     }
 )

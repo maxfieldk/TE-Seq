@@ -31,21 +31,45 @@ mysave <- function(fn = "ztmp.png", w = 5, h = 5, res = 300, pl = p) {
     dev.off()
     print(fn)
 }
+tryCatch(
+    {
+        store_var <<- conf$store_plots_as_rds
+        print("sourced store var")
+    },
+    error = function(e) {
+        store_var <<- "no"
+    }
+)
 
-mysaveandstore <- function(fn = "ztmp.png", w = 5, h = 5, res = 300, pl = p) {
+mysaveandstore <- function(fn = "ztmp.pdf", w = 5, h = 5, res = 300, pl = p, store = store_var) {
     dn <- dirname(fn)
     dir.create(dn, showWarnings = FALSE, recursive = TRUE)
-    png(fn, width = w, height = h, units = "in", res = res)
-    print(pl)
-    dev.off()
+    # png(gsub(".pdf", ".png", fn), width = w, height = h, units = "in", res = res)
+    # print(pl)
+    # dev.off()
+
+    tryCatch(
+        {
+            cairo_pdf(fn, width = w, height = h, family = "Helvetica")
+            print(pl)
+            dev.off()
+        },
+        error = function(e) {
+            png(gsub(".pdf", ".png", fn), width = w, height = h, units = "in", res = res)
+            print(pl)
+            dev.off()        
+        }
+    )
+
     if (!exists("mysaveandstoreplots")) {
         mysaveandstoreplots <<- list()
     }
-    mysaveandstoreplots[[fn]] <<- pl
-    print("plot_stored!")
-    print(fn)
+    if (store == "yes") {
+        mysaveandstoreplots[[fn]] <<- pl
+        print("plot_stored!")
+        print(fn)
+    }
 }
-
 
 
 

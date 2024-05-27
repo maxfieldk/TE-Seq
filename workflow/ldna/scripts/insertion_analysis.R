@@ -1,6 +1,6 @@
-source("workflow/scripts/defaults.R")
 module_name <- "ldna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 
 library(rtracklayer)
@@ -92,6 +92,6 @@ p <- df %>%
     labs(x = "", y = "Count") +
     paletteer::scale_fill_paletteer_d(conf$default_palette) +
     ggtitle("Non-reference RTE Insertions")
-mysaveandstore(sprintf("%s/insertions_subfamily.png", outputdir), 5, 5)
+mysaveandstore(sprintf("%s/insertions_subfamily.pdf", outputdir), 5, 5)
 
 save(mysaveandstoreplots, file = outputs$plots)

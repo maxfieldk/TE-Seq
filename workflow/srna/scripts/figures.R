@@ -1,6 +1,6 @@
-source("workflow/scripts/defaults.R")
 module_name <- "srna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 source("conf/sample_table_source.R")
 
@@ -47,7 +47,7 @@ load(inputs$repeatanalysis_plots)
 repeatanalysis_plots <- mysaveandstoreplots
 names(repeatanalysis_plots)
 
-p <- repeatanalysis_plots[["srna/results/agg/repeatanalysis_telescope/telescope_multi/condition_RS_0w_low_O2_vs_PRO_low_O2/pvp/L1HS_l1_intactness_req_genic_loc_log2labels.png"]]
+p <- repeatanalysis_plots[["srna/results/agg/repeatanalysis_telescope/telescope_multi/condition_RS_0w_low_O2_vs_PRO_low_O2/pvp/L1HS_l1_intactness_req_genic_loc_log2labels.pdf"]]
 mysave()
 
 

@@ -5,6 +5,8 @@ import csv
 from pathlib import Path
 from pandas.core.common import flatten
 
+sample_table = pd.read_csv("conf/sample_table_aref.csv")
+
 def aref_complete_input(wildcards):
     final_input = []
     if config["symlink_aref_contents"]["response"] == "yes":
@@ -13,6 +15,7 @@ def aref_complete_input(wildcards):
     paths = [
         "aref/A.REF_annotations/A.REF_repeatmasker.complete.gff3.gz.tbi",
         "aref/A.REF_annotations/refseq.complete.gff3.gz.tbi",
+        "aref/A.REF_annotations/refseq.complete.bed",
         "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf",
         "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gff3",
         "aref/A.REF_annotations/A.REF_repeatmasker.complete.bed",
@@ -23,7 +26,7 @@ def aref_complete_input(wildcards):
     paths.append(expand("aref/{sample_or_ref}_Analysis/l1element_analysis.outfile", sample_or_ref = "A.REF"))
 
     if config["update_ref_with_tldr"]["response"] == "yes":
-        paths.append(expand("aref/qc/{sample_or_ref}/{sample_or_ref}pycoQC.html", sample_or_ref = config["samples"]))
+        # paths.append(expand("aref/qc/{sample_or_ref}/{sample_or_ref}pycoQC.html", sample_or_ref = config["samples"]))
         paths.append("aref/results/insertions/analyze_nongermline_insertions.rds")
 
         if config["update_ref_with_tldr"]["per_sample"] == "yes":
@@ -91,7 +94,7 @@ touch {output.sym_link_outfile}
 #tag BASECALLING
 rule dorado:
     input:
-        dir = "ldna/rawdata/{rate}/{sample}"
+        dir = lambda wildcards: sample_table.loc[sample_table["sample_name"] == wildcards.sample, "nanopore_rawdata_dir"].iloc[0]
     output:
         calls = "aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.bam"
     wildcard_constraints:
@@ -197,11 +200,30 @@ pycoQC --summary_file {input.seqsummary} --bam_file {input.sortedbam} --html_out
         """
 
 #tag ALIGNMENT_UTILITIES
+rule subsample_bam:
+    input:
+        bam = "aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.bam"
+    output:
+        subsampled = "aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.subsampled.bam"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 64000
+    conda:
+        "omics"
+    shell:
+        """
+mkdir -p $(dirname {output.subsampled})
+
+samtools view -b {input.bam} chr10 > {output.subsampled}
+        """
+
 rule sortBam:
     input:
         bam = "aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.bam"
     output:
         sortedbam = "aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.sorted.bam"
+    wildcard_constraints:
+        modifications_string = "[A-Za-z0-9_-]+"
     resources:
         cpus_per_task =10,
         mem_mb = 64000
@@ -365,12 +387,11 @@ rule repeatmasker:
         runtime = 1200,
         mem_mb = 50000
     conda:
-        "omics"
+        "repeatmasker"
     shell:
         """
-module load libnsl
 mkdir -p $(dirname {output})
-{params.repeatmaskerpath} -species {params.species} -pa {resources.cpus_per_task} -gff {input.fasta} -dir $(dirname {output})
+RepeatMasker -species {params.species} -pa {resources.cpus_per_task} -gff {input.fasta} -dir $(dirname {output})
         """
 
 rule getGtfs:
@@ -388,9 +409,23 @@ rule getGtfs:
     shell:
         """
 workflow/{params.module_prefix}/scripts/outToGtf.sh {input.rmout} {output.nonref}
-cp {input.rmref} {output.ref}
+workflow/{params.module_prefix}/scripts/outToGtf.sh {input.rmref} {output.ref}
 cat {output.ref} {output.nonref} > {output.merged}
         """
+
+rule process_gtf:
+    input:
+        gtf = "aref/A.REF_repeatmasker/A.REF_repeatmasker_raw.gtf",
+        ref_cytobands = "aref/A.REF_annotations/cytobands.bed",
+        ref = "aref/A.REF.fa"
+    output:
+        repmask_gff2 = "aref/A.REF_annotations/A.REF_repeatmasker.gff2",
+        repmask_gff3 = "aref/A.REF_annotations/A.REF_repeatmasker.gff3",
+        r_annotation_fragmentsjoined = "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv"
+    conda:
+        "evo2"
+    script:
+        "scripts/process_gtf.R"
 
 rule process_gtf_tldr:
     input:
@@ -463,20 +498,6 @@ rule cleanup_updated_sample_ref:
 seqkit grep --by-name -f {input.contigs_to_keep} {input.updated_reference} > {output.filtered_ref}
 samtools faidx {output.filtered_ref}
         """
-
-rule process_gtf:
-    input:
-        gtf = "aref/A.REF_repeatmasker/A.REF_repeatmasker_raw.gtf",
-        ref_cytobands = "aref/A.REF_annotations/cytobands.bed",
-        ref = "aref/A.REF.fa"
-    output:
-        repmask_gff2 = "aref/A.REF_annotations/A.REF_repeatmasker.gff2",
-        repmask_gff3 = "aref/A.REF_annotations/A.REF_repeatmasker.gff3",
-        r_annotation_fragmentsjoined = "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv"
-    conda:
-        "evo2"
-    script:
-        "scripts/process_gtf.R"
 
 rule move_refseq:
     input:
@@ -792,7 +813,7 @@ rule create_blast_db:
     output:
         blast_njs = "aref/{sample_or_ref}.njs"
     conda:
-        "repeatanalysis"
+        "evo2"
     shell:
         """
 makeblastdb -in {input.ref} -dbtype nucl -out aref/{wildcards.sample_or_ref}

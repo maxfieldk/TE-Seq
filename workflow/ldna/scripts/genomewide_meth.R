@@ -1,7 +1,6 @@
-
-source("workflow/scripts/defaults.R")
 module_name <- "ldna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 ### BSSEQ
 library(readr)
@@ -141,7 +140,7 @@ p <- globalmeth %>%
         mtopengridh + theme(legend.position = "none") +
         theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
 
-mysaveandstore(pl = p, fn = sprintf("ldna/results/plots/genomewide/globalmeth_%s.png", sample), w = 14, h = 4, res = 300)
+mysaveandstore(pl = p, fn = sprintf("ldna/results/plots/genomewide/globalmeth_%s.pdf", sample), w = 14, h = 4, res = 300)
 }
 
 
@@ -158,7 +157,7 @@ tryCatch(
             labs(x = "", y = sprintf("%s - %s CpG Methylation", condition2, condition1), title = "Global Methylation") +
             mtopengridh + theme(legend.position = "none") +
             theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
-    mysaveandstore(pl = p, fn = sprintf("ldna/results/plots/genomewide/globalmeth_diff.png", sample), w = 14, h = 4, res = 300)
+    mysaveandstore(pl = p, fn = sprintf("ldna/results/plots/genomewide/globalmeth_diff.pdf", sample), w = 14, h = 4, res = 300)
     
     p <- globalmeth %>% ggplot(aes(x = direction)) +
         geom_bar(aes(fill = direction), position = "dodge") +
@@ -166,7 +165,7 @@ tryCatch(
         mtopen +
         scale_methylation +
         theme(legend.position = "none")
-    mysaveandstore(pl = p, fn = sprintf("ldna/results/plots/genomewide/globalmeth_diff_bar.png", sample), w = 4, h = 4, res = 300)
+    mysaveandstore(pl = p, fn = sprintf("ldna/results/plots/genomewide/globalmeth_diff_bar.pdf", sample), w = 4, h = 4, res = 300)
 
     },
     error = function(e) {

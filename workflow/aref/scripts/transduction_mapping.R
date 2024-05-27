@@ -1,6 +1,6 @@
-source("workflow/scripts/defaults.R")
 module_name <- "aref"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 
 library(readr)
@@ -173,7 +173,7 @@ for (i in 1:nrow(flow_info)){
                        )
  }
 
-mysaveandstore(sprintf("%s/transduction_sankey.png", outputdir), 7, 5)
+mysaveandstore(sprintf("%s/transduction_sankey.pdf", outputdir), 7, 5)
 }
 
 
@@ -256,7 +256,7 @@ p <- number_of_offspring  %>% ggplot(aes(x = fct_reorder(gene_id, n), y = n)) + 
     scale_y_continuous(labels = scales::number_format(accuracy = 1)) +
     labs(x = "Source Element", y = "Number of Offspring", caption = "Phylogeny-based Source Element Mapping") +
     anchorbar
-mysaveandstore(sprintf("%s/offspring_per_source_element.png", outputdir), 4, 6)
+mysaveandstore(sprintf("%s/offspring_per_source_element.pdf", outputdir), 4, 6)
 
 
 

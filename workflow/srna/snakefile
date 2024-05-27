@@ -37,7 +37,7 @@ for path in paths:
 import re
 def inferLibraryType():
     try: 
-        f = open("lrna/qc/library_type.txt")
+        f = open("srna/qc/library_type.txt")
         data = f.read()
         lines = re.findall('Fraction.*', data)
         pctMapped = [float(line.split(": ")[1]) for line in lines]
@@ -47,10 +47,8 @@ def inferLibraryType():
             libraryType = "reverse"
         else:
             libraryType = "unstranded"
-        print("library type = ", libraryType)
         return libraryType
     except:
-        print("library type = didn't run infer library type yet")
         return "didn't run infer library type yet"
 
 def getFeatureCountsStrandParam():
@@ -69,14 +67,14 @@ def getFeatureCountsStrandParam():
 def getTelescopeStrandParam():
     libraryType = inferLibraryType()
     if libraryType == "forward":
-        if config["READ_TYPE"] == "PE":
+        if config["library_type"] == "PE":
             strandParam = "FR"
-        elif config["READ_TYPE"] == "SE":
+        elif config["library_type"] == "SE":
             strandParam = "F"
     elif libraryType == "reverse":
-        if config["READ_TYPE"] == "PE":
+        if config["library_type"] == "PE":
             strandParam = "RF"
-        elif config["READ_TYPE"] == "SE":
+        elif config["library_type"] == "SE":
             strandParam = "R"
     elif libraryType == "unstranded":
         strandParam = "None"
@@ -91,6 +89,22 @@ def getTelescopeStrandParam():
 #         return ""
 
 #tag PREPROCESSING
+rule subsample_fastq:
+    input:
+        r1=lambda wildcards: peptable.loc[peptable["sample_name"] == wildcards.sample, "file_path_R1"].iloc[0],
+        r2=lambda wildcards: peptable.loc[peptable["sample_name"] == wildcards.sample, "file_path_R2"].iloc[0]
+    output:
+        r1 = "srna/outs/{sample}/subsampled/{sample}_1.subsampled.fastq.gz",
+        r2 = "srna/outs/{sample}/subsampled/{sample}_2.subsampled.fastq.gz"
+    conda:
+        "omics"
+    shell:
+        """
+seqkit head -n 1000000 {input.r1} | gzip > {output.r1}
+seqkit head -n 1000000 {input.r2} | gzip > {output.r2}
+        """
+
+
 rule fastp_PE:
     input:
         r1=lambda wildcards: peptable.loc[peptable["sample_name"] == wildcards.sample, "file_path_R1"].iloc[0],
@@ -151,7 +165,7 @@ samtools stats {output.sam} > {output.sam}.stats.txt
         """
 
 
-checkpoint inferLibraryType:
+rule inferLibraryType:
     input:
         bam = expand("srna/outs/{sample}/star_output/{sample}.sorted.primary.bam", sample = samples[0])
     output:
