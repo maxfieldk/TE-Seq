@@ -74,7 +74,7 @@ This project derives from my work in the __Sedivy Lab at Brown University__, whe
   Create a project directory  
   Clone this pipeline into said directory, using a tag to specify a frozen version, or without one to get the latest version (this may give you more errors than a stable version).  
   ```
-  git clone -b v0.1.7 https://github.com/maxfieldk/RTE.git
+  git clone https://github.com/maxfieldk/RTE.git
   ```
   Copy the workflow/conf_example directory to ./conf  
   ```
@@ -171,11 +171,11 @@ Create, in your project directory, the srna/rawdata directory structure, and mov
   ```
   conda activate snakemake
   #ensure you are in the pipeline directory which lives in your project folder, i.e. myproject/RTE/
-  snakemake -n
+  snakemake --profile workflow/profile/default -n
   ```
   If you are happy with this plan of action, deploy the pipeline by calling snakemake  
   ```
-  snakemake
+  snakemake --profile workflow/profile/default
   ```
   I highly recommend familiarizing yourself with the basics of snakemake before embarking on a complex analysis with this pipelin. For help with snakemake, consult its highly usable and detailed docs at https://snakemake.readthedocs.io/en/stable/index.html  
   For help with git, consult https://git-scm.com/docs/gittutorial  
