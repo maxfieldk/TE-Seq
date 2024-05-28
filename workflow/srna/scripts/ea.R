@@ -1,5 +1,7 @@
 module_name <- "srna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+confALL <- configr::read.config(file = "conf/config.yaml")
+
 source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 source("conf/sample_table_source.R")
@@ -42,7 +44,7 @@ library(ggpubr)
                 "contrasts" = conf$contrasts,
                 "SenMayoHuman" = conf$SenMayoHuman,
                 "genesets_for_heatmaps" = conf$genesets_for_heatmaps,
-                "genesets_for_gsea" = conf$genesets_for_gsea,
+                "collections_for_gsea" = conf$collections_for_gsea,
                 "inputdir" = "srna/results/agg/deseq2/featurecounts_genes",
                 "outputdir" = "srna/results/agg/enrichment_analysis"
             ), env = globalenv())
@@ -65,9 +67,10 @@ res %>%
     filter(str_detect(gene_id, "CDKN1A")) %>%
     select(conf$samples)
 
+contrast_label_map <- tibble(contrast = params[["contrasts"]], label = gsub("_", " ", gsub("condition_", "", params[["contrasts"]])))
 
 # GSEA targeted 
-genecollections <- names(params[["genesets_for_gsea"]])
+genecollections <- names(params[["collections_for_gsea"]])
 rm(gse_df)
 for (contrast in params[["contrasts"]]) {
     # PREP RESULTS FOR GSEA
@@ -81,7 +84,7 @@ for (contrast in params[["contrasts"]]) {
     for (collection in genecollections) {
         tryCatch(
             {
-                genesets <- read.gmt(params[["genesets_for_gsea"]][[collection]])
+                genesets <- read.gmt(params[["collections_for_gsea"]][[collection]])
                 gse <- GSEA(ordered_by_stat, TERM2GENE = genesets, maxGSSize = 100000, minGSSize = 1)
                 df <- gse@result %>% tibble()
                 df$collection <- collection
@@ -93,39 +96,33 @@ for (contrast in params[["contrasts"]]) {
                     gse_df <<- rbind(gse_df, df)
                 }
                 genesettheme <- theme_gray() + theme(axis.text.x = element_text(colour = "black"), axis.text.y = element_text(colour = "black"))
-                p <- dotplot(gse, showCategory = 20) + ggtitle(paste("GSEA", contrast, sep = " ")) + genesettheme + mtopen
-                mysaveandstore(sprintf("%s/%s/gsea/%s/dotplot.pdf", params[["outputdir"]], contrast, collection), w = 6, h = 6, res = 300)
-
-                p <- cnetplot(gse, foldChange = ordered_by_l2fc, cex_label_category = 2)
-                mysaveandstore(sprintf("%s/%s/gsea/%s/cnetplot.pdf", params[["outputdir"]], contrast, collection), w = 10, h = 9, res = 300)
-
-                p <- cnetplot(gse, foldChange = ordered_by_l2fc, cex_label_category = 2, circular = TRUE, colorEdge = TRUE)
-                mysaveandstore(sprintf("%s/%s/gsea/%s/cnetplot2.pdf", params[["outputdir"]], contrast, collection), w = 10, h = 9, res = 300)
-
-                p <- ridgeplot(gse) + ggtitle(paste("GSEA", contrast, sep = " ")) + genesettheme + mtopen
-                mysaveandstore(sprintf("%s/%s/gsea/%s/ridgeplot.pdf", params[["outputdir"]], contrast, collection), w = 6, h = 6, res = 300)
-
-                gsep <- pairwise_termsim(gse)
-                p <- emapplot(gsep, color = "enrichmentScore", showCategory = 20, layout = "nicely") + ggtitle(paste("GSEA", contrast, sep = " "))
-                mysaveandstore(sprintf("%s/%s/gsea/%s/network.pdf", params[["outputdir"]], contrast, collection), w = 10, h = 9, res = 300)
-
 
                 tryCatch(
                     {
                         for (num in c(5, 10, 15)) {
-                            df <- arrange(gse, -abs(NES)) %>%
+                            df <- arrange(df, -abs(NES)) %>%
                                 group_by(sign(NES)) %>%
                                 slice(1:num)
-                            df <- df@result %>% mutate(Description = str_wrap(as.character(Description) %>% gsub("_", " ", .), width = 40)) 
-
+                            df <- df %>% mutate(Description = str_wrap(as.character(Description) %>% gsub("_", " ", .), width = 40)) 
+                            df <- df %>% mutate(`Gene Ratio` = 0.01 * as.numeric(gsub("%", "", gsub(",.*", "", gsub("tags=", "", leading_edge)))))
                             p <- ggplot(df, aes(NES, fct_reorder(Description, NES), fill = p.adjust)) +
                                 geom_col(orientation = "y") +
                                 scale_fill_continuous(low = "red", high = "blue", guide = guide_colorbar(reverse = TRUE)) +
                                 mtopen +
                                 theme(axis.text.y = element_text(colour = "black")) +
-                                ylab(NULL)
+                                ylab(NULL)+ labs(caption = contrast_label_map %>% filter(contrast == contrast) %$% label)
 
                             mysaveandstore(sprintf("%s/%s/gsea/%s/nes%s.pdf", params[["outputdir"]], contrast, collection, num), w = 8, h = min(num, 7), res = 300)
+                        
+                            p <- ggplot(df, aes(`Gene Ratio`, fct_reorder(Description, `Gene Ratio`), fill = -log10(p.adjust)*`sign(NES)`)) +
+                                geom_col(orientation = "y") +
+                                scale_fill_continuous(low = "red", high = "blue", guide = guide_colorbar(reverse = TRUE)) +
+                                mtopen +
+                                theme(axis.text.y = element_text(colour = "black")) +
+                                ylab(NULL)+ guides(fill=guide_legend(title="Signed \n-log10(p.adjust)")) + labs(caption = contrast_label_map %>% filter(contrast == contrast) %$% label)
+
+                            mysaveandstore(sprintf("%s/%s/gsea/%s/dot%s.pdf", params[["outputdir"]], contrast, collection, num), w = 7.5, h = min(num, 10), res = 300)
+                        
                         }
                     },
                     error = function(e) {
@@ -135,8 +132,9 @@ for (contrast in params[["contrasts"]]) {
 
                 tryCatch(
                     {
-                        p <- gseaplot2(gse, geneSetID = "SAUL_SEN_MAYO", pvalue_table = TRUE, subplots = 1:2, ES_geom = "line")
-                        mysaveandstore(sprintf("%s/%s/gsea/%s/senmayo_gsea.pdf", params[["outputdir"]], contrast, collection), w = 8, h = 3, res = 300)
+                        for (genesetid in conf$genesets_for_gseaplot)
+                        p <- gseaplot2(gse, geneSetID = genesetid, pvalue_table = TRUE, subplots = 1:2, ES_geom = "line")
+                        mysaveandstore(sprintf("%s/%s/gsea/%s_gsea.pdf", params[["outputdir"]], contrast, genesetid), w = 8, h = 3, res = 300)
                     },
                     error = function(e) {
                         print("")
@@ -150,7 +148,6 @@ for (contrast in params[["contrasts"]]) {
     }
 }
 
-contrast_label_map <- tibble(contrast = params[["contrasts"]], label = gsub("constrast_", "", params[["contrasts"]]))
 gres <- gse_df %>% tibble()
 for (collec in genecollections) {
     grestemp <- gres %>% filter(collection == collec) %>% left_join(contrast_label_map)
@@ -171,11 +168,11 @@ for (collec in genecollections) {
     mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/gsea_top_%s_grid.pdf", collec), 7,12)
 }
 for (collec in genecollections) {
-    grestemp <- gres %>% filter(collection == collec) %>% left_join(contrast_label_map)
+    grestemp <- gres %>% filter(collection == collec)
     sigIDs <- grestemp %>% group_by(contrast) %>% arrange(p.adjust) %>% slice_head(n = 10) %$% ID %>% unique()
     p <- grestemp %>% dplyr::filter(ID %in% sigIDs) %>% mutate(sig = ifelse(p.adjust < 0.05, "*", "")) %>%
         mutate(ID = str_wrap(as.character(ID) %>% gsub("_", " ", .), width = 40)) %>%
-        mutate(label = str_wrap(as.character(label) %>% gsub("condition_", "", .) %>% gsub("_vs_.*", "", .), width = 40)) %>%
+        mutate(label = str_wrap(as.character(contrast) %>% gsub("condition_", "", .) %>% gsub("_vs_.*", "", .), width = 40)) %>%
         mutate(label = factor(label, levels = conf$levels)) %>%
         ggplot(aes(x = label, y = ID)) + 
         geom_point(aes(color = NES, size = abs(NES))) + 
@@ -237,11 +234,12 @@ for (contrast in params[["contrasts"]]) {
                 }
             )
 
-            all_genes_in_set <- read.gmt(params[["genesets_for_gsea"]][[collec]]) %$% gene
-            pvppres <- res %>% filter(gene_id %in% all_genes_in_set) %>% mutate(logpadj = -log10(!!sym(contrast_padj)))
+            all_genes_in_set <- read.gmt(params[["collections_for_gsea"]][[collection]]) %>% filter(term == geneset) %$% gene
+            pvppres <- res %>% filter(gene_id %in% all_genes_in_set) %>% mutate(logpadj = ifelse(-log10(!!sym(contrast_padj)) > 100, 100,-log10(!!sym(contrast_padj)) ))
+            pvppres %$% logpadj
             pvprestopsig <- pvppres %>% arrange(-abs(!!sym(contrast_l2fc))) %>% slice_head(n = 15) %$% gene_id
-            p <- pvppres %>% ggscatter(x = contrast_l2fc, y = "logpadj", label = "gene_id", shape = 1, label.select = pvprestopsig, repel = TRUE) + mtclosed +
-                labs(title = set_title, x = "log2fc", y = "-log10(padj)", subtitle = contrast_string) + scale_palette
+            p <- pvppres  %>% ggscatter(x = contrast_l2fc, y = "logpadj", label = "gene_id", shape = 1, label.select = pvprestopsig, repel = TRUE) + mtclosed +
+                labs(title = set_title, x = "log2fc", y = "-log10(padj)", subtitle = contrast_string) + scale_palette + scale_y_continuous(expand = expansion(mult = c(0, .075)))
             mysaveandstore(sprintf("%s/%s/gsea/%s/all_genes/scatter_%s.pdf", params[["outputdir"]], contrast, collec, set_title), w = 6, h = 6, res = 300)
 
 
@@ -402,7 +400,7 @@ for (geneset in names(params[["genesets_for_heatmaps"]])) {
 
 
 # GSEA untargeted 
-gene_sets = msigdbr(species = "human")
+gene_sets = msigdbr(species = confALL$aref$species)
 rm(gse_df)
 for (contrast in params[["contrasts"]]) {
     # PREP RESULTS FOR GSEA
@@ -431,40 +429,44 @@ for (contrast in params[["contrasts"]]) {
                     gse_df <<- rbind(gse_df, df)
                 }
                 genesettheme <- theme_gray() + theme(axis.text.x = element_text(colour = "black"), axis.text.y = element_text(colour = "black"))
-                p <- dotplot(gse, showCategory = 20) + ggtitle(paste("GSEA", contrast, sep = " ")) + genesettheme + mtopen
-                mysaveandstore(sprintf("%s/%s/gsea/%s/dotplot.pdf", params[["outputdir"]], contrast, collection), w = 6, h = 6, res = 300)
-
-                p <- cnetplot(gse, foldChange = ordered_by_l2fc, cex_label_category = 2)
-                mysaveandstore(sprintf("%s/%s/gsea/%s/cnetplot.pdf", params[["outputdir"]], contrast, collection), w = 10, h = 9, res = 300)
-
-                p <- cnetplot(gse, foldChange = ordered_by_l2fc, cex_label_category = 2, circular = TRUE, colorEdge = TRUE)
-                mysaveandstore(sprintf("%s/%s/gsea/%s/cnetplot2.pdf", params[["outputdir"]], contrast, collection), w = 10, h = 9, res = 300)
-
-                p <- ridgeplot(gse) + ggtitle(paste("GSEA", contrast, sep = " ")) + genesettheme + mtopen
-                mysaveandstore(sprintf("%s/%s/gsea/%s/ridgeplot.pdf", params[["outputdir"]], contrast, collection), w = 6, h = 6, res = 300)
-
-                gsep <- pairwise_termsim(gse)
-                p <- emapplot(gsep, color = "enrichmentScore", showCategory = 20, layout = "nicely") + ggtitle(paste("GSEA", contrast, sep = " "))
-                mysaveandstore(sprintf("%s/%s/gsea/%s/network.pdf", params[["outputdir"]], contrast, collection), w = 10, h = 9, res = 300)
-
 
                 tryCatch(
                     {
                         for (num in c(5, 10, 15)) {
-                            df <- arrange(gse, -abs(NES)) %>%
+                            df <- arrange(df, -abs(NES)) %>%
                                 group_by(sign(NES)) %>%
                                 slice(1:num)
-                            df <- df@result %>% mutate(Description = str_wrap(as.character(Description) %>% gsub("_", " ", .), width = 40)) 
-
+                            df <- df %>% mutate(Description = str_wrap(as.character(Description) %>% gsub("_", " ", .), width = 40)) 
+                            df <- df %>% mutate(`Gene Ratio` = 0.01 * as.numeric(gsub("%", "", gsub(",.*", "", gsub("tags=", "", leading_edge)))))
                             p <- ggplot(df, aes(NES, fct_reorder(Description, NES), fill = p.adjust)) +
                                 geom_col(orientation = "y") +
                                 scale_fill_continuous(low = "red", high = "blue", guide = guide_colorbar(reverse = TRUE)) +
                                 mtopen +
                                 theme(axis.text.y = element_text(colour = "black")) +
-                                ylab(NULL)
+                                ylab(NULL)+ labs(caption = contrast_label_map %>% filter(contrast == contrast) %$% label)
 
                             mysaveandstore(sprintf("%s/%s/gsea/%s/nes%s.pdf", params[["outputdir"]], contrast, collection, num), w = 8, h = min(num, 7), res = 300)
+                        
+                            p <- ggplot(df, aes(`Gene Ratio`, fct_reorder(Description, `Gene Ratio`), fill = -log10(p.adjust)*`sign(NES)`)) +
+                                geom_col(orientation = "y") +
+                                scale_fill_continuous(low = "red", high = "blue", guide = guide_colorbar(reverse = TRUE)) +
+                                mtopen +
+                                theme(axis.text.y = element_text(colour = "black")) +
+                                ylab(NULL)+ guides(fill=guide_legend(title="Signed \n-log10(p.adjust)")) + labs(caption = contrast_label_map %>% filter(contrast == contrast) %$% label)
+
+                            mysaveandstore(sprintf("%s/%s/gsea/%s/dot%s.pdf", params[["outputdir"]], contrast, collection, num), w = 7.5, h = min(num, 10), res = 300)
                         }
+                    },
+                    error = function(e) {
+                        print("")
+                    }
+                )
+                
+                tryCatch(
+                    {
+                        for (genesetid in conf$genesets_for_gseaplot)
+                        p <- gseaplot2(gse, geneSetID = genesetid, pvalue_table = TRUE, subplots = 1:2, ES_geom = "line")
+                        mysaveandstore(sprintf("%s/%s/gsea/%s_gsea.pdf", params[["outputdir"]], contrast, genesetid), w = 8, h = 3, res = 300)
                     },
                     error = function(e) {
                         print("")
@@ -504,10 +506,11 @@ for (contrast in params[["contrasts"]]) {
                 filter(sample_name %in% sample_vec) %>%
                 pull(condition)
 
-            pvppres <- res %>% filter(gene_id %in% genestoplot) %>% mutate(logpadj = -log10(!!sym(contrast_padj)))
+            pvppres <- res %>% filter(gene_id %in% genestoplot) %>% mutate(logpadj = ifelse(-log10(!!sym(contrast_padj)) > 100, 100,-log10(!!sym(contrast_padj)) ))
+            pvppres %$% logpadj
             pvprestopsig <- pvppres %>% arrange(-abs(!!sym(contrast_l2fc))) %>% slice_head(n = 15) %$% gene_id
             p <- pvppres %>% ggscatter(x = contrast_l2fc, y = "logpadj", label = "gene_id", shape = 1, label.select = pvprestopsig, repel = TRUE) + mtclosed +
-                labs(title = set_title, x = "log2fc", y = "-log10(padj)", subtitle = contrast_string) + scale_palette
+                labs(title = set_title, x = "log2fc", y = "-log10(padj)", subtitle = contrast_string) + scale_palette + scale_y_continuous(expand = expansion(mult = c(0, .075)))
             mysaveandstore(sprintf("%s/%s/gsea/%s/core_enrichments/scatter_%s.pdf", params[["outputdir"]], contrast, collection, set_title), w = 6, h = 6, res = 300)
 
 
@@ -558,6 +561,26 @@ for (contrast in params[["contrasts"]]) {
             mysaveandstore(sprintf("%s/%s/gsea/%s/core_enrichments/heatmap_%s.pdf", params[["outputdir"]], contrast, collection, set_title), w = min(dim(scaledm)[2], 12), h = min(dim(scaledm)[1], 12), res = 300)
         }
     }
+}
+
+gres <- gse_df %>% tibble()
+for (collec in gse_df %$% collection %>% unique()) {
+    grestemp <- gres %>% filter(collection == collec)
+    sigIDs <- grestemp %>% group_by(contrast) %>% arrange(p.adjust) %>% slice_head(n = 10) %$% ID %>% unique()
+    p <- grestemp %>% dplyr::filter(ID %in% sigIDs) %>% mutate(sig = ifelse(p.adjust < 0.05, "*", "")) %>%
+        mutate(ID = str_wrap(as.character(ID) %>% gsub("_", " ", .), width = 40)) %>%
+        mutate(label = str_wrap(as.character(contrast) %>% gsub("condition_", "", .) %>% gsub("_vs_.*", "", .), width = 40)) %>%
+        mutate(label = factor(label, levels = conf$levels)) %>%
+        ggplot(aes(x = label, y = ID)) + 
+        geom_tile(aes(fill = NES), color = "black") + 
+        theme(legend.position = "none") + 
+        scale_fill_paletteer_c("grDevices::RdYlBu", direction = -1) + 
+        mtclosed + 
+        theme(axis.text.x = element_text(colour = "black"), axis.text.y = element_text(colour = "black", hjust = 1)) +
+        labs(x = "", y = "", title = collec) +
+        theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+        coord_equal()
+    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/gsea_top_%s_grid.pdf", collec), 7,12)
 }
 
 save(mysaveandstoreplots, file = outputs$plots)

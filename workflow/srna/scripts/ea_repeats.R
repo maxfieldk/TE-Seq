@@ -41,7 +41,7 @@ library(ComplexHeatmap)
                 "contrasts" = conf$contrasts,
                 "SenMayoHuman" = conf$SenMayoHuman,
                 "genesets_for_heatmaps" = conf$genesets_for_heatmaps,
-                "genesets_for_gsea" = conf$genesets_for_gsea,
+                "collections_for_gsea" = conf$collections_for_gsea,
                 "inputdir" = "srna/results/agg/deseq_telescope",
                 "outputdir" = "srna/results/agg/enrichment_analysis_repeats/telocal_multi",
                 "r_annotation_fragmentsjoined" = conf$r_annotation_fragmentsjoined,

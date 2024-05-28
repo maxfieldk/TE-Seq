@@ -29,7 +29,7 @@ library(ggmsa)
 library(gggenes)
 library(ggnewscale)
 library(RColorBrewer)
-library(ggsankey)
+# library(ggsankey)
 library(circlize)
 
 tryCatch(
@@ -145,36 +145,36 @@ sankey_df <- tibble(
 ) %>%
     make_long(`Non_reference_L1TA`, `3_Prime_Transduction`, `AT_content`, `Adjacent_Source_Element`)
 
-{
-p <- ggplot(sankey_df, aes(x = x, next_x = next_x, node = node, next_node = next_node, fill = factor(node), label = node)) +
-  geom_sankey(flow.alpha = .6,
-              node.color = "gray30") +
-  geom_sankey_label(size = 3, color = "white", fill = "gray40") +
-  scale_fill_viridis_d(drop = FALSE) +
-  theme_sankey(base_size = 12) +
-  labs(x = NULL, y = NULL) +
-  theme(legend.position = "none",
-        plot.title = element_text(hjust = .5)) +
-  ggtitle("Non-Ref L1TA Transduction Mapping") 
+# {
+# p <- ggplot(sankey_df, aes(x = x, next_x = next_x, node = node, next_node = next_node, fill = factor(node), label = node)) +
+#   geom_sankey(flow.alpha = .6,
+#               node.color = "gray30") +
+#   geom_sankey_label(size = 3, color = "white", fill = "gray40") +
+#   scale_fill_viridis_d(drop = FALSE) +
+#   theme_sankey(base_size = 12) +
+#   labs(x = NULL, y = NULL) +
+#   theme(legend.position = "none",
+#         plot.title = element_text(hjust = .5)) +
+#   ggtitle("Non-Ref L1TA Transduction Mapping") 
 
-flow_labels <- sankey_df %>% group_by(x, node, next_x, next_node) %>% tally() %>% drop_na()
-# get corresponding positions of flows from the sankey plot
-flow_info <- layer_data(p) %>% select(xmax, flow_start_ymax, flow_start_ymin) %>% distinct() # get flow related key positions related from the plot
-flow_info <- flow_info[with(flow_info, order(xmax, flow_start_ymax)), ] # order the positions to match the order of flow_labels
-rownames(flow_info) <- NULL # drop the row indexes
-flow_info <- cbind(as.data.frame(flow_info), as.data.frame(flow_labels)) # bind the flow positions and the corresponding labels
+# flow_labels <- sankey_df %>% group_by(x, node, next_x, next_node) %>% tally() %>% drop_na()
+# # get corresponding positions of flows from the sankey plot
+# flow_info <- layer_data(p) %>% select(xmax, flow_start_ymax, flow_start_ymin) %>% distinct() # get flow related key positions related from the plot
+# flow_info <- flow_info[with(flow_info, order(xmax, flow_start_ymax)), ] # order the positions to match the order of flow_labels
+# rownames(flow_info) <- NULL # drop the row indexes
+# flow_info <- cbind(as.data.frame(flow_info), as.data.frame(flow_labels)) # bind the flow positions and the corresponding labels
 
-# add labels to the flows
-for (i in 1:nrow(flow_info)){
-   p <- p + annotate("text", x = flow_info$xmax[i] + 0.1,
-                       y = (flow_info$flow_start_ymin[i] + flow_info$flow_start_ymax[i])/2,
-                       label = sprintf("%d", flow_info$n[i]), hjust = -1,
-                       size = 3
-                       )
- }
+# # add labels to the flows
+# for (i in 1:nrow(flow_info)){
+#    p <- p + annotate("text", x = flow_info$xmax[i] + 0.1,
+#                        y = (flow_info$flow_start_ymin[i] + flow_info$flow_start_ymax[i])/2,
+#                        label = sprintf("%d", flow_info$n[i]), hjust = -1,
+#                        size = 3
+#                        )
+#  }
 
-mysaveandstore(sprintf("%s/transduction_sankey.pdf", outputdir), 7, 5)
-}
+# mysaveandstore(sprintf("%s/transduction_sankey.pdf", outputdir), 7, 5)
+# }
 
 
 

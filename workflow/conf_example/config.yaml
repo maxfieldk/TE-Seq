@@ -139,15 +139,13 @@ srna:
   repeat_ontologies_to_scrutinize: #leave empty for all ontologies to be included
     - ""
 
-  genesets_for_gsea:
+  collections_for_gsea: #these are collections to be used in addition to the msigdb collections, and are meant to be specified as a path to a gmt file. They will be run separately from the msigdb collections, so this portion of the analysis is meant to be hypothesis based
     msigdbH: resources/genesets/human/msigdb/h.all.v2023.2.Hs.symbols.gmt
-    msigdbC2_CPG: resources/genesets/human/msigdb/c2.cgp.v2023.2.Hs.symbols.gmt
-    msigdbC2_CP: resources/genesets/human/msigdb/c2.cp.v2023.2.Hs.symbols.gmt
-    msigdbC3_TFT: resources/genesets/human/msigdb/c3.tft.v2023.2.Hs.symbols.gmt
-    msigdbC5_GO: resources/genesets/human/msigdb/c5.go.v2023.2.Hs.symbols.gmt
-    msigdbC2_CPG_SENMAYO: resources/genesets/human/msigdb/SAUL_SEN_MAYO.v2023.2.Hs.gmt
 
-  genesets_for_heatmaps:
+  genesets_for_gseaplot: #this needs to be a geneset present in one of the collections specified above, or found in the msigdb database
+    - "SAUL_SEN_MAYO"
+
+  genesets_for_heatmaps: #these are collections to be used in addition to the msigdb collections, and are meant to be specified as a path to a text file with newline delimited gene symbols. 
     Senescence: resources/genesets/human/mycustom/senescence.txt
     InflammatoryGenes: resources/genesets/human/mycustom/inflammatory.txt
 
@@ -286,7 +284,7 @@ lrna:
     SEN: "#F39B7FFF"
     PRO: "#3C5488FF"
 
-  genesets_for_gsea:
+  collections_for_gsea:
     msigdbH: resources/genesets/human/msigdb/h.all.v2023.2.Hs.symbols.gmt
     msigdbC2_CPG: resources/genesets/human/msigdb/c2.cgp.v2023.2.Hs.symbols.gmt
     msigdbC2_CP: resources/genesets/human/msigdb/c2.cp.v2023.2.Hs.symbols.gmt

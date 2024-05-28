@@ -387,7 +387,7 @@ rule repeatmasker:
         runtime = 1200,
         mem_mb = 50000
     conda:
-        "repeatmasker"
+        "rmtest"
     shell:
         """
 mkdir -p $(dirname {output})

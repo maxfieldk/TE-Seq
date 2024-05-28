@@ -155,10 +155,5 @@ hit_resdf <- tibble(
 
 
 
-png("ztemp.png", width = 10, height = 10, units = "in", res = 300)
-plot(pt1)
-dev.off()
-
-
 pt <- permTest(A=my.regions, B=repeats, randomize.function=randomizeRegions,
 evaluate.function=numOverlaps)

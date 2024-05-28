@@ -42,7 +42,7 @@ library(ggpubr)
                 "contrasts" = conf$contrasts,
                 "SenMayoHuman" = conf$SenMayoHuman,
                 "genesets_for_heatmaps" = conf$genesets_for_heatmaps,
-                "genesets_for_gsea" = conf$genesets_for_gsea,
+                "collections_for_gsea" = conf$collections_for_gsea,
                 "inputdir" = "lrna/results/agg/deseq2/featurecounts_genes",
                 "outputdir" = "lrna/results/agg/enrichment_analysis"
             ), env = globalenv())
@@ -70,7 +70,7 @@ res %>%
 
 
 # GSEA targeted
-genecollections <- names(params[["genesets_for_gsea"]])
+genecollections <- names(params[["collections_for_gsea"]])
 rm(gse_df)
 for (contrast in params[["contrasts"]]) {
     # PREP RESULTS FOR GSEA
@@ -84,7 +84,7 @@ for (contrast in params[["contrasts"]]) {
     for (collection in genecollections) {
 tryCatch(
             {
-        genesets <- read.gmt(params[["genesets_for_gsea"]][[collection]])
+        genesets <- read.gmt(params[["collections_for_gsea"]][[collection]])
         gse <- GSEA(ordered_by_stat, TERM2GENE = genesets, maxGSSize = 100000, minGSSize = 1)
         df <- gse@result %>% tibble()
                 df$collection <- collection
@@ -240,7 +240,7 @@ contrast_string <- gsub("condition_", "", contrast) %>% str_replace_all("_vs_", 
                 }
             )
 
-            all_genes_in_set <- read.gmt(params[["genesets_for_gsea"]][[collec]]) %$% gene
+            all_genes_in_set <- read.gmt(params[["collections_for_gsea"]][[collec]]) %$% gene
             pvppres <- res %>% filter(gene_id %in% all_genes_in_set) %>% mutate(logpadj = -log10(!!sym(contrast_padj)))
             pvprestopsig <- pvppres %>% arrange(-abs(!!sym(contrast_l2fc))) %>% slice_head(n = 15) %$% gene_id
             p <- pvppres %>% ggscatter(x = contrast_l2fc, y = "logpadj", label = "gene_id", shape = 1, label.select = pvprestopsig, repel = TRUE) + mtclosed +
