@@ -15,6 +15,7 @@ rule dorado:
         type = "[0-9A-Za-z]+",
         rate = "[0-9A-Za-z]+",
         modification_string = "[0-9A-Za-z_-]+"
+    container: None
     params:
         dorado = config["ldna"]["dorado"],
         reference = config["ldna"]["reference"]

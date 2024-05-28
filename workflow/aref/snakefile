@@ -102,6 +102,7 @@ rule dorado:
         type = "[0-9A-Za-z]+",
         rate = "[0-9A-Za-z]+",
         modifications_string = "[0-9A-Za-z_-]+"
+    container: None
     params:
         dorado = config["dorado"],
         basecallingModel = lambda w: config["basecallingModel"][w.rate][w.type],
@@ -397,8 +398,8 @@ RepeatMasker -species {params.species} -pa {resources.cpus_per_task} -gff {input
 rule getGtfs:
     input:
         rmout = "aref/A.REF_repeatmasker/{sample_or_ref}-pre-ins-filtering_nonrefcontigs.fa.out",
-        rmref = config["starting_ref_repeatmasker"]
     params:
+        rmref = config["starting_ref_repeatmasker"],
         module_prefix = config["prefix"]
     output:
        ref = "aref/A.REF_repeatmasker/{sample_or_ref}_repeatmasker_ref_raw.gtf",
@@ -409,7 +410,7 @@ rule getGtfs:
     shell:
         """
 workflow/{params.module_prefix}/scripts/outToGtf.sh {input.rmout} {output.nonref}
-workflow/{params.module_prefix}/scripts/outToGtf.sh {input.rmref} {output.ref}
+workflow/{params.module_prefix}/scripts/outToGtf.sh {params.rmref} {output.ref}
 cat {output.ref} {output.nonref} > {output.merged}
         """
 
