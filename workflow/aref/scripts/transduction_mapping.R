@@ -132,18 +132,18 @@ trsd_adjacent_l1 <- subsetByOverlaps(bresgrs, l1grs)
 
 
 
-`NON_REF L1TA` <- ifelse(l1ta_sankey %in% l1ta_sankey, "NON-REF L1TA", "FAIL")
-`3' Tsd` <- ifelse(l1ta_sankey %in% trsd_sankey, "PASS", "FAIL")
-`AT content < 0.9` <- ifelse(l1ta_sankey %in% trsd_ss_for_blast_sankey, "PASS", "FAIL")
-`Source Element Identified` <- ifelse(l1ta_sankey %in% trsd_adjacent_l1_sankey, "PASS", "FAIL")
+# `NON_REF L1TA` <- ifelse(l1ta_sankey %in% l1ta_sankey, "NON-REF L1TA", "FAIL")
+# `3' Tsd` <- ifelse(l1ta_sankey %in% trsd_sankey, "PASS", "FAIL")
+# `AT content < 0.9` <- ifelse(l1ta_sankey %in% trsd_ss_for_blast_sankey, "PASS", "FAIL")
+# `Source Element Identified` <- ifelse(l1ta_sankey %in% trsd_adjacent_l1_sankey, "PASS", "FAIL")
 
-sankey_df <- tibble(
-    `Non_reference_L1TA` = `NON_REF L1TA`,
-    `3_Prime_Transduction` = `3' Tsd`,
-    `AT_content` = `AT content < 0.9`,
-    `Adjacent_Source_Element` = `Source Element Identified`
-) %>%
-    make_long(`Non_reference_L1TA`, `3_Prime_Transduction`, `AT_content`, `Adjacent_Source_Element`)
+# sankey_df <- tibble(
+#     `Non_reference_L1TA` = `NON_REF L1TA`,
+#     `3_Prime_Transduction` = `3' Tsd`,
+#     `AT_content` = `AT content < 0.9`,
+#     `Adjacent_Source_Element` = `Source Element Identified`
+# ) %>%
+#     make_long(`Non_reference_L1TA`, `3_Prime_Transduction`, `AT_content`, `Adjacent_Source_Element`)
 
 # {
 # p <- ggplot(sankey_df, aes(x = x, next_x = next_x, node = node, next_node = next_node, fill = factor(node), label = node)) +

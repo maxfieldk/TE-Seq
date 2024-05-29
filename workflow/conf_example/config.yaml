@@ -30,7 +30,6 @@ aref:
   starting_ref_repeatmasker: ../genome_files/repeatmasker.ucsc.out
   ref_refseq_gtf: ../genome_files/refseq.sorted.ucsc.gtf
   ref_refseq_gff3: ../genome_files/refseq.sorted.ucsc.gff3
-  repeatmaskerpath: /oscar/data/jsedivy/mkelsey/tools/RepeatMasker/RepeatMasker
 
   #PIPELINE INCLUDED ANNOTATIONS FOR T2T-HS1 genome - LEAVE PATHS UNCHANGED OR CHANGE AS NEEDED
   ref_cytobands: resources/genomes/hs1/annotations/chm13v2.0_cytobands_allchrs.bed

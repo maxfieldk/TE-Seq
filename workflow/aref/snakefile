@@ -1,4 +1,4 @@
-container: "docker://maxfieldkelsey/pipelinertedocker"
+container: "docker://maxfieldkelsey/pipelinertedocker:v0.2"
 import os
 import pandas as pd
 import csv
@@ -379,7 +379,6 @@ rule repeatmasker:
     input:
         fasta = repeatmasker_input
     params:
-        repeatmaskerpath = config["repeatmaskerpath"],
         species = config["species"]
     output:
         rmout = "aref/A.REF_repeatmasker/{sample_or_ref}-pre-ins-filtering_nonrefcontigs.fa.out"
