@@ -767,7 +767,7 @@ STAR --runThreadN  30 --runMode genomeGenerate --genomeDir $(dirname {output.out
 touch {output.outfile}
         """
 
-rule cpgIslandFun:
+rule cpgIsland:
     params:
         ref_cpgislands = config["ref_cpgislands"]
     output:
@@ -782,28 +782,19 @@ rule cpgIslandFun:
     conda:
         "ds"
     script:
-        "scripts/cpgIslandFun.R"
+        "scripts/cpgIsland.R"
 
 rule copySelectAnnotations:
     params:
         ref_cytobands = config["ref_cytobands"],
         ref_telomere = config["ref_telomere"],
-        ref_ccres = config["ref_ccres"],
-        ref_clinvar_bgz = config["ref_clinvar_bgz"],
-        ref_clinvar_tbi = config["ref_clinvar_tbi"]
     output:
         ref_cytobands = "aref/A.REF_annotations/cytobands.bed",
         ref_telomere = "aref/A.REF_annotations/telomeres.bed",
-        ref_ccres = "aref/A.REF_annotations/ccres.bed",
-        ref_clinvar_bgz = "aref/A.REF_annotations/clinvar.vcf.gz",
-        ref_clinvar_tbi = "aref/A.REF_annotations/clinvar.vcf.gz.tbi"
     shell:
         """
 cp {params.ref_cytobands} {output.ref_cytobands}
 cp {params.ref_telomere} {output.ref_telomere}
-cp {params.ref_ccres} {output.ref_ccres}
-cp {params.ref_clinvar_bgz} {output.ref_clinvar_bgz}
-cp {params.ref_clinvar_tbi} {output.ref_clinvar_tbi}
         """
 
 

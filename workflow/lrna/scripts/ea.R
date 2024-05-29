@@ -47,7 +47,7 @@ library(ggpubr)
                 "outputdir" = "lrna/results/agg/enrichment_analysis"
             ), env = globalenv())
             assign("inputs", list(
-                resultsdf = paste0("lrna/results/agg/deseq_telescope/resultsdf.tsv")
+                resultsdf = paste0("lrna/results/agg/deseq/resultsdf.tsv")
             ), env = globalenv())
             assign("outputs", list(outfile = "lrna/results/agg/enrichment_analysis/outfile.txt"), env = globalenv())
         }

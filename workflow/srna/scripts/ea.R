@@ -49,7 +49,7 @@ library(ggpubr)
                 "outputdir" = "srna/results/agg/enrichment_analysis"
             ), env = globalenv())
             assign("inputs", list(
-                resultsdf = paste0("srna/results/agg/deseq_telescope/resultsdf.tsv")
+                resultsdf = paste0("srna/results/agg/deseq/resultsdf.tsv")
             ), env = globalenv())
             assign("outputs", list(outfile = "srna/results/agg/enrichment_analysis/outfile.txt"), env = globalenv())
         }
@@ -461,7 +461,7 @@ for (contrast in params[["contrasts"]]) {
                         print("")
                     }
                 )
-                
+
                 tryCatch(
                     {
                         for (genesetid in conf$genesets_for_gseaplot)

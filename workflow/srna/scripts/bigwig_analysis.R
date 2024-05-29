@@ -42,12 +42,11 @@ tryCatch(
     error = function(e) {
         print("not sourced snake variables")
         assign("params", list(
-            "inputdir" = "srna/results/agg/deseq_telescope",
+            "inputdir" = "srna/results/agg/deseq",
             "outputdir" = "srna/results/agg/repeatanalysis_telescope",
             "r_annotation_fragmentsjoined" = conf$r_annotation_fragmentsjoined,
             "r_repeatmasker_annotation" = conf$r_repeatmasker_annotation,
-            txdbrefseq = "aref/A.REF_annotations/refseq.sqlite",
-            tecounttype = "telescope_multi"
+            txdbrefseq = "aref/A.REF_annotations/refseq.sqlite"        
         ), env = globalenv())
         assign("inputs", list(
             bwF = sprintf("srna/outs/%s/star_output/%s.%s.F.bw", conf$samples, conf$samples, "telescope_multi"),
@@ -61,7 +60,6 @@ tryCatch(
 
 outputdir <- params$outputdir
 contrasts <- conf$contrasts
-tecounttype = params$tecounttype
 
 r_annotation_fragmentsjoined <- read_csv(params$r_annotation_fragmentsjoined)
 r_repeatmasker_annotation <- read_csv(params$r_repeatmasker_annotation)
@@ -100,8 +98,8 @@ table(mcols(coding_transcripts)$tag)
 }
 
 
-paths_bwF <- grep(tecounttype, inputs$bwF, value = TRUE)
-paths_bwR <- grep(tecounttype, inputs$bwR, value = TRUE)
+paths_bwF <- inputs$bwF
+paths_bwR <- inputs$bwR
 
 groups_that_have_been_run <- c()
 groups_not_to_run <- c()
@@ -216,7 +214,7 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
                             p <- p1
                         }
 
-                        mysaveandstore(sprintf("srna/results/agg/bigwig_plots/%s/rte/%s_profile_by_sample.pdf",tecounttype,  signal_group), 8,6)
+                        mysaveandstore(sprintf("srna/results/agg/bigwig_plots/rte/%s_profile_by_sample.pdf",  signal_group), 8,6)
 
                         p1 <- pf %>% group_by(x) %>% summarise(value = mean(value, na.rm = TRUE)) %>% ungroup() %>%
                             ggplot(aes(x = x, y = value)) + geom_line() + mtclosed + scale_samples + labs(x = "Position (bp)", y = "Read Density", caption = "Multi")
@@ -226,7 +224,7 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
                         } else {
                             p <- p1
                         }
-                        mysaveandstore(sprintf("srna/results/agg/bigwig_plots/%s/rte/%s_profile_all.pdf",tecounttype,  signal_group))
+                        mysaveandstore(sprintf("srna/results/agg/bigwig_plots/rte/%s_profile_all.pdf",  signal_group))
 
                         p1 <- pf1%>%
                             ggplot(aes(x = x, y = condition_value, color = condition)) + geom_line() + mtclosed + scale_conditions + labs(x = "Position (bp)", y = "Read Density", caption = "Multi")
@@ -236,7 +234,7 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
                         } else {
                             p <- p1
                         }
-                        mysaveandstore(sprintf("srna/results/agg/bigwig_plots/%s/rte/%s_profile_by_condition.pdf",tecounttype,  signal_group),6,4)
+                        mysaveandstore(sprintf("srna/results/agg/bigwig_plots/rte/%s_profile_by_condition.pdf",  signal_group),6,4)
 
 
                         p1 <- pfStranded %>%
@@ -248,7 +246,7 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
                         } else {
                             p <- p1
                         }
-                        mysaveandstore(sprintf("srna/results/agg/bigwig_plots/%s/rte/%s_profile_by_sample_stranded.pdf",tecounttype, signal_group), 8,6)
+                        mysaveandstore(sprintf("srna/results/agg/bigwig_plots/rte/%s_profile_by_sample_stranded.pdf", signal_group), 8,6)
 
                         p1 <- pfStranded %>% group_by(x, strand) %>% summarise(value = mean(value, na.rm = TRUE)) %>% ungroup() %>%
                             ggplot(aes(x = x, y = value)) + geom_line() + facet_wrap(~strand, nrow = 2) + mtclosed + scale_samples + labs(x = "Position (bp)", y = "Read Density", caption = "Multi")
@@ -258,7 +256,7 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
                         } else {
                             p <- p1
                         }
-                        mysaveandstore(sprintf("srna/results/agg/bigwig_plots/%s/rte/%s_profile_all_stranded.pdf",tecounttype,  signal_group), 6,6)
+                        mysaveandstore(sprintf("srna/results/agg/bigwig_plots/rte/%s_profile_all_stranded.pdf",  signal_group), 6,6)
 
                         p1 <- pfStranded1 %>%
                             ggplot(aes(x = x, y = condition_value, color = condition)) + geom_line() + facet_wrap(~strand, nrow = 2) + mtclosed + scale_conditions + labs(x = "Position (bp)", y = "Read Density", caption = "Multi")
@@ -268,7 +266,7 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
                         } else {
                             p <- p1
                         }
-                        mysaveandstore(sprintf("srna/results/agg/bigwig_plots/%s/rte/%s_profile_by_condition_stranded.pdf", tecounttype, signal_group), 6,6)
+                        mysaveandstore(sprintf("srna/results/agg/bigwig_plots/rte/%s_profile_by_condition_stranded.pdf", signal_group), 6,6)
                         }
 
                     })
@@ -330,10 +328,10 @@ pf <- region_annot1 %>% group_by(sample_name, loc_integrative) %>% summarise(sco
 barframe <- pf %>% group_by(condition, loc_integrative) %>% summarise(score_condition_mean = mean(score_sum)) 
 
 p<- pf %>% ggplot(aes(x = loc_integrative, y = score_sum, fill = sample_name)) + geom_col(position = position_dodge(preserve = "single")) + scale_samples_unique + mtopen + anchorbar
-mysaveandstore(sprintf("srna/results/agg/bigwig_plots/%s/genomic_context/gene_oriented_signal.pdf", tecounttype), 12,5)
+mysaveandstore(sprintf("srna/results/agg/bigwig_plots/genomic_context/gene_oriented_signal.pdf"), 12,5)
 
 p<- pf %>% ggplot(aes(x = sample_name, y = score_sum, fill = sample_name)) + geom_col(position = position_dodge(preserve = "single")) +
     facet_wrap(~loc_integrative, scale = "free_y") + scale_samples_unique + mtclosed + anchorbar + theme(axis.text.x = element_blank())
-mysaveandstore(sprintf("srna/results/agg/bigwig_plots/%s/genomic_context/gene_oriented_signal_faceted.pdf", tecounttype), 12,5)
+mysaveandstore(sprintf("srna/results/agg/bigwig_plots/genomic_context/gene_oriented_signal_faceted.pdf"), 12,5)
 
 save(mysaveandstoreplots, file = outputs$plots)

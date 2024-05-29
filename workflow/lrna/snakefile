@@ -720,16 +720,16 @@ rule repeatanalysis_plots:
 
 
 def bigwig_sizefactor_input(wildcards):
-    sizefactor_path = "srna/results/agg/deseq_telescope/%s/sizefactors.csv"%(wildcards.tecounttype)
+    sizefactor_path = "srna/results/agg/deseq/%s/sizefactors.csv"%(wildcards.tecounttype)
     if not Path(sizefactor_path).exists():
         return "NA"
     else:
-        return 1/float(pd.read_csv("srna/results/agg/deseq_telescope/%s/sizefactors.csv"%(wildcards.tecounttype)).set_index("sample_name").loc[wildcards.sample, "sizefactor"])
+        return 1/float(pd.read_csv("srna/results/agg/deseq/%s/sizefactors.csv"%(wildcards.tecounttype)).set_index("sample_name").loc[wildcards.sample, "sizefactor"])
 
 # rule getBigWigF:
 #     input:
 #         sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.primary.bam",
-#         sizefactors = "srna/results/agg/deseq_telescope/{tecounttype}/sizefactors.csv",
+#         sizefactors = "srna/results/agg/deseq/{tecounttype}/sizefactors.csv",
 #     params:
 #         sample_size_factor = bigwig_sizefactor_input
 #     output:
@@ -751,7 +751,7 @@ def bigwig_sizefactor_input(wildcards):
 # rule getBigWigR:
 #     input:
 #         sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.primary.bam",
-#         sizefactors = "srna/results/agg/deseq_telescope/relaxed/sizefactors.csv",
+#         sizefactors = "srna/results/agg/deseq/relaxed/sizefactors.csv",
 #     params:
 #         sample_size_factor = bigwig_sizefactor_input
 #     output:
