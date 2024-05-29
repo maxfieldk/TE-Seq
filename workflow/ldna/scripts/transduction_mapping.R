@@ -84,7 +84,7 @@ ann <- rmann %>% filter(refstatus == "NonRef")
 
 p <- ann %>% 
     ggplot(aes(x = sample_name)) +
-    facet_wrap(~rte_family, scales = "free", ncol = 3) +
+    facet_wrap(~rte_family, scales = "free", space = "free_x", ncol = 3) +
     geom_bar(aes(fill = req_integrative)) +
     labs(x = "", y = "Count") +
     paletteer::scale_fill_paletteer_d(conf$default_palette) +
@@ -94,7 +94,7 @@ mysaveandstore(sprintf("%s/insertions_by_family_req.pdf", outputdir), 10, 4)
 
 p <- ann %>%
     ggplot(aes(x = sample_name)) +
-    facet_wrap(~rte_family, scales = "free", ncol = 3) +
+    facet_wrap(~rte_family, scales = "free", space = "free_x", ncol = 3) +
     geom_bar(aes(fill = loc_integrative)) +
     labs(x = "", y = "Count") +
     paletteer::scale_fill_paletteer_d(conf$default_palette) +
@@ -104,7 +104,7 @@ mysaveandstore(sprintf("%s/insertions_by_family_loc.pdf", outputdir), 10, 4)
 
 p <- ann %>% filter(rte_family == "L1") %>%
     ggplot(aes(x = sample_name)) +
-    facet_wrap(~rte_subfamily, scales = "free", ncol = 3) +
+    facet_wrap(~rte_subfamily, scales = "free", space = "free_x", ncol = 3) +
     geom_bar(aes(fill = loc_integrative)) +
     labs(x = "", y = "Count") +
     paletteer::scale_fill_paletteer_d(conf$default_palette) +
@@ -114,7 +114,7 @@ mysaveandstore(sprintf("%s/l1_insertions_by_subfamily_loc.pdf", outputdir), 10, 
 
 p <- ann %>% filter(rte_family == "L1") %>%
     ggplot(aes(x = sample_name)) +
-    facet_wrap(~rte_subfamily, scales = "free", ncol = 3) +
+    facet_wrap(~rte_subfamily, scales = "free", space = "free_x", ncol = 3) +
     geom_bar(aes(fill = req_integrative)) +
     labs(x = "", y = "Count") +
     paletteer::scale_fill_paletteer_d(conf$default_palette) +

@@ -221,7 +221,7 @@ for (contrast in params[["contrasts"]]) {
                 mutate(sample_name = factor(sample_name, levels = conf$samples)) %>%
                 mutate(condition = factor(condition, levels = conf$levels))
             p <- barplotpf %>% ggbarplot(x = "condition", y = "counts", fill = "condition", add = c("mean_se", "dotplot"),
-                facet.by = "gene_id", scales = "free", ncol = 4) + 
+                facet.by = "gene_id", scales = "free", space = "free_x", ncol = 4) + 
             labs(title = set_title, x = element_blank()) + 
             mtclosedgridh + scale_conditions + anchorbar +
             theme(axis.text.x=element_blank(),axis.ticks.x=element_blank())
@@ -308,7 +308,7 @@ for (geneset in names(params[["genesets_for_heatmaps"]])) {
         mutate(condition = factor(condition, levels = conf$levels))
     p <- barplotpf %>% ggplot() + geom_bar(aes(x = sample_name, y = counts, fill = condition), stat = "identity") + 
     labs(title = set_title, x = element_blank()) + 
-    facet_wrap(~gene_id, ncol = 4, scales = "free") +
+    facet_wrap(~gene_id, ncol = 4, scales = "free", space = "free_x") +
     mtclosedgridh + scale_conditions + anchorbar +
     theme(axis.text.x=element_blank(),axis.ticks.x=element_blank())
     mysaveandstore(sprintf("%s/barplot_%s.pdf", params[["outputdir"]], set_title), 8, 2*round(ngenes/ncol))
