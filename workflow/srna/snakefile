@@ -23,7 +23,7 @@ paths = [
     "srna/outs/{sample}/trimmedReads",
     "srna/outs/{sample}/{counttype}",
     "srna/outs/agg/{counttype}",
-    "srna/results/agg/deseq_telescope/{tecounttype}/{contrast}",
+    "srna/results/agg/deseq/{tecounttype}/{contrast}",
     "srna/results/agg/repeatanalysis_telescope"
     ]
 for path in paths:
@@ -184,7 +184,7 @@ infer_experiment.py -r {params.gtf} -i {input.bam} > {output.librarytype}
 rule multiqc:
     input:
         bams = expand("srna/outs/{sample}/star_output/{sample}.sorted.bam.stats.txt", sample = samples),
-        deseq = expand("srna/results/agg/deseq_telescope/{tecounttype}/counttablesizenormed.csv", tecounttype = config["tecounttypes"])
+        deseq = expand("srna/results/agg/deseq/{tecounttype}/counttablesizenormed.csv", tecounttype = config["tecounttypes"])
     output:
         "srna/qc/multiqc/multiqc_report.html"
     conda:
@@ -410,7 +410,7 @@ samtools index {output.bam}
 #         "scripts/DESeq2.R"
 
 
-rule deseq_telescope:
+rule deseq:
     input:
         counts = "srna/outs/agg/featurecounts_genes/counts.txt",
         rte_counts = expand("srna/outs/{sample}/telescope/telescope-run_stats.tsv", sample = samples)
@@ -429,26 +429,26 @@ rule deseq_telescope:
     wildcard_constraints:
         tecounttype="[A-Za-z0-9_]+"
     output:
-        results_genes = expand("srna/results/agg/deseq_telescope/{{tecounttype}}/{contrast}/results_genes.csv", contrast = config["contrasts"]),
-        results_rtes = expand("srna/results/agg/deseq_telescope/{{tecounttype}}/{contrast}/results_rtes.csv", contrast = config["contrasts"]),
-        counts_normed = "srna/results/agg/deseq_telescope/{tecounttype}/counttablesizenormed.csv",
-        sizefactors = "srna/results/agg/deseq_telescope/{tecounttype}/sizefactors.csv",
-        plots = "srna/results/agg/deseq_telescope/{tecounttype}/deseq_plots.RData",
+        results_genes = expand("srna/results/agg/deseq/{{tecounttype}}/{contrast}/results_genes.csv", contrast = config["contrasts"]),
+        results_rtes = expand("srna/results/agg/deseq/{{tecounttype}}/{contrast}/results_rtes.csv", contrast = config["contrasts"]),
+        counts_normed = "srna/results/agg/deseq/{tecounttype}/counttablesizenormed.csv",
+        sizefactors = "srna/results/agg/deseq/{tecounttype}/sizefactors.csv",
+        plots = "srna/results/agg/deseq/{tecounttype}/deseq_plots.RData",
         report = report(
-            directory("srna/results/agg/deseq_telescope/{tecounttype}"),
+            directory("srna/results/agg/deseq/{tecounttype}"),
             patterns=["{gene_or_te}/{name}.png"],
             category="Differential Expression {tecounttype}",
             subcategory="{gene_or_te}")
     script:
-        "scripts/deseq_telescope.R"
+        "scripts/deseq.R"
 
 rule consolidateDeseqResults:
     input:
-        results = expand("srna/results/agg/deseq_telescope/{tecounttype}/{contrast}/results_rtes.csv", contrast = config["contrasts"], tecounttype = config["tecounttypes"]),
-        counts_normed = expand("srna/results/agg/deseq_telescope/{tecounttype}/counttablesizenormed.csv", tecounttype = config["tecounttypes"])
+        results = expand("srna/results/agg/deseq/{tecounttype}/{contrast}/results_rtes.csv", contrast = config["contrasts"], tecounttype = config["tecounttypes"]),
+        counts_normed = expand("srna/results/agg/deseq/{tecounttype}/counttablesizenormed.csv", tecounttype = config["tecounttypes"])
     params:
-        inputdir = "srna/results/agg/deseq_telescope",
-        outputdir = "srna/results/agg/deseq_telescope"
+        inputdir = "srna/results/agg/deseq",
+        outputdir = "srna/results/agg/deseq"
     conda:
         "repeatanalysis"
     resources:
@@ -456,7 +456,7 @@ rule consolidateDeseqResults:
         mem_mb = 164000,
         runtime = 300
     output:
-        resultsdf = "srna/results/agg/deseq_telescope/resultsdf.tsv"
+        resultsdf = "srna/results/agg/deseq/resultsdf.tsv"
     script:
         "scripts/consolidateDeseqResults.R"
 
@@ -464,7 +464,7 @@ rule consolidateDeseqResults:
 import os
 rule enrichment_analysis:
     input:
-        resultsdf ="srna/results/agg/deseq_telescope/resultsdf.tsv"
+        resultsdf ="srna/results/agg/deseq/resultsdf.tsv"
     params:
         inputdir =lambda w, input: os.path.dirname(os.path.dirname(input.resultsdf)),
         contrasts = config["contrasts"],
@@ -489,7 +489,7 @@ rule enrichment_analysis:
 
 rule enrichment_analysis_repeats:
     input:
-        resultsdf ="srna/results/agg/deseq_telescope/resultsdf.tsv",
+        resultsdf ="srna/results/agg/deseq/resultsdf.tsv",
     params:
         inputdir =lambda w, input: os.path.dirname(os.path.dirname(input.resultsdf)),
         contrasts = config["contrasts"],
@@ -560,7 +560,7 @@ telescope assign \
 
 rule repeatanalysis_plots:
     input:
-        resultsdf = "srna/results/agg/deseq_telescope/resultsdf.tsv",
+        resultsdf = "srna/results/agg/deseq/resultsdf.tsv",
         r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
         r_repeatmasker_annotation = config["r_repeatmasker_annotation"]
     params:
@@ -589,7 +589,7 @@ rule repeatanalysis_plots:
 #     input:
 #         repeatanalysis_plots <- "srna/results/agg/repeatanalysis_telescope/repeatanalysisplots_plots.RData",
 #         enrichment_analysis_repeats_plots = "srna/results/agg/enrichment_analysis_repeats/{tecounttype}/enrichment_analysis_repeats_plots.RData",
-#         deseq_plots = "srna/results/agg/deseq_telescope/{tecounttype}/deseq_plots.RData",
+#         deseq_plots = "srna/results/agg/deseq/{tecounttype}/deseq_plots.RData",
 #         enrichment_analysis_plots = "srna/results/agg/enrichment_analysis/enrichment_analysis_plots.RData"
 
 
@@ -611,26 +611,27 @@ rule repeatanalysis_plots:
 #         "scripts/rteVariance.ipynb"
 
 def bigwig_sizefactor_input(wildcards):
-    sizefactor_path = "srna/results/agg/deseq_telescope/%s/sizefactors.csv"%(wildcards.tecounttype)
+    sizefactor_path = "srna/results/agg/deseq/%s/sizefactors.csv"%(config["tecounttypes"][0])
     if not Path(sizefactor_path).exists():
         return "NA"
     else:
-        return 1/float(pd.read_csv("srna/results/agg/deseq_telescope/%s/sizefactors.csv"%(wildcards.tecounttype)).set_index("sample_name").loc[wildcards.sample, "sizefactor"])
+        return 1/float(pd.read_csv("srna/results/agg/deseq/%s/sizefactors.csv"%(config["tecounttypes"][0])).set_index("sample_name").loc[wildcards.sample, "sizefactor"])
 
 rule getBigWigF:
     input:
         sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.primary.bam",
-        sizefactors = "srna/results/agg/deseq_telescope/{tecounttype}/sizefactors.csv",
+        sizefactors = expand("srna/results/agg/deseq/{tecounttype}/sizefactors.csv", tecounttype = config["tecounttypes"][0])
     params:
         sample_size_factor = bigwig_sizefactor_input
     output:
-        bwF = "srna/outs/{sample}/star_output/{sample}.{tecounttype}.F.bw"
+        bwF = "srna/outs/{sample}/star_output/{sample}.F.bw"
     resources:
         cpus_per_task =10,
         mem_mb = 40000
     conda:
         "deeptools"
-    shell: "bamCoverage -b {input.sortedbam} -o {output.bwF} --numberOfProcessors max --scaleFactor {params.sample_size_factor} --samFlagExclude 256 --filterRNAstrand forward --binSize 50"
+    shell: "bamCoverage -b {input.sortedbam} -o {output.bwF} --numberOfProcessors max  --samFlagExclude 256 --filterRNAstrand forward --binSize 50"
+# --scaleFactor {params.sample_size_factor}
 #The --filterRNAstrand option assumes the sequencing library generated from ILLUMINA
 # dUTP/NSR/NNSR methods, which are the most commonly used method for library preparation, 
 #where Read 2 (R2) is in the direction of RNA strand (reverse-stranded library). 
@@ -642,17 +643,19 @@ rule getBigWigF:
 rule getBigWigR:
     input:
         sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.primary.bam",
-        sizefactors = "srna/results/agg/deseq_telescope/{tecounttype}/sizefactors.csv",
+        sizefactors = expand("srna/results/agg/deseq/{tecounttype}/sizefactors.csv",tecounttype = config["tecounttypes"][0])
     params:
         sample_size_factor = bigwig_sizefactor_input
     output:
-        bwR = "srna/outs/{sample}/star_output/{sample}.{tecounttype}.R.bw"
+        bwR = "srna/outs/{sample}/star_output/{sample}.R.bw"
     resources:
         cpus_per_task =10,
         mem_mb = 40000
     conda:
         "deeptools"
-    shell: "bamCoverage -b {input.sortedbam} -o {output.bwR} --numberOfProcessors max --scaleFactor {params.sample_size_factor} --samFlagExclude 256 --filterRNAstrand reverse --binSize 50"
+    shell: "bamCoverage -b {input.sortedbam} -o {output.bwR} --numberOfProcessors max  --samFlagExclude 256 --filterRNAstrand reverse --binSize 50"
+# --scaleFactor {params.sample_size_factor}
+
 #The --filterRNAstrand option assumes the sequencing library generated from ILLUMINA
 # dUTP/NSR/NNSR methods, which are the most commonly used method for library preparation, 
 #where Read 2 (R2) is in the direction of RNA strand (reverse-stranded library). 
@@ -663,19 +666,18 @@ rule getBigWigR:
 
 rule bigwigplots:
     input:
-        bwF = expand("srna/outs/{sample}/star_output/{sample}.{{tecounttype}}.F.bw", sample = samples),
-        bwR = expand("srna/outs/{sample}/star_output/{sample}.{{tecounttype}}.R.bw", sample = samples),
+        bwF = expand("srna/outs/{sample}/star_output/{sample}.F.bw", sample = samples),
+        bwR = expand("srna/outs/{sample}/star_output/{sample}.R.bw", sample = samples),
     params:
         r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
         r_repeatmasker_annotation = config["r_repeatmasker_annotation"],
-        txdbrefseq = "aref/A.REF_annotations/refseq.sqlite",
-        tecounttype = lambda w: w.tecounttype
+        txdbrefseq = "aref/A.REF_annotations/refseq.sqlite"
     output:
-        plots = "srna/results/agg/bigwig_plots/{tecounttype}/plots.rds",
+        plots = "srna/results/agg/bigwig_plots/plots.rds",
         report = report(
-            directory("srna/results/agg/bigwig_plots/{tecounttype}"),
+            directory("srna/results/agg/bigwig_plots"),
             patterns=["{sub_grouping}/{name}.png"],
-            category="BigWig Analysis {tecounttype}",
+            category="BigWig Analysis",
             subcategory="{sub_grouping}")
     resources:
         cpus_per_task =10,

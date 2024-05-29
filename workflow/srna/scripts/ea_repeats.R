@@ -42,13 +42,13 @@ library(ComplexHeatmap)
                 "SenMayoHuman" = conf$SenMayoHuman,
                 "genesets_for_heatmaps" = conf$genesets_for_heatmaps,
                 "collections_for_gsea" = conf$collections_for_gsea,
-                "inputdir" = "srna/results/agg/deseq_telescope",
+                "inputdir" = "srna/results/agg/deseq",
                 "outputdir" = "srna/results/agg/enrichment_analysis_repeats/telocal_multi",
                 "r_annotation_fragmentsjoined" = conf$r_annotation_fragmentsjoined,
                 "r_repeatmasker_annotation" = conf$r_repeatmasker_annotation
             ), env = globalenv())
             assign("inputs", list(
-                resultsdf = paste0("srna/results/agg/deseq_telescope/resultsdf.tsv")
+                resultsdf = paste0("srna/results/agg/deseq/resultsdf.tsv")
 
             ), env = globalenv())
             assign("outputs", list(outfile = "srna/results/agg/enrichment_analysis_repeats/outfile.txt"), env = globalenv())

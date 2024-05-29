@@ -84,7 +84,7 @@ pf <- rmann %>%
 p <- pf %>% ggplot() +
     geom_bar(aes(x = rte_subfamily, y = n), color = "black", stat = "identity") +
     labs(title = "Number of L1 Elements per Subfamily", x = "Family", y = "Number of Elements", fill = "Reference Status") +
-    facet_wrap(~refstatus, scales = "free") +
+    facet_wrap(~refstatus, scales = "free" , space = "free_x") +
     mtclosed +
     anchorbar +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
@@ -100,7 +100,7 @@ p <- rmann %>%
     ggplot() +
     geom_bar(aes(x = rte_subfamily, y = n, fill = l1_intactness_req), color = "black", stat = "identity") +
     labs(title = "Number of Full Length L1 Elements per Subfamily", x = "Family", y = "Number of Elements", fill = "Reference Status") +
-    facet_wrap(~refstatus, scales = "free") +
+    facet_wrap(~refstatus, scales = "free" , space = "free_x") +
     mtclosed +
     anchorbar +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
@@ -285,7 +285,7 @@ mysaveandstore(sprintf("%s/orf2identHist.pdf", outputdir))
 #     geom_gene_arrow() +
 #     geom_subgene_arrow(aes(xsubmin = Q.start_orf1, xsubmax = Q.end_orf1, fill = "orf1")) +
 #     geom_subgene_arrow(aes(xsubmin = Q.start_orf2, xsubmax = Q.end_orf2, fill = "orf2")) +
-#     facet_wrap(~QueryID, scales = "free", ncol = 1) +
+#     facet_wrap(~QueryID, scales = "free" , space = "free_x", ncol = 1) +
 #     scale_fill_brewer(palette = "Set3") +
 #     theme_genes()
 # mysaveandstore("geneDiagram", "blastRes")
@@ -344,7 +344,7 @@ p <- ggtree(l1hs_intact_tree) +
     theme_tree2() +
     xlab("% Mutation") +
     ggtitle("L1HS ORF1&2 Intact Phylogeny")
-mysaveandstore(sprintf("%s/l1hs_intact_tree.pdf", outputdir), w = 5, h = 20)
+mysaveandstore(sprintf("%s/l1hs_intact_tree.pdf", outputdir), w = 7.5, h = 20)
 # make the tree horizontal
 p <- ggtree(l1hs_intact_tree) +
     geom_treescale() +
@@ -365,7 +365,7 @@ p <- ggtree(l1hs_intact_tree_gapped) +
     xlab("% Mutation") +
     ggtitle("L1HS ORF1&2 Intact Phylogeny")
 
-mysaveandstore(sprintf("%s/l1hs_intact_tree_gapped.pdf", outputdir), w = 5, h = 20)
+mysaveandstore(sprintf("%s/l1hs_intact_tree_gapped.pdf", outputdir), w = 7.5, h = 20)
 
 # tree with msa
 l1hs_intact_aln <- readDNAMultipleAlignment(sprintf("%s/l1hs_intact.aln.fa", outputdir), format = "fasta")

@@ -20,7 +20,7 @@ tryCatch(
     },
     error = function(e) {
         assign("params", list(
-            "inputdir" = "results/agg/deseq_telescope",
+            "inputdir" = "results/agg/deseq",
             "outputdir" = "results/agg/repeatanalysis_telescope"
         ), env = globalenv())
         assign("outputs", list(

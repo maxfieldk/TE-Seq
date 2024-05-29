@@ -40,12 +40,12 @@ tryCatch(
     error = function(e) {
         print("not sourced snake variables")
         assign("params", list(
-            "inputdir" = "srna/results/agg/deseq_telescope",
+            "inputdir" = "srna/results/agg/deseq",
             "outputdir" = "srna/results/agg/repeatanalysis_telescope/telescope_multi",
             "tecounttype" = "telescope_multi"
         ), env = globalenv())
         assign("inputs", list(
-            "resultsdf" = "srna/results/agg/deseq_telescope/resultsdf.tsv",
+            "resultsdf" = "srna/results/agg/deseq/resultsdf.tsv",
             "r_annotation_fragmentsjoined" = conf$r_annotation_fragmentsjoined,
             "r_repeatmasker_annotation" = conf$r_repeatmasker_annotation
         ), env = globalenv())

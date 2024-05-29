@@ -25,7 +25,7 @@ tryCatch(
     error = function(e) {
         print("not sourced snake variables")
         assign("params", list(
-            "inputdir" = "srna/results/agg/deseq_telescope",
+            "inputdir" = "srna/results/agg/deseq",
             "outputdir" = "srna/results/agg/repeatanalysis_telescope",
             "tecounttypes" = c("telescope_multi"),
             "r_annotation_fragmentsjoined" = conf$r_annotation_fragmentsjoined,
@@ -34,7 +34,7 @@ tryCatch(
         assign("inputs", list(
         repeatanalysis_plots = "srna/results/agg/repeatanalysis_telescope/repeatanalysisplots_plots.RData",
         enrichment_analysis_repeats_plots = sprintf("srna/results/agg/enrichment_analysis_repeats/%s/enrichment_analysis_repeats_plots.RData", params$tecounttypes),
-        deseq_plots = sprintf("srna/results/agg/deseq_telescope/%s/deseq_plots.RData", params$tecounttypes),
+        deseq_plots = sprintf("srna/results/agg/deseq/%s/deseq_plots.RData", params$tecounttypes),
         enrichment_analysis_plots = "srna/results/agg/enrichment_analysis/enrichment_analysis_plots.RData"
         ), env = globalenv())
         assign("outputs", list(

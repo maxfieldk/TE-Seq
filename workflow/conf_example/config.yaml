@@ -33,11 +33,8 @@ aref:
 
   #PIPELINE INCLUDED ANNOTATIONS FOR T2T-HS1 genome - LEAVE PATHS UNCHANGED OR CHANGE AS NEEDED
   ref_cytobands: resources/genomes/hs1/annotations/chm13v2.0_cytobands_allchrs.bed
-  ref_ccres: resources/genomes/hs1/annotations/hs1-imr90-cCREsCuratedWithClosestGene.bed
   ref_telomere: resources/genomes/hs1/annotations/chm13v2.0_telomere.bed
   ref_cpgislands: resources/genomes/hs1/annotations/hs1_CpG_Island_sorted
-  ref_clinvar_bgz: resources/genomes/hs1/annotations/chm13v2.0_ClinVar20220313.ncbi-names.vcf.gz
-  ref_clinvar_tbi: resources/genomes/hs1/annotations/chm13v2.0_ClinVar20220313.ncbi-names.vcf.gz.tbi
   l13fasta: resources/sequences/l1.3.fa
   #PATHS TO FILES WHICH WILL BE CREATED
   ref: aref/A.REF.fa

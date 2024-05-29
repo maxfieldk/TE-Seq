@@ -73,7 +73,7 @@ mysaveandstore(sprintf("%s/insertions.pdf", outputdir), 5, 5)
 p <- df %>%
     filter(Family != "NA") %>%
     ggplot(aes(x = Subfamily)) +
-    facet_wrap(~Family, scales = "free") +
+    facet_wrap(~Family, scales = "free", space = "free_x") +
     geom_bar(color = "black") +
     labs(x = "", y = "Count") +
     paletteer::scale_fill_paletteer_d(conf$default_palette) +
@@ -112,7 +112,7 @@ mysaveandstore(sprintf("%s/insertions_in_updated_ref.pdf", outputdir), 3, 4)
 p <- df_filtered %>%
     filter(Family != "NA") %>%
     ggplot(aes(x = Subfamily)) +
-    facet_wrap(~Family, scales = "free") +
+    facet_wrap(~Family, scales = "free", space = "free_x") +
     geom_bar(color = "black") +
     labs(x = "", y = "Count") +
     paletteer::scale_fill_paletteer_d(conf$default_palette) +
