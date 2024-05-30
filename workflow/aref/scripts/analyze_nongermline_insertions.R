@@ -52,11 +52,12 @@ for (sample in sample_table$sample_name) {
     df <- read.table(grep(sprintf("%s_tldr", sample), inputs$tldroutput, value = TRUE), header = TRUE) %>%
         mutate(faName = paste0("nonrefins_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>% tibble()
     } else {
-    df <- read.table(inputs$tldroutput, header = TRUE) %>%
+    df <- read.table("aref/A.REF_tldr/A.REF.table.txt", header = TRUE) %>%
         mutate(faName = paste0("nonrefins_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>% tibble()
     }
 
     df$sample_name <- sample
+    df <- df %>% filter(grepl(sample, SampleReads)) %>% filter(!grepl(paste(setdiff(sample_table$sample_name, sample), collapse = "|"), SampleReads))
     dflist[[sample]] <- df
 
     json <- fromJSON(grep(sprintf("/%s/", sample), inputs$json, value = TRUE))
@@ -77,27 +78,29 @@ sample_sequencing_data
 dffilt <- dfall %>%  separate_wider_delim(EmptyReads,delim = "|", names = c("bamname", "emptyreadsnum"))  %>% mutate(fraction_reads_count = UsedReads / (UsedReads + as.numeric(emptyreadsnum))) %>% 
     filter(fraction_reads_count < 0.2) %>% filter(UsedReads <5)
 
-
 for (sample in unique(dffilt$sample_name)) {
     tempoutputdir <- sprintf("aref/%s_Analysis/tldr_plots/nongermline", sample)
-    p <- dfall %>% ggplot(aes(x = UsedReads, fill = Filter == "PASS")) + geom_histogram() + labs(x = "Supporting Read Count", title = "RTE Somatic Insertions") + mtopen + anchorbar + scale_palette
+    dfallsample <- dfall %>% filter(sample_name == sample)
+    dffiltsample <- dffilt %>% filter(sample_name == sample)
+
+    p <- dfallsample %>% ggplot(aes(x = UsedReads, fill = Filter == "PASS")) + geom_histogram() + labs(x = "Supporting Read Count", title = "RTE Somatic Insertions") + mtopen + anchorbar + scale_palette
     mysaveandstore(sprintf("%s/usedreads_hist.pdf", tempoutputdir), 5, 4)
 
-    p <- dfall %>% ggplot(aes(x = Family, fill = Filter == "PASS")) + geom_bar() + labs(x = "Supporting Read Count", title = "RTE Somatic Insertions") + mtopen + anchorbar + scale_palette
+    p <- dfallsample %>% ggplot(aes(x = Family, fill = Filter == "PASS")) + geom_bar() + labs(x = "Supporting Read Count", title = "RTE Somatic Insertions") + mtopen + anchorbar + scale_palette
     mysaveandstore(sprintf("%s/usedreads_bar.pdf", tempoutputdir), 5, 4)
 
-    p <- dffilt %>% filter(UsedReads == 1) %>% ggplot(aes(x = Family, fill = Filter == "PASS")) + geom_bar() + labs(x = "Supporting Read Count", title = "RTE Somatic Insertions") + mtopen + anchorbar + scale_palette
+    p <- dffiltsample %>% filter(UsedReads == 1) %>% ggplot(aes(x = Family, fill = Filter == "PASS")) + geom_bar() + labs(x = "Supporting Read Count", title = "RTE Somatic Insertions") + mtopen + anchorbar + scale_palette
     mysaveandstore(sprintf("%s/single_read_bar.pdf", tempoutputdir), 5, 4)
 
-    p <- dffilt %>% filter(UsedReads == 1) %>% filter(Filter == "PASS") %>% ggplot(aes(x = Family, fill = Filter == "PASS")) + geom_bar() + labs(x = "Supporting Read Count", title = "RTE Somatic Insertions") + mtopen + anchorbar + scale_palette
+    p <- dffiltsample %>% filter(UsedReads == 1) %>% filter(Filter == "PASS") %>% ggplot(aes(x = Family, fill = Filter == "PASS")) + geom_bar() + labs(x = "Supporting Read Count", title = "RTE Somatic Insertions") + mtopen + anchorbar + scale_palette
     mysaveandstore(sprintf("%s/single_read_fillpass_bar.pdf", tempoutputdir), 5, 4)
 
-    dffilt %>% filter(UsedReads == 1) %>% filter(Filter == "PASS") %>% write_delim(sprintf("%s/single_read_pass.tsv", tempoutputdir), delim = "\t")
+    dffiltsample %>% filter(UsedReads == 1) %>% filter(Filter == "PASS") %>% write_delim(sprintf("%s/single_read_pass.tsv", tempoutputdir), delim = "\t")
 
-    p <- dffilt %>% filter(UsedReads == 1) %>% filter(Filter == "PASS") %>% ggplot(aes(x = Family, fill = is.na(TSD))) + geom_bar() + labs(x = "Supporting Read Count", title = "RTE Somatic Insertions") + mtopen + anchorbar + scale_palette
+    p <- dffiltsample %>% filter(UsedReads == 1) %>% filter(Filter == "PASS") %>% ggplot(aes(x = Family, fill = is.na(TSD))) + geom_bar() + labs(x = "Supporting Read Count", title = "RTE Somatic Insertions") + mtopen + anchorbar + scale_palette
     mysaveandstore(sprintf("%s/single_read_pass_bar.pdf", tempoutputdir), 5, 4)
 
-    p <- dffilt %>% filter(UsedReads == 1) %>% filter(Filter == "PASS") %>% ggplot(aes(x = LengthIns)) + geom_histogram() + labs(x = "Insertion Length", y = "Count", title = "RTE Somatic Insertions") + facet_wrap(~Family) + mtclosed + anchorbar + scale_palette
+    p <- dffiltsample %>% filter(UsedReads == 1) %>% filter(Filter == "PASS") %>% ggplot(aes(x = LengthIns)) + geom_histogram() + labs(x = "Insertion Length", y = "Count", title = "RTE Somatic Insertions") + facet_wrap(~Family) + mtclosed + anchorbar + scale_palette
     mysaveandstore(sprintf("%s/single_read_pass_insertion_length.pdf", tempoutputdir), 5, 3)
 
 }
@@ -129,7 +132,7 @@ tryCatch(
         pfpass <- dfall %>% filter(Filter == "PASS") %>% mutate(SingleReadSupport = ifelse(UsedReads == 1, "SingleReadSupport", "MultiReadSupport")) %>% group_by(across(grouping_vars)) %>% summarise(nins = n()) %>% ungroup()
         pfpasssrs <- pfpass %>% filter(SingleReadSupport == "SingleReadSupport")
 
-        p<- pf %>% ggplot(aes(x = N50, y = nins, color = sample_name)) + geom_point() +
+        p<- pf %>% ggplot(aes(x = N50, y = nins, color = sample_name)) + geom_point(size = 2) +
             facet_wrap(~SingleReadSupport) + labs(x = "N50", y = "Number of Insertions") + mtclosed + scale_samples_unique
         mysaveandstore(sprintf("%s/n50_vs_insertions_facet.pdf", outputdir), 7, 4)
 

@@ -53,11 +53,19 @@ mysaveandstore <- function(fn = "ztmp.pdf", w = 5, h = 5, res = 300, pl = p, sto
             cairo_pdf(fn, width = w, height = h, family = "Helvetica")
             print(pl)
             dev.off()
+            print(paste(getwd(),fn, sep = "/"))
         },
         error = function(e) {
+            tryCatch({
             png(gsub(".pdf", ".png", fn), width = w, height = h, units = "in", res = res)
             print(pl)
-            dev.off()        
+            dev.off()
+            print(paste(getwd(),gsub(".pdf", ".png", fn), sep = "/"))
+            }
+            , error = function(e) {
+                print("plot not saved")
+            }
+            )
         }
     )
 
@@ -67,7 +75,6 @@ mysaveandstore <- function(fn = "ztmp.pdf", w = 5, h = 5, res = 300, pl = p, sto
     if (store == "yes") {
         mysaveandstoreplots[[fn]] <<- pl
         print("plot_stored!")
-        print(fn)
     }
 }
 

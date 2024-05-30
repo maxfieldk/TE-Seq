@@ -450,7 +450,8 @@ rule analyze_insertions:
         filtered_tldr = "aref/{sample_or_ref}_tldr/{sample_or_ref}.table.kept_in_updated_ref.txt",
         r_annotation_fragmentsjoined = "aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
         r_repeatmasker_annotation = "aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_annotation.csv",
-        ref = "aref/{sample_or_ref}-pre-ins-filtering.fa"
+        ref = "aref/{sample_or_ref}-pre-ins-filtering.fa",
+        element_analysis = "aref/{sample_or_ref}_Analysis/l1element_analysis.rds"
     output:
         plots = "aref/{sample_or_ref}_Analysis/tldr_plots/tldr_plots.rds",
     conda:
@@ -817,7 +818,8 @@ rule transduction_mapping:
         r_annotation_fragmentsjoined = "aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
         r_repeatmasker_annotation = "aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_annotation.csv",
         ref = "aref/{sample_or_ref}.fa",
-        blast_njs = "aref/{sample_or_ref}.njs"
+        blast_njs = "aref/{sample_or_ref}.njs",
+        element_analysis = "aref/{sample_or_ref}_Analysis/l1element_analysis.rds"
     params:
         sample_or_ref = lambda w: w.sample_or_ref
     output:
