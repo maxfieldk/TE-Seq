@@ -146,7 +146,7 @@ srna:
     InflammatoryGenes: resources/genesets/human/mycustom/inflammatory.txt
 
   annotation_genes: "aref/A.REF_annotations/refseq.gtf"
-  annotation_genes_bed12: "aref/A.REF_annotations/refseq.complete.bed"
+  annotation_genes_bed12: "aref/A.REF_annotations/refseq.bed"
 
   r_annotation_fragmentsjoined: "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv"
   r_repeatmasker_annotation: "aref/A.REF_annotations/A.REF_repeatmasker_annotation.csv"
