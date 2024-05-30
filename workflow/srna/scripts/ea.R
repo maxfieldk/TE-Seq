@@ -100,26 +100,27 @@ for (contrast in params[["contrasts"]]) {
                 tryCatch(
                     {
                         for (num in c(5, 10, 15)) {
-                            df <- arrange(df, -abs(NES)) %>%
+                            dftemp <- arrange(df, -abs(NES)) %>%
                                 group_by(sign(NES)) %>%
-                                slice(1:num)
-                            df <- df %>% mutate(Description = str_wrap(as.character(Description) %>% gsub("_", " ", .), width = 40)) 
-                            df <- df %>% mutate(`Gene Ratio` = 0.01 * as.numeric(gsub("%", "", gsub(",.*", "", gsub("tags=", "", leading_edge)))))
-                            p <- ggplot(df, aes(NES, fct_reorder(Description, NES), fill = p.adjust)) +
+                                slice(1:num) %>%
+                                mutate(log10padj = -log10(p.adjust))
+                            dftemp <- dftemp %>% mutate(Description = str_wrap(as.character(Description) %>% gsub("_", " ", .), width = 40)) 
+                            dftemp <- dftemp %>% mutate(`Gene Ratio` = 0.01 * as.numeric(gsub("%", "", gsub(",.*", "", gsub("tags=", "", leading_edge)))))
+                            p <- ggplot(dftemp, aes(NES, fct_reorder(Description, NES), fill = log10padj)) +
                                 geom_col(orientation = "y") +
-                                scale_fill_continuous(low = "red", high = "blue", guide = guide_colorbar(reverse = TRUE)) +
+                                scale_fill_gradient(high = "red", low = "white", limits = c(0,5), oob = scales::oob_squish) +
                                 mtopen +
                                 theme(axis.text.y = element_text(colour = "black")) +
-                                ylab(NULL)+ labs(caption = contrast_label_map %>% filter(contrast == contrast) %$% label)
+                                ylab(NULL)+ labs(caption = contrast_label_map %>% filter(contrast == !!contrast) %$% label)
 
                             mysaveandstore(sprintf("%s/%s/gsea/%s/nes%s.pdf", params[["outputdir"]], contrast, collection, num), w = 8, h = min(num, 7), res = 300)
                         
-                            p <- ggplot(df, aes(`Gene Ratio`, fct_reorder(Description, `Gene Ratio`), fill = -log10(p.adjust)*`sign(NES)`)) +
+                            p <- ggplot(dftemp, aes(`Gene Ratio`, fct_reorder(Description, `Gene Ratio`), fill = -log10(p.adjust)*`sign(NES)`)) +
                                 geom_col(orientation = "y") +
-                                scale_fill_continuous(low = "red", high = "blue", guide = guide_colorbar(reverse = TRUE)) +
+                                scale_fill_gradient2(high = "red", mid = "white", low = "blue") +
                                 mtopen +
                                 theme(axis.text.y = element_text(colour = "black")) +
-                                ylab(NULL)+ guides(fill=guide_legend(title="Signed \n-log10(p.adjust)")) + labs(caption = contrast_label_map %>% filter(contrast == contrast) %$% label)
+                                ylab(NULL)+ guides(fill=guide_legend(title="Signed \n-log10(p.adjust)")) + labs(caption = contrast_label_map %>% filter(contrast == !!contrast) %$% label)
 
                             mysaveandstore(sprintf("%s/%s/gsea/%s/dot%s.pdf", params[["outputdir"]], contrast, collection, num), w = 7.5, h = min(num, 10), res = 300)
                         
@@ -221,7 +222,7 @@ for (contrast in params[["contrasts"]]) {
                 mutate(sample_name = factor(sample_name, levels = conf$samples)) %>%
                 mutate(condition = factor(condition, levels = conf$levels))
             p <- barplotpf %>% ggbarplot(x = "condition", y = "counts", fill = "condition", add = c("mean_se", "dotplot"),
-                facet.by = "gene_id", scales = "free", space = "free_x", ncol = 4) + 
+                facet.by = "gene_id", scales = "free", ncol = 4) + 
             labs(title = set_title, x = element_blank()) + 
             mtclosedgridh + scale_conditions + anchorbar +
             theme(axis.text.x=element_blank(),axis.ticks.x=element_blank())
@@ -308,7 +309,7 @@ for (geneset in names(params[["genesets_for_heatmaps"]])) {
         mutate(condition = factor(condition, levels = conf$levels))
     p <- barplotpf %>% ggplot() + geom_bar(aes(x = sample_name, y = counts, fill = condition), stat = "identity") + 
     labs(title = set_title, x = element_blank()) + 
-    facet_wrap(~gene_id, ncol = 4, scales = "free", space = "free_x") +
+    facet_wrap(~gene_id, ncol = 4, scales = "free") +
     mtclosedgridh + scale_conditions + anchorbar +
     theme(axis.text.x=element_blank(),axis.ticks.x=element_blank())
     mysaveandstore(sprintf("%s/barplot_%s.pdf", params[["outputdir"]], set_title), 8, 2*round(ngenes/ncol))
@@ -323,7 +324,7 @@ for (geneset in names(params[["genesets_for_heatmaps"]])) {
 
     hm <- scaledm %>%
         Heatmap(
-            name = "Scaled Normalized Counts",
+            name = "Normalized Count Z-score",
             cluster_rows = FALSE,
             cluster_columns = FALSE,
             show_row_names = TRUE,
@@ -331,10 +332,12 @@ for (geneset in names(params[["genesets_for_heatmaps"]])) {
             column_names_rot = 90,
             top_annotation = topAnn,
             row_title = set_title,
-            # border_gp = gpar(col = "black")
+            border_gp = gpar(col = "black")
         )
     p <- draw(hm, heatmap_legend_side = "bottom", annotation_legend_side = "bottom")
-    mysaveandstore(sprintf("%s/heatmap_%s.pdf", params[["outputdir"]], set_title), w = min(dim(scaledm)[2]*2, 12), h = min(dim(scaledm)[1]*2, 12), res = 300)
+    hmscalew <- 0.7
+    hmscaleh <- 0.7
+    mysaveandstore(sprintf("%s/heatmap_%s.pdf", params[["outputdir"]], set_title), w = min(dim(scaledm)[2]*hmscalew, 12), h = min(dim(scaledm)[1]*hmscaleh, 12), res = 300)
 
     # now for each contrast
     for (contrast in params[["contrasts"]]) {
@@ -374,7 +377,7 @@ for (geneset in names(params[["genesets_for_heatmaps"]])) {
         topAnn <- ComplexHeatmap::HeatmapAnnotation(Condition = conditions, col = list(Condition = condition_palette))
         hm <- scaledm %>%
             Heatmap(
-                name = "Scaled Normalized Counts",
+                name = "Normalized Counts Z-score",
                 cluster_rows = FALSE,
                 cluster_columns = FALSE,
                 show_row_names = TRUE,
@@ -384,7 +387,7 @@ for (geneset in names(params[["genesets_for_heatmaps"]])) {
                 top_annotation = topAnn,
                 right_annotation = ha,
                 row_title = set_title,
-                # border_gp = gpar(col = "black")
+                border_gp = gpar(col = "black")
             )
         lgd_pvalue_adj <- Legend(
             title = "p-value", col_fun = pvalue_adj_col_fun, at = c(0, 1, 2, 3),
@@ -394,7 +397,7 @@ for (geneset in names(params[["genesets_for_heatmaps"]])) {
         lgd_sig <- Legend(pch = "*", type = "points", labels = "< 0.05")
         # these two self-defined legends are added to the plot by `annotation_legend_list`
         p <- draw(hm, annotation_legend_list = list(lgd_pvalue_adj, lgd_sig), heatmap_legend_side = "bottom", annotation_legend_side = "bottom")
-        mysaveandstore(sprintf("%s/%s/heatmap_%s.pdf", params[["outputdir"]], contrast, set_title), w = min(dim(scaledm)[2], 12), h = min(dim(scaledm)[1], 12), res = 300)
+        mysaveandstore(sprintf("%s/%s/heatmap_%s.pdf", params[["outputdir"]], contrast, set_title), w = min(dim(scaledm)[2]*hmscalew, 12), h = min(dim(scaledm)[1]*hmscaleh, 12), res = 300)
     }
 }
 
@@ -433,26 +436,26 @@ for (contrast in params[["contrasts"]]) {
                 tryCatch(
                     {
                         for (num in c(5, 10, 15)) {
-                            df <- arrange(df, -abs(NES)) %>%
+                            dftemp <- arrange(df, -abs(NES)) %>%
                                 group_by(sign(NES)) %>%
                                 slice(1:num)
-                            df <- df %>% mutate(Description = str_wrap(as.character(Description) %>% gsub("_", " ", .), width = 40)) 
-                            df <- df %>% mutate(`Gene Ratio` = 0.01 * as.numeric(gsub("%", "", gsub(",.*", "", gsub("tags=", "", leading_edge)))))
-                            p <- ggplot(df, aes(NES, fct_reorder(Description, NES), fill = p.adjust)) +
+                            dftemp <- dftemp %>% mutate(Description = str_wrap(as.character(Description) %>% gsub("_", " ", .), width = 40)) 
+                            dftemp <- dftemp %>% mutate(`Gene Ratio` = 0.01 * as.numeric(gsub("%", "", gsub(",.*", "", gsub("tags=", "", leading_edge)))))
+                            p <- ggplot(dftemp, aes(NES, fct_reorder(Description, NES), fill = p.adjust)) +
                                 geom_col(orientation = "y") +
-                                scale_fill_continuous(low = "red", high = "blue", guide = guide_colorbar(reverse = TRUE)) +
+                                scale_fill_gradient(high = "red", low = "white", limits = c(0,5), oob = scales::squish) +
                                 mtopen +
                                 theme(axis.text.y = element_text(colour = "black")) +
-                                ylab(NULL)+ labs(caption = contrast_label_map %>% filter(contrast == contrast) %$% label)
+                                ylab(NULL)+ labs(caption = contrast_label_map %>% filter(contrast == !!contrast) %$% label)
 
                             mysaveandstore(sprintf("%s/%s/gsea/%s/nes%s.pdf", params[["outputdir"]], contrast, collection, num), w = 8, h = min(num, 7), res = 300)
                         
-                            p <- ggplot(df, aes(`Gene Ratio`, fct_reorder(Description, `Gene Ratio`), fill = -log10(p.adjust)*`sign(NES)`)) +
+                            p <- ggplot(dftemp, aes(`Gene Ratio`, fct_reorder(Description, `Gene Ratio`), fill = -log10(p.adjust)*`sign(NES)`)) +
                                 geom_col(orientation = "y") +
-                                scale_fill_continuous(low = "red", high = "blue", guide = guide_colorbar(reverse = TRUE)) +
+                                scale_fill_gradient2(high = "red", mid = "white", low = "blue") +
                                 mtopen +
                                 theme(axis.text.y = element_text(colour = "black")) +
-                                ylab(NULL)+ guides(fill=guide_legend(title="Signed \n-log10(p.adjust)")) + labs(caption = contrast_label_map %>% filter(contrast == contrast) %$% label)
+                                ylab(NULL)+ guides(fill=guide_legend(title="Signed \n-log10(p.adjust)")) + labs(caption = contrast_label_map %>% filter(contrast == !!contrast) %$% label)
 
                             mysaveandstore(sprintf("%s/%s/gsea/%s/dot%s.pdf", params[["outputdir"]], contrast, collection, num), w = 7.5, h = min(num, 10), res = 300)
                         }

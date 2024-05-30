@@ -84,7 +84,7 @@ pf <- rmann %>%
 p <- pf %>% ggplot() +
     geom_bar(aes(x = rte_subfamily, y = n), color = "black", stat = "identity") +
     labs(title = "Number of L1 Elements per Subfamily", x = "Family", y = "Number of Elements", fill = "Reference Status") +
-    facet_wrap(~refstatus, scales = "free" , space = "free_x") +
+    facet_grid(~refstatus, scales = "free" , space = "free_x") +
     mtclosed +
     anchorbar +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
@@ -100,7 +100,7 @@ p <- rmann %>%
     ggplot() +
     geom_bar(aes(x = rte_subfamily, y = n, fill = l1_intactness_req), color = "black", stat = "identity") +
     labs(title = "Number of Full Length L1 Elements per Subfamily", x = "Family", y = "Number of Elements", fill = "Reference Status") +
-    facet_wrap(~refstatus, scales = "free" , space = "free_x") +
+    facet_grid(~refstatus, scales = "free" , space = "free_x") +
     mtclosed +
     anchorbar +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
