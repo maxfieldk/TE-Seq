@@ -353,7 +353,7 @@ stripp <- function(df, stats = "no", extraGGoptions = NULL, facet_var = "ALL", f
     }
     if (stats == "yes") {
         p <- p + geom_pwc(
-    method = "t_test", label = "p.adj.signif",
+    method = "t_test", label = "p.adj.format",
     ref.group = conf$levels[1],
     p.adjust.method = "fdr", hide.ns = TRUE
   )
@@ -482,7 +482,7 @@ pvals <- colnames(resultsdf)[str_detect(colnames(resultsdf), "padj_condition")]
 l2fc <- colnames(resultsdf)[str_detect(colnames(resultsdf), "log2FoldChange_condition")]
 annotations <- c("length", colnames(r_repeatmasker_annotation))
 strictly_annotations <- annotations[!(annotations %in% c("gene_id", "family"))]
-colsToKeep <- c("gene_id", "family", pvals, l2fc, strictly_annotations)
+colsToKeep <- c("gene_id", "family","refstatus", pvals, l2fc, strictly_annotations)
 tidydf <- resultsdf %>%
     filter(tecounttype == tecounttype) %>%
     select(all_of(colnames(resultsdf)[(colnames(resultsdf) %in% sample_table$sample_name) | (colnames(resultsdf) %in% colsToKeep)])) %>%
@@ -542,18 +542,6 @@ for (rte_fam in rte_fams) {
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1])
         mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_reqintegrative_stats.pdf", outputdir, tecounttype, rte_fam), 7, 7)
 
-    p <- pf %>% arrange(req_integrative) %>% group_by(sample, condition, genic_loc) %>% summarise(sample_pantype_sum = sum(sample_sum)) %>% ungroup() %>%
-        ggbarplot(x = "condition", y = "sample_pantype_sum", facet.by = c("genic_loc"), add = c("mean_se", "dotplot"), scales = "free_y") +
-        stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = FALSE, ref.group = conf$levels[1]) +
-        ggbarplot(data = pf %>% arrange(req_integrative), x = "condition", y = "sample_sum", fill = "req_integrative", facet.by = c("genic_loc"), scales = "free_y") +
-        labs(x = "", y = "Sum Normalized Counts", caption = counttype_label, title = rte_fam) +
-        mtclosedgridh +
-        scale_palette +
-        anchorbar +
-        theme(axis.text.x = element_text(angle = 45, hjust = 1))
-        mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_reqintegrative_stats_allsigannot.pdf", outputdir, tecounttype, rte_fam), 15, 12)
-
-
 }
   
 
@@ -595,6 +583,22 @@ for (rte_subfam in rte_subfams) {
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = FALSE, ref.group = conf$levels[1])
         mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats_allsigannot.pdf", outputdir, tecounttype, rte_subfam), 15, 12)
+
+
+    pf <- df %>%
+            group_by(sample, req_integrative, condition, refstatus) %>%
+            summarise(sample_sum = sum(counts), condition = dplyr::first(condition)) %>% ungroup() %>% 
+            mutate(req_integrative = ifelse(req_integrative == "Other", "Trucated Ancient", req_integrative))
+
+    p <- pf %>% arrange(req_integrative) %>% filter(refstatus == "NonRef") %>%
+        ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = c("req_integrative"), add = c("mean_se")) +
+        labs(x = "", y = "Sum Normalized Counts", caption = counttype_label, title = paste0("NonRef ", rte_subfam)) +
+        mtclosedgridh +
+        scale_palette +
+        anchorbar +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1], bracket.nudge.y = -0.2, step.increase = .05)
+        mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_nonref_stats.pdf", outputdir, tecounttype, rte_subfam), 9, 7)
 
 }
 
@@ -866,7 +870,8 @@ for (contrast in contrasts) {
 
 tryCatch(
     {
-            results <- resultsdf %>% filter(tecounttype == tecounttype)
+            library(scales)
+            results <- resultsdf %>% filter(tecounttype == !!tecounttype)
             ggvenn <- list()
             for (ontology in ontologies) {
                 ontology_groups <- r_repeatmasker_annotation %>%
@@ -876,33 +881,38 @@ tryCatch(
                 for (group in ontology_groups) {
                     df <- results %>%
                         dplyr::filter((!!sym(ontology)) == group) 
+                    # dfpadj <- df %>% dplyr::select(gene_id, starts_with("padj")) 
+                    # dflog2fc <- df %>% dplyr::select(gene_id, starts_with("log2FoldChange"))
+                    # dfpadjlong <- dfpadj %>% pivot_longer(cols = starts_with("padj_"), names_to = "contrast", values_to = "padj")%>% mutate(contrast = gsub("padj_condition_", "", contrast) %>% gsub("_vs.*", "", .))
+                    # dflog2fclong <- dflog2fc %>% pivot_longer(cols = starts_with("log2FoldChange_"), names_to = "contrast", values_to = "log2FoldChange") %>% mutate(contrast = gsub("log2FoldChange_condition_", "", contrast) %>% gsub("_vs.*", "", .))
+                    # vdf <- cbind(dfpadjlong, dflog2fclong[,"log2FoldChange"]) %>% tibble() %>% mutate(direction = ifelse(is.na(padj), "NS", ifelse(padj >= 0.05, "NS", ifelse(log2FoldChange > 0, "UP", "DOWN")))) %>%
+                    #     dplyr::select(gene_id, contrast, direction)
+
+                    # vdf_wide <- vdf %>% pivot_wider(names_from = contrast, values_from = direction)
 
                         vdf <- df %>% mutate(across(starts_with("padj"), ~ ifelse(is.na(.), FALSE, ifelse(. < 0.05, TRUE, FALSE)))) %>%
                                     mutate(req_integrative = ifelse(req_integrative == "Other", "Trucated Ancient", req_integrative))
                         categories <- colnames(vdf) %>% grep("^padj", ., value = TRUE) %>% gsub("padj_condition_", "", .) %>% gsub("_vs.*", "", .)
                         colnames(vdf) <- colnames(vdf) %>% gsub("padj_condition_", "", .) %>% gsub("_vs.*", "", .)
+
+                        # categories <- colnames(vdf_wide)[colnames(vdf_wide) != "gene_id"]
+
                         up_set <- vdf %>% dplyr::filter(if_all(starts_with("log2F"), ~ .x > 0))
+                        colnames(up_set) <- colnames(up_set) %>% ifelse(. %in% categories, paste0(., "_UP"), . )
+                        categories_up <- paste0(categories, "_UP")
                         down_set <- vdf %>% dplyr::filter(if_all(starts_with("log2F"), ~ .x < 0))
+                        colnames(down_set) <- colnames(down_set) %>% ifelse(. %in% categories, paste0(., "_DOWN"), . )
+                        categories_down <- paste0(categories, "_DOWN")
+                        categories_all <- c(categories_up, categories_down)
+                        all_set <- up_set %>% full_join(down_set, by = c("gene_id", "req_integrative"))
                         tryCatch(
                             {
-                            p1 <- up_set %>%
-                                    upset(categories, name='condition', width_ratio=0.3,  min_degree=1,
+                            p <- all_set %>%
+                                    upset(categories_all, name='condition', width_ratio=0.3,  min_degree=1,
                                     base_annotations=list(
                                     'Intersection size'= intersection_size(counts=FALSE,mapping=aes(fill=req_integrative)) + scale_palette + guides(fill = guide_legend(title="Element Features")))) +
-                                    labs(title = sprintf("%s","UP"), caption = tecounttype) + 
-                                    scale_y_continuous(breaks= pretty_breaks())
-
-                            p2 <- down_set %>%
-                                    upset(categories, name='condition', width_ratio=0.3,  min_degree=1,
-                                    base_annotations=list(
-                                    'Intersection size'= intersection_size(counts=FALSE,mapping=aes(fill=req_integrative)) + scale_palette + guides(fill = guide_legend(title="Element Features")))) +
-                                    labs(title = sprintf("%s","DOWN"), caption = tecounttype) + 
-                                    scale_y_continuous(breaks= pretty_breaks())
-                            ncondtions <- length(categories)
-                            mysave(pl = p1, sprintf("%s/%s/pan_contrast/venn/upset_%s_UP.pdf", outputdir, tecounttype, group), ncondtions*2, 6)
-                            mysave(pl = p2, sprintf("%s/%s/pan_contrast/venn/upset_%s_DOWN.pdf", outputdir, tecounttype, group), ncondtions*2, 6)
-                            p <- ((p1)/(p2)) + plot_annotation(title = sprintf("%s DE", group))
-                            mysave(sprintf("%s/%s/pan_contrast/venn/upset_%s.pdf", outputdir, tecounttype, group), ncondtions*2, 10)
+                                    labs(title = sprintf("DE %s", group), caption = tecounttype)
+                            mysaveandstore(sprintf("%s/%s/pan_contrast/venn/upset_%s.pdf", outputdir, tecounttype, group),12, 6)
                             },
                             error = function(e) {
                                 print(e)

@@ -22,9 +22,6 @@ paths = [
     "srna/rawdata/{sample}",
     "srna/outs/{sample}/trimmedReads",
     "srna/outs/{sample}/{counttype}",
-    "srna/outs/agg/{counttype}",
-    "srna/results/agg/deseq/{tecounttype}/{contrast}",
-    "srna/results/agg/repeatanalysis_telescope"
     ]
 for path in paths:
     for sample in samples:
@@ -668,6 +665,7 @@ rule bigwigplots:
     input:
         bwF = expand("srna/outs/{sample}/star_output/{sample}.F.bw", sample = samples),
         bwR = expand("srna/outs/{sample}/star_output/{sample}.R.bw", sample = samples),
+        multiqc = "srna/qc/multiqc/multiqc_report.html"
     params:
         r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
         r_repeatmasker_annotation = config["r_repeatmasker_annotation"],

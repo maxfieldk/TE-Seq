@@ -49,8 +49,8 @@ tryCatch(
             txdbrefseq = "aref/A.REF_annotations/refseq.sqlite"        
         ), env = globalenv())
         assign("inputs", list(
-            bwF = sprintf("srna/outs/%s/star_output/%s.%s.F.bw", conf$samples, conf$samples, "telescope_multi"),
-            bwR = sprintf("srna/outs/%s/star_output/%s.%s.R.bw", conf$samples, conf$samples, "telescope_multi")
+            bwF = sprintf("srna/outs/%s/star_output/%s.F.bw", conf$samples, conf$samples),
+            bwR = sprintf("srna/outs/%s/star_output/%s.R.bw", conf$samples, conf$samples)
         ), env = globalenv())
         assign("outputs", list(
             "plots" = "srna/results/agg/bigwig_plots/telescope_multi/plots.rds"
@@ -73,6 +73,8 @@ refseq_select <- temptxs[mcols(temptxs)$tag == "RefSeq Select"]
 noncoding_transcripts <- refseq[(mcols(refseq)$type == "transcript" & grepl("^NR", mcols(refseq)$transcript_id))]
 transcripts <- c(coding_transcripts, noncoding_transcripts)
 table(mcols(coding_transcripts)$tag)
+
+norm_by_aligned_reads <- read_delim("srna/qc/multiqc/multiqc_data/samtools-stats-dp.txt") %>% filter(Sample %in% sample_table$sample_name) %>% mutate(meanmandp = mean(`Mapped &amp; paired`)) %>% mutate(scale_factor = `Mapped &amp; paired`/meanmandp) %>% dplyr::select(Sample, scale_factor, `Mapped &amp; paired`, meanmandp) %>% dplyr::rename(sample_name = Sample)
 
 
 
@@ -181,13 +183,15 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
                         dfStranded = rbind(dfF, dfR)
                         pf <- df%>% pivot_longer(cols = c(-x), names_to = "sample_name", values_to = "value") %>% 
                             left_join(sample_table) %>% group_by(sample_name) %>%
-                            mutate(smoothed_value = zoo::rollmean(value, 5, fill = NA, align = "left"))
+                            mutate(smoothed_value = zoo::rollmean(value, 5, fill = NA, align = "left")) %>%
+                            left_join(norm_by_aligned_reads) %>% mutate(value = value / scale_factor) %>% mutate(smoothed_value = smoothed_value / scale_factor)
                         pf1 <- pf %>% ungroup() %>% group_by(x, condition) %>% mutate(condition_value = mean(value, na.rm = TRUE)) %>% 
                             mutate(smoothed_condition_value = zoo::rollmean(condition_value, 5, fill = NA, align = "left")) %>% ungroup()
 
                         pfStranded <- dfStranded %>% pivot_longer(cols = c(-x, -strand), names_to = "sample_name", values_to = "value") %>% 
                             left_join(sample_table) %>% group_by(sample_name, strand) %>%
-                            mutate(smoothed_value = zoo::rollmean(value, 5, fill = NA, align = "left"))
+                            mutate(smoothed_value = zoo::rollmean(value, 5, fill = NA, align = "left")) %>%
+                            left_join(norm_by_aligned_reads) %>% mutate(value = value / scale_factor) %>% mutate(smoothed_value = smoothed_value / scale_factor)
                         pfStranded1 <- pfStranded %>% ungroup() %>% group_by(x, strand, condition) %>% mutate(condition_value = mean(value, na.rm = TRUE)) %>%
                             mutate(smoothed_condition_value = zoo::rollmean(condition_value, 5, fill = NA, align = "left")) %>% ungroup()
 
@@ -275,16 +279,16 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
     }
 }
 
-
-
 grs_list <- list()
 for (sample in sample_table$sample_name) {
     bwF <- import(grep(sprintf("/%s/", sample), paths_bwF, value = TRUE))
     strand(bwF) <- "+"
+
     bwR <- import(grep(sprintf("/%s/", sample), inputs$bwR, value = TRUE))
     strand(bwR) <- "-"
     grstemp <- c(bwF, bwR)
     mcols(grstemp)$sample_name <- sample
+    mcols(grstemp)$score <- mcols(grstemp)$score / norm_by_aligned_reads$scale_factor[norm_by_aligned_reads$sample_name == sample]
     grs_list[[sample]] <- grstemp
 }
 grs <- Reduce(c, grs_list)
@@ -335,3 +339,4 @@ p<- pf %>% ggplot(aes(x = sample_name, y = score_sum, fill = sample_name)) + geo
 mysaveandstore(sprintf("srna/results/agg/bigwig_plots/genomic_context/gene_oriented_signal_faceted.pdf"), 12,5)
 
 save(mysaveandstoreplots, file = outputs$plots)
+
