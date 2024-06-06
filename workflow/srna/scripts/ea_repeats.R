@@ -3,6 +3,7 @@ conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
 source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 source("conf/sample_table_source.R")
+set.seed(123)
 
 library(magrittr)
 library(org.Hs.eg.db)
@@ -36,14 +37,14 @@ library(ComplexHeatmap)
         },
         error = function(e) {
             assign("params", list(
-                "tecounttype" = "telocal_multi",
+                "tecounttype" = "telescope_multi",
                 "sample_table" = conf$sample_table,
                 "contrasts" = conf$contrasts,
                 "SenMayoHuman" = conf$SenMayoHuman,
                 "genesets_for_heatmaps" = conf$genesets_for_heatmaps,
                 "collections_for_gsea" = conf$collections_for_gsea,
                 "inputdir" = "srna/results/agg/deseq",
-                "outputdir" = "srna/results/agg/enrichment_analysis_repeats/telocal_multi",
+                "outputdir" = "srna/results/agg/enrichment_analysis_repeats/telescope_multi",
                 "r_annotation_fragmentsjoined" = conf$r_annotation_fragmentsjoined,
                 "r_repeatmasker_annotation" = conf$r_repeatmasker_annotation
             ), env = globalenv())
@@ -51,7 +52,9 @@ library(ComplexHeatmap)
                 resultsdf = paste0("srna/results/agg/deseq/resultsdf.tsv")
 
             ), env = globalenv())
-            assign("outputs", list(outfile = "srna/results/agg/enrichment_analysis_repeats/outfile.txt"), env = globalenv())
+            assign("outputs", list(
+                "environment" = "srna/results/agg/enrichment_analysis_repeats/telescope_multi/enrichment_analysis_repeats_environment.RData",
+                "results_table" = "srna/results/agg/enrichment_analysis_repeats/telescope_multi/results_table.tsv"), env = globalenv())
         }
     )
 
@@ -209,22 +212,50 @@ for (contrast in params[["contrasts"]]) {
 contrast_label_map <- tibble(contrast = params[["contrasts"]], label = gsub("constrast_", "", params[["contrasts"]]))
 gres <- gse_df %>% tibble()
 for (ontology in ontologies) {
-    grestemp <- gres %>% filter(collection == ontology) %>% left_join(contrast_label_map)
-    sigIDs <- grestemp %>% group_by(contrast) %>% arrange(p.adjust) %>% slice_head(n = 10) %$% ID %>% unique()
-    p <- grestemp %>% dplyr::filter(ID %in% sigIDs) %>% mutate(sig = ifelse(p.adjust < 0.05, "*", "")) %>%
-        mutate(ID = str_wrap(as.character(ID) %>% gsub("_", " ", .), width = 40)) %>%
-        mutate(contrast = str_wrap(as.character(contrast) %>% gsub("condition_", "", .) %>% gsub("_vs_.*", "", .), width = 40)) %>%
-        mutate(contrast = factor(contrast, levels = conf$levels)) %>%
-        ggplot(aes(x = contrast, y = ID)) + 
-        geom_tile(aes(fill = NES), color = "black") + 
-        theme(legend.position = "none") + 
-        scale_fill_paletteer_c("grDevices::RdYlBu", direction = -1) + 
-        mtclosed + 
-        theme(axis.text.x = element_text(colour = "black"), axis.text.y = element_text(colour = "black", hjust = 1)) +
-        labs(x = "", y = "", title = ontology) +
-        theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-        coord_equal()
-    mysaveandstore(sprintf("%s/gsea_top_rtes.pdf", params[["outputdir"]], ontology), 7,12)
+    for (filter_var in gres %$% filter_var %>% unique()) {
+        grestemp <- gres %>% filter(collection == ontology) %>% filter(filter_var == !!filter_var) %>% left_join(contrast_label_map)
+        sigIDs <- grestemp %>% mutate(direction = ifelse(NES > 0, "UP", "DOWN")) %>% group_by(contrast, direction) %>% arrange(p.adjust) %>% slice_head(n = 5) %$% ID %>% unique()
+        p <- grestemp %>% dplyr::filter(ID %in% sigIDs) %>% mutate(sig = ifelse(p.adjust < 0.05, "*", "")) %>%
+            mutate(ID = str_wrap(as.character(ID) %>% gsub("_", " ", .), width = 40)) %>%
+            mutate(contrast = str_wrap(as.character(contrast) %>% gsub("condition_", "", .) %>% gsub("_vs_.*", "", .), width = 40)) %>%
+            mutate(contrast = factor(contrast, levels = conf$levels)) %>%
+            ggplot(aes(x = contrast, y = ID)) + 
+            geom_tile(aes(fill = NES), color = "black") + 
+            theme(legend.position = "none") + 
+            scale_fill_gradient2(high = "red", mid = "white", low = "blue") +
+            mtclosed + 
+            theme(axis.text.x = element_text(colour = "black"), axis.text.y = element_text(colour = "black", hjust = 1)) +
+            labs(x = "", y = "", title = paste0(ontology, " ", filter_var)) +
+            theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+            coord_equal()
+        mysaveandstore(sprintf("%s/gsea_top_rtes_%s_%s.pdf", params[["outputdir"]], ontology, filter_var), w = 3+.3*(length(conf$levels) - 1), h = 3 + .3*length(sigIDs))
+    }
 }
 
-save(mysaveandstoreplots, file = outputs$plots)
+gres %>% write_tsv(outputs$results_table)
+
+if (conf$store_env_as_rds == "yes") {
+    save.image(file = outputs$environment)
+} else {
+    x = tibble(Env_file = "Opted not to store environment. If this is not desired, change 'store_plots_as_rds' to 'yes' in the relevant config file and rerun this rule.")
+    write_tsv(x, file = outputs$environment)
+}
+
+# figures: modify plot compositions at will!
+load(outputs$environment)
+tryCatch(
+    {
+        library(patchwork)
+        p1 <- mysaveandstoreplots[["srna/results/agg/enrichment_analysis_repeats/telescope_multi/gsea_top_rtes_rte_subfamily_ALL.pdf"]]
+        p2 <- mysaveandstoreplots[["srna/results/agg/enrichment_analysis_repeats/telescope_multi/gsea_top_rtes_rte_subfamily_rte_length_req.pdf"]]
+        names(mysaveandstoreplots)
+        ptch <- p1 + p2 + plot_layout(ncol = 2, guides = "collect")
+        mysaveandstore(pl = ptch, fn = "srna/results/agg/enrichment_analysis_repeats/telescope_multi/gsea_top_rtes_combined.pdf", w = 6, h = 10)
+        print(mysaveandstoreplots[[1]])
+    },
+    error = function(e) {
+
+    }
+)
+
+

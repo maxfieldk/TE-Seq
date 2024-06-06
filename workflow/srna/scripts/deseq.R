@@ -330,16 +330,90 @@ if ("batch" %in% colnames(coldata)) {
     colnames(sampleDistMatrix) <- NULL
     colors <- colorRampPalette(rev(brewer.pal(9, "Blues")))(255)
 
-    p <- pheatmap::pheatmap(sampleDistMatrix,
-        clustering_distance_rows = sampleDists,
-        clustering_distance_cols = sampleDists,
-        col = colors
-    )
-    mysaveandstore(paste(outputdir, tecounttype, subset,sprintf("batchRemoved_%s", batchnormed), "pheatmap.pdf", sep = "/"), 4, 4)
+    hm <- sampleDistMatrix %>%
+        Heatmap(
+            name = "Sample Distance",
+            cluster_rows = TRUE,
+            cluster_columns = TRUE,
+            show_row_names = TRUE,
+            show_column_names = TRUE,
+            column_names_rot = 90,
+            col = c("red", "white"),
+            border_gp = gpar(col = "black")
+        )
+    p <- wrap_elements(grid.grabExpr(draw(hm, heatmap_legend_side = "bottom", annotation_legend_side = "right")))
+    mysaveandstore(paste(outputdir, tecounttype, subset,sprintf("batchRemoved_%s", batchnormed), "sample_dist_heatmap.pdf", sep = "/"), 4, 4)
 }
 }
 
 save(ddsrteslist, file = paste(outputdir, tecounttype, "dds_rtes.RData", sep = "/"))
 save(ddsgeneslist, file = paste(outputdir, tecounttype, "dds_genes.RData", sep = "/"))
 
-save(mysaveandstoreplots, file = outputs$plots)
+if (conf$store_env_as_rds == "yes") {
+    save.image(file = outputs$environment)
+} else {
+    x = tibble(Env_file = "Opted not to store environment. If this is not desired, change 'store_plots_as_rds' to 'yes' in the relevant config file and rerun this rule.")
+    write_tsv(x, file = outputs$environment)
+}
+
+# figures: modify plot compositions at will!
+# load(outputs$environment)
+
+names(mysaveandstoreplots)
+
+
+
+
+tryCatch(
+    {
+        library(patchwork)
+
+        p1 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/genes/batchRemoved_no/pca.pdf"]]
+        p2 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/rtes/batchRemoved_no/screeplot.pdf"]]
+        p3 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/genes/batchRemoved_no/sample_dist_heatmap.pdf"]]
+        ptch <- ((p1 / p2) | p3)  + plot_layout(guides = "collect")
+        mysaveandstore(pl = ptch, fn = "srna/results/agg/deseq/telescope_multi/figs/f32.pdf", w = 8, h = 6)
+
+        paste0("RTE/",names(mysaveandstoreplots))
+
+        p1 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/genes/batchRemoved_no/pca.pdf"]]
+        p2 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/rtes/batchRemoved_no/screeplot.pdf"]]
+        p3 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/genes/batchRemoved_no/sample_dist_heatmap.pdf"]]
+        ptch <- ((p1 / p2) | p3)  + plot_layout(guides = "collect")
+        mysaveandstore(pl = ptch, fn = "srna/results/agg/deseq/telescope_multi/figs/f32.pdf", w = 8, h = 6)
+
+        ptch <- wrap_plots(mysaveandstoreplots[names(mysaveandstoreplots) %>% grep("genes", ., value = TRUE) %>% grep("maplot", ., value = TRUE) %>% grep(paste(contrasts, collapse = "|"), ., value = TRUE)])
+        mysaveandstore(pl = ptch, fn = "srna/results/agg/deseq/telescope_multi/figs/maplots_genes.pdf", w = 14, h = 6)        
+
+        ptch <- wrap_plots(mysaveandstoreplots[names(mysaveandstoreplots) %>% grep("genes", ., value = TRUE) %>% grep("maplot", ., value = TRUE) %>% grep(paste(contrasts, collapse = "|"), ., value = TRUE)])
+        mysaveandstore(pl = ptch, fn = "srna/results/agg/deseq/telescope_multi/figs/maplots_genes.pdf", w = 14, h = 6)        
+
+        # ptch <- wrap_plots(mysaveandstoreplots[names(mysaveandstoreplots) %>% grep("rtes", ., value = TRUE) %>% grep("maplot", ., value = TRUE) %>% grep(paste(contrasts, collapse = "|"), ., value = TRUE)])
+        # mysaveandstore(pl = ptch, fn = "srna/results/agg/deseq/telescope_multi/figs/maplots_rtes.pdf", w = 14, h = 6)        
+
+        ptch <- wrap_plots(mysaveandstoreplots[names(mysaveandstoreplots) %>% grep("genes", ., value = TRUE) %>% grep("deplot", ., value = TRUE) %>% grep(paste(contrasts, collapse = "|"), ., value = TRUE)])
+        mysaveandstore(pl = ptch, fn = "srna/results/agg/deseq/telescope_multi/figs/volcano_genes.pdf", w = 14, h = 6)        
+
+        # ptch <- wrap_plots(mysaveandstoreplots[names(mysaveandstoreplots) %>% grep("rtes", ., value = TRUE) %>% grep("deplot", ., value = TRUE) %>% grep(paste(contrasts, collapse = "|"), ., value = TRUE)])
+        # mysaveandstore(pl = ptch, fn = "srna/results/agg/deseq/telescope_multi/figs/volcano_rtes.pdf", w = 14, h = 6)        
+
+
+
+        # rm(ptch)
+        # for (contrast in contrasts) {
+        #     if (!exists(ptch)) {
+
+        #     }
+        # }
+        #batch vs no batch
+        p1 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/genes/batchRemoved_no/pca.pdf"]]
+        p2 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/genes/batchRemoved_yes/pca.pdf"]]
+        p3 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/rtes/batchRemoved_no/pca_pairs_condition.pdf"]]
+        ptch <- p1 + p2 + p3 + plot_layout(ncol = 2, guides = "collect", heights = c(1, 2))
+        mysaveandstore(pl = ptch, fn = "srna/results/agg/deseq/telescope_multi/figs/batch.pdf", w = 6, h = 10)
+    },
+    error = function(e) {
+
+    }
+)
+

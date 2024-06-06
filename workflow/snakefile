@@ -95,10 +95,10 @@ for pipeline in config["pipelines_to_deploy"]:
 
         def srna_rally():
             deseq = expand("srna/results/agg/deseq/{tecounttype}/{contrast}/results_genes.csv", tecounttype = config["srna"]["tecounttypes"], contrast = config["srna"]["contrasts"])
-            enrichment_analysis = "srna/results/agg/enrichment_analysis/enrichment_analysis_plots.RData"
-            enrichment_analysis_repeats = expand("srna/results/agg/enrichment_analysis_repeats/{tecounttype}/enrichment_analysis_repeats_plots.RData", tecounttype = config["srna"]["tecounttypes"])
-            repeatanalysisplots = expand("srna/results/agg/repeatanalysis_telescope/{tecounttype}/repeatanalysisplots_plots.RData", tecounttype = config["srna"]["tecounttypes"])
-            bigwigs = "srna/results/agg/bigwig_plots/plots.rds"
+            enrichment_analysis = "srna/results/agg/enrichment_analysis/enrichment_analysis_environment.RData"
+            enrichment_analysis_repeats = expand("srna/results/agg/enrichment_analysis_repeats/{tecounttype}/enrichment_analysis_repeats_environment.RData", tecounttype = config["srna"]["tecounttypes"])
+            repeatanalysisplots = expand("srna/results/agg/repeatanalysis_telescope/{tecounttype}/repeatanalysisplots_environment.RData", tecounttype = config["srna"]["tecounttypes"])
+            bigwigs = "srna/results/agg/bigwig_plots/bigwigplots_environment.RData"
             qc = [expand("srna/qc/mycoplasma/mycoplasma{sample}.sam", sample = config["srna"]["samples"]), "srna/qc/multiqc/multiqc_report.html"]
             return list(flatten([bigwigs, deseq, enrichment_analysis, enrichment_analysis_repeats, repeatanalysisplots, qc]))
        

@@ -1,10 +1,10 @@
 module_name <- "srna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
 confALL <- configr::read.config(file = "conf/config.yaml")
-
 source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 source("conf/sample_table_source.R")
+set.seed(123)
 
 library(magrittr)
 library(org.Hs.eg.db)
@@ -51,7 +51,9 @@ library(ggpubr)
             assign("inputs", list(
                 resultsdf = paste0("srna/results/agg/deseq/resultsdf.tsv")
             ), env = globalenv())
-            assign("outputs", list(outfile = "srna/results/agg/enrichment_analysis/outfile.txt"), env = globalenv())
+            assign("outputs", list(plots = "srna/results/agg/enrichment_analysis/enrichment_analysis_plots.RData",
+                                    results_table_targetted = "srna/results/agg/enrichment_analysis/results_table_targetted.tsv",
+                                    results_table_unbiased = "srna/results/agg/enrichment_analysis/results_table_unbiased.tsv"), env = globalenv())
         }
     )
 
@@ -150,41 +152,25 @@ for (contrast in params[["contrasts"]]) {
 }
 
 gres <- gse_df %>% tibble()
+gres %>% write_delim(outputs$results_table_targetted, delim = "\t")
 for (collec in genecollections) {
     grestemp <- gres %>% filter(collection == collec) %>% left_join(contrast_label_map)
-    sigIDs <- grestemp %>% group_by(contrast) %>% arrange(p.adjust) %>% slice_head(n = 10) %$% ID %>% unique()
-    p <- grestemp %>% dplyr::filter(ID %in% sigIDs) %>% mutate(sig = ifelse(p.adjust < 0.05, "*", "")) %>%
-        mutate(ID = str_wrap(as.character(ID) %>% gsub("_", " ", .), width = 40)) %>%
-        mutate(label = str_wrap(as.character(label) %>% gsub("condition_", "", .) %>% gsub("_vs_.*", "", .), width = 40)) %>%
-        mutate(label = factor(label, levels = conf$levels)) %>%
-        ggplot(aes(x = label, y = ID)) + 
-        geom_tile(aes(fill = NES), color = "black") + 
-        theme(legend.position = "none") + 
-        scale_fill_paletteer_c("grDevices::RdYlBu", direction = -1) + 
-        mtclosed + 
-        theme(axis.text.x = element_text(colour = "black"), axis.text.y = element_text(colour = "black", hjust = 1)) +
-        labs(x = "", y = "", title = collec) +
-        theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-        coord_equal()
-    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/gsea_top_%s_grid.pdf", collec), 7,12)
-}
-for (collec in genecollections) {
-    grestemp <- gres %>% filter(collection == collec)
-    sigIDs <- grestemp %>% group_by(contrast) %>% arrange(p.adjust) %>% slice_head(n = 10) %$% ID %>% unique()
+    sigIDs <- grestemp %>% mutate(direction = ifelse(NES > 0, "UP", "DOWN")) %>% group_by(contrast, direction) %>% arrange(p.adjust) %>% slice_head(n = 5) %$% ID %>% unique()
     p <- grestemp %>% dplyr::filter(ID %in% sigIDs) %>% mutate(sig = ifelse(p.adjust < 0.05, "*", "")) %>%
         mutate(ID = str_wrap(as.character(ID) %>% gsub("_", " ", .), width = 40)) %>%
         mutate(label = str_wrap(as.character(contrast) %>% gsub("condition_", "", .) %>% gsub("_vs_.*", "", .), width = 40)) %>%
         mutate(label = factor(label, levels = conf$levels)) %>%
+        mutate(ID = fct_reorder(ID, NES)) %>%
         ggplot(aes(x = label, y = ID)) + 
-        geom_point(aes(color = NES, size = abs(NES))) + 
+        geom_tile(aes(fill = NES), color = "black") + 
         theme(legend.position = "none") + 
-        scale_color_paletteer_c("grDevices::RdYlBu", direction = -1) + 
+        scale_fill_gradient2(high = "red", mid = "white", low = "blue") +
         mtclosed + 
         theme(axis.text.x = element_text(colour = "black"), axis.text.y = element_text(colour = "black", hjust = 1)) +
         labs(x = "", y = "", title = collec) +
         theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
         coord_equal()
-    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/gsea_top_%s_dot.pdf", collec), 7,12)
+    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/targetted/gsea_top_%s_grid.pdf", collec), 7,12)
 }
 
 # plot core enrichments 
@@ -287,7 +273,7 @@ for (contrast in params[["contrasts"]]) {
             # and one for the significant p-values
             lgd_sig <- Legend(pch = "*", type = "points", labels = "< 0.05")
             # these two self-defined legends are added to the plot by `annotation_legend_list`
-            p <- draw(hm, annotation_legend_list = list(lgd_pvalue_adj, lgd_sig), heatmap_legend_side = "bottom", annotation_legend_side = "bottom")
+            p <- wrap_elements(grid.grabExpr(draw(hm, annotation_legend_list = list(lgd_pvalue_adj, lgd_sig), heatmap_legend_side = "bottom", annotation_legend_side = "bottom")))
             mysaveandstore(sprintf("%s/%s/gsea/%s/core_enrichments/heatmap_%s.pdf", params[["outputdir"]], contrast, collection, set_title), w = min(dim(scaledm)[2], 12), h = min(dim(scaledm)[1], 12), res = 300)
         }
     }
@@ -307,11 +293,13 @@ for (geneset in names(params[["genesets_for_heatmaps"]])) {
     barplotpf <- res %>% filter(gene_id %in% genestoplot) %>% pivot_longer(cols = conf$samples, names_to = "sample_name", values_to = "counts") %>% left_join(sample_table) %>%
         mutate(sample_name = factor(sample_name, levels = conf$samples)) %>%
         mutate(condition = factor(condition, levels = conf$levels))
-    p <- barplotpf %>% ggplot() + geom_bar(aes(x = sample_name, y = counts, fill = condition), stat = "identity") + 
-    labs(title = set_title, x = element_blank()) + 
-    facet_wrap(~gene_id, ncol = 4, scales = "free") +
-    mtclosedgridh + scale_conditions + anchorbar +
-    theme(axis.text.x=element_blank(),axis.ticks.x=element_blank())
+
+
+    p <- barplotpf %>% ggbarplot(x = "condition", y = "counts", fill = "condition", add = c("mean_se", "dotplot"),
+        facet.by = "gene_id", scales = "free", ncol = 4) + 
+        labs(title = set_title, x = element_blank()) + 
+        mtclosedgridh + scale_conditions + anchorbar +
+        theme(axis.text.x=element_blank(),axis.ticks.x=element_blank())
     mysaveandstore(sprintf("%s/barplot_%s.pdf", params[["outputdir"]], set_title), 8, 2*round(ngenes/ncol))
 
     heatmapprep <- res %>% filter(gene_id %in% genestoplot)
@@ -334,7 +322,7 @@ for (geneset in names(params[["genesets_for_heatmaps"]])) {
             row_title = set_title,
             border_gp = gpar(col = "black")
         )
-    p <- draw(hm, heatmap_legend_side = "bottom", annotation_legend_side = "bottom")
+    p <- wrap_elements(grid.grabExpr(draw(hm, heatmap_legend_side = "bottom", annotation_legend_side = "bottom")))
     hmscalew <- 0.7
     hmscaleh <- 0.7
     mysaveandstore(sprintf("%s/heatmap_%s.pdf", params[["outputdir"]], set_title), w = min(dim(scaledm)[2]*hmscalew, 12), h = min(dim(scaledm)[1]*hmscaleh, 12), res = 300)
@@ -396,7 +384,7 @@ for (geneset in names(params[["genesets_for_heatmaps"]])) {
         # and one for the significant p-values
         lgd_sig <- Legend(pch = "*", type = "points", labels = "< 0.05")
         # these two self-defined legends are added to the plot by `annotation_legend_list`
-        p <- draw(hm, annotation_legend_list = list(lgd_pvalue_adj, lgd_sig), heatmap_legend_side = "bottom", annotation_legend_side = "bottom")
+        p <- wrap_elements(grid.grabExpr(draw(hm, annotation_legend_list = list(lgd_pvalue_adj, lgd_sig), heatmap_legend_side = "bottom", annotation_legend_side = "bottom")))
         mysaveandstore(sprintf("%s/%s/heatmap_%s.pdf", params[["outputdir"]], contrast, set_title), w = min(dim(scaledm)[2]*hmscalew, 12), h = min(dim(scaledm)[1]*hmscaleh, 12), res = 300)
     }
 }
@@ -438,10 +426,11 @@ for (contrast in params[["contrasts"]]) {
                         for (num in c(5, 10, 15)) {
                             dftemp <- arrange(df, -abs(NES)) %>%
                                 group_by(sign(NES)) %>%
-                                slice(1:num)
+                                slice(1:num) %>%
+                                mutate(log10padj = -log10(p.adjust))
                             dftemp <- dftemp %>% mutate(Description = str_wrap(as.character(Description) %>% gsub("_", " ", .), width = 40)) 
                             dftemp <- dftemp %>% mutate(`Gene Ratio` = 0.01 * as.numeric(gsub("%", "", gsub(",.*", "", gsub("tags=", "", leading_edge)))))
-                            p <- ggplot(dftemp, aes(NES, fct_reorder(Description, NES), fill = p.adjust)) +
+                            p <- ggplot(dftemp, aes(NES, fct_reorder(Description, NES), fill = log10padj)) +
                                 geom_col(orientation = "y") +
                                 scale_fill_gradient(high = "red", low = "white", limits = c(0,5), oob = scales::squish) +
                                 mtopen +
@@ -560,30 +549,105 @@ for (contrast in params[["contrasts"]]) {
             # and one for the significant p-values
             lgd_sig <- Legend(pch = "*", type = "points", labels = "< 0.05")
             # these two self-defined legends are added to the plot by `annotation_legend_list`
-            p <- draw(hm, annotation_legend_list = list(lgd_pvalue_adj, lgd_sig), heatmap_legend_side = "bottom", annotation_legend_side = "bottom")
+            p <- wrap_elements(grid.grabExpr(draw(hm, annotation_legend_list = list(lgd_pvalue_adj, lgd_sig), heatmap_legend_side = "bottom", annotation_legend_side = "bottom")))
             mysaveandstore(sprintf("%s/%s/gsea/%s/core_enrichments/heatmap_%s.pdf", params[["outputdir"]], contrast, collection, set_title), w = min(dim(scaledm)[2], 12), h = min(dim(scaledm)[1], 12), res = 300)
         }
     }
 }
 
 gres <- gse_df %>% tibble()
+gres %>% write_delim(outputs$results_table_unbiased, delim = "\t")
 for (collec in gse_df %$% collection %>% unique()) {
     grestemp <- gres %>% filter(collection == collec)
-    sigIDs <- grestemp %>% group_by(contrast) %>% arrange(p.adjust) %>% slice_head(n = 10) %$% ID %>% unique()
+    sigIDs <- grestemp %>% mutate(direction = ifelse(NES > 0, "UP", "DOWN")) %>% group_by(contrast, direction) %>% arrange(p.adjust) %>% slice_head(n = 5) %$% ID %>% unique()
     p <- grestemp %>% dplyr::filter(ID %in% sigIDs) %>% mutate(sig = ifelse(p.adjust < 0.05, "*", "")) %>%
         mutate(ID = str_wrap(as.character(ID) %>% gsub("_", " ", .), width = 40)) %>%
         mutate(label = str_wrap(as.character(contrast) %>% gsub("condition_", "", .) %>% gsub("_vs_.*", "", .), width = 40)) %>%
         mutate(label = factor(label, levels = conf$levels)) %>%
+        mutate(ID = fct_reorder(ID, NES)) %>%
         ggplot(aes(x = label, y = ID)) + 
         geom_tile(aes(fill = NES), color = "black") + 
         theme(legend.position = "none") + 
-        scale_fill_paletteer_c("grDevices::RdYlBu", direction = -1) + 
+        scale_fill_gradient2(high = "red", mid = "white", low = "blue") + 
         mtclosed + 
         theme(axis.text.x = element_text(colour = "black"), axis.text.y = element_text(colour = "black", hjust = 1)) +
         labs(x = "", y = "", title = collec) +
         theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
         coord_equal()
-    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/gsea_top_%s_grid.pdf", collec), 7,12)
+    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/unbiased/gsea_top_%s_grid.pdf", collec), 7,12)
 }
 
-save(mysaveandstoreplots, file = outputs$plots)
+if (conf$store_env_as_rds == "yes") {
+    save.image(file = outputs$environment)
+} else {
+    x = tibble(Env_file = "Opted not to store environment. If this is not desired, change 'store_plots_as_rds' to 'yes' in the relevant config file and rerun this rule.")
+    write_tsv(x, file = outputs$environment)
+}
+
+# figures: modify plot compositions at will!
+# load(outputs$environment)
+tryCatch(
+    {
+        library(patchwork)
+        paste0("RTE/",names(mysaveandstoreplots))
+
+        ptch <- wrap_plots(mysaveandstoreplots[names(mysaveandstoreplots) %>% grep("targetted", ., value = TRUE) %>% grep("gsea_top_.*grid", ., value = TRUE) %>% sort()]) +
+            plot_layout(nrow = 1, guides = "collect")
+        mysave(pl = ptch, fn = "srna/results/agg/enrichment_analysis/targetted/gsea_top_all.pdf", w = 10*length(ptch), h = 10)
+
+
+        ptch <- wrap_plots(mysaveandstoreplots[names(mysaveandstoreplots) %>% grep("unbiased", ., value = TRUE) %>% grep("gsea_top_.*grid", ., value = TRUE) %>% sort()])
+        mysave(pl = ptch, fn = "srna/results/agg/enrichment_analysis/unbiased/gsea_top_all.pdf", w = 30, h = 30)
+
+        # ptch <- wrap_plots(mysaveandstoreplots[
+        #     c(
+        #     names(mysaveandstoreplots) %>% grep("targetted", ., value = TRUE) %>% grep("gsea_top_.*grid", ., value = TRUE) %>% sort(),
+        #     names(mysaveandstoreplots) %>% grep("targetted", ., value = TRUE) %>% grep("gsea_top_.*grid", ., value = TRUE) %>% sort()
+        #     )
+        # ])
+        # mysave(pl = ptch, fn = "srna/results/agg/enrichment_analysis/unbiased/gsea_top_all.pdf", w = 30, h = 30)
+
+
+
+        library(patchwork)
+        p1 <- mysaveandstoreplots[["srna/results/agg/enrichment_analysis_repeats/telescope_multi/gsea_top_rtes_rte_subfamily_ALL.pdf"]]
+        p2 <- mysaveandstoreplots[["srna/results/agg/enrichment_analysis_repeats/telescope_multi/gsea_top_rtes_rte_subfamily_rte_length_req.pdf"]]
+        
+        
+        
+        names(mysaveandstoreplots)
+        ptch <- p1 + p2 + plot_layout(ncol = 2, guides = "collect")
+        mysaveandstore(pl = ptch, fn = "srna/results/agg/enrichment_analysis_repeats/telescope_multi/gsea_top_rtes_combined.pdf", w = 6, h = 10)
+
+    },
+    error = function(e) {
+
+    }
+)
+
+# for (name in names(mysaveandstoreplots)) {
+#     tryCatch({
+#         print(mysaveandstoreplots[[name]])
+#         print(name)
+#     },
+#     error = function(e) {
+#         print(name)
+#         print("FAIL")
+#     }
+#     )}
+
+# print(mysaveandstoreplots[[1]])
+
+# mysaveandstoreplots[["srna/results/agg/enrichment_analysis/condition_ESEN_vs_PRO/gsea/msigdbH/core_enrichments/barplot_HALLMARK_INFLAMMATORY_RESPONSE.pdf"]]
+# names(mysaveandstoreplots)[[1]]
+# str(mysaveandstoreplots[[1]])
+# print(mysaveandstoreplots[[1]])
+# mysave(pl = mysaveandstoreplots[[1]])
+
+# str(mysaveandstoreplots[[2]])
+# print(mysaveandstoreplots[[2]])
+# mysave(pl = mysaveandstoreplots[[2]])
+
+# str(mysaveandstoreplots[[100]])
+# print(mysaveandstoreplots[[100]])
+# mysave(pl = mysaveandstoreplots[[100]])

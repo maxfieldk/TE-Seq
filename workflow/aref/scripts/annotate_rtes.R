@@ -101,6 +101,8 @@ rmfamilies <- rmfragments %>%
         grepl("^LINE/L1/L1PA6$", family, perl = TRUE) ~ "L1PA6"
     )) %>%
     mutate(l1_subfamily_limited = replace_na(l1_subfamily_limited, "Other")) %>%
+    mutate(l1_subfamily = ifelse(grepl("^LINE/L1", family, perl = TRUE), sapply(str_split(family, "/"), tail, n = 1), "Other")) %>%
+    mutate(l1_subfamily = replace_na(l1_subfamily, "Other")) %>%
     mutate(herv_subfamily_limited = case_when(
         grepl("HERVK(.)*int$", family, perl = TRUE) ~ "HERVK_INT",
         grepl("LTR/ERVK/LTR(.)*$", family, perl = TRUE) ~ "HERVK_LTR",

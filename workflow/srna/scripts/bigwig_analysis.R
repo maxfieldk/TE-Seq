@@ -2,6 +2,7 @@ module_name <- "srna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
 source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
+set.seed(123)
 
 library(knitr)
 library(rmarkdown)
@@ -53,7 +54,7 @@ tryCatch(
             bwR = sprintf("srna/outs/%s/star_output/%s.R.bw", conf$samples, conf$samples)
         ), env = globalenv())
         assign("outputs", list(
-            "plots" = "srna/results/agg/bigwig_plots/telescope_multi/plots.rds"
+            "environment" = "srna/results/agg/bigwig_plots/bigwigplots_environment.RData"
         ), env = globalenv())
     }
 )
@@ -335,8 +336,30 @@ p<- pf %>% ggplot(aes(x = loc_integrative, y = score_sum, fill = sample_name)) +
 mysaveandstore(sprintf("srna/results/agg/bigwig_plots/genomic_context/gene_oriented_signal.pdf"), 12,5)
 
 p<- pf %>% ggplot(aes(x = sample_name, y = score_sum, fill = sample_name)) + geom_col(position = position_dodge(preserve = "single")) +
-    facet_wrap(~loc_integrative, scale = "free_y") + scale_samples_unique + mtclosed + anchorbar + theme(axis.text.x = element_blank())
+    facet_wrap(~loc_integrative, scale = "free_y") + scale_samples_unique + mtclosed + anchorbar + theme(axis.text.x = element_blank()) + labs(x = "")
 mysaveandstore(sprintf("srna/results/agg/bigwig_plots/genomic_context/gene_oriented_signal_faceted.pdf"), 12,5)
 
-save(mysaveandstoreplots, file = outputs$plots)
 
+if (conf$store_env_as_rds == "yes") {
+    save.image(file = outputs$environment)
+} else {
+    x = tibble(Env_file = "Opted not to store environment. If this is not desired, change 'store_plots_as_rds' to 'yes' in the relevant config file and rerun this rule.")
+    write_tsv(x, file = outputs$environment)
+}
+
+# figures: modify plot compositions at will!
+# load(outputs$environment)
+tryCatch(
+    {
+        library(patchwork)
+        p1 <- mysaveandstoreplots[["srna/results/agg/bigwig_plots/genomic_context/gene_oriented_signal_faceted.pdf"]]
+        p2 <- mysaveandstoreplots[["srna/results/agg/bigwig_plots/rte/L1HS_rte_length_req_profile_by_sample_stranded.pdf"]]
+        names(mysaveandstoreplots)
+        ptch <- p1 + p2 + plot_layout(ncol = 2, guides = "collect")
+        mysaveandstore(pl = ptch, fn = "srna/results/agg/bigwig_plots/composition.pdf", w = 15, h = 7)
+
+    },
+    error = function(e) {
+
+    }
+)
