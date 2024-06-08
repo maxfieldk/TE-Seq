@@ -1,4 +1,4 @@
-# TE-Seq: A Transposable Element RNA-Seq Pipeline
+# TE-Seq: A Transposable Element Annotation & RNA-Seq Pipeline
 This project consists of a __snakemake pipeline__ to analyze transposable element (TE) sequencing data.
 
 To the unacquainted, the analysis of TE, and more generally repetitive element, sequencing data can be a daunting task: the repetitive nature of these elements imposes  analytical pitfalls and raises a number of practical questions including:  
@@ -15,7 +15,8 @@ It also aims address concerns pertaining to:
 
 This project derives from my work in the __Sedivy Lab at Brown University__, where we study transposable elements, in particular __LINE1__.
 #
-![Asset 8](https://github.com/maxfieldk/RTE/assets/44215152/22091aa5-32f4-4921-b994-5e04a3e76d83)
+![Asset 14](https://github.com/maxfieldk/RTE/assets/44215152/9e1a5869-4984-4082-81ab-52483a119741)
+
 
 
 ## Pipeline Overview
@@ -94,6 +95,9 @@ In the __"srna" section__, make sure that the values associated with the keys: "
 Then if you have genesets of interest, you can modify the "genesets_for_gsea" and "genesets_for_heatmaps" keys, adding a key-value pair for your geneset of interest. Please use gmt format for the former and a list of gene symbols in a text file for the latter (you can look at the provided genesets in the resources/ directory for further guidance).
 
 In the __"aref" section__, locate the comment "#USER PROVIDED ANNOTATIONS - CHANGE PATHS AS NEEDED". This set of annotations is all that you will need to provide to the pipeline, and consists of several files. You will have to obtain these files, and specify their paths in the config.yaml aref section. Here I show how to do this for the T2T-HS1 human genome.
+***
+***
+### HUMAN - Genome: T2T-HS1
 - Download these files, and place them in a genome directory adjacent to your project directory
 ```
 cd ..
@@ -131,6 +135,69 @@ This pipeline expects chromosome names to be in UCSC format ie. "chr1, chr2, ...
   ../RTE/resources/programs/chromToUcsc -i refseq.sorted.gff3 -a hs1.chromAlias.txt > refseq.sorted.ucsc.gff3
 rm refseq.gtf; rm refseq.sorted.gtf; rm refseq.gff3; rm refseq.sorted.gff3
   ```
+***
+***
+### MOUSE - Genome: MM39
+- Download these files, and place them in a genome directory adjacent to your project directory
+
+10350  wget 
+10351* cd RTE
+10352* cd ..
+10353* cd genome_files
+10354* wget 
+10355* wget 
+10356* wget 
+10357* l
+10358* 
+10359* mv mm39.fa reference.ucsc.fa
+10360* mv mm39.fa.out repeatmasker.ucsc.out
+10361* mv .gff refseq.gff32
+10362* mv refseq.gff32 refseq.gff32
+10363* mv refseq.gff32 refseq.gff3
+10364* mv GCF_000001635.27_GRCm39_genomic.gtf refseq.gtf
+10365* l
+10366* wget 
+10367* 
+
+```
+cd ..
+mkdir genome_files
+cd genome_files
+#reference genome
+wget https://hgdownload.soe.ucsc.edu/goldenPath/mm39/bigZips/mm39.fa.gz
+#repeatmasker.out file
+wget https://hgdownload.soe.ucsc.edu/goldenPath/mm39/bigZips/mm39.fa.out.gz
+#Refseq gtf file
+wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/635/GCF_000001635.27_GRCm39/GCF_000001635.27_GRCm39_genomic.gtf.gz
+#Refseq gff3 file
+wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/635/GCF_000001635.27_GRCm39/GCF_000001635.27_GRCm39_genomic.gff.gz
+```
+- If using using nanopore reads to update your reference, you will also need to provide a path to the repeatmasker executable on your system (download at https://www.repeatmasker.org/RepeatMasker/)
+- These files will need to be decompressed
+  ```
+  gunzip mm39.fa.gz; mv mm39.fa reference.ucsc.fa
+  gunzip GCF_000001635.27_GRCm39_genomic.gtf.gz; mv GCF_000001635.27_GRCm39_genomic.gtf refseq.gtf
+  gunzip GCF_000001635.27_GRCm39_genomic.gff.gz; mv GCF_000001635.27_GRCm39_genomic.gff refseq.gff3
+  gunzip mm39.out.gz; mv mm39.out repeatmasker.ucsc.out
+  ```
+This pipeline expects chromosome names to be in UCSC format ie. "chr1, chr2, ...". You can easily inspect your annotation files to ensure they conform to this convention by using the following command:
+  ```
+  less {path_to_annotation}
+  ```
+  Annotations obtained from ncbi will typically need to have their naming convention changed.  
+  To do so one need only run the resources/programs/chromToUcsc program, providing it with a sorted annotation (or genome reference) file and a chromAlias file. This is shown here: https://www.biostars.org/p/75369/#76420  
+  ```
+  sort -k1,1V -k4,4n -k5,5n refseq.gtf > refseq.sorted.gtf
+  sort -k1,1V -k4,4n -k5,5n refseq.gff3 > refseq.sorted.gff3
+  wget http://hgdownload.soe.ucsc.edu/goldenPath/mm39/database/chromAlias.txt.gz
+  gunzip chromAlias.txt.gz
+  chmod +x ../RTE/resources/programs/chromToUcsc
+  ../RTE/resources/programs/chromToUcsc -i refseq.sorted.gtf -a chromAlias.txt > refseq.sorted.ucsc.gtf
+  ../RTE/resources/programs/chromToUcsc -i refseq.sorted.gff3 -a chromAlias.txt > refseq.sorted.ucsc.gff3
+  rm refseq.gtf; rm refseq.sorted.gtf; rm refseq.gff3; rm refseq.sorted.gff3
+  ```
+***
+***
   I recommend you store these downloaded annotations in a directory one level above your project directory (place genomes_files/ adjacent to the RTE/ directory). Don't store any large files in resources/ seeing as it is under git control (git does not like large files). Just ensure that the paths are nested within a singularity bound directory if using the containerized workflow (read on to the segment on "workflow/profile/default/config.yaml" below for more details).  
   
 Create, in your project directory, the srna/rawdata directory structure, and move your fastqs there. Make sure the naming is consistent with the naming scheme set forth in the conf/project_config_srna.yaml, which uses sample_name from the conf/sample_table_srna.csv i.e.:  
@@ -182,3 +249,13 @@ Create, in your project directory, the srna/rawdata directory structure, and mov
   If you encounter problems, please create a new issue on the github page.  
 ## Attribution
   The workflow graphic was adapted from work by Zandra Fagernas and carries a CC-BY 4.0 license.
+  
+  Pending the publication of our manuscript, if you use this pipeline or any of its component parts, please cite this github page. 
+
+## A note on extending this pipeline to non-human/mouse species.
+Several additional changes will need to be made.
+1. Change the aref species key's value in conf/config.yaml to a valid NCBI Taxonomy Database species name which is also contained in the RepeatMasker repeat database.
+2. If using long DNA reads to call novel insertions, add a key:value pair in the aref tldr_te_ref section of conf/config.yaml . The value should be a file path to a fasta file containing consensus sequences for all TEs which will be probed for novel insertions by the TLDR program. The naming convention for each fasta element should be akin to that found in the mouse/human files, i.e. "famlily:element" e.g. "L1:L1HS" where these values correspond to repeatmasker names.
+Optionally
+3. In the aref/scripts/annotate_rtes.R script:
+Ctlr F "conf$species". You will find two blocks of code which provide species specific annotations for repeat families which are extensively examined in downstream scripts. add an else {} block, and supply your own regex for whatever repeat groupings you are interested in. If you do not do this, the script will automatically select the least diverged LTR, SINE, and LINE families for downstream scrutiny.
