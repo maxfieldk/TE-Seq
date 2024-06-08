@@ -32,9 +32,9 @@ aref:
   ref_refseq_gff3: ../genome_files/refseq.sorted.ucsc.gff3
 
   #PIPELINE INCLUDED ANNOTATIONS FOR T2T-HS1 genome - LEAVE PATHS UNCHANGED OR CHANGE AS NEEDED
-  ref_cytobands: resources/genomes/hs1/annotations/chm13v2.0_cytobands_allchrs.bed
-  ref_telomere: resources/genomes/hs1/annotations/chm13v2.0_telomere.bed
-  ref_cpgislands: resources/genomes/hs1/annotations/hs1_CpG_Island_sorted
+  ref_cytobands: resources/genomes/hs1/annotations/cytobands.bed
+  ref_telomere: resources/genomes/hs1/annotations/telomeres.bed
+  ref_cpgislands: resources/genomes/hs1/annotations/cpgislands.tsv
   l13fasta: resources/sequences/l1.3.fa
   #PATHS TO FILES WHICH WILL BE CREATED
   ref: aref/A.REF.fa

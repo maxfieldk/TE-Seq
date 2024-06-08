@@ -823,7 +823,7 @@ for (ontology in ontologies) {
                                 plot_title <- groupframe %>%
                                     pull(!!sym(filter_var)) %>%
                                     unique() %>%
-                                    grep(">|Intact", ., value = TRUE)
+                                    grep("FL$|Intact", ., value = TRUE)
                             } else {
                                 plot_title <- group
                             }

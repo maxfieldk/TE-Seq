@@ -257,7 +257,7 @@ rule tldr_aggregate_multiple_samples:
         bais = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam.bai", sample = config["samples"], rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
     params:
         tldr_input_bam_ref = lambda w: config["update_ref_with_tldr"]["tldr_input_bam_ref"],
-        tldr_te_ref = config["update_ref_with_tldr"]["tldr_te_ref"]
+        tldr_te_ref = config["update_ref_with_tldr"]["tldr_te_ref"][config["species"]]
     output:
         tldr = "aref/A.REF_tldr/A.REF.table.txt"
     resources:
@@ -713,7 +713,8 @@ rule annotate_rtes:
     input:
         r_annotation_fragmentsjoined = "aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
         ref = "aref/{sample_or_ref}.fa",
-        txdbrefseq = "aref/A.REF_annotations/refseq.sqlite"
+        txdbrefseq = "aref/A.REF_annotations/refseq.sqlite",
+        pdbaa_blast_db = "aref/blastdb/pdbaa/outfile.out"
     output:
         r_repeatmasker_annotation = "aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_annotation.csv",
         rmann = "aref/{sample_or_ref}_annotations/{sample_or_ref}_rmann.csv",
@@ -831,3 +832,16 @@ rule transduction_mapping:
         "evo2"
     script:
         "scripts/transduction_mapping.R"
+
+
+rule setup_protein_blast_db:
+    output:
+        outfile = "aref/blastdb/pdbaa/outfile.out"
+    conda:
+        "blast"
+    shell:
+        """
+mkdir -p $(dirname {output.blastdb})
+cd $(dirname {output.blastdb})
+update_blastdb.pl --decompress pdbaa
+        """
