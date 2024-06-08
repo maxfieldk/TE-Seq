@@ -255,6 +255,7 @@ Create, in your project directory, the srna/rawdata directory structure, and mov
 ## A note on extending this pipeline to non-human/mouse species.
 Several additional changes will need to be made.
 1. Change the aref species key's value in conf/config.yaml to a valid NCBI Taxonomy Database species name which is also contained in the RepeatMasker repeat database.
-2. In the aref/scripts/annotate_rtes.R script:
-Ctlr F "conf$species". You will find two blocks of code which provide species specific annotations for repeat families which are extensively examined in downstream scripts. add an else {} block, and supply your own regex for whatever repeat groupings you are interested in.
-3. If using long DNA reads to call novel insertions, add a key:value pair in the aref tldr_te_ref section of conf/config.yaml . The value should be a file path to a fasta file containing consensus sequences for all TEs which will be probed for novel insertions by the TLDR program. The naming convention for each fasta element should be akin to that found in the mouse/human files, i.e. "famlily:element" e.g. "L1:L1HS" where these values correspond to repeatmasker names.
+2. If using long DNA reads to call novel insertions, add a key:value pair in the aref tldr_te_ref section of conf/config.yaml . The value should be a file path to a fasta file containing consensus sequences for all TEs which will be probed for novel insertions by the TLDR program. The naming convention for each fasta element should be akin to that found in the mouse/human files, i.e. "famlily:element" e.g. "L1:L1HS" where these values correspond to repeatmasker names.
+Optionally
+3. In the aref/scripts/annotate_rtes.R script:
+Ctlr F "conf$species". You will find two blocks of code which provide species specific annotations for repeat families which are extensively examined in downstream scripts. add an else {} block, and supply your own regex for whatever repeat groupings you are interested in. If you do not do this, the script will automatically select the least diverged LTR, SINE, and LINE families for downstream scrutiny.
