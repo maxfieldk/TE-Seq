@@ -4,6 +4,8 @@ source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 source("conf/sample_table_source.R")
 set.seed(123)
+#whether or not to store plots in list for figure generation at script end
+store_var <- "yes"
 
 library(knitr)
 library(rmarkdown)
@@ -1038,7 +1040,6 @@ if (conf$store_env_as_rds == "yes") {
 
 
 # figures: modify plot compositions at will!
-load(outputs$environment)
 tryCatch(
     {
         library(patchwork)

@@ -54,7 +54,7 @@ mysave <- function(fn = "ztmp.pdf", w = 5, h = 5, res = 600, pl = p, store = sto
     )
 }
 }
-
+store_var <- "no"
 mysaveandstore <- function(fn = "ztmp.pdf", w = 5, h = 5, res = 600, pl = p, store = store_var, raster = FALSE) {
     dn <- dirname(fn)
     dir.create(dn, showWarnings = FALSE, recursive = TRUE)

@@ -197,8 +197,8 @@ fa <- Rsamtools::FaFile(inputs$ref)
 
 rmfragments %$% refstatus %>% unique()
 if (conf$species == "human") {
-element_to_annotate <- c("L1HS","L1PA2", "L1PA3")
-} else conf$species == "mouse" {
+element_to_annotate <- c("L1HS","L1PA2")
+} else if (conf$species == "mouse") {
 element_to_annotate <- c("L1MdTf_I","L1MdTf_II","L1MdTf_III",
     "L1MdGf_I","L1MdGf_II",
     "L1MdA_I", "L1MdA_II", "L1MdA_III")
@@ -243,8 +243,8 @@ for (element in element_to_annotate) {
         tdf <- tdf[match(names(tss), tdf %$% group_name),]
         names(tss) == tdf %$% group_name
         orf_ss <- subseq(tss, start = tdf$start, end = tdf$end)
-        
-        consensus <- DNAString(consensusString(consensusMatrix(orf_ss, baseOnly = TRUE)))
+        #need to remove all ambiguity prior to tranlsation
+        consensus <- chartr("N", "A", replaceAmbiguities(DNAString(consensusString(orf_ss)), new="N"))
         consensus_ss <- DNAStringSet(consensus)
         names(consensus_ss) <- c("consensus")
         consensus_aa <- Biostrings::translate(consensus)
@@ -312,7 +312,7 @@ intactness_ann <- intactness_ann %>% mutate(intactness = ifelse(sapply(orf_dista
     }
   }))
 
-} error = function(e) {
+}, error = function(e) {
     print("no elements annotated for intactness")
     intactness_ann <- rmfragments %>% dplyr::select(gene_id) %>% mutate(intactness = "Other")
 })
@@ -329,7 +329,7 @@ divergence_ann <- rmfragments %>% dplyr::select(gene_id, family, pctdiv, pctcons
 
 
 
-req_annot <- left_join(length_ann, divergence_ann, intactness_ann) %>% mutate(intactness = replace_na(intactness, "Other"))
+req_annot <- left_join(length_ann, divergence_ann) %>% left_join(intactness_ann) %>% mutate(intactness = replace_na(intactness, "Other"))
 req_annot <- req_annot %>% mutate(req_integrative = case_when(
     (intactness == "Intact") & (divergence_age == "Yng") ~ "Yng Intact",
     (intactness == "Intact") & (divergence_age == "Old") ~ "Old Intact",
@@ -341,77 +341,119 @@ req_annot <- req_annot %>% mutate(req_integrative = case_when(
 ))
 
 
-# ltrs <- rmfamilies %>%
-#     filter(rte_subfamily == "HERVK_LTR") %>%
-#     left_join(rmfragments)
-# ltrsgrs <- GRanges(ltrs)
-# ltrsgrsextended <- resize(ltrsgrs, width = width(ltrsgrs) + (200 * 2), fix = "center")
+#annotate LTR/Int relationship
+capture_distance <- 500
+ltrs <- rmfamilies %>%
+    filter(rte_superfamily == "LTR") %>%
+    filter(grepl("LTR", gene_id)) %>%
+    filter(!grepl("-int", gene_id)) %>%
+    left_join(rmfragments)
+ltrsgrs <- GRanges(ltrs)
+ltrsgrsextended <- resize(ltrsgrs, width = width(ltrsgrs) + (capture_distance * 2), fix = "center")
 
-# ints <- rmfamilies %>%
-#     filter(rte_subfamily == "HERVK_INT") %>%
-#     left_join(rmfragments)
-# intsfl <- ints %>% filter(length > 6999)
-# intsgrs <- GRanges(ints)
-# intsflgrs <- GRanges(intsfl)
-# intsnotflgrs <- intsgrs %>% subsetByOverlaps(intsflgrs, invert = TRUE)
+ints <- rmfamilies %>%
+    filter(rte_superfamily == "LTR") %>%
+    filter(grepl("-int$", family)) %>%
+    left_join(rmfragments)
+intsfl <- ints %>% filter(pctconsensuscovered >= 95)
+intsgrs <- GRanges(ints)
+intsflgrs <- GRanges(intsfl)
+intsnotflgrs <- intsgrs %>% subsetByOverlaps(intsflgrs, invert = TRUE)
 
-# Solo_LTR <- ltrsgrsextended %>%
-#     subsetByOverlaps(intsgrs, invert = TRUE) %>%
-#     mcols() %>%
-#     as.data.frame() %>%
-#     tibble() %$% gene_id
-# Fl_Provirus_5LTR <- ltrsgrs %>%
-#     flank(200) %>%
-#     subsetByOverlaps(intsflgrs) %>%
-#     mcols() %>%
-#     as.data.frame() %>%
-#     tibble() %$% gene_id
-# Fl_Provirus_3LTR <- ltrsgrs %>%
-#     flank(200, start = FALSE) %>%
-#     subsetByOverlaps(intsflgrs) %>%
-#     mcols() %>%
-#     as.data.frame() %>%
-#     tibble() %$% gene_id
-# Provirus_5LTR <- ltrsgrs %>%
-#     flank(200) %>%
-#     subsetByOverlaps(intsnotflgrs) %>%
-#     mcols() %>%
-#     as.data.frame() %>%
-#     tibble() %$% gene_id
-# Provirus_3LTR <- ltrsgrs %>%
-#     flank(200, start = FALSE) %>%
-#     subsetByOverlaps(intsnotflgrs) %>%
-#     mcols() %>%
-#     as.data.frame() %>%
-#     tibble() %$% gene_id
+Solo_LTR <- ltrsgrsextended %>%
+    subsetByOverlaps(intsgrs, invert = TRUE) %>%
+    mcols() %>%
+    as.data.frame() %>%
+    tibble() %$% gene_id
+Fl_Provirus_5LTR <- ltrsgrs %>%
+    flank(capture_distance) %>%
+    subsetByOverlaps(intsflgrs) %>%
+    mcols() %>%
+    as.data.frame() %>%
+    tibble() %$% gene_id
+Fl_Provirus_3LTR <- ltrsgrs %>%
+    flank(capture_distance, start = FALSE) %>%
+    subsetByOverlaps(intsflgrs) %>%
+    mcols() %>%
+    as.data.frame() %>%
+    tibble() %$% gene_id
+Provirus_5LTR <- ltrsgrs %>%
+    flank(capture_distance) %>%
+    subsetByOverlaps(intsnotflgrs) %>%
+    mcols() %>%
+    as.data.frame() %>%
+    tibble() %$% gene_id
+Provirus_3LTR <- ltrsgrs %>%
+    flank(capture_distance, start = FALSE) %>%
+    subsetByOverlaps(intsnotflgrs) %>%
+    mcols() %>%
+    as.data.frame() %>%
+    tibble() %$% gene_id
 
-# NOT_LTR_5Flanked_INT <- intsgrs %>%
-#     flank(200) %>%
-#     subsetByOverlaps(ltrsgrs, invert = TRUE) %>%
-#     mcols() %>%
-#     as.data.frame() %>%
-#     tibble() %$% gene_id
-# LTR_5Flanked_INT <- intsgrs %>%
-#     flank(200) %>%
-#     subsetByOverlaps(ltrsgrs) %>%
-#     mcols() %>%
-#     as.data.frame() %>%
-#     tibble() %$% gene_id
+NOT_LTR_5Flanked_INT <- intsgrs %>%
+    flank(capture_distance) %>%
+    subsetByOverlaps(ltrsgrs, invert = TRUE) %>%
+    mcols() %>%
+    as.data.frame() %>%
+    tibble() %$% gene_id
+LTR_5Flanked_INT <- intsgrs %>%
+    flank(capture_distance) %>%
+    subsetByOverlaps(ltrsgrs) %>%
+    mcols() %>%
+    as.data.frame() %>%
+    tibble() %$% gene_id
 
-# ltr_viral_status <- rmfragments %>%
-#     dplyr::select(gene_id) %>%
-#     mutate(ltr_viral_status = case_when(
-#         gene_id %in% Solo_LTR ~ "Solo_LTR",
-#         gene_id %in% Provirus_5LTR ~ "NOT_Fl_Provirus_5LTR",
-#         gene_id %in% Provirus_3LTR ~ "NOT_FL_Provirus_3LTR",
-#         gene_id %in% Fl_Provirus_5LTR ~ "Fl_Provirus_5LTR",
-#         gene_id %in% Fl_Provirus_3LTR ~ "Fl_Provirus_3LTR",
-#         gene_id %in% NOT_LTR_5Flanked_INT ~ "NOT_LTR_5Flanked_INT",
-#         gene_id %in% LTR_5Flanked_INT ~ "LTR_5Flanked_INT",
-#         TRUE ~ "Other"
-#     ))
+ltr_viral_status <- rmfragments %>%
+    dplyr::select(gene_id) %>%
+    mutate(ltr_viral_status = case_when(
+        gene_id %in% Solo_LTR ~ "LTR (Solo)",
+        gene_id %in% Provirus_5LTR ~ "5'LTR (Trnc Int)",
+        gene_id %in% Provirus_3LTR ~ "3'LTR (Trnc Int)",
+        gene_id %in% Fl_Provirus_5LTR ~ "5'LTR (FL Int)",
+        gene_id %in% Fl_Provirus_3LTR ~ "3'LTR (FL Int)",
+        gene_id %in% NOT_LTR_5Flanked_INT ~ "Int (No 5'LTR)",
+        gene_id %in% LTR_5Flanked_INT ~ "Int (Has 5LTR)",
+        TRUE ~ "Other"
+    ))
+ltr_viral_status$ltr_viral_status %>% table()
 
-# rmfamilies <- read_csv(outputs$r_annotation_families, col_names = TRUE)
+#ltr status of potentially active, >75% covered ltrs
+group_frame <- tibble()
+group_frame_any_ltr <- tibble()
+element_types_to_scrutinize <- rmfamilies %>% filter(rte_subfamily != "Other") %>% filter(rte_superfamily == "LTR") %$% rte_subfamily %>% unique() %>% grep("int|INT", ., value = TRUE)
+
+for (int in element_types_to_scrutinize) {
+    element_family_df <- rmfamilies %>% filter(rte_subfamily == int) %$% family %>% unique() %>% str_split("/", simplify = TRUE) %>% unlist() %>% as.data.frame() %>% tibble()
+    element_family_df <- element_family_df %>% tibble() %>% mutate(family_grep_string = paste0(V1, "/",V2, "/"))
+    compatible_ltrs <- rmfamilies %>% filter(grepl(paste0(element_family_df %$% family_grep_string, collapse = "|"), family)) %>% filter(grepl("LTR", gene_id)) %$% family %>% unique() 
+    int_grs <- rmfamilies %>% filter(rte_subfamily == int) %>% left_join(rmfragments) %>% filter(pctconsensuscovered >= 75) %>% GRanges()
+    ltr_grs <- rmfragments %>% filter(family %in% compatible_ltrs) %>% GRanges()
+    ltrs_all <- rmfragments %>% filter(grepl("LTR.*", gene_id)) %>% GRanges()
+    for (int_id in mcols(int_grs)$gene_id) {
+        print(int_id)
+        provirus_type <- int_id %>% gsub("-int.*", "", .)
+        group_id <- int_id %>% gsub(".*-int", provirus_type, .)
+        int_gr <- int_grs[int_grs$gene_id == int_id]
+        int_gr_extended <- resize(int_gr, width = width(int_gr) + (500 * 2), fix = "center")
+        ltr_ol <- subsetByOverlaps(ltr_grs, int_gr_extended, type = "any", minoverlap = 1)
+        ltr_any_ol <- subsetByOverlaps(ltrs_all, int_gr_extended, type = "any", minoverlap = 1)
+        if (length(ltr_ol) != 0) {
+            gdf <- tibble(gene_id = c(int_id, mcols(ltr_ol)$gene_id))
+            gdf$ltr_proviral_group_id <- group_id
+            group_frame <<- bind_rows(group_frame, gdf)
+        }
+        if (length(ltr_any_ol) != 0) {
+            gdf <- tibble(gene_id = c(int_id, mcols(ltr_ol)$gene_id))
+            gdf$ltr_proviral_group_id <- group_id
+            group_frame_any_ltr <<- bind_rows(group_frame_any_ltr, gdf)
+        }
+    }
+}
+
+ltr_proviral_groups <- group_frame
+ltr_proviral_groups <- ltr_proviral_groups[!(ltr_proviral_groups %$% gene_id %>% duplicated()),] #for ltrs which overlap 2 ints, in order not to duplicate the feature I remove them from their second proviral group affiliation
+
+
 
 # for annotation purposes, I will have to have the location of nonreference inserts be their insertion site
 rmfragments_ref <- rmfragments %>% filter(!str_detect(seqnames, "nonref"))
@@ -524,8 +566,6 @@ genic_annot %$% genic %>% table()
 cent_annot %$% centromeric %>% table()
 telo_annot %$% telomeric %>% table()
 
-
-
 region_annot <- full_join(genic_annot, coding_tx_annot) %>%
     full_join(noncoding_tx_annot) %>%
     full_join(coding_tx_adjacent_annot) %>%
@@ -536,7 +576,6 @@ region_annot <- full_join(genic_annot, coding_tx_annot) %>%
     full_join(intron_annot) %>%
     full_join(utr5_annot) %>%
     full_join(utr3_annot)
-
 
 region_annot <- region_annot %>% mutate(loc_integrative = case_when(
     exonic == "Exonic" ~ "Exonic",
@@ -563,54 +602,24 @@ region_annot <- region_annot %>% mutate(loc_integrative = case_when(
     loc_integrative == "Telomeric" ~ "Intergenic",
     TRUE ~ "Other"))
 
+dist_to_nearest_coding_tx <- distanceToNearest(rmfragmentsgr_properinsertloc, coding_transcripts, ignore.strand = TRUE) %>% mcols() %>% as.data.frame() %>% tibble() %$% distance
+dist_to_nearest_noncoding_tx <- distanceToNearest(rmfragmentsgr_properinsertloc, noncoding_transcripts, ignore.strand = TRUE) %>% mcols() %>% as.data.frame() %>% tibble() %$% distance
+dist_to_nearest_tx <- distanceToNearest(rmfragmentsgr_properinsertloc, transcripts, ignore.strand = TRUE) %>% mcols() %>% as.data.frame() %>% tibble() %$% distance
+dist_to_nearest_txs_df <- tibble(gene_id = mcols(rmfragmentsgr_properinsertloc)$gene_id, dist_to_nearest_coding_tx = dist_to_nearest_coding_tx, dist_to_nearest_noncoding_tx = dist_to_nearest_noncoding_tx, dist_to_nearest_tx = dist_to_nearest_tx)
 
-#ltr status of potentially active, >75% covered ltrs
-group_frame <- tibble()
-group_frame_any_ltr <- tibble()
-element_types_to_scrutinize <- rmfamilies %>% filter(rte_subfamily != "Other") %>% filter(rte_superfamily == "LTR") %$% rte_subfamily %>% unique()
 
-for (int in element_types_to_scrutinize) {
-    element_family_df <- rmfamilies %>% filter(rte_subfamily == int) %$% family %>% unique() %>% str_split("/", simplify = TRUE) %>% unlist() %>% as.data.frame() %>% tibble()
-    element_family_df <- element_family_df %>% tibble() %>% mutate(family_grep_string = paste0(V1, "/",V2, "/"))
-    compatible_ltrs <- rmfamilies %>% filter(grepl(paste0(element_family_df %$% family_grep_string, collapse = "|"), family)) %>% filter(grepl("LTR", gene_id)) %$% family %>% unique() 
-    int_grs <- rmfragments %>% filter(grepl(sprintf("%s$", int), family)) %>% filter(pctconsensuscovered >= 75) %>% GRanges()
-    ltr_grs <- rmfragments %>% filter(family %in% compatible_ltrs) %>% GRanges()
-    ltrs_all <- rmfragments %>% filter(grepl("LTR.*", gene_id)) %>% GRanges()
-    for (int_id in mcols(int_grs)$gene_id) {
-        print(int_id)
-        provirus_type <- int_id %>% gsub("-int.*", "", .)
-        group_id <- int_id %>% gsub(".*-int", provirus_type, .)
-        int_gr <- int_grs[int_grs$gene_id == int_id]
-        int_gr_extended <- resize(int_gr, width = width(int_gr) + (1000 * 2), fix = "center")
-        ltr_ol <- subsetByOverlaps(ltr_grs, int_gr_extended, type = "any", minoverlap = 1)
-        ltr_any_ol <- subsetByOverlaps(ltrs_all, int_gr_extended, type = "any", minoverlap = 1)
-        if (length(ltr_ol) != 0) {
-            gdf <- tibble(gene_id = c(int_id, mcols(ltr_ol)$gene_id))
-            gdf$ltr_proviral_group_id <- group_id
-            group_frame <<- bind_rows(group_frame, gdf)
-        }
-        if (length(ltr_any_ol) != 0) {
-            gdf <- tibble(gene_id = c(int_id, mcols(ltr_ol)$gene_id))
-            gdf$ltr_proviral_group_id <- group_id
-            group_frame_any_ltr <<- bind_rows(group_frame_any_ltr, gdf)
-        }
-    }
-}
-
-ltr_proviral_groups <- group_frame
-ltr_proviral_groups <- ltr_proviral_groups[!(ltr_proviral_groups %$% gene_id %>% duplicated()),] #for ltrs which overlap 2 ints, in order not to duplicate the feature I remove them from their second proviral group affiliation
 
 annots <- rmfamilies %>%
     full_join(req_annot %>% rename_at(vars(-gene_id, -req_integrative), ~ paste0(., "_req"))) %>%
+    full_join(ltr_viral_status) %>%
     full_join(ltr_proviral_groups) %>%
-    full_join(region_annot %>% rename_at(vars(-gene_id, -loc_integrative), ~ paste0(., "_loc")))
-
+    full_join(region_annot %>% rename_at(vars(-gene_id, -loc_integrative), ~ paste0(., "_loc"))) %>%
+    full_join(dist_to_nearest_txs_df)
 
 
 region_annot %$% gene_id %>% duplicated() %>% sum()
 ltr_proviral_groups %$% gene_id %>% duplicated() %>% sum()
 req_annot %$% gene_id %>% duplicated() %>% sum()
-
 rmfamilies %$% gene_id %>% duplicated() %>% sum()
 annots %$% gene_id %>% duplicated() %>% sum()
 
