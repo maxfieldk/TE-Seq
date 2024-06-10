@@ -25,6 +25,8 @@ library(ggstance)
 library(enrichplot)
 library(circlize)
 library(ComplexHeatmap)
+library(patchwork)
+
 
 
 # analysis parameters
@@ -151,7 +153,7 @@ for (contrast in params[["contrasts"]]) {
                     if (filter_var != "ALL") {
                         genesets <- resultsdf %>%
                             filter(!!sym(ontology) != "Other") %>%
-                            filter(str_detect(!!sym(filter_var), ">|Intact|^Fl|^LTR")) %>%
+                            filter(str_detect(!!sym(filter_var), "Intact|FL$|^LTR")) %>%
                             select(!!sym(filter_var), gene_id)
                     } else {
                         genesets <- resultsdf %>%
@@ -242,7 +244,6 @@ if (conf$store_env_as_rds == "yes") {
 }
 
 # figures: modify plot compositions at will!
-load(outputs$environment)
 tryCatch(
     {
         library(patchwork)

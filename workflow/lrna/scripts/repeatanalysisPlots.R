@@ -185,7 +185,7 @@ mysaveandstore(sprintf("%s/%s/%s/rte_genic_cor_pval_%s.pdf", outputdir, tecountt
 
 pvp <- function(df, facet_var = "ALL", filter_var = "ALL", labels = "no", scale_log2 = "no") {
     if (filter_var != "ALL") {
-        df <- df %>% filter(str_detect(!!sym(filter_var), ">|Intact|towards"))
+        df <- df %>% filter(str_detect(!!sym(filter_var), "FL$|Intact|towards"))
     }
 if (scale_log2 == "no") {
     pf <- df %>%
@@ -259,7 +259,7 @@ if (scale_log2 == "yes") {
 
 dep <- function(df, facet_var = "ALL", filter_var = "ALL") {
     if (filter_var != "ALL") {
-        df <- df %>% filter(str_detect(!!sym(filter_var), ">|Intact"))
+        df <- df %>% filter(str_detect(!!sym(filter_var), "FL$|Intact"))
     }
     if (facet_var == "ALL") {
         facet_var_1 <- NULL
@@ -309,7 +309,7 @@ mtclosed +
 
 stripp <- function(df, stats = "no", extraGGoptions = NULL, facet_var = "ALL", filter_var = "ALL") {
         if (filter_var != "ALL") {
-        df <- df %>% filter(str_detect(!!sym(filter_var), ">|Intact"))
+        df <- df %>% filter(str_detect(!!sym(filter_var), "FL$|Intact"))
     }
         if (facet_var != "ALL") {
         pf <- df %>%
@@ -369,7 +369,7 @@ myheatmap <- function(df, facet_var = "ALL", filter_var = "ALL", DEvar = "ALL", 
     set_title <- group
     if (filter_var != "ALL") {
         if (str_detect(filter_var, "length_req")) {
-            df <- df %>% filter(str_detect(!!sym(filter_var), ">"))
+            df <- df %>% filter(str_detect(!!sym(filter_var), "FL$"))
             set_title <- df %>%
                 pull(!!sym(filter_var)) %>%
                 unique()

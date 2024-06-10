@@ -141,7 +141,7 @@ for (contrast in params[["contrasts"]]) {
                     if (filter_var != "ALL") {
                         genesets <- resultsdf %>%
                             filter(!!sym(ontology) != "Other") %>%
-                            filter(str_detect(!!sym(filter_var), ">|Intact|^Fl|^LTR")) %>%
+                            filter(str_detect(!!sym(filter_var), "Intact|FL$|^LTR")) %>%
                             select(!!sym(filter_var), gene_id)
                     } else {
                         genesets <- resultsdf %>%

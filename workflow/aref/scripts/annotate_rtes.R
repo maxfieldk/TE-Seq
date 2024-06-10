@@ -302,7 +302,7 @@ for (i in 1:length(element_info_list)) {
     }
 }
 
-intactness_ann <- intactness_ann %>% mutate(intactness = ifelse(sapply(orf_distance_tuple, function(x) all(x < 0.05)), "Intact", "Not Intact"))%>%
+intactness_ann <- intactness_ann %>% mutate(intactness_req = ifelse(sapply(orf_distance_tuple, function(x) all(x < 0.05)), "Intact", "Not Intact"))%>%
   mutate(orf_passes_distance_threshold = map(orf_distance_tuple, ~ {
     threshold_indices <- which(.x < 0.05)
     if(length(threshold_indices) == 0) {
@@ -318,16 +318,12 @@ intactness_ann <- intactness_ann %>% mutate(intactness = ifelse(sapply(orf_dista
 })
 
 length_ann <- rmfragments %>% dplyr::select(gene_id, pctconsensuscovered) %>% full_join(rmfamilies %>% dplyr::select(gene_id, rte_subfamily)) %>%
-    filter(rte_subfamily != "Other") %>%
-    mutate(rte_length = ifelse(pctconsensuscovered >= 95, paste0(rte_subfamily, " FL"), paste0(rte_subfamily, " Trnc"))
+    mutate(rte_length_req = ifelse(pctconsensuscovered >= 95, paste0(rte_subfamily, " FL"), paste0(rte_subfamily, " Trnc"))
 )
-divergence_ann <- rmfragments %>% dplyr::select(gene_id, family, pctdiv, pctconsensuscovered) %>% group_by(family) %>% mutate(family_av_pctdiv = mean(pctdiv), family_av_coverage = mean(pctconsensuscovered)) %>% 
+divergence_ann <- rmfragments %>% dplyr::select(gene_id, family, pctdiv, pctconsensuscovered) %>% group_by(family) %>% mutate(family_av_pctdiv = mean(pctdiv, na.rm=TRUE), family_av_coverage = mean(pctconsensuscovered, na.rm=TRUE)) %>% 
     ungroup() %>% 
     mutate(divergence_age = ifelse(
-        family_av_pctdiv < 5, "Yng","Old"))
-
-
-
+        family_av_pctdiv < 15, "Yng","Old"))
 
 req_annot <- left_join(length_ann, divergence_ann) %>% left_join(intactness_ann) %>% mutate(intactness = replace_na(intactness, "Other"))
 req_annot <- req_annot %>% mutate(req_integrative = case_when(
@@ -355,10 +351,11 @@ ints <- rmfamilies %>%
     filter(rte_superfamily == "LTR") %>%
     filter(grepl("-int$", family)) %>%
     left_join(rmfragments)
-intsfl <- ints %>% filter(pctconsensuscovered >= 95)
 intsgrs <- GRanges(ints)
+intsfl <- ints %>% filter(pctconsensuscovered >= 95)
 intsflgrs <- GRanges(intsfl)
-intsnotflgrs <- intsgrs %>% subsetByOverlaps(intsflgrs, invert = TRUE)
+intsnotfl <- ints %>% filter(pctconsensuscovered < 95)
+intsnotflgrs <- GRanges(intsnotfl)
 
 Solo_LTR <- ltrsgrsextended %>%
     subsetByOverlaps(intsgrs, invert = TRUE) %>%
@@ -406,11 +403,11 @@ LTR_5Flanked_INT <- intsgrs %>%
 ltr_viral_status <- rmfragments %>%
     dplyr::select(gene_id) %>%
     mutate(ltr_viral_status = case_when(
-        gene_id %in% Solo_LTR ~ "LTR (Solo)",
-        gene_id %in% Provirus_5LTR ~ "5'LTR (Trnc Int)",
-        gene_id %in% Provirus_3LTR ~ "3'LTR (Trnc Int)",
         gene_id %in% Fl_Provirus_5LTR ~ "5'LTR (FL Int)",
         gene_id %in% Fl_Provirus_3LTR ~ "3'LTR (FL Int)",
+        gene_id %in% Provirus_5LTR ~ "5'LTR (Trnc Int)",
+        gene_id %in% Provirus_3LTR ~ "3'LTR (Trnc Int)",
+        gene_id %in% Solo_LTR ~ "LTR (Solo)",
         gene_id %in% NOT_LTR_5Flanked_INT ~ "Int (No 5'LTR)",
         gene_id %in% LTR_5Flanked_INT ~ "Int (Has 5LTR)",
         TRUE ~ "Other"
@@ -610,7 +607,7 @@ dist_to_nearest_txs_df <- tibble(gene_id = mcols(rmfragmentsgr_properinsertloc)$
 
 
 annots <- rmfamilies %>%
-    full_join(req_annot %>% rename_at(vars(-gene_id, -req_integrative), ~ paste0(., "_req"))) %>%
+    full_join(req_annot) %>%
     full_join(ltr_viral_status) %>%
     full_join(ltr_proviral_groups) %>%
     full_join(region_annot %>% rename_at(vars(-gene_id, -loc_integrative), ~ paste0(., "_loc"))) %>%

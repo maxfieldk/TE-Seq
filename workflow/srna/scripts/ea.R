@@ -28,6 +28,8 @@ library(circlize)
 library(ComplexHeatmap)
 library(msigdbr)
 library(ggpubr)
+library(patchwork)
+
 
 # analysis parameters
 {
@@ -609,7 +611,6 @@ tryCatch(
 
 
 
-        library(patchwork)
         p1 <- mysaveandstoreplots[["srna/results/agg/enrichment_analysis_repeats/telescope_multi/gsea_top_rtes_rte_subfamily_ALL.pdf"]]
         p2 <- mysaveandstoreplots[["srna/results/agg/enrichment_analysis_repeats/telescope_multi/gsea_top_rtes_rte_subfamily_rte_length_req.pdf"]]
         
