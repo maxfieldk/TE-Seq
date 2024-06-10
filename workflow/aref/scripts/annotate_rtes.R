@@ -318,8 +318,7 @@ intactness_ann <- intactness_ann %>% mutate(intactness_req = ifelse(sapply(orf_d
 })
 
 length_ann <- rmfragments %>% dplyr::select(gene_id, pctconsensuscovered) %>% full_join(rmfamilies %>% dplyr::select(gene_id, rte_subfamily)) %>%
-    mutate(rte_length_req = ifelse(pctconsensuscovered >= 95, paste0(rte_subfamily, " FL"), paste0(rte_subfamily, " Trnc"))
-)
+    mutate(rte_length_req = ifelse(pctconsensuscovered >= 95, "FL", "Trnc"))
 divergence_ann <- rmfragments %>% dplyr::select(gene_id, family, pctdiv, pctconsensuscovered) %>% group_by(family) %>% mutate(family_av_pctdiv = mean(pctdiv, na.rm=TRUE), family_av_coverage = mean(pctconsensuscovered, na.rm=TRUE)) %>% 
     ungroup() %>% 
     mutate(divergence_age = ifelse(
