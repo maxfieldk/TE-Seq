@@ -71,6 +71,7 @@ r_repeatmasker_annotation <- read_csv(inputs$r_repeatmasker_annotation)
 resultsdfwithgenes <- resultsdf1 %>%
     left_join(r_annotation_fragmentsjoined) %>%
     left_join(r_repeatmasker_annotation)
+resultsdfwithgenes <- resultsdfwithgenes %>% mutate(rte_length_req = gsub(".* ", "", rte_length_req))
 resultsdf <- resultsdfwithgenes %>% filter(gene_or_te != "gene")
 refseq <- import(conf$annotation_genes)
 coding_transcripts <- refseq[(mcols(refseq)$type == "transcript" & grepl("^NM", mcols(refseq)$transcript_id))]
@@ -852,79 +853,94 @@ for (rte_subfam in rte_subfams) {
 
 
 #### PLOTTING
-groups_that_have_been_run <- c()
-groups_not_to_run <- c()
-for (ontology in ontologies) {
-    ontology_groups <- r_repeatmasker_annotation %>%
-        pull(!!sym(ontology)) %>%
-        unique()
-    ontology_groups <- ontology_groups[ontology_groups != "Other"]
-    for (group in ontology_groups) {
-        if (!(group %in% groups_that_have_been_run | group %in% groups_not_to_run | group %in% big_ontology_groups)) {
-            groups_that_have_been_run <- c(groups_that_have_been_run, group)
-            #maybe change to !!group
-            groupframe <- tidydf %>% dplyr::filter(!!sym(ontology) == group)
-            eligible_modifiers <- c()
-            for (modifier in modifiers) {
-                values_present <- groupframe %>%
-                    pull(!!sym(modifier)) %>%
-                    unique()
-                if ((length(values_present) > 1) | !("Other" %in% values_present)) {
-                    eligible_modifiers <- c(eligible_modifiers, modifier)
+for (contrast in contrasts) {
+    contrast_of_interest <- contrast
+    contrast_level_2 <- contrast_of_interest %>%
+        gsub("condition_", "", .) %>%
+        gsub("_vs_.*", "", .)
+    contrast_level_1 <- contrast_of_interest %>%
+        gsub(".*_vs_", "", .)
+    contrast_stat <- paste0("stat_", contrast_of_interest)
+    contrast_padj <- paste0("padj_", contrast_of_interest)
+    contrast_log2FoldChange <- paste0("log2FoldChange_", contrast_of_interest)
+    contrast_samples <- sample_table %>%
+        filter(condition %in% c(contrast_level_1, contrast_level_2)) %>%
+        pull(sample_name)
+    condition_vec <- sample_table %>% filter(sample_name %in% contrast_samples) %$% condition
+    groups_that_have_been_run <- c()
+    groups_not_to_run <- c()
+    for (ontology in ontologies) {
+        ontology_groups <- r_repeatmasker_annotation %>%
+            pull(!!sym(ontology)) %>%
+            unique()
+        ontology_groups <- ontology_groups[ontology_groups != "Other"]
+        for (group in ontology_groups) {
+            if (!(group %in% groups_that_have_been_run | group %in% groups_not_to_run | group %in% big_ontology_groups)) {
+                groups_that_have_been_run <- c(groups_that_have_been_run, group)
+                #maybe change to !!group
+                groupframe <- tidydf %>% dplyr::filter(!!sym(ontology) == group)
+                eligible_modifiers <- c()
+                for (modifier in modifiers) {
+                    values_present <- groupframe %>%
+                        pull(!!sym(modifier)) %>%
+                        unique()
+                    if ((length(values_present) > 1) | !("Other" %in% values_present)) {
+                        eligible_modifiers <- c(eligible_modifiers, modifier)
+                    }
                 }
-            }
-            eligible_filter_modifiers <- c(eligible_modifiers[grepl("_req$", eligible_modifiers)], "ALL")
-            eligible_facet_modifiers <- c(eligible_modifiers[grepl("genic_loc$", eligible_modifiers)], "ALL")
-            eligible_modifier_combinations <- expand.grid(filter_var = eligible_filter_modifiers, facet_var = eligible_facet_modifiers, stringsAsFactors = FALSE)
-            for (i in seq(1, length(rownames(eligible_modifier_combinations)))) {
-                filter_var <- eligible_modifier_combinations[i, ]$filter_var
-                facet_var <- eligible_modifier_combinations[i, ]$facet_var
-                plotting_functions <- c("stripp", "pvp", "dep")
-                for (function_name in plotting_functions) {
-                    tryCatch(
-                        {
-                            function_current <- get(function_name)
-                            plot_width <- 5
-                            plot_height <- 5
-                            if (facet_var != "ALL") {
-                                plot_width <- 8
-                            }
-                            if (filter_var != "ALL") {
-                                plot_title <- groupframe %>%
-                                    pull(!!sym(filter_var)) %>%
-                                    unique() %>%
-                                    grep("FL$|Intact", ., value = TRUE)
-                            } else {
-                                plot_title <- group
-                            }
-                            p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var) + ggtitle(plot_title)
-                            mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s.pdf", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height)
-                            if (function_name == "pvp") {
-                                p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, labels = "yes") + ggtitle(plot_title)
-                                mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_labels.pdf", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height)
-                                p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, labels = "no", scale_log2 = "yes") + ggtitle(plot_title)
-                                mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_log2.pdf", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width +2, plot_height +2)
-                                p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, labels = "yes", scale_log2 = "yes") + ggtitle(plot_title)
-                                mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_log2labels.pdf", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width + 2, plot_height + 2)
-                            }
-                            if (function_name == "stripp") {
-                                p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, stats = "yes") + ggtitle(plot_title)
-                                mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_stats.pdf", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height + 2)
-                            }
-                        },
-                        error = function(e) {
-                            print(sprintf("Error with  %s %s %s %s %s %s", tecounttype, contrast, group, function_name, filter_var, facet_var))
-                            print(e)
-                            tryCatch(
-                                {
-                                    dev.off()
-                                },
-                                error = function(e) {
-                                    print(e)
+                eligible_filter_modifiers <- c(eligible_modifiers[grepl("_req$", eligible_modifiers)], "ALL")
+                eligible_facet_modifiers <- c(eligible_modifiers[grepl("genic_loc$", eligible_modifiers)], "ALL")
+                eligible_modifier_combinations <- expand.grid(filter_var = eligible_filter_modifiers, facet_var = eligible_facet_modifiers, stringsAsFactors = FALSE)
+                for (i in seq(1, length(rownames(eligible_modifier_combinations)))) {
+                    filter_var <- eligible_modifier_combinations[i, ]$filter_var
+                    facet_var <- eligible_modifier_combinations[i, ]$facet_var
+                    plotting_functions <- c("stripp", "pvp", "dep")
+                    for (function_name in plotting_functions) {
+                        tryCatch(
+                            {
+                                function_current <- get(function_name)
+                                plot_width <- 5
+                                plot_height <- 5
+                                if (facet_var != "ALL") {
+                                    plot_width <- 8
                                 }
-                            )
-                        }
-                    )
+                                if (filter_var != "ALL") {
+                                    plot_title <- groupframe %>%
+                                        pull(!!sym(filter_var)) %>%
+                                        unique() %>%
+                                        grep("FL$|Intact", ., value = TRUE) %>% paste0(group, .)
+                                } else {
+                                    plot_title <- group
+                                }
+                                p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var) + ggtitle(plot_title)
+                                mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s.pdf", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height)
+                                if (function_name == "pvp") {
+                                    p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, labels = "yes") + ggtitle(plot_title)
+                                    mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_labels.pdf", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height)
+                                    p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, labels = "no", scale_log2 = "yes") + ggtitle(plot_title)
+                                    mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_log2.pdf", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width +2, plot_height +2)
+                                    p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, labels = "yes", scale_log2 = "yes") + ggtitle(plot_title)
+                                    mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_log2labels.pdf", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width + 2, plot_height + 2)
+                                }
+                                if (function_name == "stripp") {
+                                    p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, stats = "yes") + ggtitle(plot_title)
+                                    mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_stats.pdf", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height + 2)
+                                }
+                            },
+                            error = function(e) {
+                                print(sprintf("Error with  %s %s %s %s %s %s", tecounttype, contrast, group, function_name, filter_var, facet_var))
+                                print(e)
+                                tryCatch(
+                                    {
+                                        dev.off()
+                                    },
+                                    error = function(e) {
+                                        print(e)
+                                    }
+                                )
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -1125,17 +1141,7 @@ tryCatch(
         rte_focus_fig(rte_family = "L1", rte_subfamily_req = "L1HS_l1_intactness_req", contrast1 = conf$contrast[1], contrast2 = conf$contrast[2])
         rte_focus_fig(rte_family = "ERV", rte_subfamily_req = "HERVK_INT_rte_length_req", contrast1 = conf$contrast[1], contrast2 = conf$contrast[2])
 
-
-
-        ptch <- wrap_plots(mysaveandstoreplots[names(mysaveandstoreplots) %>% grep("unbiased", ., value = TRUE) %>% grep("gsea_top_.*grid", ., value = TRUE) %>% sort()])
-        mysave(pl = ptch, fn = "srna/results/agg/enrichment_analysis/unbiased/gsea_top_all.pdf", w = 30, h = 30)
-
-        library(patchwork)
-        p1 <- mysaveandstoreplots[["srna/results/agg/enrichment_analysis_repeats/telescope_multi/gsea_top_rtes_rte_subfamily_ALL.pdf"]]
-        p2 <- mysaveandstoreplots[["srna/results/agg/enrichment_analysis_repeats/telescope_multi/gsea_top_rtes_rte_subfamily_rte_length_req.pdf"]]
-        names(mysaveandstoreplots)
-        ptch <- p1 + p2 + plot_layout(ncol = 2, guides = "collect")
-        mysaveandstore(pl = ptch, fn = "srna/results/agg/enrichment_analysis_repeats/telescope_multi/gsea_top_rtes_combined.pdf", w = 6, h = 10)
+grep("og2labels.pdf", names(mysaveandstoreplots), value= TRUE)
 
     },
     error = function(e) {
