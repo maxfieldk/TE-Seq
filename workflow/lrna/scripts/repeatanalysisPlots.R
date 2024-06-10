@@ -1,6 +1,6 @@
-source("workflow/scripts/defaults.R")
 module_name <- "lrna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 source("conf/sample_table_source.R")
 
@@ -78,6 +78,7 @@ transcripts <- c(coding_transcripts, noncoding_transcripts)
     annot_colnames <- colnames(r_repeatmasker_annotation)
     annot_colnames_good <- annot_colnames[!(annot_colnames %in% c("gene_id", "family"))]
     ontologies <- annot_colnames_good[str_detect(annot_colnames_good, "family")]
+    # ontologies <- ontologies[ontologies %in% conf$repeat_ontologies_to_scrutinize]
 # ontologies <- ontologies[ontologies %in% conf$repeat_ontologies_to_scrutinize]
     ontologies <- c("rte_subfamily_limited")
 
@@ -185,7 +186,7 @@ mysaveandstore(sprintf("%s/%s/%s/rte_genic_cor_pval_%s.png", outputdir, counttyp
 
 pvp <- function(df, facet_var = "ALL", filter_var = "ALL", labels = "no", scale_log2 = "no") {
     if (filter_var != "ALL") {
-        df <- df %>% filter(str_detect(!!sym(filter_var), ">|Intact|towards"))
+        df <- df %>% filter(str_detect(!!sym(filter_var), "FL$|Intact|towards"))
     }
 if (scale_log2 == "no") {
     pf <- df %>%
@@ -259,7 +260,7 @@ if (scale_log2 == "yes") {
 
 dep <- function(df, facet_var = "ALL", filter_var = "ALL") {
     if (filter_var != "ALL") {
-        df <- df %>% filter(str_detect(!!sym(filter_var), ">|Intact"))
+        df <- df %>% filter(str_detect(!!sym(filter_var), "FL$|Intact"))
     }
     if (facet_var == "ALL") {
         facet_var_1 <- NULL
@@ -309,7 +310,7 @@ mtclosed +
 
 stripp <- function(df, stats = "no", extraGGoptions = NULL, facet_var = "ALL", filter_var = "ALL") {
         if (filter_var != "ALL") {
-        df <- df %>% filter(str_detect(!!sym(filter_var), ">|Intact"))
+        df <- df %>% filter(str_detect(!!sym(filter_var), "FL$|Intact"))
     }
         if (facet_var != "ALL") {
         pf <- df %>%
@@ -369,7 +370,7 @@ myheatmap <- function(df, facet_var = "ALL", filter_var = "ALL", DEvar = "ALL", 
     set_title <- group
     if (filter_var != "ALL") {
         if (str_detect(filter_var, "length_req")) {
-            df <- df %>% filter(str_detect(!!sym(filter_var), ">"))
+            df <- df %>% filter(str_detect(!!sym(filter_var), "FL$"))
             set_title <- df %>%
                 pull(!!sym(filter_var)) %>%
                 unique()
@@ -640,7 +641,7 @@ for (ontology in ontologies) {
                                 plot_title <- groupframe %>%
                                     pull(!!sym(filter_var)) %>%
                                     unique() %>%
-                                    grep(">|Intact", ., value = TRUE)
+                                    grep("FL$|Intact", ., value = TRUE)
                             } else {
                                 plot_title <- group
                             }
@@ -735,7 +736,7 @@ for (contrast in contrasts) {
                                     plot_title <- groupframe %>%
                                         pull(!!sym(filter_var)) %>%
                                         unique() %>%
-                                        grep(">|Intact", ., value = TRUE)
+                                        grep("FL$|Intact", ., value = TRUE)
                                 } else {
                                     plot_title <- group
                                 }

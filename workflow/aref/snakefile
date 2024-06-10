@@ -1,9 +1,11 @@
-container: "docker://maxfieldkelsey/pipelinertedocker"
+container: "docker://maxfieldkelsey/pipelinertedocker:v0.2"
 import os
 import pandas as pd
 import csv
 from pathlib import Path
 from pandas.core.common import flatten
+
+sample_table = pd.read_csv("conf/sample_table_aref.csv")
 
 def aref_complete_input(wildcards):
     final_input = []
@@ -25,7 +27,7 @@ def aref_complete_input(wildcards):
     paths.append(expand("aref/{sample_or_ref}_Analysis/l1element_analysis.outfile", sample_or_ref = "A.REF"))
 
     if config["update_ref_with_tldr"]["response"] == "yes":
-        paths.append(expand("aref/qc/{sample_or_ref}/{sample_or_ref}pycoQC.html", sample_or_ref = config["samples"]))
+        # paths.append(expand("aref/qc/{sample_or_ref}/{sample_or_ref}pycoQC.html", sample_or_ref = config["samples"]))
         paths.append("aref/results/insertions/analyze_nongermline_insertions.rds")
 
         if config["update_ref_with_tldr"]["per_sample"] == "yes":
@@ -93,7 +95,7 @@ touch {output.sym_link_outfile}
 #tag BASECALLING
 rule dorado:
     input:
-        dir = "ldna/rawdata/{rate}/{sample}"
+        dir = lambda wildcards: sample_table.loc[sample_table["sample_name"] == wildcards.sample, "nanopore_rawdata_dir"].iloc[0]
     output:
         calls = "aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.bam"
     wildcard_constraints:
@@ -101,6 +103,7 @@ rule dorado:
         type = "[0-9A-Za-z]+",
         rate = "[0-9A-Za-z]+",
         modifications_string = "[0-9A-Za-z_-]+"
+    container: None
     params:
         dorado = config["dorado"],
         basecallingModel = lambda w: config["basecallingModel"][w.rate][w.type],
@@ -199,11 +202,30 @@ pycoQC --summary_file {input.seqsummary} --bam_file {input.sortedbam} --html_out
         """
 
 #tag ALIGNMENT_UTILITIES
+rule subsample_bam:
+    input:
+        bam = "aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.bam"
+    output:
+        subsampled = "aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.subsampled.bam"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 64000
+    conda:
+        "omics"
+    shell:
+        """
+mkdir -p $(dirname {output.subsampled})
+
+samtools view -b {input.bam} chr10 > {output.subsampled}
+        """
+
 rule sortBam:
     input:
         bam = "aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.bam"
     output:
         sortedbam = "aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.sorted.bam"
+    wildcard_constraints:
+        modifications_string = "[A-Za-z0-9_-]+"
     resources:
         cpus_per_task =10,
         mem_mb = 64000
@@ -229,14 +251,15 @@ rule IndexBam:
         """
 samtools index  -@6 {input.bam}
         """
-
+        
+species = config["species"]
 rule tldr_aggregate_multiple_samples:
     input:
         bams = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam", sample = config["samples"], rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
         bais = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam.bai", sample = config["samples"], rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
     params:
         tldr_input_bam_ref = lambda w: config["update_ref_with_tldr"]["tldr_input_bam_ref"],
-        tldr_te_ref = config["update_ref_with_tldr"]["tldr_te_ref"]
+        tldr_te_ref = lambda w: config["update_ref_with_tldr"]["tldr_te_ref"][species]
     output:
         tldr = "aref/A.REF_tldr/A.REF.table.txt"
     resources:
@@ -358,7 +381,6 @@ rule repeatmasker:
     input:
         fasta = repeatmasker_input
     params:
-        repeatmaskerpath = config["repeatmaskerpath"],
         species = config["species"]
     output:
         rmout = "aref/A.REF_repeatmasker/{sample_or_ref}-pre-ins-filtering_nonrefcontigs.fa.out"
@@ -367,19 +389,18 @@ rule repeatmasker:
         runtime = 1200,
         mem_mb = 50000
     conda:
-        "omics"
+        "rmtest"
     shell:
         """
-module load libnsl
 mkdir -p $(dirname {output})
-{params.repeatmaskerpath} -species {params.species} -pa {resources.cpus_per_task} -gff {input.fasta} -dir $(dirname {output})
+RepeatMasker -species {params.species} -pa {resources.cpus_per_task} -gff {input.fasta} -dir $(dirname {output})
         """
 
 rule getGtfs:
     input:
         rmout = "aref/A.REF_repeatmasker/{sample_or_ref}-pre-ins-filtering_nonrefcontigs.fa.out",
-        rmref = config["starting_ref_repeatmasker"]
     params:
+        rmref = config["starting_ref_repeatmasker"],
         module_prefix = config["prefix"]
     output:
        ref = "aref/A.REF_repeatmasker/{sample_or_ref}_repeatmasker_ref_raw.gtf",
@@ -390,9 +411,23 @@ rule getGtfs:
     shell:
         """
 workflow/{params.module_prefix}/scripts/outToGtf.sh {input.rmout} {output.nonref}
-cp {input.rmref} {output.ref}
+workflow/{params.module_prefix}/scripts/outToGtf.sh {params.rmref} {output.ref}
 cat {output.ref} {output.nonref} > {output.merged}
         """
+
+rule process_gtf:
+    input:
+        gtf = "aref/A.REF_repeatmasker/A.REF_repeatmasker_raw.gtf",
+        ref_cytobands = "aref/A.REF_annotations/cytobands.bed",
+        ref = "aref/A.REF.fa"
+    output:
+        repmask_gff2 = "aref/A.REF_annotations/A.REF_repeatmasker.gff2",
+        repmask_gff3 = "aref/A.REF_annotations/A.REF_repeatmasker.gff3",
+        r_annotation_fragmentsjoined = "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv"
+    conda:
+        "evo2"
+    script:
+        "scripts/process_gtf.R"
 
 rule process_gtf_tldr:
     input:
@@ -417,7 +452,8 @@ rule analyze_insertions:
         filtered_tldr = "aref/{sample_or_ref}_tldr/{sample_or_ref}.table.kept_in_updated_ref.txt",
         r_annotation_fragmentsjoined = "aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
         r_repeatmasker_annotation = "aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_annotation.csv",
-        ref = "aref/{sample_or_ref}-pre-ins-filtering.fa"
+        ref = "aref/{sample_or_ref}-pre-ins-filtering.fa",
+        element_analysis = "aref/{sample_or_ref}_Analysis/l1element_analysis.rds"
     output:
         plots = "aref/{sample_or_ref}_Analysis/tldr_plots/tldr_plots.rds",
     conda:
@@ -465,20 +501,6 @@ rule cleanup_updated_sample_ref:
 seqkit grep --by-name -f {input.contigs_to_keep} {input.updated_reference} > {output.filtered_ref}
 samtools faidx {output.filtered_ref}
         """
-
-rule process_gtf:
-    input:
-        gtf = "aref/A.REF_repeatmasker/A.REF_repeatmasker_raw.gtf",
-        ref_cytobands = "aref/A.REF_annotations/cytobands.bed",
-        ref = "aref/A.REF.fa"
-    output:
-        repmask_gff2 = "aref/A.REF_annotations/A.REF_repeatmasker.gff2",
-        repmask_gff3 = "aref/A.REF_annotations/A.REF_repeatmasker.gff3",
-        r_annotation_fragmentsjoined = "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv"
-    conda:
-        "evo2"
-    script:
-        "scripts/process_gtf.R"
 
 rule move_refseq:
     input:
@@ -693,7 +715,8 @@ rule annotate_rtes:
     input:
         r_annotation_fragmentsjoined = "aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
         ref = "aref/{sample_or_ref}.fa",
-        txdbrefseq = "aref/A.REF_annotations/refseq.sqlite"
+        txdbrefseq = "aref/A.REF_annotations/refseq.sqlite",
+        pdbaa_blast_db = "aref/blastdb/pdbaa/outfile.out"
     output:
         r_repeatmasker_annotation = "aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_annotation.csv",
         rmann = "aref/{sample_or_ref}_annotations/{sample_or_ref}_rmann.csv",
@@ -748,7 +771,7 @@ STAR --runThreadN  30 --runMode genomeGenerate --genomeDir $(dirname {output.out
 touch {output.outfile}
         """
 
-rule cpgIslandFun:
+rule cpgIsland:
     params:
         ref_cpgislands = config["ref_cpgislands"]
     output:
@@ -763,28 +786,19 @@ rule cpgIslandFun:
     conda:
         "ds"
     script:
-        "scripts/cpgIslandFun.R"
+        "scripts/cpgIsland.R"
 
 rule copySelectAnnotations:
     params:
         ref_cytobands = config["ref_cytobands"],
         ref_telomere = config["ref_telomere"],
-        ref_ccres = config["ref_ccres"],
-        ref_clinvar_bgz = config["ref_clinvar_bgz"],
-        ref_clinvar_tbi = config["ref_clinvar_tbi"]
     output:
         ref_cytobands = "aref/A.REF_annotations/cytobands.bed",
         ref_telomere = "aref/A.REF_annotations/telomeres.bed",
-        ref_ccres = "aref/A.REF_annotations/ccres.bed",
-        ref_clinvar_bgz = "aref/A.REF_annotations/clinvar.vcf.gz",
-        ref_clinvar_tbi = "aref/A.REF_annotations/clinvar.vcf.gz.tbi"
     shell:
         """
 cp {params.ref_cytobands} {output.ref_cytobands}
 cp {params.ref_telomere} {output.ref_telomere}
-cp {params.ref_ccres} {output.ref_ccres}
-cp {params.ref_clinvar_bgz} {output.ref_clinvar_bgz}
-cp {params.ref_clinvar_tbi} {output.ref_clinvar_tbi}
         """
 
 
@@ -794,7 +808,7 @@ rule create_blast_db:
     output:
         blast_njs = "aref/{sample_or_ref}.njs"
     conda:
-        "repeatanalysis"
+        "evo2"
     shell:
         """
 makeblastdb -in {input.ref} -dbtype nucl -out aref/{wildcards.sample_or_ref}
@@ -807,7 +821,8 @@ rule transduction_mapping:
         r_annotation_fragmentsjoined = "aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
         r_repeatmasker_annotation = "aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_annotation.csv",
         ref = "aref/{sample_or_ref}.fa",
-        blast_njs = "aref/{sample_or_ref}.njs"
+        blast_njs = "aref/{sample_or_ref}.njs",
+        element_analysis = "aref/{sample_or_ref}_Analysis/l1element_analysis.rds"
     params:
         sample_or_ref = lambda w: w.sample_or_ref
     output:
@@ -819,3 +834,17 @@ rule transduction_mapping:
         "evo2"
     script:
         "scripts/transduction_mapping.R"
+
+
+rule setup_protein_blast_db:
+    output:
+        outfile = "aref/blastdb/pdbaa/outfile.out"
+    conda:
+        "blast"
+    shell:
+        """
+mkdir -p $(dirname {output.outfile})
+cd $(dirname {output.outfile})
+update_blastdb.pl --decompress pdbaa
+touch outfile.out
+        """

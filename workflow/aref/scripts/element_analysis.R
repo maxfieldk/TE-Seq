@@ -1,6 +1,6 @@
-source("workflow/scripts/defaults.R")
 module_name <- "aref"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 
 library(readr)
@@ -84,12 +84,12 @@ pf <- rmann %>%
 p <- pf %>% ggplot() +
     geom_bar(aes(x = rte_subfamily, y = n), color = "black", stat = "identity") +
     labs(title = "Number of L1 Elements per Subfamily", x = "Family", y = "Number of Elements", fill = "Reference Status") +
-    facet_wrap(~refstatus, scales = "free") +
+    facet_grid(~refstatus, scales = "free" , space = "free_x") +
     mtclosed +
     anchorbar +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-mysaveandstore(sprintf("%s/l1familycount.png", outputdir), w = 8, h = 5)
+mysaveandstore(sprintf("%s/l1familycount.pdf", outputdir), w = 8, h = 5)
 
 p <- rmann %>%
     filter(grepl("L1PA|L1HS", rte_subfamily)) %>%
@@ -100,12 +100,12 @@ p <- rmann %>%
     ggplot() +
     geom_bar(aes(x = rte_subfamily, y = n, fill = l1_intactness_req), color = "black", stat = "identity") +
     labs(title = "Number of Full Length L1 Elements per Subfamily", x = "Family", y = "Number of Elements", fill = "Reference Status") +
-    facet_wrap(~refstatus, scales = "free") +
+    facet_grid(~refstatus, scales = "free" , space = "free_x") +
     mtclosed +
     anchorbar +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-mysaveandstore(sprintf("%s/l1FLfamilycount.png", outputdir), w = 8, h = 5)
+mysaveandstore(sprintf("%s/l1FLfamilycount.pdf", outputdir), w = 8, h = 5)
 
 
 gene_ids <- hs_pa2_pa3_gr$gene_id
@@ -128,7 +128,7 @@ p <- rmann %>%
     geom_bar(aes(x = rte_subfamily, fill = refstatus), color = "black") +
     mtopen +
     anchorbar
-mysaveandstore(sprintf("%s/l1_intact_refstatus.png", outputdir), 4, 4)
+mysaveandstore(sprintf("%s/l1_intact_refstatus.pdf", outputdir), 4, 4)
 
 # ORF1 AND ORF2 SEQUENCE ANALYSES
 # cannonical locations of RT and EN in ORF2 protein
@@ -240,7 +240,7 @@ nonref_aln_l13 <- bres %>%
         filter(n < 2)
     notsplitnonrefl1hsgrs <- GRanges(seqnames = "l1.3", ranges = IRanges(start = notsplitnonrefl1hs$minIget, end = notsplitnonrefl1hs$maxIget))
     p <- autoplot(notsplitnonrefl1hsgrs, aes(color = end)) + mtopen + labs(x = "Position in L1.3 (bp)", y = "Coverage", title = "L1HS Blast to L1.3")
-    mysaveandstore(sprintf("%s/l13alnnotsplit.png", outputdir))
+    mysaveandstore(sprintf("%s/l13alnnotsplit.pdf", outputdir))
 }
 
 
@@ -254,7 +254,7 @@ p <- bres %>%
     geom_histogram(aes(x = Perc.Ident)) +
     mtopen +
     anchorbar
-mysaveandstore(sprintf("%s/l13identHist.png", outputdir))
+mysaveandstore(sprintf("%s/l13identHist.pdf", outputdir))
 
 p <- bres %>%
     filter(SubjectID == "orf1") %>%
@@ -262,7 +262,7 @@ p <- bres %>%
     geom_histogram(aes(x = Perc.Ident)) +
     mtopen +
     anchorbar
-mysaveandstore(sprintf("%s/orf1identHist.png", outputdir))
+mysaveandstore(sprintf("%s/orf1identHist.pdf", outputdir))
 
 p <- bres %>%
     filter(SubjectID == "orf2") %>%
@@ -270,7 +270,7 @@ p <- bres %>%
     geom_histogram(aes(x = Perc.Ident)) +
     mtopen +
     anchorbar
-mysaveandstore(sprintf("%s/orf2identHist.png", outputdir))
+mysaveandstore(sprintf("%s/orf2identHist.pdf", outputdir))
 
 
 # trying to make gene diagrams
@@ -285,7 +285,7 @@ mysaveandstore(sprintf("%s/orf2identHist.png", outputdir))
 #     geom_gene_arrow() +
 #     geom_subgene_arrow(aes(xsubmin = Q.start_orf1, xsubmax = Q.end_orf1, fill = "orf1")) +
 #     geom_subgene_arrow(aes(xsubmin = Q.start_orf2, xsubmax = Q.end_orf2, fill = "orf2")) +
-#     facet_wrap(~QueryID, scales = "free", ncol = 1) +
+#     facet_wrap(~QueryID, scales = "free" , space = "free_x", ncol = 1) +
 #     scale_fill_brewer(palette = "Set3") +
 #     theme_genes()
 # mysaveandstore("geneDiagram", "blastRes")
@@ -335,7 +335,7 @@ p <- ggtree(l1hs_intact_tree, layout = "fan") +
     geom_treescale() +
     geom_tippoint(aes(color = refstatus)) +
     ggtitle("L1HS ORF1&2 Intact Phylogeny")
-mysaveandstore(sprintf("%s/l1hs_intact_tree_fan.png", outputdir), w = 7, h = 7)
+mysaveandstore(sprintf("%s/l1hs_intact_tree_fan.pdf", outputdir), w = 7, h = 7)
 
 p <- ggtree(l1hs_intact_tree) +
     geom_treescale() +
@@ -344,7 +344,7 @@ p <- ggtree(l1hs_intact_tree) +
     theme_tree2() +
     xlab("% Mutation") +
     ggtitle("L1HS ORF1&2 Intact Phylogeny")
-mysaveandstore(sprintf("%s/l1hs_intact_tree.png", outputdir), w = 5, h = 20)
+mysaveandstore(sprintf("%s/l1hs_intact_tree.pdf", outputdir), w = 7.5, h = 20)
 # make the tree horizontal
 p <- ggtree(l1hs_intact_tree) +
     geom_treescale() +
@@ -354,7 +354,7 @@ p <- ggtree(l1hs_intact_tree) +
     xlab("% Mutation") +
     ggtitle("L1HS ORF1&2 Intact Phylogeny") +
     coord_flip()
-mysaveandstore(sprintf("%s/l1hs_intact_tree_horizontal.png", outputdir), w = 20, h = 8)
+mysaveandstore(sprintf("%s/l1hs_intact_tree_horizontal.pdf", outputdir), w = 20, h = 8)
 
 
 p <- ggtree(l1hs_intact_tree_gapped) +
@@ -365,7 +365,7 @@ p <- ggtree(l1hs_intact_tree_gapped) +
     xlab("% Mutation") +
     ggtitle("L1HS ORF1&2 Intact Phylogeny")
 
-mysaveandstore(sprintf("%s/l1hs_intact_tree_gapped.png", outputdir), w = 5, h = 20)
+mysaveandstore(sprintf("%s/l1hs_intact_tree_gapped.pdf", outputdir), w = 7.5, h = 20)
 
 # tree with msa
 l1hs_intact_aln <- readDNAMultipleAlignment(sprintf("%s/l1hs_intact.aln.fa", outputdir), format = "fasta")
@@ -378,13 +378,13 @@ writeXStringSet(l1hs_intact_aln_ss_c, file = sprintf("%s/l1hs_intact_alnWconensu
 p <- simplot(sprintf("%s/l1hs_intact_alnWconensus.fa", outputdir), "consensus", window = 1, group = TRUE, id = 1, sep = "_") +
     ggtitle("L1HS ORF1&2 Intact Consensus Accuracy") +
     mtopen
-mysaveandstore(sprintf("%s/l1hs_intact_alnWconensus_similarity.png", outputdir), w = 10, h = 5)
+mysaveandstore(sprintf("%s/l1hs_intact_alnWconensus_similarity.pdf", outputdir), w = 10, h = 5)
 
 p <- simplot(sprintf("%s/l1hs_intact_alnWconensus.fa", outputdir), "consensus", window = 1, group = TRUE, id = 1, sep = "_") +
     ggtitle("L1HS ORF1&2 Intact Consensus Accuracy") +
     geom_hline(yintercept = 0.95, col = "red", lty = 2) +
     mtopen
-mysaveandstore(sprintf("%s/l1hs_intact_alnWconensus_similarity_ONTdRNAerror.png", outputdir), w = 10, h = 5)
+mysaveandstore(sprintf("%s/l1hs_intact_alnWconensus_similarity_ONTdRNAerror.pdf", outputdir), w = 10, h = 5)
 
 
 data <- tidy_msa(l1hs_intact_aln_ss, 1, 100)
@@ -394,7 +394,7 @@ p <- ggtree(tr = l1hs_intact_tree_gapped) +
     geom_tiplab(aes(label = label)) +
     ggtitle("L1HS and L1PA2 ORF1&2 Intact Phylogeny") +
     geom_facet(geom = geom_msa, data = data, panel = "msa", font = NULL)
-mysaveandstore(sprintf("%s/l1hs_intact_msa_first_100nt_treemsa.png", outputdir), w = 10, h = 20)
+mysaveandstore(sprintf("%s/l1hs_intact_msa_first_100nt_treemsa.pdf", outputdir), w = 10, h = 20)
 
 ####
 save(mysaveandstoreplots, file = outputs$plots)

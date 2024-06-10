@@ -43,10 +43,8 @@ def inferLibraryType():
             libraryType = "reverse"
         else:
             libraryType = "unstranded"
-        print("library type = ", libraryType)
         return libraryType
     except:
-        print("library type = didn't run infer library type yet")
         return "didn't run infer library type yet"
 
 def getFeatureCountsStrandParam():
@@ -661,7 +659,7 @@ rule enrichment_analysis:
         inputdir =lambda w, input: os.path.dirname(os.path.dirname(input.resultsdf[0])),
         contrasts = config["contrasts"],
         genesets_for_heatmaps = config["genesets_for_heatmaps"],
-        genesets_for_gsea = config["genesets_for_gsea"],
+        collections_for_gsea = config["collections_for_gsea"],
         sample_table = config["sample_table"],
         outputdir = lambda w, output: os.path.dirname(output.plots),
         counttype = lambda w: w.counttype
@@ -725,16 +723,16 @@ rule repeatanalysis_plots:
 
 
 def bigwig_sizefactor_input(wildcards):
-    sizefactor_path = "srna/results/agg/deseq_telescope/%s/sizefactors.csv"%(wildcards.tecounttype)
+    sizefactor_path = "srna/results/agg/deseq/%s/sizefactors.csv"%(wildcards.tecounttype)
     if not Path(sizefactor_path).exists():
         return "NA"
     else:
-        return 1/float(pd.read_csv("srna/results/agg/deseq_telescope/%s/sizefactors.csv"%(wildcards.tecounttype)).set_index("sample_name").loc[wildcards.sample, "sizefactor"])
+        return 1/float(pd.read_csv("srna/results/agg/deseq/%s/sizefactors.csv"%(wildcards.tecounttype)).set_index("sample_name").loc[wildcards.sample, "sizefactor"])
 
 # rule getBigWigF:
 #     input:
 #         sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.primary.bam",
-#         sizefactors = "srna/results/agg/deseq_telescope/{tecounttype}/sizefactors.csv",
+#         sizefactors = "srna/results/agg/deseq/{tecounttype}/sizefactors.csv",
 #     params:
 #         sample_size_factor = bigwig_sizefactor_input
 #     output:
@@ -756,7 +754,7 @@ def bigwig_sizefactor_input(wildcards):
 # rule getBigWigR:
 #     input:
 #         sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.primary.bam",
-#         sizefactors = "srna/results/agg/deseq_telescope/relaxed/sizefactors.csv",
+#         sizefactors = "srna/results/agg/deseq/relaxed/sizefactors.csv",
 #     params:
 #         sample_size_factor = bigwig_sizefactor_input
 #     output:

@@ -1,6 +1,6 @@
-source("workflow/scripts/defaults.R")
 module_name <- "ldna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 
 library(rtracklayer)
@@ -62,7 +62,7 @@ ann <- do.call(rbind, anns) %>% tibble()
 
 p <- ann %>%
     ggplot(aes(x = sample_name)) +
-    facet_wrap(~rte_subfamily, scales = "free", ncol = 2) +
+    facet_grid(~rte_subfamily, scales = "free", space = "free_x", ncol = 2) +
     geom_bar(aes(fill = rte_length_req)) +
     labs(x = "", y = "Count") +
     paletteer::scale_fill_paletteer_d(conf$default_palette) +
@@ -72,7 +72,7 @@ mysaveandstore(w = 8, h = 6)
 
 p <- ann %>%
     ggplot(aes(x = sample_name)) +
-    facet_wrap(~rte_subfamily, scales = "free", ncol = 2) +
+    facet_grid(~rte_subfamily, scales = "free", space = "free_x", ncol = 2) +
     geom_bar(aes(fill = loc_integrative_loc)) +
     labs(x = "", y = "Count") +
     paletteer::scale_fill_paletteer_d(conf$default_palette) +
@@ -85,13 +85,13 @@ mysaveandstore(w = 8, h = 6)
 p <- df %>%
     filter(Family != "NA") %>%
     ggplot(aes(x = Subfamily)) +
-    facet_wrap(~Family, scales = "free") +
+    facet_grid(~Family, scales = "free", space = "free_x") +
     geom_bar(color = "black") +
     theme(panel.border = element_rect(color = "black", fill = NA, size = 1)) +
     scale_y_continuous(expand = expansion(mult = c(0, .1))) +
     labs(x = "", y = "Count") +
     paletteer::scale_fill_paletteer_d(conf$default_palette) +
     ggtitle("Non-reference RTE Insertions")
-mysaveandstore(sprintf("%s/insertions_subfamily.png", outputdir), 5, 5)
+mysaveandstore(sprintf("%s/insertions_subfamily.pdf", outputdir), 5, 5)
 
 save(mysaveandstoreplots, file = outputs$plots)

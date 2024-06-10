@@ -23,30 +23,77 @@ rm2granges <- function(regex, rm, filter = c("length > 0", "length > 0")) {
     return(gr)
 }
 
-mysave <- function(fn = "ztmp.png", w = 5, h = 5, res = 300, pl = p) {
+mysave <- function(fn = "ztmp.pdf", w = 5, h = 5, res = 600, pl = p, store = store_var, raster = FALSE) {
     dn <- dirname(fn)
     dir.create(dn, showWarnings = FALSE, recursive = TRUE)
-    png(fn, width = w, height = h, units = "in", res = res)
-    print(pl)
-    dev.off()
-    print(fn)
-}
 
-mysaveandstore <- function(fn = "ztmp.png", w = 5, h = 5, res = 300, pl = p) {
+    if (raster == TRUE) {
+            tryCatch({
+            png(gsub(".pdf", ".png", fn), width = w, height = h, units = "in", res = res)
+            print(pl)
+            dev.off()
+            print(paste(getwd(),gsub(".pdf", ".png", fn), sep = "/"))
+            }
+            , error = function(e) {
+                print("plot not saved")
+                print(e)
+            }
+            )
+    } else {
+    tryCatch(
+        {
+            cairo_pdf(fn, width = w, height = h, family = "Helvetica")
+            print(pl)
+            dev.off()
+            print(paste(getwd(),fn, sep = "/"))
+        },
+        error = function(e) {
+            print("plot not saved")
+            print(e)
+        }
+    )
+}
+}
+store_var <- "no"
+mysaveandstore <- function(fn = "ztmp.pdf", w = 5, h = 5, res = 600, pl = p, store = store_var, raster = FALSE) {
     dn <- dirname(fn)
     dir.create(dn, showWarnings = FALSE, recursive = TRUE)
-    png(fn, width = w, height = h, units = "in", res = res)
-    print(pl)
-    dev.off()
+
+    if (raster == TRUE) {
+            tryCatch({
+            png(gsub(".pdf", ".png", fn), width = w, height = h, units = "in", res = res)
+            print(pl)
+            dev.off()
+            print(paste(getwd(),gsub(".pdf", ".png", fn), sep = "/"))
+            }
+            , error = function(e) {
+                print("plot not saved")
+                print(e)
+            }
+            )
+    } else {
+    tryCatch(
+        {
+            cairo_pdf(fn, width = w, height = h, family = "Helvetica")
+            print(pl)
+            dev.off()
+            print(paste(getwd(),fn, sep = "/"))
+        },
+        error = function(e) {
+            print("plot not saved")
+            print(e)
+        }
+    )
+
     if (!exists("mysaveandstoreplots")) {
         mysaveandstoreplots <<- list()
     }
-    mysaveandstoreplots[[fn]] <<- pl
-    print("plot_stored!")
-    print(fn)
+    if (store == "yes") {
+        mysaveandstoreplots[[fn]] <<- pl
+        print("plot_stored!")
+    }
 }
-
-
+}
 
 
 # VARIABLES
@@ -61,18 +108,30 @@ chromosomesNoX <- c(paste0("chr", 1:22))
 
 
 mtopen <- theme_cowplot(font_family = "helvetica")
-mtopengrid <- mtopen + background_grid(minor = "none")
-mtopengridh <- mtopen + background_grid(major = "y", minor = "none")
-mtopengridv <- mtopen + background_grid(major = "x", minor = "none")
+mtopengrid <- theme_cowplot(font_family = "helvetica") + background_grid(minor = "none")
+mtopengridh <- theme_cowplot(font_family = "helvetica") + background_grid(major = "y", minor = "none")
+mtopengridv <- theme_cowplot(font_family = "helvetica") + background_grid(major = "x", minor = "none")
 
-mtclosed <- mtopen +
+mtclosed <- theme_cowplot(font_family = "helvetica") +
     panel_border(color= "black") +
     theme(axis.line = element_blank()) +
     theme(strip.background = element_blank(), strip.text = element_text(size = 12)) +
     theme(panel.spacing = unit(4, "mm"))
-mtclosedgrid <- mtclosed + background_grid(minor = "none")
-mtclosedgridh <- mtclosed + background_grid(major = "y", minor = "none")
-mtclosedgridv <- mtclosed + background_grid(major = "x", minor = "none")
+mtclosedgrid <- theme_cowplot(font_family = "helvetica") +
+    panel_border(color= "black") +
+    theme(axis.line = element_blank()) +
+    theme(strip.background = element_blank(), strip.text = element_text(size = 12)) +
+    theme(panel.spacing = unit(4, "mm")) + background_grid(minor = "none")
+mtclosedgridh <- theme_cowplot(font_family = "helvetica") +
+    panel_border(color= "black") +
+    theme(axis.line = element_blank()) +
+    theme(strip.background = element_blank(), strip.text = element_text(size = 12)) +
+    theme(panel.spacing = unit(4, "mm")) + background_grid(major = "y", minor = "none")
+mtclosedgridv <- theme_cowplot(font_family = "helvetica") +
+    panel_border(color= "black") +
+    theme(axis.line = element_blank()) +
+    theme(strip.background = element_blank(), strip.text = element_text(size = 12)) +
+    theme(panel.spacing = unit(4, "mm")) + background_grid(major = "x", minor = "none")
 
 
 anchorbar <- list(

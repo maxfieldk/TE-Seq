@@ -1,6 +1,6 @@
-source("workflow/scripts/defaults.R")
 module_name <- "aref"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 
 library(GenomicRanges)
@@ -93,7 +93,7 @@ for (ontology in ontologies) {
                 groupframe <- ann %>% filter(!!sym(ontology) == group)
                 if (filter_var != "ALL") {
                     groupframe %$% rte_length_req %>% unique()
-                    groupframe <- groupframe %>% filter(str_detect(!!sym(filter_var), ">|Intact|^Fl|^LTR"))
+                    groupframe <- groupframe %>% filter(str_detect(!!sym(filter_var), "Intact|FL$|^LTR"))
                 }
                 if (facet_var != "ALL") {
                     facet_values <- groupframe %>%

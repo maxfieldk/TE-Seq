@@ -22,7 +22,7 @@ rule callgenomebrowserplots:
 
 rule epigenome_transcriptome_correlation:
     input:
-        srna_results = "srna/results/agg/deseq_telescope/resultsdf.tsv",
+        srna_results = "srna/results/agg/deseq/resultsdf.tsv",
         lrna_results = "lrna/results/agg/deseq/dorado/relaxed/resultsdf.tsv",
         ldna_methylation = expand("ldna/intermediates/{sample}/methylation/{sample}_CG_m_dss.tsv", sample = config["ldna"]["samples"]),
         rteprommeth = "ldna/Rintermediates/perelementdf_promoters.tsv",

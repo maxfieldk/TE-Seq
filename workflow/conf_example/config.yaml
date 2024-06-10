@@ -22,21 +22,19 @@ aref:
     response: "no"
   running_ldna:
     response: "no"
+  store_plots_as_rds: "no" #yes or no
+
   #USER PROVIDED ANNOTATIONS - CHANGE PATHS AS NEEDED
   #Be sure to follow ucsc naming conventions, e.g. chr1, chr2, ...
   starting_ref: ../genome_files/reference.ucsc.fa
   starting_ref_repeatmasker: ../genome_files/repeatmasker.ucsc.out
   ref_refseq_gtf: ../genome_files/refseq.sorted.ucsc.gtf
   ref_refseq_gff3: ../genome_files/refseq.sorted.ucsc.gff3
-  repeatmaskerpath: /oscar/data/jsedivy/mkelsey/tools/RepeatMasker/RepeatMasker
 
   #PIPELINE INCLUDED ANNOTATIONS FOR T2T-HS1 genome - LEAVE PATHS UNCHANGED OR CHANGE AS NEEDED
-  ref_cytobands: resources/genomes/hs1/annotations/chm13v2.0_cytobands_allchrs.bed
-  ref_ccres: resources/genomes/hs1/annotations/hs1-imr90-cCREsCuratedWithClosestGene.bed
-  ref_telomere: resources/genomes/hs1/annotations/chm13v2.0_telomere.bed
-  ref_cpgislands: resources/genomes/hs1/annotations/hs1_CpG_Island_sorted
-  ref_clinvar_bgz: resources/genomes/hs1/annotations/chm13v2.0_ClinVar20220313.ncbi-names.vcf.gz
-  ref_clinvar_tbi: resources/genomes/hs1/annotations/chm13v2.0_ClinVar20220313.ncbi-names.vcf.gz.tbi
+  ref_cytobands: resources/genomes/hs1/annotations/cytobands.bed
+  ref_telomere: resources/genomes/hs1/annotations/telomeres.bed
+  ref_cpgislands: resources/genomes/hs1/annotations/cpgislands.tsv
   l13fasta: resources/sequences/l1.3.fa
   #PATHS TO FILES WHICH WILL BE CREATED
   ref: aref/A.REF.fa
@@ -61,7 +59,9 @@ aref:
     #IF updating reference with tldr inserts; else NULL
     tldr_input_bam_ref: /users/mkelsey/data/ref/pipeline_annotations/hs1/RTE/aref/A.REF.fa
     #ensure tldr_input_bams are a full path, not relative paths
-    tldr_te_ref: /oscar/data/jsedivy/mkelsey/tools/tldr/ref/teref.ont.human.fa
+    tldr_te_ref:
+      human: resources/sequences/teref.ont.human.fa
+      mouse: resources/sequences/teref.mouse.fa
 
   dorado: "/users/mkelsey/data/tools/dorado-0.5.1-linux-x64/bin/dorado"
   basecallingModel:
@@ -72,7 +72,7 @@ aref:
       hac: "/users/mkelsey/data/tools/dorado-0.5.1-linux-x64/models/dna_r10.4.1_e8.2_400bps_hac@v4.2.0"
   rate: "5khz"
   type: "hac"
-  modification_string: "6mA-5mC_5hmC" #note separete modifications with dashes
+  modification_string: "5mCG_5hmCG" #note separete modifications with dashes
 
 srna:
   prefix: "srna"
@@ -130,20 +130,25 @@ srna:
     - "telescope_multi"
     - "telescope_unique"
 
-  genesets_for_gsea:
-    msigdbH: resources/genesets/human/msigdb/h.all.v2023.2.Hs.symbols.gmt
-    msigdbC2_CPG: resources/genesets/human/msigdb/c2.cgp.v2023.2.Hs.symbols.gmt
-    msigdbC2_CP: resources/genesets/human/msigdb/c2.cp.v2023.2.Hs.symbols.gmt
-    msigdbC3_TFT: resources/genesets/human/msigdb/c3.tft.v2023.2.Hs.symbols.gmt
-    msigdbC5_GO: resources/genesets/human/msigdb/c5.go.v2023.2.Hs.symbols.gmt
-    msigdbC2_CPG_SENMAYO: resources/genesets/human/msigdb/SAUL_SEN_MAYO.v2023.2.Hs.gmt
+  store_plots_as_rds: "no" #yes or no
+  downsample_for_test:
+    response: "no" #yes or no
 
-  genesets_for_heatmaps:
+  repeat_ontologies_to_scrutinize: #leave empty for all ontologies to be included
+    - ""
+
+  collections_for_gsea: #these are collections to be used in addition to the msigdb collections, and are meant to be specified as a path to a gmt file. They will be run separately from the msigdb collections, so this portion of the analysis is meant to be hypothesis based
+    msigdbH: resources/genesets/human/msigdb/h.all.v2023.2.Hs.symbols.gmt
+
+  genesets_for_gseaplot: #this needs to be a geneset present in one of the collections specified above, or found in the msigdb database
+    - "SAUL_SEN_MAYO"
+
+  genesets_for_heatmaps: #these are collections to be used in addition to the msigdb collections, and are meant to be specified as a path to a text file with newline delimited gene symbols. 
     Senescence: resources/genesets/human/mycustom/senescence.txt
     InflammatoryGenes: resources/genesets/human/mycustom/inflammatory.txt
 
   annotation_genes: "aref/A.REF_annotations/refseq.gtf"
-  annotation_genes_bed12: "aref/A.REF_annotations/refseq.complete.bed"
+  annotation_genes_bed12: "aref/A.REF_annotations/refseq.bed"
 
   r_annotation_fragmentsjoined: "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv"
   r_repeatmasker_annotation: "aref/A.REF_annotations/A.REF_repeatmasker_annotation.csv"
@@ -156,6 +161,8 @@ ldna:
   use_aref_basecalls: "yes"
   single_condition: "no"
   tldr_input_bams:
+  store_plots_as_rds: "no" #yes or no
+
   samples:
     - "N2102EP1"
 
@@ -217,7 +224,7 @@ ldna:
 
   rate: "5khz"
   type: "hac"
-  modification_string: "6mA-5mC_5hmC"
+  modification_string: "5mCG_5hmCG"
 
   #note separete modifications with dashes
 
@@ -259,6 +266,8 @@ lrna:
   counttypes:
     - "relaxed"
     - "stringent"
+  store_plots_as_rds: "no" #yes or no
+
   levels:
     - "PRO"
     - "SEN"
@@ -273,7 +282,7 @@ lrna:
     SEN: "#F39B7FFF"
     PRO: "#3C5488FF"
 
-  genesets_for_gsea:
+  collections_for_gsea:
     msigdbH: resources/genesets/human/msigdb/h.all.v2023.2.Hs.symbols.gmt
     msigdbC2_CPG: resources/genesets/human/msigdb/c2.cgp.v2023.2.Hs.symbols.gmt
     msigdbC2_CP: resources/genesets/human/msigdb/c2.cp.v2023.2.Hs.symbols.gmt

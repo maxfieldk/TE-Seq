@@ -1,6 +1,6 @@
-source("workflow/scripts/defaults.R")
 module_name <- "aref"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 
 library(readr)
@@ -80,7 +80,7 @@ p <- pf %>% ggplot() +
     geom_bar(aes(x = rte_subfamily, y = n), color = "black", stat = "identity") +
     theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
     labs(title = "Number of L1 Elements per Subfamily", x = "Family", y = "Number of Elements", fill = "Reference Status") +
-    facet_wrap(~refstatus, scales = "free") +
+    facet_wrap(~refstatus, scales = "free", space = "free_x") +
     mtopen +
     anchorbar
 mysave(sprintf("%s/l1familycount.png", outputdir), w = 8, h = 5)
@@ -95,7 +95,7 @@ p <- rmann %>%
     geom_bar(aes(x = rte_subfamily, y = n, fill = l1_intactness_req), color = "black", stat = "identity") +
     theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
     labs(title = "Number of Full Length L1 Elements per Subfamily", x = "Family", y = "Number of Elements", fill = "Reference Status") +
-    facet_wrap(~refstatus, scales = "free") +
+    facet_wrap(~refstatus, scales = "free", space = "free_x") +
     mtopen +
     anchorbar
 mysave(sprintf("%s/l1FLfamilycount.png", outputdir), w = 8, h = 5)

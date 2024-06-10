@@ -1,6 +1,6 @@
-source("workflow/scripts/defaults.R")
 module_name <- "lrna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 source("conf/sample_table_source.R")
 
@@ -141,7 +141,7 @@ for (contrast in params[["contrasts"]]) {
                     if (filter_var != "ALL") {
                         genesets <- resultsdf %>%
                             filter(!!sym(ontology) != "Other") %>%
-                            filter(str_detect(!!sym(filter_var), ">|Intact|^Fl|^LTR")) %>%
+                            filter(str_detect(!!sym(filter_var), "Intact|FL$|^LTR")) %>%
                             select(!!sym(filter_var), gene_id)
                     } else {
                         genesets <- resultsdf %>%
@@ -162,10 +162,10 @@ for (contrast in params[["contrasts"]]) {
 
                     genesettheme <- theme_gray() + theme(axis.text.y = element_text(colour = "black"))
                     # p <- dotplot(gse, showCategory = 20) + ggtitle(paste("GSEA", contrast, sep = " ")) + genesettheme + mtopen
-                        # mysaveandstore(sprintf("%s/%s/%s/gsea/%s/%s/dotplot.png", params[["outputdir"]], tecounttype, contrast, ontology, filter_var), w = 3, h = 4, res = 300)
+                        # mysaveandstore(sprintf("%s/%s/%s/gsea/%s/%s/dotplot.pdf", params[["outputdir"]], tecounttype, contrast, ontology, filter_var), w = 3, h = 4, res = 300)
                     
                     # p <- ridgeplot(gse, core_enrichment = FALSE) + ggtitle(paste("GSEA", contrast, sep = " ")) + xlab("Log2 FC") + xlim(c(-4, 4)) + genesettheme + mtopen
-                        # mysaveandstore(sprintf("%s/%s/%s/gsea/%s/%s/ridgeplot.png", params[["outputdir"]], tecounttype, contrast, ontology, filter_var), w = 3, h = 4, res = 300)
+                        # mysaveandstore(sprintf("%s/%s/%s/gsea/%s/%s/ridgeplot.pdf", params[["outputdir"]], tecounttype, contrast, ontology, filter_var), w = 3, h = 4, res = 300)
                     
 
                     # tryCatch(
@@ -183,7 +183,7 @@ for (contrast in params[["contrasts"]]) {
                                     #                 theme(axis.text.y = element_text(colour = "black")) +
                                     #                 ylab(NULL)
 
-                                #             mysaveandstore(sprintf("%s/%s/%s/gsea/%s/%s/nes%s.png", params[["outputdir"]], tecounttype, contrast, ontology, filter_var, num), w = 3, h = min(num/2, 7), res = 300)
+                                #             mysaveandstore(sprintf("%s/%s/%s/gsea/%s/%s/nes%s.pdf", params[["outputdir"]], tecounttype, contrast, ontology, filter_var, num), w = 3, h = min(num/2, 7), res = 300)
                                                             #         }
                         #     },
                         #     error = function(e) {
@@ -217,7 +217,7 @@ for (ontology in ontologies) {
         labs(x = "", y = "", title = ontology) +
         theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
         coord_equal()
-    mysaveandstore(sprintf("%s/gsea_top_rtes.png", params[["outputdir"]], ontology), 7,12)
+    mysaveandstore(sprintf("%s/gsea_top_rtes.pdf", params[["outputdir"]], ontology), 7,12)
 }
 
 save(mysaveandstoreplots, file = outputs$plots)

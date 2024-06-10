@@ -1,6 +1,6 @@
-source("workflow/scripts/defaults.R")
 module_name <- "aref"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/defaults.R")
 
 library(GenomicFeatures)
 library(GenomicRanges)
@@ -41,12 +41,15 @@ rm <- rmgr %>%
 
 # filter out mitochondrial repeats
 rm <- rm %>% filter(seqnames != "chrM")
-
-rm %$% Target %>% head()
-rm1 <- rm %>% separate(Target, into = c("family", "element_start", "element_end"), sep = " ")
+rm1 <- rm %>% separate(Target, into = c("family", "element_start", "element_end", "element_bp_remaining"), sep = " ")
 rm2 <- rm1 %>%
     dplyr::select(-transcript_id) %>%
-    mutate(length = as.numeric(element_end) - as.numeric(element_start))
+    mutate(element_bp_remaining = as.numeric(gsub("\\(|\\)", "", element_bp_remaining))) %>%
+    mutate(element_start = as.numeric(element_start)) %>%
+    mutate(element_end = as.numeric(element_end)) %>%
+    mutate(length = element_end - element_start) %>% 
+    mutate(consensus_length = element_end + element_bp_remaining) %>%
+    mutate(pctconsensuscovered = 100*(length / consensus_length))
 rm3 <- rm2 %>%
     mutate(pctdiv = as.numeric(pctdiv)) %>%
     mutate(pctdel = as.numeric(pctdel)) %>%
@@ -54,10 +57,10 @@ rm3 <- rm2 %>%
     mutate(element_end = as.numeric(element_end))
 
 
-
 rmfragments <- rm3 %>%
     group_by(gene_id) %>%
-    summarise(seqnames = dplyr::first(seqnames), source = dplyr::first(source), type = dplyr::first(type), start = min(start), end = max(end), strand = dplyr::first(strand), phase = dplyr::first(phase), family = dplyr::first(family), element_start = min(element_start), element_end = max(element_end), pctdiv = sum(pctdiv * length) / sum(length), length = sum(length), num_fragments = n())
+    summarise(seqnames = dplyr::first(seqnames), source = dplyr::first(source), type = dplyr::first(type), start = min(start), end = max(end), strand = dplyr::first(strand), phase = dplyr::first(phase), family = dplyr::first(family), element_start = min(element_start), element_end = max(element_end), pctdiv = sum(pctdiv * length) / sum(length), length = sum(length), pctconsensuscovered = sum(pctconsensuscovered), num_fragments = n()) %>% 
+    mutate(pctconsensustruncated = 100 - pctconsensuscovered)
 rmfragments <- rmfragments %>% mutate(refstatus = ifelse(str_detect(seqnames, "nonref"), "NonRef", "Ref"))
 
 # for annotation purposes, I will have to have the location of nonreference inserts be their insertion site
@@ -121,7 +124,6 @@ rmfragments <- rmfragments %>%
     relocate(GiesmaID, .after = gene_id) %>%
     dplyr::select(-gene_id) %>%
     dplyr::rename(gene_id = GiesmaID)
-
 
 write_csv(rmfragments, outputs$r_annotation_fragmentsjoined)
 
