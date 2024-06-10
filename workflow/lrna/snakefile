@@ -636,10 +636,11 @@ rule deseq:
 
 rule consolidateDeseqResults:
     input:
-        results = expand("lrna/results/agg/deseq/{{counttype}}/{contrast}/results_rtes.csv", contrast = config["contrasts"], counttype = config["counttypes"]),
-        counts_normed = expand("lrna/results/agg/deseq/{{counttype}}/counttablesizenormed.csv", counttype = config["counttypes"])
+        results = expand("lrna/results/agg/deseq/{counttype}/{contrast}/results_rtes.csv", contrast = config["contrasts"], counttype = config["counttypes"]),
+        counts_normed = expand("lrna/results/agg/deseq/{counttype}/counttablesizenormed.csv", counttype = config["counttypes"])
     params:
-        inputdir =lambda w, input: os.path.dirname(os.path.dirname(input.counts_normed[0])),
+        inputdir = "lrna/results/agg/deseq",
+        outputdir = "lrna/results/agg/deseq"
     conda:
         "repeatanalysis"
     resources:
@@ -647,7 +648,7 @@ rule consolidateDeseqResults:
         mem_mb = 164000,
         runtime = 300
     output:
-        resultsdf = "lrna/results/agg/deseq/{counttype}/resultsdf.tsv"
+        resultsdf = "lrna/results/agg/deseq/resultsdf.tsv"
     script:
         "scripts/consolidateDeseqResults.R"
 
@@ -655,14 +656,15 @@ rule consolidateDeseqResults:
 import os
 rule enrichment_analysis:
     input:
-        resultsdf = "lrna/results/agg/deseq/{counttype}/resultsdf.tsv"
+        resultsdf = "lrna/results/agg/deseq/resultsdf.tsv"
     params:
         inputdir =lambda w, input: os.path.dirname(os.path.dirname(input.resultsdf[0])),
         contrasts = config["contrasts"],
         genesets_for_heatmaps = config["genesets_for_heatmaps"],
         genesets_for_gsea = config["genesets_for_gsea"],
         sample_table = config["sample_table"],
-        outputdir = lambda w, output: os.path.dirname(output.outfile)
+        outputdir = lambda w, output: os.path.dirname(output.plots),
+        counttype = lambda w: w.counttype
     conda:
         "ea"
     resources:
@@ -676,14 +678,15 @@ rule enrichment_analysis:
 
 rule enrichment_analysis_repeats:
     input:
-        resultsdf = "lrna/results/agg/deseq/{counttype}/resultsdf.tsv"
+        resultsdf = "lrna/results/agg/deseq/resultsdf.tsv"
     params:
         inputdir =lambda w, input: os.path.dirname(os.path.dirname(input.resultsdf[0])),
         r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
         r_repeatmasker_annotation = config["r_repeatmasker_annotation"],
         contrasts = config["contrasts"],
         sample_table = config["sample_table"],
-        outputdir = lambda w, output: os.path.dirname(output.outfile)
+        outputdir = lambda w, output: os.path.dirname(output.plots),
+        counttype = lambda w: w.counttype
     conda:
         "ea"
     resources:
@@ -691,7 +694,7 @@ rule enrichment_analysis_repeats:
         mem_mb = 164000,
         runtime = 300
     output:
-        plots = "lrna/results/agg/enrichment_analysis/{counttype}/enrichment_analysis_repeats_plots.RData"
+        plots = "lrna/results/agg/enrichment_analysis_repeats/{counttype}/enrichment_analysis_repeats_plots.RData"
 
     script:
         "scripts/ea_repeats.R"
@@ -700,13 +703,13 @@ rule enrichment_analysis_repeats:
 #tag REPETITIVE ELEMENTS
 rule repeatanalysis_plots:
     input:
-        resultsdf = "lrna/results/agg/deseq/{counttype}/resultsdf.tsv"
+        resultsdf = "lrna/results/agg/deseq/resultsdf.tsv"
     params:
         r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
         r_repeatmasker_annotation = config["r_repeatmasker_annotation"],
         contrasts = config["contrasts"],
-        tecounttype = lambda w: w.counttype,
-        outputdir = lambda w, output: os.path.dirname(output.outfile)
+        counttype = lambda w: w.counttype,
+        outputdir = lambda w, output: os.path.dirname(output.plots)
     conda:
         "repeatanalysis"
     resources:
@@ -912,8 +915,8 @@ samtools stats {output.bam} > {output.bam}.stats.txt
 
 rule dorado_seqsummary:
     input:
-        sortedbam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
-        sortedbambai = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam.bai", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
+        sortedbam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.good.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
+        sortedbambai = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.good.sorted.bam.bai", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
     params:
         dorado = config["dorado"]
     output:
@@ -928,15 +931,19 @@ rule dorado_seqsummary:
 rule pycoQC:
     input:
         seqsummary = "lrna/qc/{sample}/{sample}.doradosummary.txt",
-        sortedbam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
+        sortedbam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.good.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
     output:
         "lrna/qc/{sample}/{sample}pycoQC.html"
     conda:
         "pycoQC"
     shell:
         """
-pycoQC --summary_file {input.seqsummary} --bam_file {input.sortedbam} --html_outfile {output} --min_pass_qual 10 --sample
+pycoQC --summary_file {input.seqsummary} --bam_file {input.sortedbam} --html_outfile {output} --min_pass_qual 10
         """
+
+rule runpycoQC:
+    input:
+        expand("lrna/qc/{sample}/{sample}pycoQC.html", sample = samples)
 
 
 rule inferLibraryType:

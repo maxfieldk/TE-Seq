@@ -55,7 +55,7 @@ samtools fastq -TMM,ML {input.bam} > {output.fastq}
 
 rule align_to_updated_ref:
     input:
-        fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq
+        fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq"
     params:
         ref = lambda wildcards: "aref/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF.fa"
     output:
@@ -68,7 +68,7 @@ rule align_to_updated_ref:
     shell:
         """
 mkdir -p $(dirname {output.sam})
-minimap2 -a -x map-ont -t 14 -y {ref.ref} {input.fastq} > {output.sam}
+minimap2 -a -x map-ont -t 14 -y {params.ref} {input.fastq} > {output.sam}
         """
 
 rule samToBam:
@@ -685,11 +685,130 @@ rule callmodbamtobedandextractmods:
         expand("ldna/intermediates/{sample}/methylation/{sample}_mods.tsv", sample = samples)]
 
 
-#tag METHYLARTIST_PLOTS
+#tag Methylation plots
+
+rule init_wgbstools:
+    input:
+        ref = "aref/A.REF.fa"
+    output:
+        outfile = "aref/A.REF.wgbs.init.out"
+    resources:
+        runtime = 1000,
+        mem_mb = 128000,
+        cpus_per_task = 10
+    conda: "omics"
+    shell:
+        """
+mkdir -p $(dirname {output})
+/users/mkelsey/data/tools/wgbs_tools/wgbstools init_genome --fasta_path /users/mkelsey/data/Nanopore/alz/RTE/aref/A.REF.fa hs1
+touch {output.outfile}
+        """
+
+rule wgbs_bam2pat:
+    input:
+        outfile = "aref/A.REF.wgbs.init.out",
+        bam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+    output:
+        pat = expand("ldna/results/wgbs/{{sample}}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+    resources:
+        runtime = 1000,
+        mem_mb = 128000,
+        cpus_per_task = 26
+    conda: "omics"
+    shell:
+        """
+mkdir -p $(dirname {output})
+/users/mkelsey/data/tools/wgbs_tools/wgbstools bam2pat --genome hs1 -@ 26 --nanopore {input.bam} --out_dir $(dirname {output.pat})
+        """
+
+rule get_merged_pat:
+    input:
+        pat = expand("ldna/results/wgbs/{sample}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
+    params:
+        inputdir = "ldna/results/wgbs",
+        level1 = config["ldna"]["levels"][0],
+        level2 = config["ldna"]["levels"][1]
+    conda:
+        "omics"
+    output:
+        outfile = "ldna/results/wgbs/merged/merged.outfile"
+    shell:
+        """
+mkdir -p $(dirname {output.outfile})
+/users/mkelsey/data/tools/wgbs_tools/wgbstools merge -p $(dirname {output.outfile})/{params.level1} --genome hs1 {params.inputdir}/{params.level1}*.pat.gz
+/users/mkelsey/data/tools/wgbs_tools/wgbstools merge -p $(dirname {output.outfile})/{params.level2} --genome hs1 {params.inputdir}/{params.level2}*.pat.gz
+touch {output.outfile}
+        """
+        
+rule pat_fig:
+    input:
+        outfile = "ldna/results/wgbs/merged/merged.outfile"
+        # pat = expand("ldna/results/wgbs/{sample}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
+    params:
+        methylartist_loci_of_interest = config["ldna"]["methylartist_loci_of_interest"],
+    output:
+        outfile = "ldna/results/wgbs/plots/pat_fig.outfile"
+        # pat_fig = "ldna/results/wgbs/plots/{region}.pat.pdf"
+    resources:
+        runtime = 30,
+        mem_mb = 10000,
+        cpus_per_task = 4
+    conda: "omics"
+    shell:
+        """
+coords=$(awk '{{print $1":"$2"-"$3}}' {params.methylartist_loci_of_interest})
+mapfile -t coords_array <<< "$coords"
+for coord in "${{coords_array[@]}}"
+do
+coordfnsafe=$(echo $coord | sed 's/:/-/')
+/users/mkelsey/data/tools/wgbs_tools/wgbstools pat_fig --line_width 0.5 --col_wrap 1 --font_size 3 --meth_color "beige" --unmeth_color "black"  -o $(dirname {output.outfile})/${{coordfnsafe}}.pdf -r $coord --strict --genome hs1 $(dirname {input.outfile})/*.pat.gz
+/users/mkelsey/data/tools/wgbs_tools/wgbstools pat_fig --line_width 0.5 --col_wrap 1 --font_size 3 --meth_color "beige" --unmeth_color "black"  -o $(dirname {output.outfile})/${{coordfnsafe}}_top20.pdf -r $coord --strict --genome hs1 --top 20 $(dirname {input.outfile})/*.pat.gz
+/users/mkelsey/data/tools/wgbs_tools/wgbstools pat_fig --line_width 0.5 --col_wrap 1 --font_size 3 --meth_color "beige" --unmeth_color "black"  -o $(dirname {output.outfile})/${{coordfnsafe}}_top50.pdf -r $coord --strict --genome hs1 --top 50 $(dirname {input.outfile})/*.pat.gz
+/users/mkelsey/data/tools/wgbs_tools/wgbstools pat_fig --line_width 0.5 --col_wrap 1 --font_size 3 --meth_color "beige" --unmeth_color "black"  -o $(dirname {output.outfile})/${{coordfnsafe}}_top100.pdf -r $coord --strict --genome hs1 --top 100 $(dirname {input.outfile})/*.pat.gz
+done
+touch {output.outfile}
+        """
+
+rule pat_fig_rtes:
+    input:
+        outfile = "ldna/results/wgbs/merged/merged.outfile"
+        # pat = expand("ldna/results/wgbs/{sample}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
+    params:
+        fl_rte = "/users/mkelsey/data/Nanopore/alz/RTE/ldna/Rintermediates/flRTEpromoter.tsv"
+    output:
+        outfile = "ldna/results/wgbs/plots/l1hs/l1hs_fl.outfile"
+        # pat_fig = "ldna/results/wgbs/plots/{region}.pat.pdf"
+    resources:
+        runtime = 30,
+        mem_mb = 10000,
+        cpus_per_task = 4
+    conda: "omics"
+    shell:
+        """
+coords=$(awk '{{print $1":"$2"-"$3}}' <<< $(grep "L1HS" {params.fl_rte} | grep "L1HS_3q25.32_3\\|L1HS_1p22.3_2\\|L1HS_7q31.1_6" | head))
+rte_name=$(awk '{{print $6}}' <<< $(grep "L1HS" {params.fl_rte} | head -))
+mapfile -t coords_array <<< "$coords"
+mapfile -t rte_name_array <<< "$rte_name"
+for (( i=0; i<${{#coords_array[@]}}; i++ ))
+do
+coord=${{coords_array[$i]}}
+rte_name=${{rte_name_array[$i]}}
+coordfnsafe=$(echo $coord | sed 's/:/-/')
+/users/mkelsey/data/tools/wgbs_tools/wgbstools pat_fig --nanopore --shuffle --line_width 0.5 --col_wrap 1 --font_size 3 --meth_color "beige" --unmeth_color "black"  -o $(dirname {output.outfile})/${{coordfnsafe}}_top20.pdf -r $coord --title $rte_name --strict --genome hs1 --top 20 $(dirname {input.outfile})/*.pat.gz
+/users/mkelsey/data/tools/wgbs_tools/wgbstools pat_fig --nanopore --shuffle --line_width 0.5 --col_wrap 1 --font_size 3 --meth_color "beige" --unmeth_color "black"  -o $(dirname {output.outfile})/${{coordfnsafe}}.pdf -r $coord --title $rte_name --strict --genome hs1 $(dirname {input.outfile})/*.pat.gz
+/users/mkelsey/data/tools/wgbs_tools/wgbstools pat_fig --nanopore --shuffle --line_width 0.5 --col_wrap 1 --font_size 3 --meth_color "beige" --unmeth_color "black"  -o $(dirname {output.outfile})/${{coordfnsafe}}_top50.pdf -r $coord --title $rte_name --strict --genome hs1 --top 50 $(dirname {input.outfile})/*.pat.gz
+/users/mkelsey/data/tools/wgbs_tools/wgbstools pat_fig --nanopore --shuffle --line_width 0.5 --col_wrap 1 --font_size 3 --meth_color "beige" --unmeth_color "black"  -o $(dirname {output.outfile})/${{coordfnsafe}}_top100.pdf -r $coord --title $rte_name --strict --genome hs1 --top 100 $(dirname {input.outfile})/*.pat.gz
+done
+touch {output.outfile}
+        """
+
+
 rule methylartistlocusplot_loci_of_interest:
     input:
         sortedbam = expand("ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples),
-        sortedbai = expand("ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
+        sortedbai = expand("ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples),
+        dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
+        repeatmaskerbgz = "/users/mkelsey/data/Nanopore/alz/RTE/aref/A.REF_annotations/A.REF_repeatmasker.complete.gtf.gz",
     resources:
         runtime = 180,
         mem_mb = 5000
@@ -716,12 +835,23 @@ mapfile -t coords_array <<< "$coords"
 for coord in "${{coords_array[@]}}"
 do
 coordfnsafe=$(echo $coord | sed 's/:/-/')
-if /users/mkelsey/data/tools/methylartist/methylartist locus --bams {params.methylartist_bam_config} -o ${{outputprefix}}${{coordfnsafe}}.png -i $coord --ref {params.ref} --motif CG -m m --highlight_bed {params.module_prefix}/results/tables/dmrs.bed -p 1,6,1,0,4 --labelgenes; then
+if /users/mkelsey/data/tools/methylartist/methylartist locus \
+--bams {params.methylartist_bam_config} \
+-o ${{outputprefix}}${{coordfnsafe}}.png \
+-i $coord \
+--ref {params.ref} \
+--motif CG \
+-m m \
+--highlight_bed {input.dmrs} \
+-p 1,6,1,0,4 \
+--labelgenes \
+--gtf {input.repeatmaskerbgz}; \
+then
 echo "worked"
 else
 echo "failed"
 fi
-if /users/mkelsey/data/tools/methylartist/methylartist locus --bams {params.methylartist_bam_config} -o ${{outputprefix}}${{coordfnsafe}}.png -i $coord --ref {params.ref} --motif CG -m m --highlight_bed {params.module_prefix}/results/tables/dmrs.bed -p 1,6,1,0,4 --labelgenes --svg; then
+if /users/mkelsey/data/tools/methylartist/methylartist locus --bams {params.methylartist_bam_config} -o ${{outputprefix}}${{coordfnsafe}}.png -i $coord --ref {params.ref} --motif CG -m m --highlight_bed {input.dmrs} -p 1,6,1,0,4 --labelgenes --svg; then
 echo "worked"
 else
 echo "failed"

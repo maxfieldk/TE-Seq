@@ -425,7 +425,8 @@ rule deseq_telescope:
 
 rule consolidateDeseqResults:
     input:
-        results = expand("srna/results/agg/deseq_telescope/{tecounttype}/{contrast}/results_rtes.csv", contrast = config["contrasts"], tecounttype = config["tecounttypes"]),
+        results_genes = expand("srna/results/agg/deseq_telescope/{tecounttype}/{contrast}/results_genes.csv", contrast = config["contrasts"], tecounttype = config["tecounttypes"]),
+        results_rtes = expand("srna/results/agg/deseq_telescope/{tecounttype}/{contrast}/results_rtes.csv", contrast = config["contrasts"], tecounttype = config["tecounttypes"]),
         counts_normed = expand("srna/results/agg/deseq_telescope/{tecounttype}/counttablesizenormed.csv", tecounttype = config["tecounttypes"])
     params:
         inputdir = "srna/results/agg/deseq_telescope",

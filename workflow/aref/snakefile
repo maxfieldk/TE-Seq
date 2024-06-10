@@ -13,6 +13,8 @@ def aref_complete_input(wildcards):
     paths = [
         "aref/A.REF_annotations/A.REF_repeatmasker.complete.gff3.gz.tbi",
         "aref/A.REF_annotations/refseq.complete.gff3.gz.tbi",
+        "aref/A.REF_annotations/A.REF_repeatmasker.complete.gtf.gz.tbi",
+        "aref/A.REF_annotations/refseq.complete.gtf.gz.tbi",
         "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf",
         "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gff3",
         "aref/A.REF_annotations/A.REF_repeatmasker.complete.bed",
