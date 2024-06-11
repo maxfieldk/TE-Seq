@@ -10,7 +10,7 @@ library("dplyr")
 library("tibble")
 library("tidyr")
 
-conf <- configr::read.config(file = "conf/config.yaml")[["srna"]]
+conf <- configr::read.config(file = "conf/config.yaml")[[snakemake@params$module_name]]
 
 tryCatch(
     {
@@ -41,7 +41,7 @@ maincontrast <- contrasts[1]
 
 
 
-peptable <- read.csv(conf$peptable)
+sample_table <- read.csv(conf$sample_table)
 
 
 
@@ -78,7 +78,7 @@ ddsfinal <- bind_rows(RESLIST)
 
 COUNTLIST <- list()
 for (tecounttype in tecounttypes) {
-    conditions <- peptable$condition %>% unique()
+    conditions <- sample_table$condition %>% unique()
     ddscounts <- read_csv(paste(params$inputdir, tecounttype, "counttablesizenormed.csv", sep = "/")) %>%
         rename(gene_id = ...1) %>%
         mutate(tecounttype = tecounttype)

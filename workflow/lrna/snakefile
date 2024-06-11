@@ -638,7 +638,8 @@ rule consolidateDeseqResults:
         counts_normed = expand("lrna/results/agg/deseq/{counttype}/counttablesizenormed.csv", counttype = config["counttypes"])
     params:
         inputdir = "lrna/results/agg/deseq",
-        outputdir = "lrna/results/agg/deseq"
+        outputdir = "lrna/results/agg/deseq",
+        module_name = "srna"
     conda:
         "repeatanalysis"
     resources:
@@ -648,21 +649,24 @@ rule consolidateDeseqResults:
     output:
         resultsdf = "lrna/results/agg/deseq/resultsdf.tsv"
     script:
-        "scripts/consolidateDeseqResults.R"
+        "../srna/scripts/consolidateDeseqResults.R"
+
+
+
 
 #tag ENRICHMENT ANALYSIS
 import os
 rule enrichment_analysis:
     input:
-        resultsdf = "lrna/results/agg/deseq/resultsdf.tsv"
+        resultsdf ="lrna/results/agg/deseq/resultsdf.tsv"
     params:
-        inputdir =lambda w, input: os.path.dirname(os.path.dirname(input.resultsdf[0])),
+        inputdir =lambda w, input: os.path.dirname(os.path.dirname(input.resultsdf)),
         contrasts = config["contrasts"],
         genesets_for_heatmaps = config["genesets_for_heatmaps"],
         collections_for_gsea = config["collections_for_gsea"],
         sample_table = config["sample_table"],
-        outputdir = lambda w, output: os.path.dirname(output.plots),
-        counttype = lambda w: w.counttype
+        outputdir =lambda w, output: os.path.dirname(output.environment),
+        module_name = "lrna"
     conda:
         "ea"
     resources:
@@ -670,21 +674,28 @@ rule enrichment_analysis:
         mem_mb = 164000,
         runtime = 300
     output:
-        plots = "lrna/results/agg/enrichment_analysis/{counttype}/enrichment_analysis_plots.RData"
+        results_table_targetted = "lrna/results/agg/enrichment_analysis/results_table_targetted.tsv",
+        results_table_unbiased = "lrna/results/agg/enrichment_analysis/results_table_unbiased.tsv",
+        environment = "lrna/results/agg/enrichment_analysis/enrichment_analysis_environment.RData",
+        report = report(
+            directory("lrna/results/agg/enrichment_analysis"),
+            patterns=["gsea_top_{name}_grid.png", "{leading_path}heatmap_{trailingpath}.png"],
+            category="Gene Enrichment")
     script:
-        "scripts/ea.R"
+        "../srna/scripts/ea.R"
 
 rule enrichment_analysis_repeats:
     input:
-        resultsdf = "lrna/results/agg/deseq/resultsdf.tsv"
+        resultsdf ="lrna/results/agg/deseq/resultsdf.tsv",
     params:
-        inputdir =lambda w, input: os.path.dirname(os.path.dirname(input.resultsdf[0])),
+        inputdir =lambda w, input: os.path.dirname(os.path.dirname(input.resultsdf)),
+        contrasts = config["contrasts"],
+        tecounttype = lambda w: w.tecounttype, 
+        sample_table = config["sample_table"],
+        outputdir = lambda w, output: os.path.dirname(output.environment),
         r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
         r_repeatmasker_annotation = config["r_repeatmasker_annotation"],
-        contrasts = config["contrasts"],
-        sample_table = config["sample_table"],
-        outputdir = lambda w, output: os.path.dirname(output.plots),
-        counttype = lambda w: w.counttype
+        module_name = "lrna"
     conda:
         "ea"
     resources:
@@ -692,22 +703,26 @@ rule enrichment_analysis_repeats:
         mem_mb = 164000,
         runtime = 300
     output:
-        plots = "lrna/results/agg/enrichment_analysis_repeats/{counttype}/enrichment_analysis_repeats_plots.RData"
-
+        results_table = "lrna/results/agg/enrichment_analysis_repeats/{tecounttype}/results_table.tsv",
+        environment = "lrna/results/agg/enrichment_analysis_repeats/{tecounttype}/enrichment_analysis_repeats_environment.RData",
+        report = report(
+            directory("lrna/results/agg/enrichment_analysis_repeats/{tecounttype}"),
+            patterns=["{tecounttype}/gsea_top_{name}.png"],
+            category="RTE Enrichment")
     script:
-        "scripts/ea_repeats.R"
+        "../srna/scripts/ea_repeats.R"
 
-
-#tag REPETITIVE ELEMENTS
 rule repeatanalysis_plots:
     input:
-        resultsdf = "lrna/results/agg/deseq/resultsdf.tsv"
-    params:
+        resultsdf = "lrna/results/agg/deseq/resultsdf.tsv",
         r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
-        r_repeatmasker_annotation = config["r_repeatmasker_annotation"],
+        r_repeatmasker_annotation = config["r_repeatmasker_annotation"]
+    params:
+        tecounttype = lambda w: w.tecounttype,
         contrasts = config["contrasts"],
-        counttype = lambda w: w.counttype,
-        outputdir = lambda w, output: os.path.dirname(output.plots)
+        inputdir = lambda w, input: os.path.dirname(input.resultsdf),
+        outputdir = lambda w, output: os.path.dirname(output.environment),
+        module_name = "lrna"
     conda:
         "repeatanalysis"
     resources:
@@ -715,9 +730,14 @@ rule repeatanalysis_plots:
         mem_mb = 164000,
         runtime = 300
     output:
-        plots = "lrna/results/agg/repeatanalysis/{counttype}/repeatanalysis_plots.RData"
+        environment = "lrna/results/agg/repeatanalysis_telescope/{tecounttype}/repeatanalysisplots_environment.RData", 
+        report = report(
+            directory("lrna/results/agg/repeatanalysis_telescope/{tecounttype}"),
+            patterns=["pan_contrast/{rte}_{restofstring}.png", "{contrast}/{rte}_{restofstring}rte_length_req_genic_loc.png"],
+            category="Repeat Analysis {tecounttype}")
     script:
-        "scripts/repeatanalysisPlots.R"
+        "../srna/scripts/repeatanalysisPlots.R"
+    
 
 
 

@@ -20,7 +20,7 @@ for pipeline in config["pipelines_to_deploy"]:
             final_input.append("aref.done.outfile")
             if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
                 if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
-                    use rule * from aref exclude sym_link,tldr_aggregate_multiple_samples,get_repeatmasker_raw,process_gtf as aref_*
+                    use rule * from aref exclude sym_link,tldr_aggregate_multiple_samples as aref_*
                 else: 
                     use rule * from aref exclude sym_link,move_starting_reference,tldr_per_sample,get_repeatmasker_raw,process_gtf as aref_*
             else:
@@ -60,9 +60,9 @@ for pipeline in config["pipelines_to_deploy"]:
         use rule * from lrna as lrna_*
         def lrna_rally():
             deseq = expand("lrna/results/agg/deseq/{counttype}/{contrast}/results_genes.csv", alignmenttype = config["lrna"]["alignmenttypes"], counttype = config["lrna"]["counttypes"], contrast = config["lrna"]["contrasts"])
-            enrichment_analysis = expand("lrna/results/agg/enrichment_analysis/{counttype}/enrichment_analysis_plots.RData", alignmenttype = config["lrna"]["alignmenttypes"], counttype = config["lrna"]["counttypes"])
-            enrichment_analysis_repeats = expand("lrna/results/agg/enrichment_analysis_repeats/{counttype}/enrichment_analysis_repeats_plots.RData", alignmenttype = config["lrna"]["alignmenttypes"], counttype = config["lrna"]["counttypes"])
-            repeatanalysisplots = expand("lrna/results/agg/repeatanalysis/{counttype}/repeatanalysis_plots.RData", alignmenttype = config["lrna"]["alignmenttypes"], counttype = config["lrna"]["counttypes"])
+            enrichment_analysis = "lrna/results/agg/enrichment_analysis/enrichment_analysis_environment.RData"
+            enrichment_analysis_repeats = expand("lrna/results/agg/enrichment_analysis_repeats/{counttype}/enrichment_analysis_repeats_environment.RData", alignmenttype = config["lrna"]["alignmenttypes"], counttype = config["lrna"]["counttypes"])
+            repeatanalysisplots = expand("lrna/results/agg/repeatanalysis_telescope/{counttype}/repeatanalysisplots_environment.RData", alignmenttype = config["lrna"]["alignmenttypes"], counttype = config["lrna"]["counttypes"])
             # genomebrowserplots = expand("lrna/outfiles/genomebrowserplots{alignmenttype}.out", alignmenttype = config["lrna"]["alignmenttypes"])
             qc = [expand("lrna/qc/mycoplasma/mycoplasma{sample}.bam", sample = config["lrna"]["samples"]), "lrna/qc/multiqc_report.html"]
             bw = [expand("lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.F.bw", sample = config["lrna"]["samples"], rate = config["lrna"]["rate"],  type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"]), expand("lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.R.bw", sample = config["lrna"]["samples"], rate = config["lrna"]["rate"],  type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"])]

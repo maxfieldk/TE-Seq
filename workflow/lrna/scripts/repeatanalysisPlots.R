@@ -3,6 +3,9 @@ conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
 source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 source("conf/sample_table_source.R")
+set.seed(123)
+#whether or not to store plots in list for figure generation at script end
+store_var <- "yes"
 
 library(knitr)
 library(rmarkdown)
@@ -28,6 +31,7 @@ library(GenomicRanges)
 library(paletteer)
 library(rtracklayer)
 library(ComplexUpset)                            
+library(patchwork)                      
 
 
 tryCatch(
@@ -49,7 +53,7 @@ tryCatch(
             "r_repeatmasker_annotation" = conf$r_repeatmasker_annotation
         ), env = globalenv())
                 assign("outputs", list(
-            "plots" = "lrna/results/agg/repeatanalysis/relaxed/repeatanalysis_plots.RData"
+            "environment" = "lrna/results/agg/repeatanalysis/relaxed/repeatanalysisplots_environment.RData"
         ), env = globalenv())
     }
 )

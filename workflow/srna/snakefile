@@ -462,7 +462,8 @@ rule consolidateDeseqResults:
         counts_normed = expand("srna/results/agg/deseq/{tecounttype}/counttablesizenormed.csv", tecounttype = config["tecounttypes"])
     params:
         inputdir = "srna/results/agg/deseq",
-        outputdir = "srna/results/agg/deseq"
+        outputdir = "srna/results/agg/deseq",
+        module_name = "srna"
     conda:
         "repeatanalysis"
     resources:
@@ -485,7 +486,8 @@ rule enrichment_analysis:
         genesets_for_heatmaps = config["genesets_for_heatmaps"],
         collections_for_gsea = config["collections_for_gsea"],
         sample_table = config["sample_table"],
-        outputdir =lambda w, output: os.path.dirname(output.environment)
+        outputdir =lambda w, output: os.path.dirname(output.environment),
+        module_name = "srna"
     conda:
         "ea"
     resources:
@@ -513,7 +515,8 @@ rule enrichment_analysis_repeats:
         sample_table = config["sample_table"],
         outputdir = lambda w, output: os.path.dirname(output.environment),
         r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
-        r_repeatmasker_annotation = config["r_repeatmasker_annotation"]
+        r_repeatmasker_annotation = config["r_repeatmasker_annotation"],
+        module_name = "srna"
     conda:
         "ea"
     resources:
@@ -539,7 +542,8 @@ rule repeatanalysis_plots:
         tecounttype = lambda w: w.tecounttype,
         contrasts = config["contrasts"],
         inputdir = lambda w, input: os.path.dirname(input.resultsdf),
-        outputdir = lambda w, output: os.path.dirname(output.environment)
+        outputdir = lambda w, output: os.path.dirname(output.environment),
+        module_name = "srna"
     conda:
         "repeatanalysis"
     resources:

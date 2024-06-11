@@ -1,5 +1,4 @@
-module_name <- "srna"
-conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+conf <- configr::read.config(file = "conf/config.yaml")[[snakemake@params$module_name]]
 confALL <- configr::read.config(file = "conf/config.yaml")
 source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
