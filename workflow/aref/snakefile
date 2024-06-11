@@ -716,11 +716,12 @@ rule annotate_rtes:
         r_annotation_fragmentsjoined = "aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
         ref = "aref/{sample_or_ref}.fa",
         txdbrefseq = "aref/A.REF_annotations/refseq.sqlite",
-        pdbaa_blast_db = "aref/blastdb/pdbaa/outfile.out"
     output:
         r_repeatmasker_annotation = "aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_annotation.csv",
         rmann = "aref/{sample_or_ref}_annotations/{sample_or_ref}_rmann.csv",
         rmann_nonref = "aref/{sample_or_ref}_annotations/{sample_or_ref}_rmann_nonref.csv"
+    priority:
+        100
     conda:
         "evo2"
     script:
