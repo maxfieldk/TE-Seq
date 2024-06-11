@@ -24,7 +24,7 @@ def aref_complete_input(wildcards):
         "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.sqlite",
         "aref/A.REF_annotations/cytobands.bed",
     ]
-    paths.append(expand("aref/{sample_or_ref}_Analysis/l1element_analysis.outfile", sample_or_ref = "A.REF"))
+    # paths.append(expand("aref/{sample_or_ref}_Analysis/l1element_analysis.outfile", sample_or_ref = "A.REF"))
 
     if config["update_ref_with_tldr"]["response"] == "yes":
         # paths.append(expand("aref/qc/{sample_or_ref}/{sample_or_ref}pycoQC.html", sample_or_ref = config["samples"]))
@@ -256,7 +256,7 @@ species = config["species"]
 rule tldr_aggregate_multiple_samples:
     input:
         bams = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam", sample = config["samples"], rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
-        bais = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam.bai", sample = config["samples"], rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
+        bais = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam.bai", sample = config["samples"], rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
     params:
         tldr_input_bam_ref = lambda w: config["update_ref_with_tldr"]["tldr_input_bam_ref"],
         tldr_te_ref = lambda w: config["update_ref_with_tldr"]["tldr_te_ref"][species]

@@ -88,11 +88,11 @@ mysave(sprintf("%s/l1familycount.png", outputdir), w = 8, h = 5)
 p <- rmann %>%
     filter(grepl("L1PA|L1HS", rte_subfamily)) %>%
     filter(length > 5999) %>%
-    group_by(rte_subfamily, refstatus, l1_intactness_req) %>%
+    group_by(rte_subfamily, refstatus, intactness_req) %>%
     summarise(n = n()) %>%
     ungroup() %>%
     ggplot() +
-    geom_bar(aes(x = rte_subfamily, y = n, fill = l1_intactness_req), color = "black", stat = "identity") +
+    geom_bar(aes(x = rte_subfamily, y = n, fill = intactness_req), color = "black", stat = "identity") +
     theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
     labs(title = "Number of Full Length L1 Elements per Subfamily", x = "Family", y = "Number of Elements", fill = "Reference Status") +
     facet_wrap(~refstatus, scales = "free", space = "free_x") +

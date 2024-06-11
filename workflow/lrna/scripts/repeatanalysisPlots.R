@@ -106,7 +106,7 @@ transcripts <- c(coding_transcripts, noncoding_transcripts)
 
 }
 
-# subset <- resultsdf %>% filter(grepl("*tact*", l1_intactness_req))
+# subset <- resultsdf %>% filter(grepl("*tact*", intactness_req))
 for (ontology in c("rte_subfamily_limited", "l1_subfamily_limited", "rte_family")) {
     print(ontology)
 

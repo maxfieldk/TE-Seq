@@ -314,7 +314,7 @@ intactness_ann <- intactness_ann %>% mutate(intactness_req = ifelse(sapply(orf_d
 
 }, error = function(e) {
     print("no elements annotated for intactness")
-    intactness_ann <- rmfragments %>% dplyr::select(gene_id) %>% mutate(intactness = "Other")
+    intactness_ann <- rmfragments %>% dplyr::select(gene_id) %>% mutate(intactness_req = "Other")
 })
 
 length_ann <- rmfragments %>% dplyr::select(gene_id, pctconsensuscovered) %>% full_join(rmfamilies %>% dplyr::select(gene_id, rte_subfamily)) %>%
@@ -324,10 +324,10 @@ divergence_ann <- rmfragments %>% dplyr::select(gene_id, family, pctdiv, pctcons
     mutate(divergence_age = ifelse(
         family_av_pctdiv < 15, "Yng","Old"))
 
-req_annot <- left_join(length_ann, divergence_ann) %>% left_join(intactness_ann) %>% mutate(intactness = replace_na(intactness, "Other"))
+req_annot <- left_join(length_ann, divergence_ann) %>% left_join(intactness_ann) %>% mutate(intactness_req = replace_na(intactness_req, "Other"))
 req_annot <- req_annot %>% mutate(req_integrative = case_when(
-    (intactness == "Intact") & (divergence_age == "Yng") ~ "Yng Intact",
-    (intactness == "Intact") & (divergence_age == "Old") ~ "Old Intact",
+    (intactness_req == "Intact") & (divergence_age == "Yng") ~ "Yng Intact",
+    (intactness_req == "Intact") & (divergence_age == "Old") ~ "Old Intact",
     (pctconsensuscovered >= 95) & (divergence_age == "Yng") ~ "Yng FL",
     (pctconsensuscovered < 95) & (divergence_age == "Yng") ~ "Yng Trnc",
     (pctconsensuscovered >= 95) & (divergence_age == "Old") ~ "Old FL",
