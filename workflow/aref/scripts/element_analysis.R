@@ -40,14 +40,14 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            r_annotation_fragmentsjoined = "aref/AD1_annotations/AD1_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
-            r_repeatmasker_annotation = "aref/AD1_annotations/AD1_repeatmasker_annotation.csv",
-            ref = "aref/AD1.fa"
+            r_annotation_fragmentsjoined = "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
+            r_repeatmasker_annotation = "aref/A.REF_annotations/A.REF_repeatmasker_annotation.csv",
+            ref = "aref/A.REF.fa"
         ), env = globalenv())
         assign("params", list(l13 = conf$l13fasta), env = globalenv())
         assign("outputs", list(
-            outfile = "aref/AD1_Analysis/l1element_analysis.outfile",
-            plots = "aref/AD1_Analysis/plots.Rda"
+            outfile = "aref/A.REF_Analysis/l1element_analysis.outfile",
+            plots = "aref/A.REF_Analysis/plots.Rda"
         ), env = globalenv())
     }
 )
@@ -60,8 +60,8 @@ rmann <- left_join(rmfragments, rmfamilies) %>%
 outputdir <- dirname(outputs$outfile)
 dir.create(outputdir, recursive = TRUE, showWarnings = FALSE)
 
-rmann %>% filter(l1_intactness_req == "L1HS ORFs Intact") %>% head() %>% write_delim(sprintf("%s/rmann_head.csv", outputdir), delim = "\t", col_names = TRUE)
-rmann %$% l1_intactness_req %>% table()
+rmann %>% filter(str_detect(intactness_req, "Intact")) %>% head() %>% write_delim(sprintf("%s/rmann_head.csv", outputdir), delim = "\t", col_names = TRUE)
+rmann %$% intactness_req %>% table()
 
 options(scipen = 999)
 
@@ -94,11 +94,11 @@ mysaveandstore(sprintf("%s/l1familycount.pdf", outputdir), w = 8, h = 5)
 p <- rmann %>%
     filter(grepl("L1PA|L1HS", rte_subfamily)) %>%
     filter(length > 5999) %>%
-    group_by(rte_subfamily, refstatus, l1_intactness_req) %>%
+    group_by(rte_subfamily, refstatus, intactness_req) %>%
     summarise(n = n()) %>%
     ungroup() %>%
     ggplot() +
-    geom_bar(aes(x = rte_subfamily, y = n, fill = l1_intactness_req), color = "black", stat = "identity") +
+    geom_bar(aes(x = rte_subfamily, y = n, fill = intactness_req), color = "black", stat = "identity") +
     labs(title = "Number of Full Length L1 Elements per Subfamily", x = "Family", y = "Number of Elements", fill = "Reference Status") +
     facet_grid(~refstatus, scales = "free" , space = "free_x") +
     mtclosed +
@@ -114,7 +114,7 @@ mcols(hs_pa2_pa3_ss) <- mcols(hs_pa2_pa3_gr)
 names(hs_pa2_pa3_ss) <- mcols(hs_pa2_pa3_gr)$gene_id
 hs_pa2_pa3_fl_ss <- hs_pa2_pa3_ss[width(hs_pa2_pa3_ss) > 5999]
 
-hs_pa2_pa3_intact_ss <- hs_pa2_pa3_fl_ss[grepl("Intact", mcols(hs_pa2_pa3_fl_ss)$l1_intactness_req)]
+hs_pa2_pa3_intact_ss <- hs_pa2_pa3_fl_ss[grepl("Intact", mcols(hs_pa2_pa3_fl_ss)$intactness_req)]
 
 # last_n <- 20
 # A_freq <- letterFrequency(subseq(flss, -last_n, -1), "A") / last_n
@@ -123,7 +123,7 @@ hs_pa2_pa3_intact_ss <- hs_pa2_pa3_fl_ss[grepl("Intact", mcols(hs_pa2_pa3_fl_ss)
 # dev.off()
 
 p <- rmann %>%
-    filter(grepl("Intact", l1_intactness_req)) %>%
+    filter(grepl("Intact", intactness_req)) %>%
     ggplot() +
     geom_bar(aes(x = rte_subfamily, fill = refstatus), color = "black") +
     mtopen +

@@ -23,7 +23,7 @@ def aref_complete_input(wildcards):
         "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.sqlite",
         "aref/A.REF_annotations/cytobands.bed",
     ]
-    paths.append(expand("aref/{sample_or_ref}_Analysis/l1element_analysis.outfile", sample_or_ref = "A.REF"))
+    # paths.append(expand("aref/{sample_or_ref}_Analysis/l1element_analysis.outfile", sample_or_ref = "A.REF"))
 
     if config["update_ref_with_tldr"]["response"] == "yes":
         # paths.append(expand("aref/qc/{sample_or_ref}/{sample_or_ref}pycoQC.html", sample_or_ref = config["samples"]))
