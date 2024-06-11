@@ -15,7 +15,8 @@ It also aims address concerns pertaining to:
 
 This project derives from my work in the __Sedivy Lab at Brown University__, where we study transposable elements, in particular __LINE1__.
 #
-![Asset 14](https://github.com/maxfieldk/RTE/assets/44215152/9e1a5869-4984-4082-81ab-52483a119741)
+![Asset 15](https://github.com/maxfieldk/RTE/assets/44215152/ca23b51a-977c-48d1-bb52-a6a3d21ec025)
+
 
 
 
