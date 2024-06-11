@@ -55,7 +55,7 @@ library(ComplexHeatmap)
 }
 
 ## Load Data and add annotations
-resultsdf1 <- read_delim(inputs$resultsdf, delim = "\t")
+resultsdf1 <- read_delim(inputs$resultsdf, delim = "\t") %>% filter(counttype == params$counttype)
 resultsdf1 <- resultsdf1[resultsdf1$gene_id != "__no_feature", ]
 r_annotation_fragmentsjoined <- read_csv(params$r_annotation_fragmentsjoined)
 r_repeatmasker_annotation <- read_csv(params$r_repeatmasker_annotation)
