@@ -41,10 +41,10 @@ tryCatch(
         print("not sourced snake variables")
         assign("params", list(
             "outputdir" = "lrna/results/agg/repeatanalysis/relaxed",
-            "tecounttype" = "relaxed"
+            "counttype" = "relaxed"
         ), env = globalenv())
         assign("inputs", list(
-            "resultsdf" = "lrna/results/agg/deseq/relaxed/resultsdf.tsv",
+            "resultsdf" = "lrna/results/agg/deseq/resultsdf.tsv",
             "r_annotation_fragmentsjoined" = conf$r_annotation_fragmentsjoined,
             "r_repeatmasker_annotation" = conf$r_repeatmasker_annotation
         ), env = globalenv())
@@ -57,10 +57,10 @@ tryCatch(
 outputdir <- params$outputdir
 contrasts <- conf$contrasts
 sample_table <- read.csv(conf$sample_table)
-tecounttype <- params$tecounttype
+counttype <- params$counttype
 
 ## Load Data and add annotations
-resultsdf1 <- read_delim(inputs$resultsdf, delim = "\t") %>% filter(tecounttype == tecounttype) %>% filter()
+resultsdf1 <- read_delim(inputs$resultsdf, delim = "\t") %>% filter(counttype == params$counttype)
 r_annotation_fragmentsjoined <- read_csv(inputs$r_annotation_fragmentsjoined)
 r_repeatmasker_annotation <- read_csv(inputs$r_repeatmasker_annotation)
 resultsdfwithgenes <- resultsdf1 %>%
@@ -79,6 +79,7 @@ transcripts <- c(coding_transcripts, noncoding_transcripts)
     annot_colnames_good <- annot_colnames[!(annot_colnames %in% c("gene_id", "family"))]
     ontologies <- annot_colnames_good[str_detect(annot_colnames_good, "family")]
     # ontologies <- ontologies[ontologies %in% conf$repeat_ontologies_to_scrutinize]
+# ontologies <- ontologies[ontologies %in% conf$repeat_ontologies_to_scrutinize]
     ontologies <- c("rte_subfamily_limited")
 
 
@@ -101,7 +102,7 @@ transcripts <- c(coding_transcripts, noncoding_transcripts)
 
 }
 
-# subset <- resultsdf %>% filter(grepl("*tact*", l1_intactness_req))
+# subset <- resultsdf %>% filter(grepl("*tact*", intactness_req))
 for (ontology in c("rte_subfamily_limited", "l1_subfamily_limited", "rte_family")) {
     print(ontology)
 
@@ -147,7 +148,7 @@ p<-pf %>% mutate(genicfacet = ifelse(loc_integrative == "Intergenic", "", "Genic
     scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.8,0,0.8), na.value = 'dark grey') +
     mtclosed + theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
     labs(x = "", y = "")
-mysaveandstore(sprintf("%s/%s/%s/rte_genic_cor_%s.pdf", outputdir, tecounttype, contrast, ontology), 6, 4)
+mysaveandstore(sprintf("%s/%s/%s/rte_genic_cor_%s.png", outputdir, counttype, contrast, ontology), 6, 4)
 
 p <- pf %>% mutate(genicfacet = ifelse(loc_integrative == "Intergenic", "", "Genic")) %>% ggplot(aes(x = !!sym(ontology), y = loc_integrative)) + geom_tile(aes(fill = cor)) +
     facet_grid(genicfacet ~req_integrative, space = "free", scales = "free") +
@@ -155,7 +156,7 @@ p <- pf %>% mutate(genicfacet = ifelse(loc_integrative == "Intergenic", "", "Gen
     scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.8,0,0.8), na.value = 'dark grey') +
     mtclosed + theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
     labs(x = "", y = "")
-mysaveandstore(sprintf("%s/%s/%s/rte_genic_cor_pval_%s.pdf", outputdir, tecounttype, contrast, ontology), 6, 4)
+mysaveandstore(sprintf("%s/%s/%s/rte_genic_cor_pval_%s.png", outputdir, counttype, contrast, ontology), 6, 4)
 }
 
 te_gene_matrix_all <- Reduce(bind_rows, te_gene_matrix_list)
@@ -168,7 +169,7 @@ p<-pf %>% mutate(genicfacet = ifelse(loc_integrative == "Intergenic", "", "Genic
     scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.8,0,0.8), na.value = 'dark grey') +
     mtclosed + theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
     labs(x = "", y = "")
-mysaveandstore(sprintf("%s/%s/%s/rte_genic_cor_%s.pdf", outputdir, tecounttype, "pan_contrast", ontology), 8, 4)
+mysaveandstore(sprintf("%s/%s/%s/rte_genic_cor_%s.png", outputdir, counttype, "pan_contrast", ontology), 8, 4)
 
 p <- pf %>% mutate(genicfacet = ifelse(loc_integrative == "Intergenic", "", "Genic")) %>% ggplot(aes(x = !!sym(ontology), y = loc_integrative)) + geom_tile(aes(fill = cor)) +
     facet_grid(genicfacet ~req_integrative, space = "free", scales = "free") +
@@ -176,7 +177,7 @@ p <- pf %>% mutate(genicfacet = ifelse(loc_integrative == "Intergenic", "", "Gen
     scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.8,0,0.8), na.value = 'dark grey') +
     mtclosed + theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
     labs(x = "", y = "")
-mysaveandstore(sprintf("%s/%s/%s/rte_genic_cor_pval_%s.pdf", outputdir, tecounttype, "pan_contrast", ontology), 8, 4)
+mysaveandstore(sprintf("%s/%s/%s/rte_genic_cor_pval_%s.png", outputdir, counttype, "pan_contrast", ontology), 8, 4)
 
 }
 
@@ -465,16 +466,16 @@ group_res %$% gene_id %>% duplicated()
 }
 
 # group <- "L1HS"
-# tecounttype <- "telescope_multi"
+# counttype <- "telescope_multi"
 
 # groupframe <- resultsdf %>%
 #     filter(rte_subfamily == group) %>%
-#     filter(tecounttype == tecounttype)
+#     filter(counttype == counttype)
 # p <- myheatmap(groupframe, facet_var = "genic_loc", filter_var = "rte_length_req", DEvar = "DE", scaled = "notscaled", contrast_samples = contrast_samples, condition_vec = condition_vec)
 # mysave("temp1.png", 8, 8)
 
 
-counttype_label <- ifelse(grepl("multi|Multi", tecounttype), "Multi", "Unique")
+counttype_label <- ifelse(grepl("multi|Multi", counttype), "Multi", "Unique")
 #### GETTING TIDY DATA
 map <- setNames(sample_table$condition, sample_table$sample_name)
 pvals <- colnames(resultsdf)[str_detect(colnames(resultsdf), "padj_condition")]
@@ -483,7 +484,7 @@ annotations <- c("length", colnames(r_repeatmasker_annotation))
 strictly_annotations <- annotations[!(annotations %in% c("gene_id", "family"))]
 colsToKeep <- c("gene_id", "family", pvals, l2fc, strictly_annotations)
 tidydf <- resultsdf %>%
-    filter(tecounttype == tecounttype) %>%
+    filter(counttype == counttype) %>%
     select(all_of(colnames(resultsdf)[(colnames(resultsdf) %in% sample_table$sample_name) | (colnames(resultsdf) %in% colsToKeep)])) %>%
     pivot_longer(cols = -colsToKeep) %>%
     dplyr::rename(sample = name, counts = value) %>%
@@ -509,7 +510,7 @@ p <- pf %>% arrange(req_integrative) %>%
     scale_conditions +
     anchorbar +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
-    mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar.pdf", outputdir, tecounttype, rte_fam), 15, 12)
+    mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar.png", outputdir, counttype, rte_fam), 15, 12)
 
 p <- pf %>% arrange(req_integrative) %>%
     ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = c("req_integrative", "genic_loc"), add = c("mean_se", "dotplot"), scales = "free_y") +
@@ -519,7 +520,7 @@ labs(x = "", y = "Sum Normalized Counts", caption = counttype_label, title = rte
         anchorbar +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1])
-        mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats.pdf", outputdir, tecounttype, rte_fam), 15, 12)
+        mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats.png", outputdir, counttype, rte_fam), 15, 12)
 
     p <- pf %>% arrange(req_integrative) %>%
         ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = c("req_integrative", "genic_loc"), add = c("mean_se", "dotplot"), scales = "free_y") +
@@ -529,7 +530,7 @@ labs(x = "", y = "Sum Normalized Counts", caption = counttype_label, title = rte
         anchorbar +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = FALSE, ref.group = conf$levels[1])
-        mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats_allsigannot.pdf", outputdir, tecounttype, rte_fam), 15, 12)
+        mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats_allsigannot.png", outputdir, counttype, rte_fam), 15, 12)
 
     p <- pf %>% arrange(req_integrative) %>%
         ggbarplot(x = "condition", y = "sample_sum", fill = "req_integrative", facet.by = c("genic_loc"), add = c("mean_se"), scales = "free_y") +
@@ -539,7 +540,7 @@ labs(x = "", y = "Sum Normalized Counts", caption = counttype_label, title = rte
     anchorbar +
     theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
     stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1])
-    mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_reqintegrative_stats.pdf", outputdir, tecounttype, rte_fam), 7, 7)
+    mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_reqintegrative_stats.png", outputdir, counttype, rte_fam), 7, 7)
 
     p <- pf %>% arrange(req_integrative) %>% group_by(sample, condition, genic_loc) %>% summarise(sample_pantype_sum = sum(sample_sum)) %>% ungroup() %>%
         ggbarplot(x = "condition", y = "sample_pantype_sum", facet.by = c("genic_loc"), add = c("mean_se", "dotplot"), scales = "free_y") +
@@ -550,11 +551,8 @@ labs(x = "", y = "Sum Normalized Counts", caption = counttype_label, title = rte
         scale_palette +
         anchorbar +
         theme(axis.text.x = element_text(angle = 45, hjust = 1))
-        mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_reqintegrative_stats_allsigannot.pdf", outputdir, tecounttype, rte_fam), 15, 12)
+        mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_reqintegrative_stats_allsigannot.png", outputdir, counttype, rte_fam), 15, 12)
 
-
-
-    p <- myheatmap()
 
 }
 
@@ -576,7 +574,7 @@ for (rte_subfam in rte_subfams) {
         scale_conditions +
         anchorbar +
         theme(axis.text.x = element_text(angle = 45, hjust = 1))
-        mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar.pdf", outputdir, tecounttype, rte_subfam), 15, 12)
+        mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar.png", outputdir, counttype, rte_subfam), 15, 12)
 
     p <- pf %>% arrange(req_integrative) %>%
         ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = c("req_integrative", "genic_loc"), add = c("mean_se", "dotplot"), scales = "free_y") +
@@ -586,7 +584,7 @@ for (rte_subfam in rte_subfams) {
         anchorbar +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1])
-        mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats.pdf", outputdir, tecounttype, rte_subfam), 15, 12)
+        mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats.png", outputdir, counttype, rte_subfam), 15, 12)
 
     p <- pf %>% arrange(req_integrative) %>%
         ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = c("req_integrative", "genic_loc"), add = c("mean_se", "dotplot"), scales = "free_y") +
@@ -596,7 +594,7 @@ for (rte_subfam in rte_subfams) {
         anchorbar +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = FALSE, ref.group = conf$levels[1])
-        mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats_allsigannot.pdf", outputdir, tecounttype, rte_subfam), 15, 12)
+        mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats_allsigannot.png", outputdir, counttype, rte_subfam), 15, 12)
 
 }
 
@@ -648,22 +646,22 @@ for (ontology in ontologies) {
                                 plot_title <- group
                             }
                             p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var) + ggtitle(plot_title)
-                            mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s.pdf", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height)
+                            mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s.png", outputdir, counttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height)
                             if (function_name == "pvp") {
                                 p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, labels = "yes") + ggtitle(plot_title)
-                                mysaveandstore(sprintf("% s/%s/%s/%s/%s_%s_%s_labels.pdf", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height)
+                                mysaveandstore(sprintf("% s/%s/%s/%s/%s_%s_%s_labels.png", outputdir, counttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height)
                                 p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, labels = "no", scale_log2 = "yes") + ggtitle(plot_title)
-                                mysaveandstore(sprintf("% s/%s/%s/%s/%s_%s_%s_log2.pdf", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width +2, plot_height +2)
+                                mysaveandstore(sprintf("% s/%s/%s/%s/%s_%s_%s_log2.png", outputdir, counttype, contrast, function_name, group, filter_var, facet_var), plot_width +2, plot_height +2)
                                 p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, labels = "yes", scale_log2 = "yes") + ggtitle(plot_title)
-                                mysaveandstore(sprintf("% s/%s/%s/%s/%s_%s_%s_log2labels.pdf", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width + 2, plot_height + 2)
+                                mysaveandstore(sprintf("% s/%s/%s/%s/%s_%s_%s_log2labels.png", outputdir, counttype, contrast, function_name, group, filter_var, facet_var), plot_width + 2, plot_height + 2)
                             }
                             if (function_name == "stripp") {
                                 p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, stats = "yes") + ggtitle(plot_title)
-                                mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_stats.pdf", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height + 2)
+                                mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_stats.png", outputdir, counttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height + 2)
                             }
                         },
                         error = function(e) {
-                            print(sprintf("Error with  %s %s %s %s %s %s", tecounttype, contrast, group, function_name, filter_var, facet_var))
+                            print(sprintf("Error with  %s %s %s %s %s %s", counttype, contrast, group, function_name, filter_var, facet_var))
                             print(e)
                             tryCatch(
                                 {
@@ -743,18 +741,18 @@ for (contrast in contrasts) {
                                     plot_title <- group
                                 }
                                 p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var) + ggtitle(plot_title)
-                                mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s.pdf", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height)
+                                mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s.png", outputdir, counttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height)
                                 if (function_name == "pvp") {
                                     p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, labels = "yes") + ggtitle(plot_title)
-                                    mysaveandstore(sprintf("% s/%s/%s/%s/%s_%s_%s_labels.pdf", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height)
+                                    mysaveandstore(sprintf("% s/%s/%s/%s/%s_%s_%s_labels.png", outputdir, counttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height)
                                 }
                                 if (function_name == "stripp") {
                                     p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, stats = "yes") + ggtitle(plot_title)
-                                    mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_stats.pdf", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height + 2)
+                                    mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_stats.png", outputdir, counttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height + 2)
                                 }
                             },
                             error = function(e) {
-                                print(sprintf("Error with  %s %s %s %s %s %s", tecounttype, contrast, group, function_name, filter_var, facet_var))
+                                print(sprintf("Error with  %s %s %s %s %s %s", counttype, contrast, group, function_name, filter_var, facet_var))
                                 print(e)
                                 tryCatch(
                                     {
@@ -837,10 +835,10 @@ groupframe <- resultsdf %>%
                                     {
                                         function_current <- get(function_name)
                                         p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, DEvar = DEvar, scaled = scaled, contrast_samples = contrast_samples, condition_vec = condition_vec)
-                                        mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_%s_%s.pdf", outputdir, tecounttype, contrast, function_name, group, filter_var, facet_var, DEvar, scaled), plot_width, plot_height)
+                                        mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_%s_%s.png", outputdir, counttype, contrast, function_name, group, filter_var, facet_var, DEvar, scaled), plot_width, plot_height)
                                                                             },
                                     error = function(e) {
-                                        print(sprintf("Error with  %s %s %s %s %s %s %s %s %s", tecounttype, contrast, group, function_name, ontology, filter_var, facet_var, DEvar, scaled))
+                                        print(sprintf("Error with  %s %s %s %s %s %s %s %s %s", counttype, contrast, group, function_name, ontology, filter_var, facet_var, DEvar, scaled))
                                         print(e)
                                         tryCatch(
                                             {
@@ -868,7 +866,7 @@ groupframe <- resultsdf %>%
 
 tryCatch(
     {
-                results <- resultsdf %>% filter(tecounttype == tecounttype)
+                results <- resultsdf %>% filter(counttype == counttype)
             ggvenn <- list()
             for (ontology in ontologies) {
                 ontology_groups <- r_repeatmasker_annotation %>%
@@ -891,20 +889,20 @@ tryCatch(
                                     upset(categories, name='condition', width_ratio=0.3,  min_degree=1,
                                     base_annotations=list(
                                     'Intersection size'= intersection_size(counts=FALSE,mapping=aes(fill=req_integrative)) + scale_palette + guides(fill = guide_legend(title="Element Features")))) +
-                                    labs(title = sprintf("%s","UP"), caption = tecounttype) + 
+                                    labs(title = sprintf("%s","UP"), caption = counttype) + 
                                     scale_y_continuous(breaks= pretty_breaks())
 
                             p2 <- down_set %>%
                                     upset(categories, name='condition', width_ratio=0.3,  min_degree=1,
                                     base_annotations=list(
                                     'Intersection size'= intersection_size(counts=FALSE,mapping=aes(fill=req_integrative)) + scale_palette + guides(fill = guide_legend(title="Element Features")))) +
-                                    labs(title = sprintf("%s","DOWN"), caption = tecounttype) + 
+                                    labs(title = sprintf("%s","DOWN"), caption = counttype) + 
                                     scale_y_continuous(breaks= pretty_breaks())
                             ncondtions <- length(categories)
-                            mysave(pl = p1, sprintf("%s/%s/pan_contrast/venn/upset_%s_UP.png", outputdir, tecounttype, group), ncondtions*2, 6)
-                            mysave(pl = p2, sprintf("%s/%s/pan_contrast/venn/upset_%s_DOWN.png", outputdir, tecounttype, group), ncondtions*2, 6)
+                            mysave(pl = p1, sprintf("%s/%s/pan_contrast/venn/upset_%s_UP.png", outputdir, counttype, group), ncondtions*2, 6)
+                            mysave(pl = p2, sprintf("%s/%s/pan_contrast/venn/upset_%s_DOWN.png", outputdir, counttype, group), ncondtions*2, 6)
                             p <- ((p1)/(p2)) + plot_annotation(title = sprintf("%s DE", group))
-                            mysave(sprintf("%s/%s/pan_contrast/venn/upset_%s.png", outputdir, tecounttype, group), ncondtions*2, 10)
+                            mysave(sprintf("%s/%s/pan_contrast/venn/upset_%s.png", outputdir, counttype, group), ncondtions*2, 10)
                             },
                             error = function(e) {
                                 print(e)

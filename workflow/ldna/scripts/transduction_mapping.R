@@ -310,8 +310,8 @@ mysaveandstore(sprintf("%s/offspring_per_source_element_transduction.pdf", outpu
     # mysaveandstore(sprintf("%s/transduction_sankey.pdf", outputdir), 7, 5)
     # }
 
-rmann %$% l1_intactness_req %>% unique()
-all_intact_l1hs <- rmann %>% filter(l1_intactness_req == "L1HS ORFs Intact")
+rmann %$% intactness_req %>% unique()
+all_intact_l1hs <- rmann %>% filter(str_detect(intactness_req, "Intact"))
 all_intact_l1hs <- all_intact_l1hs %>% group_by(seqnames, start, end) %>% filter(row_number() == 1) %>% ungroup()
 all_intact_l1hs <- all_intact_l1hs %>% mutate(unique_gene_id = paste0(sample_name, ":", gene_id))
 all_seqs <- list()

@@ -15,7 +15,8 @@ def aref_complete_input(wildcards):
     paths = [
         "aref/A.REF_annotations/A.REF_repeatmasker.complete.gff3.gz.tbi",
         "aref/A.REF_annotations/refseq.complete.gff3.gz.tbi",
-        "aref/A.REF_annotations/refseq.complete.bed",
+        "aref/A.REF_annotations/A.REF_repeatmasker.complete.gtf.gz.tbi",
+        "aref/A.REF_annotations/refseq.complete.gtf.gz.tbi",
         "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf",
         "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gff3",
         "aref/A.REF_annotations/A.REF_repeatmasker.complete.bed",
@@ -23,7 +24,7 @@ def aref_complete_input(wildcards):
         "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.sqlite",
         "aref/A.REF_annotations/cytobands.bed",
     ]
-    paths.append(expand("aref/{sample_or_ref}_Analysis/l1element_analysis.outfile", sample_or_ref = "A.REF"))
+    # paths.append(expand("aref/{sample_or_ref}_Analysis/l1element_analysis.outfile", sample_or_ref = "A.REF"))
 
     if config["update_ref_with_tldr"]["response"] == "yes":
         # paths.append(expand("aref/qc/{sample_or_ref}/{sample_or_ref}pycoQC.html", sample_or_ref = config["samples"]))

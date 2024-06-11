@@ -238,14 +238,14 @@ ldna:
   clair3model: "/oscar/data/jsedivy/mkelsey/tools/remoraModels/r1041_e82_400bps_hac_v420"
   clinvar: ""
   rte_subfamily_extra_modification_analysis:
-    - "L1HS_l1_intactness_req_ALL"
+    - "L1HS_intactness_req_ALL"
     - "L1HS_rte_length_req_ALL"
     - "L1PA2_rte_length_req_ALL"
     - "L1PA3_rte_length_req_ALL"
     - "L1PA4_rte_length_req_ALL"
 
   rte_subfamily_read_level_analysis:
-    - "L1HS_l1_intactness_req_ALL"
+    - "L1HS_intactness_req_ALL"
 
 lrna:
   prefix: "lrna"

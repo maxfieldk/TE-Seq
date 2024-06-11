@@ -62,13 +62,12 @@ for pipeline in config["pipelines_to_deploy"]:
             deseq = expand("lrna/results/agg/deseq/{counttype}/{contrast}/results_genes.csv", alignmenttype = config["lrna"]["alignmenttypes"], counttype = config["lrna"]["counttypes"], contrast = config["lrna"]["contrasts"])
             enrichment_analysis = expand("lrna/results/agg/enrichment_analysis/{counttype}/enrichment_analysis_plots.RData", alignmenttype = config["lrna"]["alignmenttypes"], counttype = config["lrna"]["counttypes"])
             enrichment_analysis_repeats = expand("lrna/results/agg/enrichment_analysis_repeats/{counttype}/enrichment_analysis_repeats_plots.RData", alignmenttype = config["lrna"]["alignmenttypes"], counttype = config["lrna"]["counttypes"])
-            repeatanalysisplots = expand("lrna/results/agg/repeatanalysis/{counttype}/repeatanalysisplots_plots.RData", alignmenttype = config["lrna"]["alignmenttypes"], counttype = config["lrna"]["counttypes"])
+            repeatanalysisplots = expand("lrna/results/agg/repeatanalysis/{counttype}/repeatanalysis_plots.RData", alignmenttype = config["lrna"]["alignmenttypes"], counttype = config["lrna"]["counttypes"])
             # genomebrowserplots = expand("lrna/outfiles/genomebrowserplots{alignmenttype}.out", alignmenttype = config["lrna"]["alignmenttypes"])
             qc = [expand("lrna/qc/mycoplasma/mycoplasma{sample}.bam", sample = config["lrna"]["samples"]), "lrna/qc/multiqc_report.html"]
-
             bw = [expand("lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.F.bw", sample = config["lrna"]["samples"], rate = config["lrna"]["rate"],  type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"]), expand("lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.R.bw", sample = config["lrna"]["samples"], rate = config["lrna"]["rate"],  type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"])]
             # bw, enrichment_analysis, enrichment_analysis_repeats
-            return list(flatten([deseq, qc]))
+            return list(flatten([deseq, qc, enrichment_analysis, enrichment_analysis_repeats, repeatanalysisplots]))
 
         for e in lrna_rally():
             final_input.append(e)

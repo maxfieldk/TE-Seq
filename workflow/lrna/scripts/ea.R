@@ -59,7 +59,7 @@ library(ggpubr)
 
 
 # load results
-resultsdf1 <- read_delim(inputs$resultsdf, delim = "\t")
+resultsdf1 <- read_delim(inputs$resultsdf, delim = "\t") %>% filter(counttype == params$counttype)
 resultsdf1 <- resultsdf1[resultsdf1$gene_id != "__no_feature", ]
 
 res <- resultsdf1 %>% filter(gene_or_te == "gene")
