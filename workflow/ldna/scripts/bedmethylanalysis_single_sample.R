@@ -329,7 +329,7 @@ for (rte in classes) {
     methgr$min_val <- mbo$min_val
     methgr$direction <- mbo$direction
     methgr$rte_length_req <- mbo$rte_length_req
-    methgr$l1_intactness_req <- mbo$l1_intactness_req
+    methgr$intactness_req <- mbo$intactness_req
     methgr$ltr_viral_status_req <- mbo$ltr_viral_status_req
     rtegrl[[rte]] <- methgr
 }
@@ -342,7 +342,7 @@ write_delim(rtedf, "ldna/Rintermediates/rtedf.tsv", col_names = TRUE)
 # rtedf <- read_delim("ldna/Rintermediates/rtedf.tsv", col_names = TRUE)
 perelementdf <- rtedf %>%
     filter(cov > MINIMUMCOVERAGE) %>%
-    group_by(gene_id, sample, condition, rte_length_req, type, l1_intactness_req, ltr_viral_status_req) %>%
+    group_by(gene_id, sample, condition, rte_length_req, type, intactness_req, ltr_viral_status_req) %>%
     summarize(mean_meth = mean(pctM))
 
 perelementdf <- perelementdf %>% filter(!is.na(rte_length_req))
@@ -394,7 +394,7 @@ for (rte in classes) {
     methgr$min_val <- mbo$min_val
     methgr$direction <- mbo$direction
     methgr$rte_length_req <- mbo$rte_length_req
-    methgr$l1_intactness_req <- mbo$l1_intactness_req
+    methgr$intactness_req <- mbo$intactness_req
     methgr$ltr_viral_status_req <- mbo$ltr_viral_status_req
     rtegrl_promoters[[rte]] <- methgr
 }
@@ -407,7 +407,7 @@ write_delim(rtedf_promoters, "ldna/Rintermediates/rtedf_promoters.tsv", col_name
 # rtedf_promoters <- read_delim("ldna/Rintermediates/rtedf.tsv", col_names = TRUE)
 perelementdf_promoters <- rtedf_promoters %>%
     filter(cov > MINIMUMCOVERAGE) %>%
-    group_by(gene_id, sample, condition, rte_length_req, type, l1_intactness_req, ltr_viral_status_req) %>%
+    group_by(gene_id, sample, condition, rte_length_req, type, intactness_req, ltr_viral_status_req) %>%
     summarize(mean_meth = mean(pctM))
 
 perelementdf_promoters <- perelementdf_promoters %>% filter(!is.na(rte_length_req))
@@ -449,10 +449,10 @@ p <- perelementdf_promoters %>%
 mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters.pdf", 14, 6)
 
 p <- perelementdf_promoters %>%
-    filter(l1_intactness_req != "Other") %>%
+    filter(intactness_req != "Other") %>%
     ggplot() +
-    geom_quasirandom(aes(x = l1_intactness_req, y = mean_meth, color = condition), dodge.width = 0.75) +
-    geom_boxplot(aes(x = l1_intactness_req, y = mean_meth, color = condition), alpha = 0.5, outlier.shape = NA) +
+    geom_quasirandom(aes(x = intactness_req, y = mean_meth, color = condition), dodge.width = 0.75) +
+    geom_boxplot(aes(x = intactness_req, y = mean_meth, color = condition), alpha = 0.5, outlier.shape = NA) +
     xlab("") +
     ylab("Average CpG Methylation Per Element") +
     ggtitle("RTE CpG Methylation") +
@@ -463,7 +463,7 @@ mysaveandstore(fn = "ldna/results/plots/rte/l1_intact_boxplot_promoters.pdf", 14
 
 
 l1hsintactmethgr <- rtedf %>%
-    filter(str_detect(l1_intactness_req, "Intact")) %>%
+    filter(str_detect(intactness_req, "Intact")) %>%
     left_join(r_annotation_fragmentsjoined %>% dplyr::select(gene_id, start, end, strand) %>% dplyr::rename(element_strand = strand, element_start = start, element_end = end))
 l1hsintactmethgr <- l1hsintactmethgr %>%
     mutate(rel_start = start - element_start) %>%
@@ -858,7 +858,7 @@ readscg <- Reduce(rbind, readslistcg)
 
 
 read_analysis <- function(readsdf,
-    region = "L1HS_l1_intactness_req_ALL",
+    region = "L1HS_intactness_req_ALL",
     mod_code_var = "m",
     context = "CG") {
 
@@ -957,7 +957,7 @@ read_analysis <- function(readsdf,
     mysaveandstore(sprintf("ldna/results/plots/reads/fraction_meth_density_distribution_%s_%s_%s.pdf", region, mod_code_var, context), 4, 4, pl = p)
 
     p <- utr %>%
-        filter(region == "L1HS_l1_intactness_req_ALL") %>%
+        filter(region == "L1HS_intactness_req_ALL") %>%
         filter(read_span > 600) %>%
         group_by(read_id, condition, region) %>%
         summarise(fraction_meth = dplyr::first(fraction_meth), read_span = max(read_span), strand = dplyr::first(element_strand)) %>%
@@ -975,11 +975,11 @@ read_analysis <- function(readsdf,
 }
 
 tryCatch({
-    read_analysis(readscg, "L1HS_l1_intactness_req_ALL", "m", "CpG")
-    read_analysis(reads, "L1HS_l1_intactness_req_ALL", "m", "NoContext")
-    read_analysis(readscg, "L1HS_l1_intactness_req_ALL", "h", "CpG")
-    read_analysis(reads, "L1HS_l1_intactness_req_ALL", "h", "NoContext")
-    read_analysis(reads, "L1HS_l1_intactness_req_ALL", "a", "NoContext")
+    read_analysis(readscg, "L1HS_intactness_req_ALL", "m", "CpG")
+    read_analysis(reads, "L1HS_intactness_req_ALL", "m", "NoContext")
+    read_analysis(readscg, "L1HS_intactness_req_ALL", "h", "CpG")
+    read_analysis(reads, "L1HS_intactness_req_ALL", "h", "NoContext")
+    read_analysis(reads, "L1HS_intactness_req_ALL", "a", "NoContext")
 }, error = function(e) {
     print(e)
 })

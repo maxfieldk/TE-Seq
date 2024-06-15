@@ -20,6 +20,7 @@ library(patchwork)
 library(magrittr)
 library(forcats)
 library(ggpubr)
+library(ggh4x)
 
 tryCatch(
     {
@@ -49,20 +50,23 @@ rmfamilies <- read_csv(inputs$r_repeatmasker_annotation, col_names = TRUE)
 rmann <- left_join(rmfragments, rmfamilies)
 
 nrdf <- rmann %>% filter(refstatus == "NonRef")
+nrdf %$% family %>% table()
 
 p1 <- nrdf %>% group_by(rte_family, rte_subfamily, req_integrative) %>% summarise(count = n()) %>% 
-    mutate(counts = log2(count+1)) %>%
+    mutate(counts = count) %>%
     ggbarplot(x = "rte_subfamily", y = "counts", fill = "req_integrative") +
-    facet_grid(rows = vars(rte_family), scales = "free", space = "free") +
+    facet_grid2(rows = vars(rte_family), scales = "free", space = "free_x", independent = "y") +
     ggtitle("Non-reference RTE Insertions") +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-    labs(x = "Subfamily", y = "Log2(Count+1)") +
+    labs(x = "Subfamily", y = "Counts") +
     scale_palette +
-    coord_flip() +
-    mtclosed + anchorbar
-mysaveandstore(pl = p1, sprintf("%s/insertions_subfamily.pdf", outputdir), 6, 4)
+    mtclosed + anchorbar + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+mysaveandstore(sprintf("%s/insertions_subfamily.pdf", outputdir), 6, 4)
+
+
 
 p2 <- nrdf %>% group_by(loc_integrative) %>% summarise(count = n()) %>% 
+    mutate(loc_integrative = fct_reorder(loc_integrative, count)) %>%
     mutate(counts = count) %>%
     ggbarplot(x = "loc_integrative", y = "counts", fill = "loc_integrative") +
     ggtitle("Non-reference RTE Insertions") +
@@ -74,7 +78,7 @@ p2 <- nrdf %>% group_by(loc_integrative) %>% summarise(count = n()) %>%
 mysaveandstore(pl = p2, sprintf("%s/insertions_genomic_context.pdf", outputdir), 6, 4)
 library(patchwork)
 p <- p1 + p2 + plot_layout(widths = c(1, 1), guides = "collect")
-mysaveandstore(sprintf("%s/insertions_sub_fig.pdf", outputdir), 12, 4)
+mysaveandstore(sprintf("%s/insertions_sub_fig.pdf", outputdir), 12, 5)
 
 
 df <- read_delim(inputs$tldroutput) %>%

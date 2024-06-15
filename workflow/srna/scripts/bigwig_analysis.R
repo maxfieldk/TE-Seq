@@ -149,7 +149,7 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
                         if (filter_var != "ALL") {
                             elements_of_interest <- rmann %>%
                                 filter(!!sym(ontology) == group) %>%
-                                filter(str_detect(!!sym(filter_var), ">|Intact|^Fl|^LTR")) 
+                                filter(str_detect(!!sym(filter_var), "Intact|FL$|^LTR")) 
                         } else {
                             elements_of_interest <- rmann %>%
                                 filter(!!sym(ontology) == group)
@@ -335,10 +335,15 @@ barframe <- pf %>% group_by(condition, loc_integrative) %>% summarise(score_cond
 p<- pf %>% ggplot(aes(x = loc_integrative, y = score_sum, fill = sample_name)) + geom_col(position = position_dodge(preserve = "single")) + scale_samples_unique + mtopen + anchorbar
 mysaveandstore(sprintf("srna/results/agg/bigwig_plots/genomic_context/gene_oriented_signal.pdf"), 12,5)
 
-p<- pf %>% ggplot(aes(x = sample_name, y = score_sum, fill = sample_name)) + geom_col(position = position_dodge(preserve = "single")) +
-    facet_wrap(~loc_integrative, scale = "free_y") + scale_samples_unique + mtclosed + anchorbar + theme(axis.text.x = element_blank()) + labs(x = "")
-mysaveandstore(sprintf("srna/results/agg/bigwig_plots/genomic_context/gene_oriented_signal_faceted.pdf"), 12,5)
+p<- pf %>% mutate(condition = factor(condition, levels = conf$levels)) %>% ggbarplot(x = "condition", y = "score_sum",facet.by = "loc_integrative", fill = "condition",  scales = "free_y", add = c("mean_se", "dotplot")) +
+ geom_pwc(
+    method = "t_test", label = "p.adj.signif",
+    ref.group = conf$levels[1],
+    p.adjust.method = "fdr", hide.ns = TRUE
+  )+ scale_conditions + mtclosed + anchorbar + labs(x = "", y = "Normalized Read Count")
 
+mysaveandstore(sprintf("srna/results/agg/bigwig_plots/genomic_context/gene_oriented_signal_faceted.pdf"), 8,3.8)
+library(scales)
 
 if (conf$store_env_as_rds == "yes") {
     save.image(file = outputs$environment)

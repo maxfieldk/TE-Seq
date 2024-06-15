@@ -68,7 +68,7 @@ load(inputs$repeatanalysis_plots)
 repeatanalysis_plots <- mysaveandstoreplots
 names(repeatanalysis_plots)
 
-p <- repeatanalysis_plots[["srna/results/agg/repeatanalysis_telescope/telescope_multi/telescope_multi/condition_RS_0w_low_O2_vs_PRO_low_O2/pvp/L1HS_l1_intactness_req_genic_loc_log2labels.pdf"]]
+p <- repeatanalysis_plots[["srna/results/agg/repeatanalysis_telescope/telescope_multi/telescope_multi/condition_RS_0w_low_O2_vs_PRO_low_O2/pvp/L1HS_intactness_req_genic_loc_log2labels.pdf"]]
 mysave()
 
 p1<-repeatanalysis_plots[["srna/results/agg/repeatanalysis_telescope/telescope_multi/telescope_multi/condition_LSEN_vs_PRO/stripp/AluY_rte_length_req_ALL_stats.pdf"]]

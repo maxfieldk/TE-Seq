@@ -15,7 +15,8 @@ def aref_complete_input(wildcards):
     paths = [
         "aref/A.REF_annotations/A.REF_repeatmasker.complete.gff3.gz.tbi",
         "aref/A.REF_annotations/refseq.complete.gff3.gz.tbi",
-        "aref/A.REF_annotations/refseq.complete.bed",
+        "aref/A.REF_annotations/A.REF_repeatmasker.complete.gtf.gz.tbi",
+        "aref/A.REF_annotations/refseq.complete.gtf.gz.tbi",
         "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf",
         "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gff3",
         "aref/A.REF_annotations/A.REF_repeatmasker.complete.bed",
@@ -23,11 +24,11 @@ def aref_complete_input(wildcards):
         "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.sqlite",
         "aref/A.REF_annotations/cytobands.bed",
     ]
-    paths.append(expand("aref/{sample_or_ref}_Analysis/l1element_analysis.outfile", sample_or_ref = "A.REF"))
+    # paths.append(expand("aref/{sample_or_ref}_Analysis/l1element_analysis.outfile", sample_or_ref = "A.REF"))
 
     if config["update_ref_with_tldr"]["response"] == "yes":
         # paths.append(expand("aref/qc/{sample_or_ref}/{sample_or_ref}pycoQC.html", sample_or_ref = config["samples"]))
-        paths.append("aref/results/insertions/analyze_nongermline_insertions.rds")
+        # paths.append("aref/results/insertions/analyze_nongermline_insertions.rds")
 
         if config["update_ref_with_tldr"]["per_sample"] == "yes":
             paths.append(expand("aref/{sample_or_ref}_Analysis/tldr_plots/tldr_plots.rds", sample_or_ref = config["samples"]))
@@ -250,14 +251,15 @@ rule IndexBam:
         """
 samtools index  -@6 {input.bam}
         """
-
+        
+species = config["species"]
 rule tldr_aggregate_multiple_samples:
     input:
         bams = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam", sample = config["samples"], rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
-        bais = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam.bai", sample = config["samples"], rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
+        bais = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam.bai", sample = config["samples"], rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
     params:
         tldr_input_bam_ref = lambda w: config["update_ref_with_tldr"]["tldr_input_bam_ref"],
-        tldr_te_ref = config["update_ref_with_tldr"]["tldr_te_ref"][config["species"]]
+        tldr_te_ref = lambda w: config["update_ref_with_tldr"]["tldr_te_ref"][species]
     output:
         tldr = "aref/A.REF_tldr/A.REF.table.txt"
     resources:
@@ -296,7 +298,7 @@ rule tldr_per_sample:
 
     params:
         tldr_input_bam_ref = lambda w: config["update_ref_with_tldr"]["tldr_input_bam_ref"],
-        tldr_te_ref = config["update_ref_with_tldr"]["tldr_te_ref"]
+        tldr_te_ref = lambda w: config["update_ref_with_tldr"]["tldr_te_ref"][species]
     output:
         tldr = "aref/{sample}_tldr/{sample}.table.txt"
     resources:
@@ -714,11 +716,12 @@ rule annotate_rtes:
         r_annotation_fragmentsjoined = "aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
         ref = "aref/{sample_or_ref}.fa",
         txdbrefseq = "aref/A.REF_annotations/refseq.sqlite",
-        pdbaa_blast_db = "aref/blastdb/pdbaa/outfile.out"
     output:
         r_repeatmasker_annotation = "aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_annotation.csv",
         rmann = "aref/{sample_or_ref}_annotations/{sample_or_ref}_rmann.csv",
         rmann_nonref = "aref/{sample_or_ref}_annotations/{sample_or_ref}_rmann_nonref.csv"
+    priority:
+        100
     conda:
         "evo2"
     script:
@@ -841,7 +844,8 @@ rule setup_protein_blast_db:
         "blast"
     shell:
         """
-mkdir -p $(dirname {output.blastdb})
-cd $(dirname {output.blastdb})
+mkdir -p $(dirname {output.outfile})
+cd $(dirname {output.outfile})
 update_blastdb.pl --decompress pdbaa
+touch outfile.out
         """

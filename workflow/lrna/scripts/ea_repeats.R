@@ -55,7 +55,7 @@ library(ComplexHeatmap)
 }
 
 ## Load Data and add annotations
-resultsdf1 <- read_delim(inputs$resultsdf, delim = "\t")
+resultsdf1 <- read_delim(inputs$resultsdf, delim = "\t") %>% filter(counttype == params$counttype)
 resultsdf1 <- resultsdf1[resultsdf1$gene_id != "__no_feature", ]
 r_annotation_fragmentsjoined <- read_csv(params$r_annotation_fragmentsjoined)
 r_repeatmasker_annotation <- read_csv(params$r_repeatmasker_annotation)
@@ -141,7 +141,7 @@ for (contrast in params[["contrasts"]]) {
                     if (filter_var != "ALL") {
                         genesets <- resultsdf %>%
                             filter(!!sym(ontology) != "Other") %>%
-                            filter(str_detect(!!sym(filter_var), ">|Intact|^Fl|^LTR")) %>%
+                            filter(str_detect(!!sym(filter_var), "Intact|FL$|^LTR")) %>%
                             select(!!sym(filter_var), gene_id)
                     } else {
                         genesets <- resultsdf %>%
@@ -202,7 +202,7 @@ for (contrast in params[["contrasts"]]) {
 contrast_label_map <- tibble(contrast = params[["contrasts"]], label = gsub("constrast_", "", params[["contrasts"]]))
 gres <- gse_df %>% tibble()
 for (ontology in ontologies) {
-    grestemp <- gres %>% filter(collection == ontology) %>% left_join(contrast_label_map)
+    grestemp <- gres %>% filter(collection == ontology) %>% left_join(contrast_label_map) %>% filter(grepl(paste0(conf$levels[1], "$"), label))
     sigIDs <- grestemp %>% group_by(contrast) %>% arrange(p.adjust) %>% slice_head(n = 10) %$% ID %>% unique()
     p <- grestemp %>% dplyr::filter(ID %in% sigIDs) %>% mutate(sig = ifelse(p.adjust < 0.05, "*", "")) %>%
         mutate(ID = str_wrap(as.character(ID) %>% gsub("_", " ", .), width = 40)) %>%

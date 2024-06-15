@@ -1,5 +1,4 @@
-module_name <- "srna"
-conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+conf <- configr::read.config(file = "conf/config.yaml")[[snakemake@params$module_name]]
 source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 source("conf/sample_table_source.R")
@@ -25,6 +24,8 @@ library(ggstance)
 library(enrichplot)
 library(circlize)
 library(ComplexHeatmap)
+library(patchwork)
+
 
 
 # analysis parameters
@@ -151,7 +152,7 @@ for (contrast in params[["contrasts"]]) {
                     if (filter_var != "ALL") {
                         genesets <- resultsdf %>%
                             filter(!!sym(ontology) != "Other") %>%
-                            filter(str_detect(!!sym(filter_var), ">|Intact|^Fl|^LTR")) %>%
+                            filter(str_detect(!!sym(filter_var), "Intact|FL$|^LTR")) %>%
                             select(!!sym(filter_var), gene_id)
                     } else {
                         genesets <- resultsdf %>%
@@ -213,7 +214,7 @@ contrast_label_map <- tibble(contrast = params[["contrasts"]], label = gsub("con
 gres <- gse_df %>% tibble()
 for (ontology in ontologies) {
     for (filter_var in gres %$% filter_var %>% unique()) {
-        grestemp <- gres %>% filter(collection == ontology) %>% filter(filter_var == !!filter_var) %>% left_join(contrast_label_map)
+        grestemp <- gres %>% filter(collection == ontology) %>% filter(filter_var == !!filter_var) %>% left_join(contrast_label_map) %>% filter(grepl(paste0(conf$levels[1], "$"), label))
         sigIDs <- grestemp %>% mutate(direction = ifelse(NES > 0, "UP", "DOWN")) %>% group_by(contrast, direction) %>% arrange(p.adjust) %>% slice_head(n = 5) %$% ID %>% unique()
         p <- grestemp %>% dplyr::filter(ID %in% sigIDs) %>% mutate(sig = ifelse(p.adjust < 0.05, "*", "")) %>%
             mutate(ID = str_wrap(as.character(ID) %>% gsub("_", " ", .), width = 40)) %>%
@@ -242,7 +243,6 @@ if (conf$store_env_as_rds == "yes") {
 }
 
 # figures: modify plot compositions at will!
-load(outputs$environment)
 tryCatch(
     {
         library(patchwork)

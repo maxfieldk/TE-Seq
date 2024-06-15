@@ -54,7 +54,7 @@ mysave <- function(fn = "ztmp.pdf", w = 5, h = 5, res = 600, pl = p, store = sto
     )
 }
 }
-
+store_var <- "yes"
 mysaveandstore <- function(fn = "ztmp.pdf", w = 5, h = 5, res = 600, pl = p, store = store_var, raster = FALSE) {
     dn <- dirname(fn)
     dir.create(dn, showWarnings = FALSE, recursive = TRUE)
@@ -132,6 +132,7 @@ mtclosedgridv <- theme_cowplot(font_family = "helvetica") +
     theme(axis.line = element_blank()) +
     theme(strip.background = element_blank(), strip.text = element_text(size = 12)) +
     theme(panel.spacing = unit(4, "mm")) + background_grid(major = "x", minor = "none")
+
 
 
 anchorbar <- list(
