@@ -1,6 +1,6 @@
-source("workflow/scripts/defaults.R")
 module_name <- "aref"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 
 library(readr)
@@ -29,7 +29,7 @@ library(ggmsa)
 library(gggenes)
 library(ggnewscale)
 library(RColorBrewer)
-library(ggsankey)
+# library(ggsankey)
 library(circlize)
 
 tryCatch(
@@ -132,49 +132,49 @@ trsd_adjacent_l1 <- subsetByOverlaps(bresgrs, l1grs)
 
 
 
-`NON_REF L1TA` <- ifelse(l1ta_sankey %in% l1ta_sankey, "NON-REF L1TA", "FAIL")
-`3' Tsd` <- ifelse(l1ta_sankey %in% trsd_sankey, "PASS", "FAIL")
-`AT content < 0.9` <- ifelse(l1ta_sankey %in% trsd_ss_for_blast_sankey, "PASS", "FAIL")
-`Source Element Identified` <- ifelse(l1ta_sankey %in% trsd_adjacent_l1_sankey, "PASS", "FAIL")
+# `NON_REF L1TA` <- ifelse(l1ta_sankey %in% l1ta_sankey, "NON-REF L1TA", "FAIL")
+# `3' Tsd` <- ifelse(l1ta_sankey %in% trsd_sankey, "PASS", "FAIL")
+# `AT content < 0.9` <- ifelse(l1ta_sankey %in% trsd_ss_for_blast_sankey, "PASS", "FAIL")
+# `Source Element Identified` <- ifelse(l1ta_sankey %in% trsd_adjacent_l1_sankey, "PASS", "FAIL")
 
-sankey_df <- tibble(
-    `Non_reference_L1TA` = `NON_REF L1TA`,
-    `3_Prime_Transduction` = `3' Tsd`,
-    `AT_content` = `AT content < 0.9`,
-    `Adjacent_Source_Element` = `Source Element Identified`
-) %>%
-    make_long(`Non_reference_L1TA`, `3_Prime_Transduction`, `AT_content`, `Adjacent_Source_Element`)
+# sankey_df <- tibble(
+#     `Non_reference_L1TA` = `NON_REF L1TA`,
+#     `3_Prime_Transduction` = `3' Tsd`,
+#     `AT_content` = `AT content < 0.9`,
+#     `Adjacent_Source_Element` = `Source Element Identified`
+# ) %>%
+#     make_long(`Non_reference_L1TA`, `3_Prime_Transduction`, `AT_content`, `Adjacent_Source_Element`)
 
-{
-p <- ggplot(sankey_df, aes(x = x, next_x = next_x, node = node, next_node = next_node, fill = factor(node), label = node)) +
-  geom_sankey(flow.alpha = .6,
-              node.color = "gray30") +
-  geom_sankey_label(size = 3, color = "white", fill = "gray40") +
-  scale_fill_viridis_d(drop = FALSE) +
-  theme_sankey(base_size = 12) +
-  labs(x = NULL, y = NULL) +
-  theme(legend.position = "none",
-        plot.title = element_text(hjust = .5)) +
-  ggtitle("Non-Ref L1TA Transduction Mapping") 
+# {
+# p <- ggplot(sankey_df, aes(x = x, next_x = next_x, node = node, next_node = next_node, fill = factor(node), label = node)) +
+#   geom_sankey(flow.alpha = .6,
+#               node.color = "gray30") +
+#   geom_sankey_label(size = 3, color = "white", fill = "gray40") +
+#   scale_fill_viridis_d(drop = FALSE) +
+#   theme_sankey(base_size = 12) +
+#   labs(x = NULL, y = NULL) +
+#   theme(legend.position = "none",
+#         plot.title = element_text(hjust = .5)) +
+#   ggtitle("Non-Ref L1TA Transduction Mapping") 
 
-flow_labels <- sankey_df %>% group_by(x, node, next_x, next_node) %>% tally() %>% drop_na()
-# get corresponding positions of flows from the sankey plot
-flow_info <- layer_data(p) %>% select(xmax, flow_start_ymax, flow_start_ymin) %>% distinct() # get flow related key positions related from the plot
-flow_info <- flow_info[with(flow_info, order(xmax, flow_start_ymax)), ] # order the positions to match the order of flow_labels
-rownames(flow_info) <- NULL # drop the row indexes
-flow_info <- cbind(as.data.frame(flow_info), as.data.frame(flow_labels)) # bind the flow positions and the corresponding labels
+# flow_labels <- sankey_df %>% group_by(x, node, next_x, next_node) %>% tally() %>% drop_na()
+# # get corresponding positions of flows from the sankey plot
+# flow_info <- layer_data(p) %>% select(xmax, flow_start_ymax, flow_start_ymin) %>% distinct() # get flow related key positions related from the plot
+# flow_info <- flow_info[with(flow_info, order(xmax, flow_start_ymax)), ] # order the positions to match the order of flow_labels
+# rownames(flow_info) <- NULL # drop the row indexes
+# flow_info <- cbind(as.data.frame(flow_info), as.data.frame(flow_labels)) # bind the flow positions and the corresponding labels
 
-# add labels to the flows
-for (i in 1:nrow(flow_info)){
-   p <- p + annotate("text", x = flow_info$xmax[i] + 0.1,
-                       y = (flow_info$flow_start_ymin[i] + flow_info$flow_start_ymax[i])/2,
-                       label = sprintf("%d", flow_info$n[i]), hjust = -1,
-                       size = 3
-                       )
- }
+# # add labels to the flows
+# for (i in 1:nrow(flow_info)){
+#    p <- p + annotate("text", x = flow_info$xmax[i] + 0.1,
+#                        y = (flow_info$flow_start_ymin[i] + flow_info$flow_start_ymax[i])/2,
+#                        label = sprintf("%d", flow_info$n[i]), hjust = -1,
+#                        size = 3
+#                        )
+#  }
 
-mysaveandstore(sprintf("%s/transduction_sankey.png", outputdir), 7, 5)
-}
+# mysaveandstore(sprintf("%s/transduction_sankey.pdf", outputdir), 7, 5)
+# }
 
 
 
@@ -256,7 +256,7 @@ p <- number_of_offspring  %>% ggplot(aes(x = fct_reorder(gene_id, n), y = n)) + 
     scale_y_continuous(labels = scales::number_format(accuracy = 1)) +
     labs(x = "Source Element", y = "Number of Offspring", caption = "Phylogeny-based Source Element Mapping") +
     anchorbar
-mysaveandstore(sprintf("%s/offspring_per_source_element.png", outputdir), 4, 6)
+mysaveandstore(sprintf("%s/offspring_per_source_element.pdf", outputdir), 4, 6)
 
 
 

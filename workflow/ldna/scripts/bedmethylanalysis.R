@@ -1,6 +1,6 @@
-source("workflow/scripts/defaults.R")
 module_name <- "ldna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 
 library(rtracklayer)
@@ -252,7 +252,7 @@ t.test(pctM ~ condition, data = grsdf %>% filter(seqnames %in% chromosomesNoX), 
 p <- grsdfs %>% ggplot() +
     geom_boxplot(aes(x = islandStatus, y = pctM, fill = condition)) +
     mtopen + scale_conditions
-mysaveandstore(fn = "ldna/results/plots/genomewide/cpgislandstatusbox.png", w = 4, h = 4, res = 300, pl = p)
+mysaveandstore(fn = "ldna/results/plots/genomewide/cpgislandstatusbox.pdf", w = 4, h = 4, res = 300, pl = p)
 
 
 p <- grsdfs %>%
@@ -262,7 +262,7 @@ p <- grsdfs %>%
     geom_col(aes(x = islandStatus, y = pctM, fill = condition), position = "dodge", color = "black") +
     mtopen + scale_conditions +
     anchorbar
-mysaveandstore(fn = "ldna/results/plots/genomewide/cpgislandstatusbar_1000.png", w = 4, h = 4, res = 300, pl = p)
+mysaveandstore(fn = "ldna/results/plots/genomewide/cpgislandstatusbar_1000.pdf", w = 4, h = 4, res = 300, pl = p)
 
 ##################################### DMR analysis
 # how many dmrs
@@ -273,7 +273,7 @@ p <- dmrs %>%
     scale_y_continuous(expand = expansion(mult = c(0, .1))) +
     ggtitle("DMR Counts") +
     mtopen + scale_methylation
-mysaveandstore(fn = "ldna/results/plots/genomewide/dmr_number.png", 4, 4)
+mysaveandstore(fn = "ldna/results/plots/genomewide/dmr_number.pdf", 4, 4)
 
 # what is their average length
 p <- ggplot(data = dmrs) +
@@ -282,7 +282,7 @@ p <- ggplot(data = dmrs) +
     labs(x = "length (bp)") +
     xlim(0, 3000) +
     mtopen + anchorbar
-mysaveandstore(fn = "ldna/results/plots/genomewide/dmr_length.png", w = 4, h = 4)
+mysaveandstore(fn = "ldna/results/plots/genomewide/dmr_length.pdf", w = 4, h = 4)
 
 p <- ggplot(data = dmrs) +
     geom_histogram(aes(length, fill = direction), alpha = 0.7, color = "black") +
@@ -290,7 +290,7 @@ p <- ggplot(data = dmrs) +
     labs(x = "length (bp)") +
     xlim(0, 3000) +
     mtopen + scale_methylation + anchorbar
-mysaveandstore(fn = "ldna/results/plots/genomewide/dmr_length_stratified.png", w = 4, h = 4)
+mysaveandstore(fn = "ldna/results/plots/genomewide/dmr_length_stratified.pdf", w = 4, h = 4)
 
 # a positive difference means that sample 1 has more methylation than sample 2
 meandiff <- mean(dmrs$diff_c2_minus_c1)
@@ -306,7 +306,7 @@ p <- ggplot() +
     annotate("label", x = -Inf, y = Inf, label = "Hypo", hjust = 0, vjust = 1) +
     annotate("label", x = Inf, y = Inf, label = "Hyper", hjust = 1, vjust = 1) +
     mtopen
-mysaveandstore(fn = "ldna/results/plots/genomewide/dmr_delta.png", w = 4, h = 4)
+mysaveandstore(fn = "ldna/results/plots/genomewide/dmr_delta.pdf", w = 4, h = 4)
 
 ## where are they?
 
@@ -334,7 +334,7 @@ p <- dmrsgrislandStatusdf %>%
     labs(x = "", y = "Count") +
     ggtitle("DMR") +
     theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
-mysaveandstore(fn = "ldna/results/plots/genomewide/dmr_count_islandstatus.png", 4, 4)
+mysaveandstore(fn = "ldna/results/plots/genomewide/dmr_count_islandstatus.pdf", 4, 4)
 
 
 dmrlocdf <- dmrs %>%
@@ -347,7 +347,7 @@ p <- ggplot(data = dmrlocdf) +
     labs(x = "count", y = "") +
     ggtitle("DMR Location") +
     mtopen + scale_methylation
-mysaveandstore(fn = "ldna/results/plots/genomewide/dmr_count.png", 5, 5)
+mysaveandstore(fn = "ldna/results/plots/genomewide/dmr_count.pdf", 5, 5)
 
 p <- dmrs %>%
     ggplot(aes(x = meanMethy_c1, y = meanMethy_c2)) +
@@ -360,7 +360,7 @@ p <- dmrs %>%
     ylab(sprintf("CpG Methylation %s", condition2)) +
     ggtitle("DMR Density") +
     mtclosed
-mysaveandstore(fn = "ldna/results/plots/genomewide/dmrdensity.png", 5, 5)
+mysaveandstore(fn = "ldna/results/plots/genomewide/dmrdensity.pdf", 5, 5)
 
 p <- dmls %>%
     ggplot() +
@@ -369,7 +369,7 @@ p <- dmls %>%
     labs(x = "", y = "Count") +
     anchorbar +
     mtclosed + scale_methylation
-mysaveandstore(fn = "ldna/results/plots/genomewide/dml_count.png", 4, 4)
+mysaveandstore(fn = "ldna/results/plots/genomewide/dml_count.pdf", 4, 4)
 # dmls
 p <- ggplot() +
     geom_density(data = dmls, aes(x = diff_c2_minus_c1), fill = mycolor) +
@@ -380,7 +380,7 @@ p <- ggplot() +
     annotate("label", x = Inf, y = Inf, label = "Hyper", hjust = 1, vjust = 1) +
     mtopen + scale_contrasts + anchorbar
 
-mysaveandstore(fn = "ldna/results/plots/genomewide/dml_delta.png", 4, 4)
+mysaveandstore(fn = "ldna/results/plots/genomewide/dml_delta.pdf", 4, 4)
 
 dmllocdf <- dmls %>%
     group_by(chr, direction) %>%
@@ -399,7 +399,7 @@ p <- dmls %>%
     ylab(sprintf("CpG Methylation %s", condition2)) +
     ggtitle("DML Density") +
     mtclosed
-mysaveandstore(fn = "ldna/results/plots/genomewide/dmldensity.png", w = 5, h = 5)
+mysaveandstore(fn = "ldna/results/plots/genomewide/dmldensity.pdf", w = 5, h = 5)
 
 
 
@@ -426,7 +426,7 @@ p <- dmlsgrislandStatusdf %>%
     anchorbar + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
     labs(x = "", y = "Count") +
     ggtitle("DML Island Status")
-mysaveandstore(fn = "ldna/results/plots/genomewide/dml_count_islandstatus.png", 4, 4)
+mysaveandstore(fn = "ldna/results/plots/genomewide/dml_count_islandstatus.pdf", 4, 4)
 
 
 
@@ -456,7 +456,7 @@ dir.create("ldna/results/plots/figs")
 #     plot.title = element_text(size = 18),
 #     plot.tag = element_text(size = 32)
 # )
-# mysaveandstore(fn = "ldna/results/plots/figs/global_2.png", w = 20, h = 20, res = 300, pl = p)
+# mysaveandstore(fn = "ldna/results/plots/figs/global_2.pdf", w = 20, h = 20, res = 300, pl = p)
 
 
 # rm(pl_meth_by_chromosome, patch, patch1, patch2, patch3, pl_ndml, pl_ddml, pl_cdml, pl_ndmr, pl_ddmr, pl_cdmr)
@@ -547,7 +547,7 @@ for (rte in classes) {
     methgr$min_val <- mbo$min_val
     methgr$direction <- mbo$direction
     methgr$rte_length_req <- mbo$rte_length_req
-    methgr$l1_intactness_req <- mbo$l1_intactness_req
+    methgr$intactness_req <- mbo$intactness_req
     methgr$ltr_viral_status_req <- mbo$ltr_viral_status_req
     rtegrl[[rte]] <- methgr
 }
@@ -560,7 +560,7 @@ write_delim(rtedf, "ldna/Rintermediates/rtedf.tsv", col_names = TRUE)
 # rtedf <- read_delim("ldna/Rintermediates/rtedf.tsv", col_names = TRUE)
 perelementdf <- rtedf %>%
     filter(cov > MINIMUMCOVERAGE) %>%
-    group_by(gene_id, sample, condition, rte_length_req, type, l1_intactness_req, ltr_viral_status_req) %>%
+    group_by(gene_id, sample, condition, rte_length_req, type, intactness_req, ltr_viral_status_req) %>%
     summarize(mean_meth = mean(pctM))
 
 perelementdf <- perelementdf %>% filter(!is.na(rte_length_req))
@@ -640,7 +640,7 @@ p <- pff %>%
     labs(x = "", y = "Fraction Differentially Methylated") +
     ggtitle(sprintf("Full Length %s Promoter Differential Methylation", "RTE")) +
     mtclosed + scale_methylation
-mysaveandstore(sprintf("ldna/results/plots/rte/dmfl%s_promoter_regionstrat.png", "all"), 12, 7)
+mysaveandstore(sprintf("ldna/results/plots/rte/dmfl%s_promoter_regionstrat.pdf", "all"), 12, 7)
 
 pff <- flRTEpromoter %>%
     group_by(rte_length_req) %>%
@@ -664,7 +664,7 @@ p <- pff %>%
     labs(x = "", y = "Fraction Differentially Methylated") +
     ggtitle(sprintf("Full Length %s Promoter Differential Methylation", "RTE")) +
     mtclosed + scale_methylation
-mysaveandstore(sprintf("ldna/results/plots/rte/dmfl%s_promoter.png", "all"), 12, 4)
+mysaveandstore(sprintf("ldna/results/plots/rte/dmfl%s_promoter.pdf", "all"), 12, 4)
 
 
 classes <- flRTEpromoter$rte_length_req %>%
@@ -688,7 +688,7 @@ for (rte in classes) {
     methgr$min_val <- mbo$min_val
     methgr$direction <- mbo$direction
     methgr$rte_length_req <- mbo$rte_length_req
-    methgr$l1_intactness_req <- mbo$l1_intactness_req
+    methgr$intactness_req <- mbo$intactness_req
     methgr$ltr_viral_status_req <- mbo$ltr_viral_status_req
     rtegrl_promoters[[rte]] <- methgr
 }
@@ -701,7 +701,7 @@ write_delim(rtedf_promoters, "ldna/Rintermediates/rtedf_promoters.tsv", col_name
 # rtedf <- read_delim("ldna/Rintermediates/rtedf.tsv", col_names = TRUE)
 perelementdf_promoters <- rtedf_promoters %>%
     filter(cov > MINIMUMCOVERAGE) %>%
-    group_by(gene_id, sample, condition, rte_length_req, type, l1_intactness_req, ltr_viral_status_req) %>%
+    group_by(gene_id, sample, condition, rte_length_req, type, intactness_req, ltr_viral_status_req) %>%
     summarize(mean_meth = mean(pctM))
 
 perelementdf_promoters <- perelementdf_promoters %>% filter(!is.na(rte_length_req))
@@ -720,24 +720,24 @@ p <- perelementdf_promoters %>%
     ylab("Average CpG Methylation Per Element") +
     ggtitle("RTE CpG Methylation") +
     mtopen + scale_conditions
-mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters.png", 14, 6)
+mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters.pdf", 14, 6)
 
 p <- perelementdf_promoters %>%
-    filter(l1_intactness_req != "Other") %>%
+    filter(intactness_req != "Other") %>%
     ggplot() +
-    geom_quasirandom(aes(x = l1_intactness_req, y = mean_meth, color = condition), dodge.width = 0.75) +
-    geom_boxplot(aes(x = l1_intactness_req, y = mean_meth, color = condition), alpha = 0.5, outlier.shape = NA) +
+    geom_quasirandom(aes(x = intactness_req, y = mean_meth, color = condition), dodge.width = 0.75) +
+    geom_boxplot(aes(x = intactness_req, y = mean_meth, color = condition), alpha = 0.5, outlier.shape = NA) +
     xlab("") +
     ylab("Average CpG Methylation Per Element") +
     ggtitle("RTE CpG Methylation") +
     mtopen + scale_conditions
-mysaveandstore(fn = "ldna/results/plots/rte/viral_ltr_boxplot_promoters.png", 14, 6)
+mysaveandstore(fn = "ldna/results/plots/rte/viral_ltr_boxplot_promoters.pdf", 14, 6)
 
 #################
 
 
 l1hsintactmethgr <- rtedf %>%
-    filter(str_detect(l1_intactness_req, "Intact")) %>%
+    filter(str_detect(intactness_req, "Intact")) %>%
     left_join(r_annotation_fragmentsjoined %>% dplyr::select(gene_id, start, end, strand) %>% dplyr::rename(element_strand = strand, element_start = start, element_end = end))
 l1hsintactmethgr <- l1hsintactmethgr %>%
     mutate(rel_start = start - element_start) %>%
@@ -854,7 +854,7 @@ for (element in elements_of_interest) {
     
     p <- p2 / p1 + plot_layout(heights = c(0.2, 1))
     
-    mysaveandstore(sprintf("ldna/results/plots/rte/%s_methylation_line.png", element), 5, 5)
+    mysaveandstore(sprintf("ldna/results/plots/rte/%s_methylation_line.pdf", element), 5, 5)
 
 }
 
@@ -893,7 +893,7 @@ for (element in elements_of_interest) {
     
     p <- p2 / p1 + plot_layout(heights = c(0.2, 1))
     
-    mysaveandstore(sprintf("ldna/results/plots/rte/%s_methylation.png", element), 5, 5)
+    mysaveandstore(sprintf("ldna/results/plots/rte/%s_methylation.pdf", element), 5, 5)
 
 }
 
@@ -934,7 +934,7 @@ for (element in elements_of_interest) {
     
     p <- p2 / p1 + plot_layout(heights = c(0.2, 1))
     
-    mysaveandstore(sprintf("ldna/results/plots/rte/%s_methylation_line_conditionaveraged.png", element), 5, 5)
+    mysaveandstore(sprintf("ldna/results/plots/rte/%s_methylation_line_conditionaveraged.pdf", element), 5, 5)
 
 }
 
@@ -976,7 +976,7 @@ for (element in elements_of_interest) {
     
     p <- p2 / p1 + plot_layout(heights = c(0.2, 1))
     
-    mysaveandstore(sprintf("ldna/results/plots/rte/%s_methylation_conditionaveraged.png", element), 5, 5)
+    mysaveandstore(sprintf("ldna/results/plots/rte/%s_methylation_conditionaveraged.pdf", element), 5, 5)
 
 }
 
@@ -1124,7 +1124,7 @@ pch[!is_sig] <- NA
 genic_locs <- l1hsintactdf %>%
     arrange(gene_id) %>%
     filter(gene_id %in% rownames(m)) %$% genic_loc
-row_ha <- rowAnnotation(pvalue = anno_simple(pch, pch = pch), genic_loc = genic_locs, col = list(genic_loc = c("Genic" = "brown", "NonGenic" = "tan")))
+row_ha <- rowAnnotation(pvalue = anno_simple(pch, pch = pch), genic_loc = genic_locs, col = list(genic_loc = c("Genic" = "brown", "Intergenic" = "tan")))
 conditions <- c(sample_table %>% filter(condition == condition1) %$% condition, sample_table %>% filter(condition == condition2) %$% condition)
 
 conditions <- sample_table[match(colnames(m), sample_table$sample_name),]$condition
@@ -1222,7 +1222,7 @@ readscg <- Reduce(rbind, readslistcg)
 
 
 read_analysis <- function(readsdf,
-    region = "L1HS_l1_intactness_req_ALL",
+    region = "L1HS_intactness_req_ALL",
     mod_code_var = "m",
     context = "CG") {
 
@@ -1252,7 +1252,7 @@ read_analysis <- function(readsdf,
         geom_density(aes(x = mod_qual, fill = condition), alpha = 0.3) +
         facet_wrap(vars(region)) + 
         mtclosed + scale_conditions
-    mysaveandstore(sprintf("ldna/results/plots/reads/modbase_score_dist_%s_%s_%s.png", region, mod_code_var, context), 12, 4, pl = p)
+    mysaveandstore(sprintf("ldna/results/plots/reads/modbase_score_dist_%s_%s_%s.pdf", region, mod_code_var, context), 12, 4, pl = p)
 
 
     p <- utr %>%
@@ -1262,7 +1262,7 @@ read_analysis <- function(readsdf,
         geom_density(aes(x = nc, fill = condition), alpha = 0.5) +
         facet_wrap(vars(region)) + 
         mtclosed + scale_conditions
-    mysaveandstore(sprintf("ldna/results/plots/reads/read_span_distribution_%s_%s_%s.png", region, mod_code_var, context), 5, 5, pl = p)
+    mysaveandstore(sprintf("ldna/results/plots/reads/read_span_distribution_%s_%s_%s.pdf", region, mod_code_var, context), 5, 5, pl = p)
 
 
     p <- utr %>%
@@ -1273,7 +1273,7 @@ read_analysis <- function(readsdf,
         geom_density(aes(x = nc, fill = condition), alpha = 0.5) +
         facet_wrap(vars(region)) +
         mtclosed + scale_conditions
-    mysaveandstore(sprintf("ldna/results/plots/reads/read_num_cpg_distribution_%s_%s_%s.png", region, mod_code_var, context), 5, 5, pl = p)
+    mysaveandstore(sprintf("ldna/results/plots/reads/read_num_cpg_distribution_%s_%s_%s.pdf", region, mod_code_var, context), 5, 5, pl = p)
 
 
 
@@ -1285,7 +1285,7 @@ read_analysis <- function(readsdf,
         geom_point(aes(x = read_span, y = fraction_meth, color = condition)) +
         facet_wrap(vars(region)) +
         mtclosed + scale_conditions
-    mysaveandstore(sprintf("ldna/results/plots/reads/fraction_meth_distribution_%s_%s_%s.png", region, mod_code_var, context), 5, 5, pl = p)
+    mysaveandstore(sprintf("ldna/results/plots/reads/fraction_meth_distribution_%s_%s_%s.pdf", region, mod_code_var, context), 5, 5, pl = p)
 
 
     aa <- utr %>%
@@ -1309,7 +1309,7 @@ read_analysis <- function(readsdf,
         ggtitle("5'UTR Methylation") +
         mtclosedgridh + scale_conditions +
         anchorbar
-    mysaveandstore(sprintf("ldna/results/plots/reads/barplot_50pct_%s_%s_%s.png", region, mod_code_var, context), 4, 4, pl = p)
+    mysaveandstore(sprintf("ldna/results/plots/reads/barplot_50pct_%s_%s_%s.pdf", region, mod_code_var, context), 4, 4, pl = p)
 
     p <- aa %>%
         ggplot() +
@@ -1318,10 +1318,10 @@ read_analysis <- function(readsdf,
         ggtitle("5'UTR Methylation") +
         facet_wrap(vars(region)) +
         mtclosed + scale_conditions
-    mysaveandstore(sprintf("ldna/results/plots/reads/fraction_meth_density_distribution_%s_%s_%s.png", region, mod_code_var, context), 4, 4, pl = p)
+    mysaveandstore(sprintf("ldna/results/plots/reads/fraction_meth_density_distribution_%s_%s_%s.pdf", region, mod_code_var, context), 4, 4, pl = p)
 
     p <- utr %>%
-        filter(region == "L1HS_l1_intactness_req_ALL") %>%
+        filter(region == "L1HS_intactness_req_ALL") %>%
         filter(read_span > 600) %>%
         group_by(read_id, condition, region) %>%
         summarise(fraction_meth = dplyr::first(fraction_meth), read_span = max(read_span), strand = dplyr::first(element_strand)) %>%
@@ -1331,7 +1331,7 @@ read_analysis <- function(readsdf,
         ggtitle("L1HS Intact 5'UTR Methylation") +
         mtopen + scale_conditions +
         anchorbar
-    mysaveandstore(sprintf("ldna/results/plots/reads/fraction_meth_density_distribution_l1hsintact_%s_%s.png", mod_code_var, context), 4, 4, pl = p)
+    mysaveandstore(sprintf("ldna/results/plots/reads/fraction_meth_density_distribution_l1hsintact_%s_%s.pdf", mod_code_var, context), 4, 4, pl = p)
 
 
     # note that this isn't the right test for this
@@ -1341,11 +1341,11 @@ read_analysis <- function(readsdf,
 }
 
 tryCatch({
-    read_analysis(readscg, "L1HS_l1_intactness_req_ALL", "m", "CpG")
-    read_analysis(reads, "L1HS_l1_intactness_req_ALL", "m", "NoContext")
-    read_analysis(readscg, "L1HS_l1_intactness_req_ALL", "h", "CpG")
-    read_analysis(reads, "L1HS_l1_intactness_req_ALL", "h", "NoContext")
-    read_analysis(reads, "L1HS_l1_intactness_req_ALL", "a", "NoContext")
+    read_analysis(readscg, "L1HS_intactness_req_ALL", "m", "CpG")
+    read_analysis(reads, "L1HS_intactness_req_ALL", "m", "NoContext")
+    read_analysis(readscg, "L1HS_intactness_req_ALL", "h", "CpG")
+    read_analysis(reads, "L1HS_intactness_req_ALL", "h", "NoContext")
+    read_analysis(reads, "L1HS_intactness_req_ALL", "a", "NoContext")
 }, error = function(e) {
     print(e)
 })
@@ -1504,7 +1504,7 @@ library(scales)
                     scale_color_continuous(trans = "reverse") +
                     labs(x = "", title = sprintf("%s", collection), subtitle = sprintf("Direction: %s", ifelse(direction == "Dif", "Hypo|Hyper", direction))) +
                     mtclosed + anchorbar
-                mysaveandstore(paste(mydir, collection, paste0(direction, "lollipop.png"), sep = "/"), 7, 7)
+                mysaveandstore(paste(mydir, collection, paste0(direction, "lollipop.pdf"), sep = "/"), 7, 7)
                 if (collection == "msigdbC5_GO") {
                     p <- tablesMsigdb[[collection]][[direction]] %>%
                     mutate(goterm = str_extract(id, "GO[a-zA-Z][a-zA-Z]")) %>%
@@ -1520,7 +1520,7 @@ library(scales)
                     scale_color_continuous(trans = "reverse") +
                     labs(x = "", title = sprintf("%s", collection), subtitle = sprintf("Direction: %s", ifelse(direction == "Dif", "Hypo|Hyper", direction))) +
                     mtclosed + anchorbar
-                mysaveandstore(paste(mydir, collection, paste0(direction, "lollipop_faceted.png"), sep = "/"), 7, 7)
+                mysaveandstore(paste(mydir, collection, paste0(direction, "lollipop_faceted.pdf"), sep = "/"), 7, 7)
                 }
             }
         })
@@ -1577,7 +1577,7 @@ library(scales)
         scale_methylation +
         anchorbar
 
-    mysaveandstore(pl = p, "ldna/results/plots/genes/genes_concordance.png", 4, 4)
+    mysaveandstore(pl = p, "ldna/results/plots/genes/genes_concordance.pdf", 4, 4)
 
     p <- mergeddf %>%
         filter(concordance == "concordant") %>%
@@ -1592,7 +1592,7 @@ library(scales)
         mtopen +
         anchorbar
 
-    mysaveandstore(pl = p, "ldna/results/plots/genes/genes_density.png", 4, 4)
+    mysaveandstore(pl = p, "ldna/results/plots/genes/genes_density.pdf", 4, 4)
 
     # highly_enriched_notch_sets <- tablesReactome[["Higher_in_Alz"]] %>% head(n = 15) %>% filter(grepl("NOTCH", anno.result) | grepl("LFNG", anno.result))
     # highly_enriched_notch_sets$id
@@ -1632,7 +1632,7 @@ library(scales)
         ggtitle("cCRE Methylation") +
         scale_y_continuous(expand = expansion(mult = c(0, .1))) +
         mtopen + scale_methylation
-    mysaveandstore(pl = p, "ldna/results/plots/ccres/dmrs_in_ccres.png", 5, 6)
+    mysaveandstore(pl = p, "ldna/results/plots/ccres/dmrs_in_ccres.pdf", 5, 6)
 
     totalccres <- ccresdf %>%
         group_by(X10) %>%
@@ -1653,7 +1653,7 @@ library(scales)
         coord_flip() +
         scale_y_continuous(expand = expansion(mult = c(0, .1))) +
         mtopen + scale_methylation
-    mysaveandstore(pl = p, "ldna/results/plots/ccres/dmrs_in_ccres_pct.png", 6, 6)
+    mysaveandstore(pl = p, "ldna/results/plots/ccres/dmrs_in_ccres_pct.pdf", 6, 6)
 
 }
 
@@ -1789,7 +1789,7 @@ library(scales)
 # regions <- l1hsintactdf %>%
 #     arrange(gene_id) %>%
 #     filter(gene_id %in% rownames(m)) %$% region
-# row_ha <- rowAnnotation(pvalue = anno_simple(pch, pch = pch), region = regions, col = list(region = c("intronic" = "brown", "nonGenic" = "tan")))
+# row_ha <- rowAnnotation(pvalue = anno_simple(pch, pch = pch), region = regions, col = list(region = c("intronic" = "brown", "Intergenic" = "tan")))
 # colsum <- colSums(m)
 # conditions <- rep(c("control", "alz"), each = 3)
 # topAnn <- ComplexHeatmap::HeatmapAnnotation(Sum = anno_barplot(colsum, axis = TRUE, axis_param = default_axis_param("column")), Condition = conditions, col = list(Condition = c("control" = "green", "alz" = "blue")))

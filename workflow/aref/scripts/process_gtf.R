@@ -1,7 +1,6 @@
-source("workflow/scripts/defaults.R")
 module_name <- "aref"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
-source("workflow/scripts/generate_colors_to_source.R")
+source("workflow/scripts/defaults.R")
 
 library(GenomicFeatures)
 library(GenomicRanges)
@@ -17,20 +16,19 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            gtf = "aref/A.REF_repeatmasker/repeatmasker_raw.gtf",
+            gtf = "aref/A.REF_repeatmasker/A.REF_repeatmasker_raw.gtf",
             contigs_to_keep = "aref/contigs_to_keep.txt",
             ref_cytobands = "aref/A.REF_annotations/cytobands.bed",
-            tldroutput = "aref/A.REF_tldr/tldr.table.txt",
             ref = "aref/ref_pre_ins_filtering.fa"
         ), env = globalenv())
         assign("outputs", list(
             contigs_to_keep = "aref/contigs_to_keep.txt",
             filtered_tldr = "aref/A.REF_tldr/tldr.table.kept_in_updated_ref.txt",
-            repmask_gff2 = "aref/A.REF_annotations/repeatmasker.gff2",
-            repmask_gff3 = "aref/A.REF_annotations/repeatmasker.gff3",
-            r_annotation = "aref/A.REF_annotations/repeatmasker.gtf.rformatted.csv",
-            r_annotation_fragmentsjoined = "aref/A.REF_annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv",
-            r_annotation_families = "aref/A.REF_annotations/families_annotation.csv"
+            repmask_gff2 = "aref/A.REF_annotations/A.REF_repeatmasker.gff2",
+            repmask_gff3 = "aref/A.REF_annotations/A.REF_repeatmasker.gff3",
+            r_annotation = "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.csv",
+            r_annotation_fragmentsjoined = "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
+            r_annotation_families = "aref/A.REF_annotations/A.REF_families_annotation.csv"
         ), env = globalenv())
     }
 )
@@ -43,12 +41,15 @@ rm <- rmgr %>%
 
 # filter out mitochondrial repeats
 rm <- rm %>% filter(seqnames != "chrM")
-
-rm %$% Target %>% head()
-rm1 <- rm %>% separate(Target, into = c("family", "element_start", "element_end"), sep = " ")
+rm1 <- rm %>% separate(Target, into = c("family", "element_start", "element_end", "element_bp_remaining"), sep = " ")
 rm2 <- rm1 %>%
     dplyr::select(-transcript_id) %>%
-    mutate(length = as.numeric(element_end) - as.numeric(element_start))
+    mutate(element_bp_remaining = as.numeric(gsub("\\(|\\)", "", element_bp_remaining))) %>%
+    mutate(element_start = as.numeric(element_start)) %>%
+    mutate(element_end = as.numeric(element_end)) %>%
+    mutate(length = element_end - element_start) %>% 
+    mutate(consensus_length = element_end + element_bp_remaining) %>%
+    mutate(pctconsensuscovered = 100*(length / consensus_length))
 rm3 <- rm2 %>%
     mutate(pctdiv = as.numeric(pctdiv)) %>%
     mutate(pctdel = as.numeric(pctdel)) %>%
@@ -56,10 +57,10 @@ rm3 <- rm2 %>%
     mutate(element_end = as.numeric(element_end))
 
 
-
 rmfragments <- rm3 %>%
     group_by(gene_id) %>%
-    summarise(seqnames = dplyr::first(seqnames), source = dplyr::first(source), type = dplyr::first(type), start = min(start), end = max(end), strand = dplyr::first(strand), phase = dplyr::first(phase), family = dplyr::first(family), element_start = min(element_start), element_end = max(element_end), pctdiv = sum(pctdiv * length) / sum(length), length = sum(length), num_fragments = n())
+    summarise(seqnames = dplyr::first(seqnames), source = dplyr::first(source), type = dplyr::first(type), start = min(start), end = max(end), strand = dplyr::first(strand), phase = dplyr::first(phase), family = dplyr::first(family), element_start = min(element_start), element_end = max(element_end), pctdiv = sum(pctdiv * length) / sum(length), length = sum(length), pctconsensuscovered = sum(pctconsensuscovered), num_fragments = n()) %>% 
+    mutate(pctconsensustruncated = 100 - pctconsensuscovered)
 rmfragments <- rmfragments %>% mutate(refstatus = ifelse(str_detect(seqnames, "nonref"), "NonRef", "Ref"))
 
 # for annotation purposes, I will have to have the location of nonreference inserts be their insertion site
@@ -124,9 +125,7 @@ rmfragments <- rmfragments %>%
     dplyr::select(-gene_id) %>%
     dplyr::rename(gene_id = GiesmaID)
 
-
-
 write_csv(rmfragments, outputs$r_annotation_fragmentsjoined)
 
-rtracklayer::export(rmgr[seqnames(rmgr) %in% contigs_to_keep], con = outputs$repmask_gff2, format = "GFF2")
-rtracklayer::export(rmgr[seqnames(rmgr) %in% contigs_to_keep], con = outputs$repmask_gff3, format = "GFF3")
+rtracklayer::export(rmgr, con = outputs$repmask_gff2, format = "GFF2")
+rtracklayer::export(rmgr, con = outputs$repmask_gff3, format = "GFF3")

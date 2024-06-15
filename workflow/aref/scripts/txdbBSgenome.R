@@ -1,32 +1,13 @@
-source("workflow/scripts/defaults.R")
 module_name <- "aref"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 
-library(igvR)
-library(knitr)
-library(rmarkdown)
-library(circlize)
-library(ComplexHeatmap)
-library("ggplot2")
-library("RColorBrewer")
-library("magrittr")
-library("cowplot")
-library("ggVennDiagram")
-library("org.Hs.eg.db")
-library("ggrepel")
-library("grid")
 library("readr")
 library("stringr")
 library("dplyr")
 library("tibble")
 library("tidyr")
-library(plotly)
-library(DT)
-library(ggExtra)
-library(rstatix)
-library(purrr)
-library(ggpubr)
 library(GenomicFeatures)
 library(rtracklayer)
 
@@ -38,13 +19,13 @@ tryCatch(
     error = function(e) {
         assign("inputs", list(
             refseq = "aref/A.REF_annotations/refseq.gff3",
-            repeatmasker = "aref/A.REF_repeatmasker.complete.gff3",
-            genome2bit = "aref/ref.2bit"
+            repeatmasker = "aref/A.REF_annotations/A.REF_repeatmasker.complete.gff3",
+            genome2bit = "aref/A.REF.2bit"
         ), env = globalenv())
         assign("outputs", list(
-            txdb = "aref/A.REF_annotations/repeatmasker_refseq.complete.sqlite",
+            txdb = "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.sqlite",
             txdbrefseq = "aref/A.REF_annotations/refseq.sqlite",
-            txdbrepeatmasker = "aref/A.REF_annotations/repeatmasker.complete.sqlite"
+            txdbrepeatmasker = "aref/A.REF_annotations/A.REF_repeatmasker.complete.sqlite"
         ), env = globalenv())
     }
 )

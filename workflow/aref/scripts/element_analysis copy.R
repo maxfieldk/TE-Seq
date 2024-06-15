@@ -1,6 +1,6 @@
-source("workflow/scripts/defaults.R")
 module_name <- "aref"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 
 library(readr)
@@ -80,7 +80,7 @@ p <- pf %>% ggplot() +
     geom_bar(aes(x = rte_subfamily, y = n), color = "black", stat = "identity") +
     theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
     labs(title = "Number of L1 Elements per Subfamily", x = "Family", y = "Number of Elements", fill = "Reference Status") +
-    facet_wrap(~refstatus, scales = "free") +
+    facet_wrap(~refstatus, scales = "free", space = "free_x") +
     mtopen +
     anchorbar
 mysave(sprintf("%s/l1familycount.png", outputdir), w = 8, h = 5)
@@ -88,14 +88,14 @@ mysave(sprintf("%s/l1familycount.png", outputdir), w = 8, h = 5)
 p <- rmann %>%
     filter(grepl("L1PA|L1HS", rte_subfamily)) %>%
     filter(length > 5999) %>%
-    group_by(rte_subfamily, refstatus, l1_intactness_req) %>%
+    group_by(rte_subfamily, refstatus, intactness_req) %>%
     summarise(n = n()) %>%
     ungroup() %>%
     ggplot() +
-    geom_bar(aes(x = rte_subfamily, y = n, fill = l1_intactness_req), color = "black", stat = "identity") +
+    geom_bar(aes(x = rte_subfamily, y = n, fill = intactness_req), color = "black", stat = "identity") +
     theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
     labs(title = "Number of Full Length L1 Elements per Subfamily", x = "Family", y = "Number of Elements", fill = "Reference Status") +
-    facet_wrap(~refstatus, scales = "free") +
+    facet_wrap(~refstatus, scales = "free", space = "free_x") +
     mtopen +
     anchorbar
 mysave(sprintf("%s/l1FLfamilycount.png", outputdir), w = 8, h = 5)
@@ -164,7 +164,7 @@ export(gtfpass, sprintf("%s/l1hspa23_orfsintact.gtf", outputdir))
 # dataframe
 element_annotation <- tibble(gene_id = pass, intactness = "ORFs_Intact")
 
-# location genic vs nongenic for all elements
+# location genic vs Intergenic for all elements
 # centromeric vs non centromeriuc for all elements
 
 writeXStringSet(flsspass, sprintf("%s/l1hspa23intact.fa", outputdir))

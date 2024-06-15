@@ -1,0 +1,15 @@
+software-deployment-method: conda
+conda-frontend: mamba
+rerun-triggers: mtime
+keep-going: True
+rerun-incomplete: True
+latency-wait: 30
+executor: slurm
+jobs: 30
+default-resources:
+  mem_mb: 30000
+  disk_mb: 200000
+  slurm_account: default
+  slurm_partition: batch
+  threads: 1
+  runtime: 300

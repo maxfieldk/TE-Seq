@@ -1,6 +1,6 @@
-source("workflow/scripts/defaults.R")
 module_name <- "ldna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 
 library(rtracklayer)
@@ -69,7 +69,7 @@ grsdf <- read_delim("ldna/Rintermediates/grsdf_nonref.tsv", col_names = TRUE)
 
 
 ########
-l1s <- ann %>% filter(rte_subfamily == "L1HS") %>% filter(str_detect(l1_intactness_req, "Intact"))
+l1s <- ann %>% filter(rte_subfamily == "L1HS") %>% filter(str_detect(intactness_req, "Intact"))
 
 
 
@@ -89,7 +89,7 @@ rtedf <- read_delim("ldna/Rintermediates/rtedf.tsv", col_names = TRUE)
 # l1hs_fl_ref <- l1hs_ref %>% filter(element_length > 6000)
 # l1hs_fl_ref %$% uid %>% unique()
 
-l1hsintactmethpromotersdf <- rtedf_promoters %>% filter(rte_subfamily == "L1HS") %>% filter(str_detect(l1_intactness_req, "Intact"))
+l1hsintactmethpromotersdf <- rtedf_promoters %>% filter(rte_subfamily == "L1HS") %>% filter(str_detect(intactness_req, "Intact"))
 
 nonref <- df %>%
     filter(case_when(
@@ -141,7 +141,7 @@ nonref <- df %>%
     summarise(mean = mean(pctM)) %>%
     mutate(refstatus = "NonRef")
 
-l1hsintactmethdf <- rtedf %>% filter(rte_subfamily == "L1HS") %>% filter(str_detect(l1_intactness_req, "Intact"))
+l1hsintactmethdf <- rtedf %>% filter(rte_subfamily == "L1HS") %>% filter(str_detect(intactness_req, "Intact"))
 
 ref <- l1hsintactmethdf %>%
     group_by(gene_id, sample, condition) %>%
@@ -155,7 +155,7 @@ p <- rbind(nonref, ref) %>% ggplot() +
     labs(x = "", y = "Mean element methylation") +
     ggtitle("Reference vs Non-reference L1HS") +
     mtopen + scale_conditions
-mysaveandstore("ldna/results/plots/tldr/beeswarm.png", 6, 4)
+mysaveandstore("ldna/results/plots/tldr/beeswarm.pdf", 6, 4)
 
 p <- rbind(nonref, ref) %>% ggplot() +
     geom_boxplot(aes(x = refstatus, y = mean, fill = condition), outlier.alpha = 0) +
@@ -163,7 +163,7 @@ p <- rbind(nonref, ref) %>% ggplot() +
     labs(x = "", y = "Mean element methylation") +
     ggtitle("Reference vs Non-reference L1HS") +
     mtopen + scale_conditions
-mysaveandstore("ldna/results/plots/tldr/box_hideoutliers.png", 6, 4)
+mysaveandstore("ldna/results/plots/tldr/box_hideoutliers.pdf", 6, 4)
 
 p <- rbind(nonref, ref) %>% ggplot() +
     geom_boxplot(aes(x = refstatus, y = mean, fill = condition)) +
@@ -172,7 +172,7 @@ p <- rbind(nonref, ref) %>% ggplot() +
     ggtitle("Reference vs Non-reference L1HS") +
     mtopen + scale_conditions
 
-mysaveandstore("ldna/results/plots/tldr/box.png", 6, 4)
+mysaveandstore("ldna/results/plots/tldr/box.pdf", 6, 4)
 
 
 

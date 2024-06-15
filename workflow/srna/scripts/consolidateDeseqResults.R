@@ -10,7 +10,7 @@ library("dplyr")
 library("tibble")
 library("tidyr")
 
-conf <- configr::read.config(file = "conf/config.yaml")[["srna"]]
+conf <- configr::read.config(file = "conf/config.yaml")[[snakemake@params$module_name]]
 
 tryCatch(
     {
@@ -20,7 +20,7 @@ tryCatch(
     },
     error = function(e) {
         assign("params", list(
-            "inputdir" = "results/agg/deseq_telescope",
+            "inputdir" = "results/agg/deseq",
             "outputdir" = "results/agg/repeatanalysis_telescope"
         ), env = globalenv())
         assign("outputs", list(
@@ -33,11 +33,7 @@ tryCatch(
 
 outputdir <- params$outputdir
 dir.create(outputdir, recursive = TRUE, showWarnings = FALSE)
-# order matters for the colors!
-contrast_colors <- conf$contrast_colors
-condition_colors <- conf$condition_colors
 contrasts <- conf$contrasts
-levelslegendmap <- conf$levelslegendmap
 tecounttypes <- conf$tecounttypes
 tecounttypes <- conf$tecounttypes
 lengthreq <- conf$lengthreq
@@ -45,9 +41,7 @@ maincontrast <- contrasts[1]
 
 
 
-contrast_colors <- unname(unlist(contrast_colors))
-condition_colors <- unname(unlist(condition_colors))
-peptable <- read.csv(conf$peptable)
+sample_table <- read.csv(conf$sample_table)
 
 
 
@@ -84,7 +78,7 @@ ddsfinal <- bind_rows(RESLIST)
 
 COUNTLIST <- list()
 for (tecounttype in tecounttypes) {
-    conditions <- peptable$condition %>% unique()
+    conditions <- sample_table$condition %>% unique()
     ddscounts <- read_csv(paste(params$inputdir, tecounttype, "counttablesizenormed.csv", sep = "/")) %>%
         rename(gene_id = ...1) %>%
         mutate(tecounttype = tecounttype)

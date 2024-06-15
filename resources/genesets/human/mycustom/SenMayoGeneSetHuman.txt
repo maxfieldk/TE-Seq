@@ -1,0 +1,126 @@
+Gene(human)	Classification	State	Reference
+ACVR1B	Transmembrane signal receptors	Transmembrane	26
+ANG	Miscellaneous	Secreted	"81,88"
+ANGPT1	Intercellular signal molecule	Secreted	57
+ANGPTL4	Intercellular signal molecule	Secreted	"18,57"
+AREG	Growth factor	Intracellular	"81,88,89"
+AXL	Transmembrane signal receptors	Transmembrane	"18,89"
+BEX3	Miscellaneous	Intracellular	18
+BMP2	Growth factor	Secreted	"57,89"
+BMP6	Growth factor	Secreted	89
+C3	Protease inhibitors	Secreted	57
+CCL1	Cytokine/Chemokine	Secreted	89
+CCL13	Cytokine/Chemokine	Secreted	"81,89"
+CCL16	Cytokine/Chemokine	Secreted	"26,81,89"
+CCL2	Cytokine/Chemokine	Secreted	"26,57,83,84,86,88,89"
+CCL20	Cytokine/Chemokine	Secreted	"26,81,83"
+CCL24	Cytokine/Chemokine	Secreted	88
+CCL26	Cytokine/Chemokine	Secreted	"81,89"
+CCL3	Cytokine/Chemokine	Secreted	"57,85,88,89"
+CCL3L1	Cytokine/Chemokine	Secreted	57
+CCL4	Cytokine/Chemokine	Secreted	88
+CCL5	Cytokine/Chemokine	Secreted	"26,82,88"
+CCL7	Cytokine/Chemokine	Secreted	89
+CCL8	Cytokine/Chemokine	Secreted	"81,89"
+CD55	Miscellaneous	Secreted	89
+CD9	Transmembrane signal receptors	Transmembrane	"18,89"
+CSF1	Cytokine/Chemokine	Secreted	84
+CSF2	Cytokine/Chemokine	Secreted	"26,57,63,81,88,89"
+CSF2RB	Transmembrane signal receptors	Transmembrane	89
+CST4	Protease inhibitors	Secreted	85
+CTNNB1	Transcription factors and regulators	Transmembrane	88
+CTSB	(Metallo-)proteases	Secreted	81
+CXCL1	Cytokine/Chemokine	Secreted	"26,57,63,81,88Ð90"
+CXCL10	Cytokine/Chemokine	Secreted	"57,82,88"
+CXCL12	Cytokine/Chemokine	Secreted	"81,88"
+CXCL16	Cytokine/Chemokine	Secreted	88
+CXCL2	Cytokine/Chemokine	Secreted	"26,63,81,88"
+CXCL3	Cytokine/Chemokine	Secreted	"57,65,81"
+CXCL8	Cytokine/Chemokine	Secreted	"26,57,63,81,83,90"
+CXCR2	Cytokine/Chemokine	Transmembrane	26
+DKK1	Intercellular signal molecule	Secreted	57
+EDN1	Intercellular signal molecule	Secreted	57
+EGF	Transmembrane signal receptors	Transmembrane	81
+EGFR	Transmembrane signal receptors	Transmembrane	"81,89"
+EREG	Growth factor	Secreted	"81,88,89"
+ESM1	Intercellular signal molecule	Secreted	57
+ETS2	Transcription factors and regulators	Intracellular	89
+FAS	Transmembrane signal receptors	Transmembrane	"81,89"
+FGF1	Growth factor	Secreted	"26,57"
+FGF2	Growth factor	Secreted	"57,81"
+FGF7	Growth factor	Secreted	"57,81,89"
+GDF15	Growth factor	Secreted	"26,57,89"
+GEM	Miscellaneous	Intracellular	89
+GMFG	Intercellular signal molecule	Intracellular	89
+HGF	(Metallo-)proteases	Secreted	"26,81,88,89"
+HMGB1	Transcription factors and regulators	Intracellular	"57,88"
+ICAM1	Miscellaneous	Intracellular	"63,81,88,89"
+ICAM3	Miscellaneous	Intracellular	"88,89"
+IGF1	Growth factor	Secreted	"18,82,87,89"
+IGFBP1	Protease inhibitors	Secreted	89
+IGFBP2	Protease inhibitors	Secreted	"26,63,81,88,89"
+IGFBP3	Protease inhibitors	Secreted	"26,50,57,63,81,88"
+IGFBP4	Protease inhibitors	Secreted	"26,63,81,88"
+IGFBP5	Protease inhibitors	Secreted	"26,57,63,88"
+IGFBP6	Protease inhibitors	Secreted	"26,63,81,88,89"
+IGFBP7	Miscellaneous	Secreted	"26,57,63,81,83,88"
+IL10	Cytokine/Chemokine	Secreted	86
+IL13	Cytokine/Chemokine	Secreted	"81,89"
+IL15	Cytokine/Chemokine	Secreted	"42,84,88,89"
+IL18	Cytokine/Chemokine	Secreted	"57,88"
+IL1A	Cytokine/Chemokine	Secreted	"26,42,57,63,81,82,88Ð90"
+IL1B	Cytokine/Chemokine	Secreted	"18,42,86,88Ð90"
+IL2	Cytokine/Chemokine	Secreted	88
+IL32	Cytokine/Chemokine	Secreted	57
+IL6	Cytokine/Chemokine	Secreted	"26,42,57,63,82Ð84,86,88,89"
+IL6ST	Transmembrane signal receptors	Transmembrane	42
+IL7	Cytokine/Chemokine	Secreted	"42,89"
+INHA	Growth factor	Secreted	89
+IQGAP2	Miscellaneous	Intracellular	89
+ITGA2	Transmembrane signal receptors	Transmembrane	89
+ITPKA	Protein modifying enzymes	Intracellular	89
+JUN	Transcription factors and regulators	Intracellular	89
+KITLG	Growth factor	Intracellular	"42,88"
+LCP1	Miscellaneous	Intracellular	57
+MIF	Protein modifying enzymes	Secreted	"18,42,88,89"
+MMP1	(Metallo-)proteases	Secreted	"42,63,89"
+MMP10	(Metallo-)proteases	Secreted	"42,63,89"
+MMP12	(Metallo-)proteases	Secreted	"42,88"
+MMP13	(Metallo-)proteases	Secreted	"42,88"
+MMP14	(Metallo-)proteases	Intracellular	"42,88"
+MMP2	(Metallo-)proteases	Secreted	89
+MMP3	(Metallo-)proteases	Secreted	"42,63,85,89"
+MMP9	(Metallo-)proteases	Secreted	"57,85"
+NAP1L4	Miscellaneous	Intracellular	89
+NRG1	Growth factor	Secreted	"42,88,89"
+PAPPA	(Metallo-)proteases	Secreted	57
+PECAM1	Miscellaneous	Intracellular	89
+PGF	Growth factor	Secreted	88
+PIGF	Protein modifying enzymes	Transmembrane	"42,89"
+PLAT	(Metallo-)proteases	Secreted	"42,88"
+PLAU	(Metallo-)proteases	Secreted	42
+PLAUR	Transmembrane signal receptors	Transmembrane	"42,89"
+PTBP1	Miscellaneous	Intracellular	57
+PTGER2	Transmembrane signal receptors	Transmembrane	57
+PTGES	Protein modifying enzymes	Intracellular	89
+RPS6KA5	Protein modifying enzymes	Intracellular	89
+SCAMP4	Miscellaneous	Intracellular	57
+SELPLG	Transmembrane signal receptors	Transmembrane	57
+SEMA3F	Intercellular signal molecule	Secreted	57
+SERPINB4	Protease inhibitors	Intracellular	57
+SERPINE1	Protease inhibitors	Secreted	"26,42,57,63,83,85,88,89"
+SERPINE2	Protease inhibitors	Secreted	"42,88"
+SPP1	Cytokine/Chemokine	Secreted	57
+SPX	Intercellular signal molecule	Secreted	57
+TIMP2	Protease inhibitors	Secreted	"18,42,88,89"
+TNF	Cytokine/Chemokine	Secreted	"82,86"
+TNFRSF10C	Transmembrane signal receptors	Transmembrane	42
+TNFRSF11B	Transmembrane signal receptors	Transmembrane	"42,89"
+TNFRSF1A	Transmembrane signal receptors	Transmembrane	"42,88"
+TNFRSF1B	Transmembrane signal receptors	Transmembrane	42
+TUBGCP2	Miscellaneous	Intracellular	89
+VEGFA	Growth factor	Secreted	"26,42,83,89"
+VEGFC	Growth factor	Secreted	89
+VGF	Intercellular signal molecule	Secreted	56
+WNT16	Intercellular signal molecule	Secreted	57
+WNT2	Intercellular signal molecule	Transmembrane	57

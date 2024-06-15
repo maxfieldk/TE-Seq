@@ -1,4 +1,4 @@
-container: "docker://maxfieldkelsey/rtedocker"
+container: "docker://maxfieldkelsey/pipelinertedocker:v0.2"
 
 import os
 import pandas as pd
@@ -22,9 +22,6 @@ paths = [
     "srna/rawdata/{sample}",
     "srna/outs/{sample}/trimmedReads",
     "srna/outs/{sample}/{counttype}",
-    "srna/outs/agg/{counttype}",
-    "srna/results/agg/deseq_telescope/{tecounttype}/{contrast}",
-    "srna/results/agg/repeatanalysis_telescope"
     ]
 for path in paths:
     for sample in samples:
@@ -32,66 +29,78 @@ for path in paths:
             for tecounttype in config["tecounttypes"]:
                 for contrast in config["contrasts"]:
                     os.makedirs(path.format(sample=sample, counttype=counttype,tecounttype=tecounttype, contrast=contrast), exist_ok = True)
+
 #tag FUNCTIONS
+import re
 def inferLibraryType():
-        try: 
-                with open("srna/qc/library_type.txt") as f:
-                        data = f.read()
-                lines = re.findall('Fraction.*', data)
-                pctMapped = [float(line.split(": ")[1]) for line in lines]
-                if pctMapped[1] > 0.75:
-                        libraryType = "forward"
-                elif pctMapped[2] > 0.75:
-                        libraryType = "reverse"
-                else:
-                        libraryType = "unstranded"
-                return libraryType
-        except:
-                return "didn't run infer library type yet"
+    try: 
+        f = open("srna/qc/library_type.txt")
+        data = f.read()
+        lines = re.findall('Fraction.*', data)
+        pctMapped = [float(line.split(": ")[1]) for line in lines]
+        if pctMapped[1] > 0.75:
+            libraryType = "forward"
+        elif pctMapped[2] > 0.75:
+            libraryType = "reverse"
+        else:
+            libraryType = "unstranded"
+        return libraryType
+    except:
+        return "didn't run infer library type yet"
 
 def getFeatureCountsStrandParam():
-        libraryType = inferLibraryType()
-        if libraryType == "forward":
-                strandParam = "1"
-        elif libraryType == "reverse":
-                strandParam = "2"
-        else:
-                strandParam = "0"
-        return strandParam
+    libraryType = inferLibraryType()
+    if libraryType == "forward":
+        strandParam = "1"
+    elif libraryType == "reverse":
+        strandParam = "2"
+    elif libraryType == "unstranded":
+        strandParam = "0"
+    else:
+        strandParam = "didn't run infer library type yet"
+    return strandParam
 
 
 def getTelescopeStrandParam():
-        libraryType = inferLibraryType()
-        if libraryType == "forward":
-                strandParam = "FR"
-        elif libraryType == "reverse":
-                strandParam = "RF"
-        else:
-                strandParam = "None"
-        return strandParam
+    libraryType = inferLibraryType()
+    if libraryType == "forward":
+        if config["library_type"] == "PE":
+            strandParam = "FR"
+        elif config["library_type"] == "SE":
+            strandParam = "F"
+    elif libraryType == "reverse":
+        if config["library_type"] == "PE":
+            strandParam = "RF"
+        elif config["library_type"] == "SE":
+            strandParam = "R"
+    elif libraryType == "unstranded":
+        strandParam = "None"
+    else:
+        strandParam = "didn't run infer library type yet"
+    return strandParam
 
+# def enforce_symlink(wildcards):
+#     if config["symlink_aref"]["response"] == "yes":
+#         return "aref.symlinked.outfile"
+#     else:
+#         return ""
 
 #tag PREPROCESSING
-rule prefetch:
+rule subsample_fastq:
+    input:
+        r1=lambda wildcards: peptable.loc[peptable["sample_name"] == wildcards.sample, "file_path_R1"].iloc[0],
+        r2=lambda wildcards: peptable.loc[peptable["sample_name"] == wildcards.sample, "file_path_R2"].iloc[0]
     output:
-        sra = temp("srna/rawdata/{sample}/{sample}.sra")
-    threads: 4
+        r1 = "srna/outs/{sample}/subsampled/{sample}_1.subsampled.fastq.gz",
+        r2 = "srna/outs/{sample}/subsampled/{sample}_2.subsampled.fastq.gz"
     conda:
         "omics"
-    shell: "prefetch {wildcards.sample} --output-directory rawdata"
+    shell:
+        """
+seqkit head -n 1000000 {input.r1} | gzip > {output.r1}
+seqkit head -n 1000000 {input.r2} | gzip > {output.r2}
+        """
 
-rule fastqdump:
-    input: "srna/rawdata/{sample}/{sample}.sra"
-    threads: 4
-    params:
-        outdir = "rawdata/{sample}"
-    log: "logs/{sample}/fastqdump.log"
-    output:
-        r1 = temp("rawdata/{sample}_1.fastq"),
-        r2 = temp("rawdata/{sample}_2.fastq")
-    conda:
-        "omics"
-    shell: "fastq-dump --split-files --outdir {params.outdir} {input} 2> {log}"
 
 rule fastp_PE:
     input:
@@ -99,6 +108,7 @@ rule fastp_PE:
         r2=lambda wildcards: peptable.loc[peptable["sample_name"] == wildcards.sample, "file_path_R2"].iloc[0]
     priority: 100
     threads: 6
+    retries: 3
     output:
         r1 = "srna/outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz",
         r2 = "srna/outs/{sample}/trimmedReads/{sample}_2.trimmed.fastq.gz",
@@ -117,6 +127,7 @@ rule fastp_SE:
         # r2=lambda wildcards: peptable.loc[peptable["sample_name"] == wildcards.sample, "R2"].iloc[0]
     priority: 100
     threads: 6
+    retries: 3
     output:
         r1 = "srna/outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz",
         # r2 = "outs/{sample}/trimmedReads/{sample}_2.trimmed.fastq.gz",
@@ -146,12 +157,12 @@ rule mycoplasmaCheck:
     shell:
         """
 mkdir -p $(dirname {output.sam})
-bowtie2 --threads 10 -x /users/mkelsey/data/ref/genomes/mycoplasma/mycoplasma_index -1 {input.r1} -2 {input.r2} -S {output.sam}
+bowtie2 --threads 10 -x resources/genomes/mycoplasma/mycoplasma_index -1 {input.r1} -2 {input.r2} -S {output.sam}
 samtools stats {output.sam} > {output.sam}.stats.txt
         """
 
 
-checkpoint inferLibraryType:
+rule inferLibraryType:
     input:
         bam = expand("srna/outs/{sample}/star_output/{sample}.sorted.primary.bam", sample = samples[0])
     output:
@@ -170,7 +181,7 @@ infer_experiment.py -r {params.gtf} -i {input.bam} > {output.librarytype}
 rule multiqc:
     input:
         bams = expand("srna/outs/{sample}/star_output/{sample}.sorted.bam.stats.txt", sample = samples),
-        deseq = expand("srna/results/agg/deseq_telescope/{tecounttype}/counttablesizenormed.csv", tecounttype = config["tecounttypes"])
+        deseq = expand("srna/results/agg/deseq/{tecounttype}/counttablesizenormed.csv", tecounttype = config["tecounttypes"])
     output:
         "srna/qc/multiqc/multiqc_report.html"
     conda:
@@ -185,9 +196,11 @@ multiqc -f -o $(dirname {output}) --export ./
 rule alignSTAR_PE:
     input:
         r1 = "srna/outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz",
-        r2 = "srna/outs/{sample}/trimmedReads/{sample}_2.trimmed.fastq.gz"
+        r2 = "srna/outs/{sample}/trimmedReads/{sample}_2.trimmed.fastq.gz",
+        aref = "aref.done.outfile"
+    retries: 3
     params:
-        index = config["starindex"],
+        index = lambda wildcards: "aref/%s_indeces/star_index"%(wildcards.sample) if config["per_sample_ref"] == "yes" else "aref/A.REF_indeces/star_index"
     output:
         bam = temp("srna/outs/{sample}/star_output/Aligned.out.sam")
     threads: 8
@@ -216,6 +229,7 @@ rule featurecounts_genes_PE:
     threads: 4
     shell: 
         """
+echo {params.featureCountsstrandparam}
 featureCounts -p -s {params.featureCountsstrandparam} -O -M -T {threads} -t exon -a {params.gtf} -o {output.countsmessy} -R CORE  --minOverlap 25 --fraction --primary {input.primaryBams}
 cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
         """
@@ -245,7 +259,7 @@ rule featurecounts_genesandrtes_PE:
         countsmessy = "srna/outs/agg/featurecounts_genesandrtes/counts_messy.txt",
         counts = "srna/outs/agg/featurecounts_genesandrtes/counts.txt",
     params: 
-        gtf = "/oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations4/hs1.repMask.refseq.sorted.gtf",
+        gtf = "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf",
         featureCountsstrandparam = getFeatureCountsStrandParam()
     conda:
         "omics"
@@ -255,6 +269,7 @@ rule featurecounts_genesandrtes_PE:
         mem_mb = 32000,
     shell: 
         """
+echo {params.featureCountsstrandparam}
 featureCounts -p -s {params.featureCountsstrandparam} -M -T 8 --primary --ignoreDup --largestOverlap -a {params.gtf} -o {output.countsmessy} {input.sortedSTARbams}
 cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
         """
@@ -262,8 +277,9 @@ cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
 rule alignSTAR_SE:
     input:
         r1 = "srna/outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz"
+    retries: 3
     params:
-        index = config["starindex"]
+        index = lambda wildcards: "aref/%s_indeces/star_index"%(wildcards.sample) if config["per_sample_ref"] == "yes" else "aref/A.REF_indeces/star_index"
     output:
         bam = temp("srna/outs/{sample}/star_output/Aligned.out.sam")
     threads: 8
@@ -294,6 +310,7 @@ rule featurecounts_genes_SE:
     threads: 4
     shell: 
         """
+echo {params.featureCountsstrandparam}
 featureCounts -s {params.featureCountsstrandparam} -T {threads} -t exon -a {params.gtf} -o {output.countsmessy} {input.sortedSTARbams}
 cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
 featureCounts -s {params.featureCountsstrandparam} -T {threads} -B -O -a {params.gtf} -o {output.countsstrandnonspecificmessy} {input.sortedSTARbams}
@@ -312,7 +329,7 @@ rule featurecounts_genesandrtes_SE:
         countsmessy = "srna/outs/agg/featurecounts_genesandrtes/counts_messy.txt",
         counts = "srna/outs/agg/featurecounts_genesandrtes/counts.txt",
     params: 
-        gtf = "/oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations4/hs1.repMask.refseq.sorted.gtf",
+        gtf = "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf",
         featureCountsstrandparam = getFeatureCountsStrandParam()
     conda:
         "omics"
@@ -322,6 +339,7 @@ rule featurecounts_genesandrtes_SE:
         mem_mb = 32000,
     shell: 
         """
+echo {params.featureCountsstrandparam}
 featureCounts -s {params.featureCountsstrandparam} -M -T 8 --primary --ignoreDup --largestOverlap -a {params.gtf} -o {output.countsmessy} {input.sortedSTARbams}
 cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
         """
@@ -364,124 +382,6 @@ samtools view -b -F 0x800 -F 0x100 -F 0x400 {input} > {output.bam}
 samtools index {output.bam}
         """ 
 
-#tag DIFFERENTIAL EXPRESSION
-
-# rule deseq:
-#     input:
-#         counts = "outs/agg/{counttype}/counts.txt",
-#     params:
-#         sample_table = config["sample_table"],
-#         contrasts = config["contrasts"],
-#         levels = config["levels"],
-#         paralellize_bioc = config["paralellize_bioc"],
-#         genesgtf = config['annotation_genes'],
-#         counttype = lambda w: w.counttype,
-#         outputdir = "results/agg/deseq2"
-#     resources:
-#         cpus_per_task =10,
-#         mem_mb = 200000,
-#         runtime = 1000
-#     conda: "deseq"
-#     output:
-#         results = expand("results/agg/deseq2/{{counttype}}/{contrast}/{resulttype}.csv", contrast = config["contrasts"], resulttype = ["results", "counttablesizenormed"]),
-#         outfile = "results/agg/deseq2/{counttype}outfile.txt"
-#     script:
-#         "scripts/DESeq2.R"
-
-
-rule deseq_telescope:
-    input:
-        counts = "srna/outs/agg/featurecounts_genes/counts.txt",
-        rte_counts = expand("srna/outs/{sample}/telescope/telescope-run_stats.tsv", sample = samples)
-    params:
-        sample_table = config["sample_table"],
-        contrasts = config["contrasts"],
-        levels = config["levels"],
-        paralellize_bioc = config["paralellize_bioc"],
-        tecounttype = lambda w: w.tecounttype,
-        outputdir =lambda w, output: os.path.dirname(os.path.dirname(output.counts_normed)),
-    resources:
-        cpus_per_task =10,
-        mem_mb = 240000,
-        runtime = 1000
-    conda: "deseq"
-    wildcard_constraints:
-        tecounttype="[A-Za-z0-9_]+"
-    output:
-        results_genes = expand("srna/results/agg/deseq_telescope/{{tecounttype}}/{contrast}/results_genes.csv", contrast = config["contrasts"]),
-        results_rtes = expand("srna/results/agg/deseq_telescope/{{tecounttype}}/{contrast}/results_rtes.csv", contrast = config["contrasts"]),
-        counts_normed = "srna/results/agg/deseq_telescope/{tecounttype}/counttablesizenormed.csv",
-        sizefactors = "srna/results/agg/deseq_telescope/{tecounttype}/sizefactors.csv",
-        plots = "srna/results/agg/deseq_telescope/{tecounttype}/deseq_plots.RData"
-    script:
-        "scripts/deseq_telescope.R"
-
-rule consolidateDeseqResults:
-    input:
-        results = expand("srna/results/agg/deseq_telescope/{tecounttype}/{contrast}/results_rtes.csv", contrast = config["contrasts"], tecounttype = config["tecounttypes"]),
-        counts_normed = expand("srna/results/agg/deseq_telescope/{tecounttype}/counttablesizenormed.csv", tecounttype = config["tecounttypes"])
-    params:
-        inputdir = "srna/results/agg/deseq_telescope",
-        outputdir = "srna/results/agg/deseq_telescope"
-    conda:
-        "repeatanalysis"
-    resources:
-        cpus_per_task =10,
-        mem_mb = 164000,
-        runtime = 300
-    output:
-        resultsdf = "srna/results/agg/deseq_telescope/resultsdf.tsv"
-    script:
-        "scripts/consolidateDeseqResults.R"
-
-#tag ENRICHMENT ANALYSIS
-import os
-rule enrichment_analysis:
-    input:
-        resultsdf ="srna/results/agg/deseq_telescope/resultsdf.tsv"
-    params:
-        inputdir =lambda w, input: os.path.dirname(os.path.dirname(input.resultsdf)),
-        contrasts = config["contrasts"],
-        genesets_for_heatmaps = config["genesets_for_heatmaps"],
-        genesets_for_gsea = config["genesets_for_gsea"],
-        sample_table = config["sample_table"],
-        outputdir =lambda w, output: os.path.dirname(output.outfile)
-    conda:
-        "ea"
-    resources:
-        cpus_per_task =10,
-        mem_mb = 164000,
-        runtime = 300
-    output:
-        outfile = "srna/results/agg/enrichment_analysis/outfile.txt",
-        plots = "srna/results/agg/enrichment_analysis/enrichment_analysis_plots.RData"
-    script:
-        "scripts/ea.R"
-
-rule enrichment_analysis_repeats:
-    input:
-        resultsdf ="srna/results/agg/deseq_telescope/resultsdf.tsv"
-    params:
-        inputdir =lambda w, input: os.path.dirname(os.path.dirname(input.resultsdf)),
-        r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
-        r_repeatmasker_annotation = config["r_repeatmasker_annotation"],
-        contrasts = config["contrasts"],
-        tecounttypes = config["tecounttypes"],
-        sample_table = config["sample_table"],
-        outputdir = lambda w, output: os.path.dirname(output.outfile)
-    conda:
-        "ea"
-    resources:
-        cpus_per_task =10,
-        mem_mb = 164000,
-        runtime = 300
-    output:
-        outfile = "srna/results/agg/enrichment_analysis_repeats/{tecounttype}/outfile.txt",
-        plots = "srna/results/agg/enrichment_analysis_repeats/{tecounttype}/enrichment_analysis_repeats_plots.RData"
-    script:
-        "scripts/ea_repeats.R"
-
-#tag REPETITIVE ELEMENTS
 rule collateBam:
     input:
         sortedBam = "srna/outs/{sample}/star_output/{sample}.sorted.bam"
@@ -500,10 +400,10 @@ samtools collate -o {output.collatedbam} {input.sortedBam}
 rule telescope:
     input:
         collatedbam = "srna/outs/{sample}/star_output/{sample}.collated.bam",
-        libtype = "srna/qc/library_type.txt"
+        libtype = "srna/qc/library_type.txt",
     params:
-        gtf = config["annotation_rtes"],
         strandparam = getTelescopeStrandParam(),
+        gff = lambda wildcards: "aref/%s_annotations/%s_repeatmasker.gff2"%(wildcards.sample, wildcards.sample) if config["per_sample_ref"] == "yes" else "aref/A.REF_annotations/A.REF_repeatmasker.gff2"
     output:
         counts = "srna/outs/{sample}/telescope/telescope-run_stats.tsv"
     threads: 4
@@ -514,28 +414,56 @@ rule telescope:
         runtime = 600
     shell: 
         """
+echo {params.strandparam}
 telescope assign \
 --attribute gene_id \
 --ncpu 1 \
 --stranded_mode {params.strandparam} \
 --outdir $(dirname {output.counts}) \
 {input.collatedbam} \
-{params.gtf}
+{params.gff}
         """
 
-
-
-rule repeatanalysis_plots:
+rule deseq:
     input:
-        resultsdf = "srna/results/agg/deseq_telescope/resultsdf.tsv"
+        counts = "srna/outs/agg/featurecounts_genes/counts.txt",
+        rte_counts = expand("srna/outs/{sample}/telescope/telescope-run_stats.tsv", sample = samples)
     params:
-        r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
-        r_repeatmasker_annotation = config["r_repeatmasker_annotation"],
+        sample_table = config["sample_table"],
         contrasts = config["contrasts"],
-        tecounttypes = config["tecounttypes"],
-        levelslegendmap = config["levelslegendmap"],
-        inputdir = lambda w, input: os.path.dirname(input.resultsdf),
-        outputdir = lambda w, output: os.path.dirname(output.outfile)
+        levels = config["levels"],
+        paralellize_bioc = config["paralellize_bioc"],
+        tecounttype = lambda w: w.tecounttype,
+        outputdir =lambda w, output: os.path.dirname(os.path.dirname(output.counts_normed)),
+    resources:
+        cpus_per_task =10,
+        mem_mb = 240000,
+        runtime = 1000
+    conda: "deseq"
+    wildcard_constraints:
+        tecounttype="[A-Za-z0-9_]+"
+    output:
+        results_genes = expand("srna/results/agg/deseq/{{tecounttype}}/{contrast}/results_genes.csv", contrast = config["contrasts"]),
+        results_rtes = expand("srna/results/agg/deseq/{{tecounttype}}/{contrast}/results_rtes.csv", contrast = config["contrasts"]),
+        counts_normed = "srna/results/agg/deseq/{tecounttype}/counttablesizenormed.csv",
+        sizefactors = "srna/results/agg/deseq/{tecounttype}/sizefactors.csv",
+        environment = "srna/results/agg/deseq/{tecounttype}/deseq_environment.RData",
+        report = report(
+            directory("srna/results/agg/deseq/{tecounttype}"),
+            patterns=["{gene_or_te}/{name}.png"],
+            category="Differential Expression {tecounttype}",
+            subcategory="{gene_or_te}")
+    script:
+        "scripts/deseq.R"
+
+rule consolidateDeseqResults:
+    input:
+        results = expand("srna/results/agg/deseq/{tecounttype}/{contrast}/results_rtes.csv", contrast = config["contrasts"], tecounttype = config["tecounttypes"]),
+        counts_normed = expand("srna/results/agg/deseq/{tecounttype}/counttablesizenormed.csv", tecounttype = config["tecounttypes"])
+    params:
+        inputdir = "srna/results/agg/deseq",
+        outputdir = "srna/results/agg/deseq",
+        module_name = "srna"
     conda:
         "repeatanalysis"
     resources:
@@ -543,8 +471,91 @@ rule repeatanalysis_plots:
         mem_mb = 164000,
         runtime = 300
     output:
-        outfile = "srna/results/agg/repeatanalysis_telescope/plots.outfile.txt",
-        plots = "srna/results/agg/repeatanalysis_telescope/repeatanalysisplots_plots.RData"
+        resultsdf = "srna/results/agg/deseq/resultsdf.tsv"
+    script:
+        "scripts/consolidateDeseqResults.R"
+
+#tag ENRICHMENT ANALYSIS
+import os
+rule enrichment_analysis:
+    input:
+        resultsdf ="srna/results/agg/deseq/resultsdf.tsv"
+    params:
+        inputdir =lambda w, input: os.path.dirname(os.path.dirname(input.resultsdf)),
+        contrasts = config["contrasts"],
+        genesets_for_heatmaps = config["genesets_for_heatmaps"],
+        collections_for_gsea = config["collections_for_gsea"],
+        sample_table = config["sample_table"],
+        outputdir =lambda w, output: os.path.dirname(output.environment),
+        module_name = "srna"
+    conda:
+        "ea"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 164000,
+        runtime = 300
+    output:
+        results_table_targetted = "srna/results/agg/enrichment_analysis/results_table_targetted.tsv",
+        results_table_unbiased = "srna/results/agg/enrichment_analysis/results_table_unbiased.tsv",
+        environment = "srna/results/agg/enrichment_analysis/enrichment_analysis_environment.RData",
+        report = report(
+            directory("srna/results/agg/enrichment_analysis"),
+            patterns=["gsea_top_{name}_grid.png", "{leading_path}heatmap_{trailingpath}.png"],
+            category="Gene Enrichment")
+    script:
+        "scripts/ea.R"
+
+rule enrichment_analysis_repeats:
+    input:
+        resultsdf ="srna/results/agg/deseq/resultsdf.tsv",
+    params:
+        inputdir =lambda w, input: os.path.dirname(os.path.dirname(input.resultsdf)),
+        contrasts = config["contrasts"],
+        tecounttype = lambda w: w.tecounttype, 
+        sample_table = config["sample_table"],
+        outputdir = lambda w, output: os.path.dirname(output.environment),
+        r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
+        r_repeatmasker_annotation = config["r_repeatmasker_annotation"],
+        module_name = "srna"
+    conda:
+        "ea"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 164000,
+        runtime = 300
+    output:
+        results_table = "srna/results/agg/enrichment_analysis_repeats/{tecounttype}/results_table.tsv",
+        environment = "srna/results/agg/enrichment_analysis_repeats/{tecounttype}/enrichment_analysis_repeats_environment.RData",
+        report = report(
+            directory("srna/results/agg/enrichment_analysis_repeats/{tecounttype}"),
+            patterns=["{tecounttype}/gsea_top_{name}.png"],
+            category="RTE Enrichment")
+    script:
+        "scripts/ea_repeats.R"
+
+rule repeatanalysis_plots:
+    input:
+        resultsdf = "srna/results/agg/deseq/resultsdf.tsv",
+        r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
+        r_repeatmasker_annotation = config["r_repeatmasker_annotation"]
+    params:
+        tecounttype = lambda w: w.tecounttype,
+        contrasts = config["contrasts"],
+        inputdir = lambda w, input: os.path.dirname(input.resultsdf),
+        outputdir = lambda w, output: os.path.dirname(output.environment),
+        module_name = "srna"
+    conda:
+        "repeatanalysis"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 164000,
+        runtime = 300
+    output:
+        environment = "srna/results/agg/repeatanalysis_telescope/{tecounttype}/repeatanalysisplots_environment.RData", 
+        report = report(
+            directory("srna/results/agg/repeatanalysis_telescope/{tecounttype}"),
+            patterns=["pan_contrast/{rte}_{restofstring}.png", "{contrast}/{rte}_{restofstring}rte_length_req_genic_loc.png"],
+            category="Repeat Analysis {tecounttype}")
     script:
         "scripts/repeatanalysisPlots.R"
     
@@ -554,7 +565,7 @@ rule repeatanalysis_plots:
 #     input:
 #         repeatanalysis_plots <- "srna/results/agg/repeatanalysis_telescope/repeatanalysisplots_plots.RData",
 #         enrichment_analysis_repeats_plots = "srna/results/agg/enrichment_analysis_repeats/{tecounttype}/enrichment_analysis_repeats_plots.RData",
-#         deseq_plots = "srna/results/agg/deseq_telescope/{tecounttype}/deseq_plots.RData",
+#         deseq_plots = "srna/results/agg/deseq/{tecounttype}/deseq_plots.RData",
 #         enrichment_analysis_plots = "srna/results/agg/enrichment_analysis/enrichment_analysis_plots.RData"
 
 
@@ -566,7 +577,6 @@ rule repeatanalysis_plots:
 #         repeatanalysis = config["repeatanalysis"],
 #         contrasts = config["contrasts"],
 #         counttypes = config["counttypes"],
-#         levelslegendmap = config["levelslegendmap"],
 #         lengthreq = config["lengthreq"],
 #         peptable = "conf/private/peptable.csv"
 #     output:
@@ -576,21 +586,28 @@ rule repeatanalysis_plots:
 #     notebook:
 #         "scripts/rteVariance.ipynb"
 
+def bigwig_sizefactor_input(wildcards):
+    sizefactor_path = "srna/results/agg/deseq/%s/sizefactors.csv"%(config["tecounttypes"][0])
+    if not Path(sizefactor_path).exists():
+        return "NA"
+    else:
+        return 1/float(pd.read_csv("srna/results/agg/deseq/%s/sizefactors.csv"%(config["tecounttypes"][0])).set_index("sample_name").loc[wildcards.sample, "sizefactor"])
 
 rule getBigWigF:
     input:
         sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.primary.bam",
-        sizefactors = "srna/results/agg/deseq_telescope/telescope_multi/sizefactors.csv"
+        sizefactors = expand("srna/results/agg/deseq/{tecounttype}/sizefactors.csv", tecounttype = config["tecounttypes"][0])
     params:
-        sample_size_factor = lambda w: 1/float(pd.read_csv("srna/results/agg/deseq_telescope/telescope_multi/sizefactors.csv").set_index("sample_name").loc[w.sample, "sizefactor"])
+        sample_size_factor = bigwig_sizefactor_input
     output:
         bwF = "srna/outs/{sample}/star_output/{sample}.F.bw"
     resources:
         cpus_per_task =10,
         mem_mb = 40000
     conda:
-        "omics"
-    shell: "bamCoverage -b {input.sortedbam} -o {output.bwF} --numberOfProcessors max --scaleFactor {params.sample_size_factor} --samFlagExclude 256 --filterRNAstrand forward --binSize 50"
+        "deeptools"
+    shell: "bamCoverage -b {input.sortedbam} -o {output.bwF} --numberOfProcessors max  --samFlagExclude 256 --filterRNAstrand forward --binSize 50"
+# --scaleFactor {params.sample_size_factor}
 #The --filterRNAstrand option assumes the sequencing library generated from ILLUMINA
 # dUTP/NSR/NNSR methods, which are the most commonly used method for library preparation, 
 #where Read 2 (R2) is in the direction of RNA strand (reverse-stranded library). 
@@ -598,20 +615,23 @@ rule getBigWigF:
 #(see this review). For these libraries, --filterRNAstrand will have an opposite behavior, 
 #i.e. --filterRNAstrand forward will give you reverse strand signal and vice-versa.
 #https://www.biostars.org/p/413626/#414440 useful thread about scaling factors
+
 rule getBigWigR:
     input:
         sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.primary.bam",
-        sizefactors = "srna/results/agg/deseq_telescope/telescope_multi/sizefactors.csv"
+        sizefactors = expand("srna/results/agg/deseq/{tecounttype}/sizefactors.csv",tecounttype = config["tecounttypes"][0])
     params:
-        sample_size_factor = lambda w: 1/float(pd.read_csv("srna/results/agg/deseq_telescope/telescope_multi/sizefactors.csv").set_index("sample_name").loc[w.sample, "sizefactor"])
+        sample_size_factor = bigwig_sizefactor_input
     output:
         bwR = "srna/outs/{sample}/star_output/{sample}.R.bw"
     resources:
         cpus_per_task =10,
         mem_mb = 40000
     conda:
-        "omics"
-    shell: "bamCoverage -b {input.sortedbam} -o {output.bwR} --numberOfProcessors max --scaleFactor {params.sample_size_factor} --samFlagExclude 256 --filterRNAstrand reverse --binSize 50"
+        "deeptools"
+    shell: "bamCoverage -b {input.sortedbam} -o {output.bwR} --numberOfProcessors max  --samFlagExclude 256 --filterRNAstrand reverse --binSize 50"
+# --scaleFactor {params.sample_size_factor}
+
 #The --filterRNAstrand option assumes the sequencing library generated from ILLUMINA
 # dUTP/NSR/NNSR methods, which are the most commonly used method for library preparation, 
 #where Read 2 (R2) is in the direction of RNA strand (reverse-stranded library). 
@@ -624,12 +644,18 @@ rule bigwigplots:
     input:
         bwF = expand("srna/outs/{sample}/star_output/{sample}.F.bw", sample = samples),
         bwR = expand("srna/outs/{sample}/star_output/{sample}.R.bw", sample = samples),
-        txdbrefseq = "aref/A.REF_annotations/refseq.sqlite"
+        multiqc = "srna/qc/multiqc/multiqc_report.html"
     params:
         r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
-        r_repeatmasker_annotation = config["r_repeatmasker_annotation"]
+        r_repeatmasker_annotation = config["r_repeatmasker_annotation"],
+        txdbrefseq = "aref/A.REF_annotations/refseq.sqlite"
     output:
-        plots = "srna/results/agg/bigwig_plots/plots.rds"
+        environment = "srna/results/agg/bigwig_plots/bigwigplots_environment.RData",
+        report = report(
+            directory("srna/results/agg/bigwig_plots"),
+            patterns=["{sub_grouping}/{name}.png"],
+            category="BigWig Analysis",
+            subcategory="{sub_grouping}")
     resources:
         cpus_per_task =10,
         mem_mb = 40000

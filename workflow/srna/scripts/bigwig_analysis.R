@@ -1,7 +1,8 @@
-source("workflow/scripts/defaults.R")
 module_name <- "srna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
+set.seed(123)
 
 library(knitr)
 library(rmarkdown)
@@ -20,9 +21,6 @@ library("stringr")
 library("dplyr")
 library("tibble")
 library("tidyr")
-library(plotly)
-library(DT)
-library(ggExtra)
 library(rstatix)
 library(purrr)
 library(ggpubr)
@@ -45,20 +43,18 @@ tryCatch(
     error = function(e) {
         print("not sourced snake variables")
         assign("params", list(
-            "inputdir" = "srna/results/agg/deseq_telescope",
+            "inputdir" = "srna/results/agg/deseq",
             "outputdir" = "srna/results/agg/repeatanalysis_telescope",
-            "tecounttypes" = c("telescope_multi"),
             "r_annotation_fragmentsjoined" = conf$r_annotation_fragmentsjoined,
-            "r_repeatmasker_annotation" = conf$r_repeatmasker_annotation
+            "r_repeatmasker_annotation" = conf$r_repeatmasker_annotation,
+            txdbrefseq = "aref/A.REF_annotations/refseq.sqlite"        
         ), env = globalenv())
         assign("inputs", list(
             bwF = sprintf("srna/outs/%s/star_output/%s.F.bw", conf$samples, conf$samples),
-            bwR = sprintf("srna/outs/%s/star_output/%s.R.bw", conf$samples, conf$samples),
-            txdbrefseq = "aref/A.REF_annotations/refseq.sqlite"
-
+            bwR = sprintf("srna/outs/%s/star_output/%s.R.bw", conf$samples, conf$samples)
         ), env = globalenv())
         assign("outputs", list(
-            "plots" = "srna/results/agg/bigwig_plots/plots.rds"
+            "environment" = "srna/results/agg/bigwig_plots/bigwigplots_environment.RData"
         ), env = globalenv())
     }
 )
@@ -78,6 +74,8 @@ refseq_select <- temptxs[mcols(temptxs)$tag == "RefSeq Select"]
 noncoding_transcripts <- refseq[(mcols(refseq)$type == "transcript" & grepl("^NR", mcols(refseq)$transcript_id))]
 transcripts <- c(coding_transcripts, noncoding_transcripts)
 table(mcols(coding_transcripts)$tag)
+
+norm_by_aligned_reads <- read_delim("srna/qc/multiqc/multiqc_data/samtools-stats-dp.txt") %>% filter(Sample %in% sample_table$sample_name) %>% mutate(meanmandp = mean(`Mapped &amp; paired`)) %>% mutate(scale_factor = `Mapped &amp; paired`/meanmandp) %>% dplyr::select(Sample, scale_factor, `Mapped &amp; paired`, meanmandp) %>% dplyr::rename(sample_name = Sample)
 
 
 
@@ -102,7 +100,9 @@ table(mcols(coding_transcripts)$tag)
     element_req_modifiers <- modifiers[str_detect(modifiers, "_req$")]
 }
 
-rmann %$% req_integrative %>% unique()
+
+paths_bwF <- inputs$bwF
+paths_bwR <- inputs$bwR
 
 groups_that_have_been_run <- c()
 groups_not_to_run <- c()
@@ -113,6 +113,7 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
     ontology_groups <- ontology_groups[ontology_groups != "Other"]
     for (group in ontology_groups) {
         if (!(group %in% groups_that_have_been_run | group %in% groups_not_to_run | group %in% big_ontology_groups)) {
+            print(group)
             groups_that_have_been_run <- c(groups_that_have_been_run, group)
             #maybe change to !!group
             groupframe <- rmann %>% dplyr::filter(!!sym(ontology) == group)
@@ -141,12 +142,14 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
             for (i in seq(1, length(rownames(eligible_modifier_combinations)))) {
                 filter_var <- eligible_modifier_combinations[i, ]$filter_var
                 facet_var <- eligible_modifier_combinations[i, ]$facet_var
+                print(filter_var)
+                print(facet_var)
                 tryCatch(
                     {
                         if (filter_var != "ALL") {
                             elements_of_interest <- rmann %>%
                                 filter(!!sym(ontology) == group) %>%
-                                filter(str_detect(!!sym(filter_var), ">|Intact|^Fl|^LTR")) 
+                                filter(str_detect(!!sym(filter_var), "Intact|FL$|^LTR")) 
                         } else {
                             elements_of_interest <- rmann %>%
                                 filter(!!sym(ontology) == group)
@@ -161,8 +164,8 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
 
                         {
                         nbin = 100
-                        smlF = genomation::ScoreMatrixList(targets = inputs$bwF, windows = windowsF, strand.aware = TRUE, bin.num = nbin)
-                        smlR = genomation::ScoreMatrixList(targets = inputs$bwR, windows = windowsR, strand.aware = TRUE, bin.num = nbin)
+                        smlF = genomation::ScoreMatrixList(targets = paths_bwF, windows = windowsF, strand.aware = TRUE, bin.num = nbin)
+                        smlR = genomation::ScoreMatrixList(targets = paths_bwR, windows = windowsR, strand.aware = TRUE, bin.num = nbin)
                         mF = plotMeta(smlF, plot = FALSE) %>% t()
                         mR = plotMeta(smlR, plot = FALSE) %>% t()
                         m <- mF + mR
@@ -181,13 +184,15 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
                         dfStranded = rbind(dfF, dfR)
                         pf <- df%>% pivot_longer(cols = c(-x), names_to = "sample_name", values_to = "value") %>% 
                             left_join(sample_table) %>% group_by(sample_name) %>%
-                            mutate(smoothed_value = zoo::rollmean(value, 5, fill = NA, align = "left"))
+                            mutate(smoothed_value = zoo::rollmean(value, 5, fill = NA, align = "left")) %>%
+                            left_join(norm_by_aligned_reads) %>% mutate(value = value / scale_factor) %>% mutate(smoothed_value = smoothed_value / scale_factor)
                         pf1 <- pf %>% ungroup() %>% group_by(x, condition) %>% mutate(condition_value = mean(value, na.rm = TRUE)) %>% 
                             mutate(smoothed_condition_value = zoo::rollmean(condition_value, 5, fill = NA, align = "left")) %>% ungroup()
 
                         pfStranded <- dfStranded %>% pivot_longer(cols = c(-x, -strand), names_to = "sample_name", values_to = "value") %>% 
                             left_join(sample_table) %>% group_by(sample_name, strand) %>%
-                            mutate(smoothed_value = zoo::rollmean(value, 5, fill = NA, align = "left"))
+                            mutate(smoothed_value = zoo::rollmean(value, 5, fill = NA, align = "left")) %>%
+                            left_join(norm_by_aligned_reads) %>% mutate(value = value / scale_factor) %>% mutate(smoothed_value = smoothed_value / scale_factor)
                         pfStranded1 <- pfStranded %>% ungroup() %>% group_by(x, strand, condition) %>% mutate(condition_value = mean(value, na.rm = TRUE)) %>%
                             mutate(smoothed_condition_value = zoo::rollmean(condition_value, 5, fill = NA, align = "left")) %>% ungroup()
 
@@ -214,7 +219,7 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
                             p <- p1
                         }
 
-                        mysaveandstore(sprintf("srna/results/agg/bigwig_plots/%s_profile_by_sample.png", signal_group), 8,6)
+                        mysaveandstore(sprintf("srna/results/agg/bigwig_plots/rte/%s_profile_by_sample.pdf",  signal_group), 8,6)
 
                         p1 <- pf %>% group_by(x) %>% summarise(value = mean(value, na.rm = TRUE)) %>% ungroup() %>%
                             ggplot(aes(x = x, y = value)) + geom_line() + mtclosed + scale_samples + labs(x = "Position (bp)", y = "Read Density", caption = "Multi")
@@ -224,7 +229,7 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
                         } else {
                             p <- p1
                         }
-                        mysaveandstore(sprintf("srna/results/agg/bigwig_plots/%s_profile_all.png", signal_group))
+                        mysaveandstore(sprintf("srna/results/agg/bigwig_plots/rte/%s_profile_all.pdf",  signal_group))
 
                         p1 <- pf1%>%
                             ggplot(aes(x = x, y = condition_value, color = condition)) + geom_line() + mtclosed + scale_conditions + labs(x = "Position (bp)", y = "Read Density", caption = "Multi")
@@ -234,7 +239,7 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
                         } else {
                             p <- p1
                         }
-                        mysaveandstore(sprintf("srna/results/agg/bigwig_plots/%s_profile_by_condition.png", signal_group),6,4)
+                        mysaveandstore(sprintf("srna/results/agg/bigwig_plots/rte/%s_profile_by_condition.pdf",  signal_group),6,4)
 
 
                         p1 <- pfStranded %>%
@@ -246,7 +251,7 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
                         } else {
                             p <- p1
                         }
-                        mysaveandstore(sprintf("srna/results/agg/bigwig_plots/%s_profile_by_sample_stranded.png",signal_group), 8,6)
+                        mysaveandstore(sprintf("srna/results/agg/bigwig_plots/rte/%s_profile_by_sample_stranded.pdf", signal_group), 8,6)
 
                         p1 <- pfStranded %>% group_by(x, strand) %>% summarise(value = mean(value, na.rm = TRUE)) %>% ungroup() %>%
                             ggplot(aes(x = x, y = value)) + geom_line() + facet_wrap(~strand, nrow = 2) + mtclosed + scale_samples + labs(x = "Position (bp)", y = "Read Density", caption = "Multi")
@@ -256,7 +261,7 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
                         } else {
                             p <- p1
                         }
-                        mysaveandstore(sprintf("srna/results/agg/bigwig_plots/%s_profile_all_stranded.png", signal_group), 6,6)
+                        mysaveandstore(sprintf("srna/results/agg/bigwig_plots/rte/%s_profile_all_stranded.pdf",  signal_group), 6,6)
 
                         p1 <- pfStranded1 %>%
                             ggplot(aes(x = x, y = condition_value, color = condition)) + geom_line() + facet_wrap(~strand, nrow = 2) + mtclosed + scale_conditions + labs(x = "Position (bp)", y = "Read Density", caption = "Multi")
@@ -266,7 +271,7 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
                         } else {
                             p <- p1
                         }
-                        mysaveandstore(sprintf("srna/results/agg/bigwig_plots/%s_profile_by_condition_stranded.png", signal_group), 6,6)
+                        mysaveandstore(sprintf("srna/results/agg/bigwig_plots/rte/%s_profile_by_condition_stranded.pdf", signal_group), 6,6)
                         }
 
                     })
@@ -275,34 +280,32 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
     }
 }
 
-
-
 grs_list <- list()
 for (sample in sample_table$sample_name) {
-    bwF <- import(grep(sprintf("/%s/", sample), inputs$bwF, value = TRUE))
+    bwF <- import(grep(sprintf("/%s/", sample), paths_bwF, value = TRUE))
     strand(bwF) <- "+"
+
     bwR <- import(grep(sprintf("/%s/", sample), inputs$bwR, value = TRUE))
     strand(bwR) <- "-"
     grstemp <- c(bwF, bwR)
     mcols(grstemp)$sample_name <- sample
+    mcols(grstemp)$score <- mcols(grstemp)$score / norm_by_aligned_reads$scale_factor[norm_by_aligned_reads$sample_name == sample]
     grs_list[[sample]] <- grstemp
 }
 grs <- Reduce(c, grs_list)
 
-
-
-txdb <- loadDb(inputs$txdbrefseq)
+txdb <- loadDb(params$txdbrefseq)
 introns <- intronsByTranscript(txdb, use.names = TRUE)
-introns <- introns[grepl("^NM", names(introns))]
+# introns <- introns[grepl("^NM", names(introns))]
 introns <- introns[names(introns) %in% mcols(refseq_select)$transcript_id]
 exons <- exonsBy(txdb, by = "tx", use.names = TRUE)
-exons <- exons[grepl("^NM", names(exons))]
+# exons <- exons[grepl("^NM", names(exons))]
 exons <- exons[names(exons) %in% mcols(refseq_select)$transcript_id]
 fiveUTRs <- fiveUTRsByTranscript(txdb, use.names = TRUE)
-fiveUTRs <- fiveUTRs[grepl("^NM", names(fiveUTRs))]
+# fiveUTRs <- fiveUTRs[grepl("^NM", names(fiveUTRs))]
 fiveUTRs <- fiveUTRs[names(fiveUTRs) %in% mcols(refseq_select)$transcript_id]
 threeUTRs <- threeUTRsByTranscript(txdb, use.names = TRUE)
-threeUTRs <- threeUTRs[grepl("^NM", names(threeUTRs))]
+# threeUTRs <- threeUTRs[grepl("^NM", names(threeUTRs))]
 threeUTRs <- threeUTRs[names(threeUTRs) %in% mcols(refseq_select)$transcript_id]
 
 getannotation <- function(to_be_annotated, regions_of_interest, property, name_in, name_out) {
@@ -322,7 +325,7 @@ region_annot <- left_join(exonic_annot, intron_annot)
 region_annot1 <- region_annot %>% mutate(loc_integrative = case_when(
     exonic == "Exonic" ~ "Exonic",
     intronic == "Intronic" ~ "Intronic",
-    TRUE ~ "NonGenic"
+    TRUE ~ "Intergenic"
 ))
 
 pf <- region_annot1 %>% group_by(sample_name, loc_integrative) %>% summarise(score_sum = sum(score)) %>% left_join(sample_table) %>% ungroup()
@@ -330,10 +333,38 @@ pf <- region_annot1 %>% group_by(sample_name, loc_integrative) %>% summarise(sco
 barframe <- pf %>% group_by(condition, loc_integrative) %>% summarise(score_condition_mean = mean(score_sum)) 
 
 p<- pf %>% ggplot(aes(x = loc_integrative, y = score_sum, fill = sample_name)) + geom_col(position = position_dodge(preserve = "single")) + scale_samples_unique + mtopen + anchorbar
-mysaveandstore("srna/results/agg/bigwig_plots/gene_oriented_signal.png", 12,5)
+mysaveandstore(sprintf("srna/results/agg/bigwig_plots/genomic_context/gene_oriented_signal.pdf"), 12,5)
 
-p<- pf %>% ggplot(aes(x = sample_name, y = score_sum, fill = sample_name)) + geom_col(position = position_dodge(preserve = "single")) +
-    facet_wrap(~loc_integrative, scale = "free_y") + scale_samples_unique + mtclosed + anchorbar + theme(axis.text.x = element_blank())
-mysaveandstore("srna/results/agg/bigwig_plots/gene_oriented_signal_faceted.png", 12,5)
+p<- pf %>% mutate(condition = factor(condition, levels = conf$levels)) %>% ggbarplot(x = "condition", y = "score_sum",facet.by = "loc_integrative", fill = "condition",  scales = "free_y", add = c("mean_se", "dotplot")) +
+ geom_pwc(
+    method = "t_test", label = "p.adj.signif",
+    ref.group = conf$levels[1],
+    p.adjust.method = "fdr", hide.ns = TRUE
+  )+ scale_conditions + mtclosed + anchorbar + labs(x = "", y = "Normalized Read Count")
 
-save(mysaveandstoreplots, file = outputs$plots)
+mysaveandstore(sprintf("srna/results/agg/bigwig_plots/genomic_context/gene_oriented_signal_faceted.pdf"), 8,3.8)
+library(scales)
+
+if (conf$store_env_as_rds == "yes") {
+    save.image(file = outputs$environment)
+} else {
+    x = tibble(Env_file = "Opted not to store environment. If this is not desired, change 'store_plots_as_rds' to 'yes' in the relevant config file and rerun this rule.")
+    write_tsv(x, file = outputs$environment)
+}
+
+# figures: modify plot compositions at will!
+# load(outputs$environment)
+tryCatch(
+    {
+        library(patchwork)
+        p1 <- mysaveandstoreplots[["srna/results/agg/bigwig_plots/genomic_context/gene_oriented_signal_faceted.pdf"]]
+        p2 <- mysaveandstoreplots[["srna/results/agg/bigwig_plots/rte/L1HS_rte_length_req_profile_by_sample_stranded.pdf"]]
+        names(mysaveandstoreplots)
+        ptch <- p1 + p2 + plot_layout(ncol = 2, guides = "collect")
+        mysaveandstore(pl = ptch, fn = "srna/results/agg/bigwig_plots/composition.pdf", w = 15, h = 7)
+
+    },
+    error = function(e) {
+
+    }
+)
