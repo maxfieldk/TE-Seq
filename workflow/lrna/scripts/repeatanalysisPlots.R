@@ -190,7 +190,7 @@ mysaveandstore(sprintf("%s/%s/%s/rte_genic_cor_pval_%s.png", outputdir, counttyp
 
 pvp <- function(df, facet_var = "ALL", filter_var = "ALL", labels = "no", scale_log2 = "no") {
     if (filter_var != "ALL") {
-        df <- df %>% filter(str_detect(!!sym(filter_var), "FL$|Intact|towards"))
+        df <- df %>% filter(str_detect(!!sym(filter_var), "FL$|^Intact|towards"))
     }
 if (scale_log2 == "no") {
     pf <- df %>%
@@ -264,7 +264,7 @@ if (scale_log2 == "yes") {
 
 dep <- function(df, facet_var = "ALL", filter_var = "ALL") {
     if (filter_var != "ALL") {
-        df <- df %>% filter(str_detect(!!sym(filter_var), "FL$|Intact"))
+        df <- df %>% filter(str_detect(!!sym(filter_var), "FL$|^Intact"))
     }
     if (facet_var == "ALL") {
         facet_var_1 <- NULL
@@ -314,7 +314,7 @@ mtclosed +
 
 stripp <- function(df, stats = "no", extraGGoptions = NULL, facet_var = "ALL", filter_var = "ALL") {
         if (filter_var != "ALL") {
-        df <- df %>% filter(str_detect(!!sym(filter_var), "FL$|Intact"))
+        df <- df %>% filter(str_detect(!!sym(filter_var), "FL$|^Intact"))
     }
         if (facet_var != "ALL") {
         pf <- df %>%
@@ -645,7 +645,7 @@ for (ontology in ontologies) {
                                 plot_title <- groupframe %>%
                                     pull(!!sym(filter_var)) %>%
                                     unique() %>%
-                                    grep("FL$|Intact", ., value = TRUE)
+                                    grep("FL$|^Intact", ., value = TRUE)
                             } else {
                                 plot_title <- group
                             }
@@ -740,7 +740,7 @@ for (contrast in contrasts) {
                                     plot_title <- groupframe %>%
                                         pull(!!sym(filter_var)) %>%
                                         unique() %>%
-                                        grep("FL$|Intact", ., value = TRUE)
+                                        grep("FL$|^Intact", ., value = TRUE)
                                 } else {
                                     plot_title <- group
                                 }

@@ -66,7 +66,7 @@ sets_of_interest <- c("REACTOME_ONCOGENIC_MAPK_SIGNALING", "REACTOME_ONCOGENE_IN
 all.genes <- refseq_select[refseq_select$type == "transcript"]
 
 rmann %>% filter(rte_subfamily == "L1HS") %$% req_integrative %>% unique()
-intact_l1hs <- rmann %>% filter(rte_subfamily == "L1HS") %>% filter(grepl("Intact", req_integrative)) %>% GRanges()
+intact_l1hs <- rmann %>% filter(rte_subfamily == "L1HS") %>% filter(grepl("^Intact", req_integrative)) %>% GRanges()
 nonintact_l1hs_fl <- rmann %>% filter(rte_subfamily == "L1HS") %>% filter(grepl("Full Length", req_integrative)) %>% GRanges()
 l1hs_fl <- rmann %>% filter(rte_subfamily == "L1HS") %>% filter(grepl("FL$", rte_length_req)) %>% GRanges()
 (intact_l1hs %$% gene_id) %in% (nonintact_l1hs_fl %$% gene_id)

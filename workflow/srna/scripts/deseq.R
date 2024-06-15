@@ -25,6 +25,8 @@ library(stringr)
 library("dplyr")
 library(EnhancedVolcano)
 library(limma)
+library(ComplexHeatmap)
+library(patchwork)
 
 
 
@@ -233,10 +235,12 @@ for (subset in c("rtes", "genes")) {
             ylab = expression(-Log[10] ~ P["adj"]),
             pCutoff = 0.05,
         ) + mtopen + labs(subtitle = NULL, caption = sprintf("DE UP: %s\nDE DOWN: %s\nTOTAL: %s", DE_UP, DE_DOWN, TOTAL)) + theme(legend.position = "none")
-        mysaveandstore(paste(outputdir, tecounttype, subset, contrast, "deplot.pdf", sep = "/"), 6, 6)
-    
+        mysaveandstore(paste(outputdir, tecounttype, subset, contrast, "deplot.pdf", sep = "/"), 5, 5)
+        mysaveandstore(fn = paste(outputdir, tecounttype, subset, contrast, "deplot.pdf", sep = "/"), raster = TRUE, w = 5, h = 5)
+
         p <- DESeq2::plotMA(res, alpha = 0.05) + mtclosed
-        mysaveandstore(paste(outputdir, tecounttype, subset, contrast, "maplot.pdf", sep = "/"), 6, 6)   
+        mysaveandstore(paste(outputdir, tecounttype, subset, contrast, "maplot.pdf", sep = "/"), 5, 5)   
+        mysaveandstore(paste(outputdir, tecounttype, subset, contrast, "maplot.pdf", sep = "/"),raster=TRUE, 5, 5)   
 
     }
 
@@ -367,9 +371,9 @@ names(mysaveandstoreplots)
 tryCatch(
     {
         library(patchwork)
-
+        names(mysaveandstoreplots)
         p1 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/genes/batchRemoved_no/pca.pdf"]]
-        p2 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/rtes/batchRemoved_no/screeplot.pdf"]]
+        p2 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/genes/batchRemoved_no/screeplot.pdf"]]
         p3 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/genes/batchRemoved_no/sample_dist_heatmap.pdf"]]
         ptch <- ((p1 / p2) | p3)  + plot_layout(guides = "collect")
         mysaveandstore(pl = ptch, fn = "srna/results/agg/deseq/telescope_multi/figs/f32.pdf", w = 8, h = 6)
@@ -377,40 +381,32 @@ tryCatch(
         paste0("RTE/",names(mysaveandstoreplots))
 
         p1 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/genes/batchRemoved_no/pca.pdf"]]
-        p2 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/rtes/batchRemoved_no/screeplot.pdf"]]
+        p2 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/genes/batchRemoved_no/screeplot.pdf"]]
         p3 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/genes/batchRemoved_no/sample_dist_heatmap.pdf"]]
         ptch <- ((p1 / p2) | p3)  + plot_layout(guides = "collect")
         mysaveandstore(pl = ptch, fn = "srna/results/agg/deseq/telescope_multi/figs/f32.pdf", w = 8, h = 6)
 
-        ptch <- wrap_plots(mysaveandstoreplots[names(mysaveandstoreplots) %>% grep("genes", ., value = TRUE) %>% grep("maplot", ., value = TRUE) %>% grep(paste(contrasts, collapse = "|"), ., value = TRUE)])
-        mysaveandstore(pl = ptch, fn = "srna/results/agg/deseq/telescope_multi/figs/maplots_genes.pdf", w = 14, h = 6)        
+        p1 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/genes/batchRemoved_no/pca.pdf"]]
+        p2 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/genes/batchRemoved_no/screeplot.pdf"]]
+        ptch <- (p1 | p2)  + plot_layout(guides = "collect")
+        mysaveandstore(pl = ptch, fn = "srna/results/agg/deseq/telescope_multi/figs/pca_scree.pdf", w = 9, h = 3.4)
 
         ptch <- wrap_plots(mysaveandstoreplots[names(mysaveandstoreplots) %>% grep("genes", ., value = TRUE) %>% grep("maplot", ., value = TRUE) %>% grep(paste(contrasts, collapse = "|"), ., value = TRUE)])
-        mysaveandstore(pl = ptch, fn = "srna/results/agg/deseq/telescope_multi/figs/maplots_genes.pdf", w = 14, h = 6)        
+        mysaveandstore(pl = ptch, fn = "srna/results/agg/deseq/telescope_multi/figs/maplots_genes.pdf", raster = TRUE, w = 14, h = 6)        
+
+        ptch <- wrap_plots(mysaveandstoreplots[names(mysaveandstoreplots) %>% grep("genes", ., value = TRUE) %>% grep("maplot", ., value = TRUE) %>% grep(paste(contrasts, collapse = "|"), ., value = TRUE)])
+        mysaveandstore(pl = ptch, fn = "srna/results/agg/deseq/telescope_multi/figs/maplots_genes.pdf", raster = TRUE,w = 14, h = 6)        
 
         # ptch <- wrap_plots(mysaveandstoreplots[names(mysaveandstoreplots) %>% grep("rtes", ., value = TRUE) %>% grep("maplot", ., value = TRUE) %>% grep(paste(contrasts, collapse = "|"), ., value = TRUE)])
         # mysaveandstore(pl = ptch, fn = "srna/results/agg/deseq/telescope_multi/figs/maplots_rtes.pdf", w = 14, h = 6)        
 
         ptch <- wrap_plots(mysaveandstoreplots[names(mysaveandstoreplots) %>% grep("genes", ., value = TRUE) %>% grep("deplot", ., value = TRUE) %>% grep(paste(contrasts, collapse = "|"), ., value = TRUE)])
-        mysaveandstore(pl = ptch, fn = "srna/results/agg/deseq/telescope_multi/figs/volcano_genes.pdf", w = 14, h = 6)        
+        mysaveandstore(pl = ptch, fn = "srna/results/agg/deseq/telescope_multi/figs/volcano_genes.pdf",raster = TRUE, w = 14, h = 6)        
 
         # ptch <- wrap_plots(mysaveandstoreplots[names(mysaveandstoreplots) %>% grep("rtes", ., value = TRUE) %>% grep("deplot", ., value = TRUE) %>% grep(paste(contrasts, collapse = "|"), ., value = TRUE)])
         # mysaveandstore(pl = ptch, fn = "srna/results/agg/deseq/telescope_multi/figs/volcano_rtes.pdf", w = 14, h = 6)        
 
 
-
-        # rm(ptch)
-        # for (contrast in contrasts) {
-        #     if (!exists(ptch)) {
-
-        #     }
-        # }
-        #batch vs no batch
-        p1 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/genes/batchRemoved_no/pca.pdf"]]
-        p2 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/genes/batchRemoved_yes/pca.pdf"]]
-        p3 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/rtes/batchRemoved_no/pca_pairs_condition.pdf"]]
-        ptch <- p1 + p2 + p3 + plot_layout(ncol = 2, guides = "collect", heights = c(1, 2))
-        mysaveandstore(pl = ptch, fn = "srna/results/agg/deseq/telescope_multi/figs/batch.pdf", w = 6, h = 10)
     },
     error = function(e) {
 

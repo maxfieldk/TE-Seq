@@ -156,7 +156,7 @@ tryCatch(
 contrast_label_map <- tibble(contrast = params[["contrasts"]], label = gsub("constrast_", "", params[["contrasts"]]))
 gres <- gse_df %>% tibble()
 for (collec in genecollections) {
-    grestemp <- gres %>% filter(collection == collec) %>% left_join(contrast_label_map)
+    grestemp <- gres %>% filter(collection == collec) %>% left_join(contrast_label_map) %>% filter(grepl(paste0(conf$levels[1], "$"), label))
     sigIDs <- grestemp %>% group_by(contrast) %>% arrange(p.adjust) %>% slice_head(n = 10) %$% ID %>% unique()
     p <- grestemp %>% dplyr::filter(ID %in% sigIDs) %>% mutate(sig = ifelse(p.adjust < 0.05, "*", "")) %>%
         mutate(ID = str_wrap(as.character(ID) %>% gsub("_", " ", .), width = 40)) %>%
@@ -174,7 +174,7 @@ for (collec in genecollections) {
     mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/gsea_top_%s.pdf", collec), 7,12)
 }
 for (collec in genecollections) {
-    grestemp <- gres %>% filter(collection == collec) %>% left_join(contrast_label_map)
+    grestemp <- gres %>% filter(collection == collec) %>% left_join(contrast_label_map) %>% filter(grepl(paste0(conf$levels[1], "$"), label))
     sigIDs <- grestemp %>% group_by(contrast) %>% arrange(p.adjust) %>% slice_head(n = 10) %$% ID %>% unique()
     p <- grestemp %>% dplyr::filter(ID %in% sigIDs) %>% mutate(sig = ifelse(p.adjust < 0.05, "*", "")) %>%
         mutate(ID = str_wrap(as.character(ID) %>% gsub("_", " ", .), width = 40)) %>%

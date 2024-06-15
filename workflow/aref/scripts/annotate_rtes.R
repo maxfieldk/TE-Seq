@@ -333,7 +333,7 @@ req_annot <- req_annot %>% mutate(req_integrative = case_when(
     (pctconsensuscovered >= 95) & (divergence_age == "Old") ~ "Old FL",
     (pctconsensuscovered < 95) & (divergence_age == "Old") ~ "Old Trnc",
     TRUE ~ "Unclassified"
-))
+    )) %>% mutate(req_integrative = factor(req_integrative, levels = c("Old Trnc", "Old FL", "Yng Trnc", "Yng FL", "Yng Intact")))
 
 
 #annotate LTR/Int relationship
