@@ -15,9 +15,7 @@ It also aims address concerns pertaining to:
 
 This project derives from my work in the __Sedivy Lab at Brown University__, where we study transposable elements, in particular __LINE1__.
 #
-![Asset 14](https://github.com/maxfieldk/RTE/assets/44215152/9e1a5869-4984-4082-81ab-52483a119741)
-
-
+![Asset 17](https://github.com/maxfieldk/RTE/assets/44215152/ef4b1ca2-56bc-4328-a71d-a2ce9c6bf33b)
 
 ## Pipeline Overview
   This pipeline conducts an end-to-end analysis of raw sequencing data, implementing state of the art TE-minded computational methods. It produces a comprehensive analyses of repetitive element expression at both the level of an individual repetitive element as well as family groupings of these elements. It consists of 4 modules, "Annotate Referene" (AREF), short-read RNA-Seq (SRNA), long-read RNA-Seq (LRNA), and long-read DNA-Seq (LDNA). LRNA and LDNA remain in active development, while AREF and SRNA are comparatively stable.
@@ -85,7 +83,7 @@ cp -r workflow/conf_example conf
 ## Configure your analysis
   In order to run this pipeline, a number of configuration files must be edited to reflect your data and analytical decisions. Here I will walk you through the setup needed to execute the AREF and SRNA modules.
   
-  Modify the contents of __conf/sample_table_srna.csv__. You provide two mandatory columns "sample_names" (e.g. Profiferating_1) and "condition" (e.g. Proliferating), and optionally meta-data variables, such as "batch" (which will be used to batch correct the differential expression analysis and provide batch-corrected counts, e.g. A). Make sure sample names do not start with numbers; add an X in front if they do.
+  Modify the contents of __conf/sample_table_srna.csv__. You provide two mandatory columns "sample_names" (e.g. Profiferating_1) and "condition" (e.g. Proliferating), and optionally meta-data variables, such as "batch" (which will be used to batch correct the differential expression analysis and provide batch-corrected counts, e.g. A). Make sure sample names do not start with numbers (add an X in front if they do), and cannot contain a period "." or dash "-" character (these are excluded by wildcard constraints in several rules).
   If you have added meta-data columns to your sample_table_srna which you would like to be represented as ordered factors in downstream visualizations (e.g. you are studying Alzheimer's samples and want Braak stage I to be followed by stages II, III, etc. in your plots), modify the contents of __conf/sample_table_source.R__ as suggested in the commented out code block of the script.
 
 Modify the contents of __conf/config.yaml__. This file's contents determine the way in which the pipeline is run.
