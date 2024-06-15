@@ -22,7 +22,7 @@ aref:
     response: "no"
   running_ldna:
     response: "no"
-  store_plots_as_rds: "no" #yes or no
+  store_plots_as_rds: "yes" #yes or no
 
   #USER PROVIDED ANNOTATIONS - CHANGE PATHS AS NEEDED
   #Be sure to follow ucsc naming conventions, e.g. chr1, chr2, ...
@@ -59,8 +59,9 @@ aref:
     #IF updating reference with tldr inserts; else NULL
     tldr_input_bam_ref: /users/mkelsey/data/ref/pipeline_annotations/hs1/RTE/aref/A.REF.fa
     #ensure tldr_input_bams are a full path, not relative paths
-    tldr_te_ref: /oscar/data/jsedivy/mkelsey/tools/tldr/ref/teref.ont.human.fa
-
+    tldr_te_ref:
+      human: resources/sequences/teref.ont.human.fa
+      mouse: resources/sequences/teref.mouse.fa
   dorado: "/users/mkelsey/data/tools/dorado-0.5.1-linux-x64/bin/dorado"
   basecallingModel:
     4khz:
