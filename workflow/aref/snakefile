@@ -588,7 +588,7 @@ rule complete_gff3:
     output:
         complete_gff3 = "aref/{sample_or_ref}_annotations/{annotation}.complete.gff3",
     benchmark:
-        "aref/benchmarks/complete_gff3/{sample_or_ref}.tsv"
+        "aref/benchmarks/complete_gff3/{sample_or_ref}.{annotation}.tsv"
     resources:
         mem_mb = 128000,
         runtime = 300
@@ -717,7 +717,7 @@ rule tabixindex:
         gz = "aref/{sample_or_ref}_annotations/{annot}.gz",
         index = "aref/{sample_or_ref}_annotations/{annot}.gz.tbi"
     benchmark:
-        "aref/benchmarks/tabixindex/{sample_or_ref}.tsv"
+        "aref/benchmarks/tabixindex/{sample_or_ref}.{annot}.tsv"
     resources:
         mem_mb = 60000,
         runtime = 300

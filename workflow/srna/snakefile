@@ -467,7 +467,7 @@ rule deseq:
         tecounttype = lambda w: w.tecounttype,
         outputdir =lambda w, output: os.path.dirname(os.path.dirname(output.counts_normed)),
     benchmark:
-        "srna/benchmarks/deseq/deseq.tsv"
+        "srna/benchmarks/deseq/{tecounttype}.tsv"
     resources:
         cpus_per_task =10,
         mem_mb = 240000,
