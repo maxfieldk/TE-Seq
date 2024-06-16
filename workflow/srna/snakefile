@@ -20,10 +20,7 @@ peptable = pd.read_csv("conf/peptable_srna.csv")
 paths = [
     "srna/qc",
     "srna/benchmarks",
-<<<<<<< HEAD
-=======
     "srna/rawdata/{sample}",
->>>>>>> 8ba0d8ae7ec9b18631429bf47500f863ae51f5ca
     "srna/outs/{sample}/trimmedReads",
     "srna/outs/{sample}/{counttype}",
     ]
