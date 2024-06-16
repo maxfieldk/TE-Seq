@@ -780,6 +780,8 @@ rule cpgIsland:
         cpg_islands = "aref/A.REF_annotations/cpg_islands.bed",
         cpgi_shores = "aref/A.REF_annotations/cpgi_shores.bed",
         cpgi_shelves = "aref/A.REF_annotations/cpgi_shelves.bed"
+    priority:
+        100
     resources:
         cpus_per_task = 2,
         mem_mb = 20000,
