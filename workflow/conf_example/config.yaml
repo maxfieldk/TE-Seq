@@ -130,7 +130,9 @@ srna:
     - "telescope_multi"
     - "telescope_unique"
 
-  store_plots_as_rds: "no" #yes or no
+  store_plots_as_rds: "yes" #yes or no
+  store_env_as_rds: "no" #yes or no
+
   downsample_for_test:
     response: "no" #yes or no
 
@@ -139,9 +141,11 @@ srna:
 
   collections_for_gsea: #these are collections to be used in addition to the msigdb collections, and are meant to be specified as a path to a gmt file. They will be run separately from the msigdb collections, so this portion of the analysis is meant to be hypothesis based
     msigdbH: resources/genesets/human/msigdb/h.all.v2023.2.Hs.symbols.gmt
+    msigdbC2_CPG_SENMAYO: resources/genesets/human/msigdb/SAUL_SEN_MAYO.v2023.2.Hs.gmt
 
   genesets_for_gseaplot: #this needs to be a geneset present in one of the collections specified above, or found in the msigdb database
     - "SAUL_SEN_MAYO"
+    - "HALLMARK_INTERFERON_ALPHA_RESPONSE"
 
   genesets_for_heatmaps: #these are collections to be used in addition to the msigdb collections, and are meant to be specified as a path to a text file with newline delimited gene symbols. 
     Senescence: resources/genesets/human/mycustom/senescence.txt
