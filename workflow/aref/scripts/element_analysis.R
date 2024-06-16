@@ -114,7 +114,7 @@ mcols(hs_pa2_pa3_ss) <- mcols(hs_pa2_pa3_gr)
 names(hs_pa2_pa3_ss) <- mcols(hs_pa2_pa3_gr)$gene_id
 hs_pa2_pa3_fl_ss <- hs_pa2_pa3_ss[width(hs_pa2_pa3_ss) > 5999]
 
-hs_pa2_pa3_intact_ss <- hs_pa2_pa3_fl_ss[grepl("Intact", mcols(hs_pa2_pa3_fl_ss)$intactness_req)]
+hs_pa2_pa3_intact_ss <- hs_pa2_pa3_fl_ss[grepl("^Intact", mcols(hs_pa2_pa3_fl_ss)$intactness_req)]
 
 # last_n <- 20
 # A_freq <- letterFrequency(subseq(flss, -last_n, -1), "A") / last_n
@@ -123,7 +123,7 @@ hs_pa2_pa3_intact_ss <- hs_pa2_pa3_fl_ss[grepl("Intact", mcols(hs_pa2_pa3_fl_ss)
 # dev.off()
 
 p <- rmann %>%
-    filter(grepl("Intact", intactness_req)) %>%
+    filter(grepl("^Intact", intactness_req)) %>%
     ggplot() +
     geom_bar(aes(x = rte_subfamily, fill = refstatus), color = "black") +
     mtopen +

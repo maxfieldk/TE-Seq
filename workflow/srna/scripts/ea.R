@@ -28,6 +28,8 @@ library(ComplexHeatmap)
 library(msigdbr)
 library(ggpubr)
 library(patchwork)
+library(ggrepel)
+
 
 
 # analysis parameters
@@ -43,7 +45,6 @@ library(patchwork)
                 "counttypes" = conf$counttypes,
                 "sample_table" = conf$sample_table,
                 "contrasts" = conf$contrasts,
-                "SenMayoHuman" = conf$SenMayoHuman,
                 "genesets_for_heatmaps" = conf$genesets_for_heatmaps,
                 "collections_for_gsea" = conf$collections_for_gsea,
                 "inputdir" = "srna/results/agg/deseq2/featurecounts_genes",
@@ -69,6 +70,18 @@ res <- res %>% filter(gene_or_te == "gene")
 res %>%
     filter(str_detect(gene_id, "CDKN1A")) %>%
     select(conf$samples)
+#### GETTING TIDY DATA
+map <- setNames(sample_table$condition, sample_table$sample_name)
+pvals <- colnames(res)[str_detect(colnames(res), "padj_condition")]
+l2fc <- colnames(res)[str_detect(colnames(res), "log2FoldChange_condition")]
+colsToKeep <- c("gene_id", pvals, l2fc)
+
+tidydf <- res %>%
+    select(all_of(colnames(res)[(colnames(res) %in% sample_table$sample_name) | (colnames(res) %in% colsToKeep)])) %>%
+    pivot_longer(cols = -colsToKeep) %>%
+    dplyr::rename(sample = name, counts = value) %>%
+    mutate(condition = map_chr(sample, ~ map[[.]]))
+tidydf$condition <- factor(tidydf$condition, levels = conf$levels)
 
 contrast_label_map <- tibble(contrast = params[["contrasts"]], label = gsub("_", " ", gsub("condition_", "", params[["contrasts"]])))
 
@@ -138,7 +151,7 @@ for (contrast in params[["contrasts"]]) {
                     {
                         for (genesetid in conf$genesets_for_gseaplot)
                         p <- gseaplot2(gse, geneSetID = genesetid, pvalue_table = TRUE, subplots = 1:2, ES_geom = "line")
-                        mysaveandstore(sprintf("%s/%s/gsea/%s_gsea.pdf", params[["outputdir"]], contrast, genesetid), w = 8, h = 3, res = 300)
+                        mysaveandstore(sprintf("%s/%s/gsea/%s_gsea.pdf", params[["outputdir"]], contrast, genesetid), w = 7, h = 3, res = 300)
                     },
                     error = function(e) {
                         print("")
@@ -155,7 +168,7 @@ for (contrast in params[["contrasts"]]) {
 gres <- gse_df %>% tibble()
 gres %>% write_delim(outputs$results_table_targetted, delim = "\t")
 for (collec in genecollections) {
-    grestemp <- gres %>% filter(collection == collec) %>% left_join(contrast_label_map)
+    grestemp <- gres %>% filter(collection == collec) %>% left_join(contrast_label_map) %>% filter(grepl(paste0(conf$levels[1], "$"), label))
     sigIDs <- grestemp %>% mutate(direction = ifelse(NES > 0, "UP", "DOWN")) %>% group_by(contrast, direction) %>% arrange(p.adjust) %>% slice_head(n = 5) %$% ID %>% unique()
     p <- grestemp %>% dplyr::filter(ID %in% sigIDs) %>% mutate(sig = ifelse(p.adjust < 0.05, "*", "")) %>%
         mutate(ID = str_wrap(as.character(ID) %>% gsub("_", " ", .), width = 40)) %>%
@@ -171,18 +184,102 @@ for (collec in genecollections) {
         labs(x = "", y = "", title = collec) +
         theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
         coord_equal()
-    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/targetted/gsea_top_%s_grid.pdf", collec), 7,12)
+    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/targetted/gsea_top_%s_grid_1.pdf", collec), 6,0.5*length(sigIDs))
+    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/targetted/gsea_top_%s_grid_2.pdf", collec), 6,0.75*length(sigIDs))
+    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/targetted/gsea_top_%s_grid_3.pdf", collec), 6,1*length(sigIDs))
+
 }
 
 # plot core enrichments 
+
+pvp <- function(df, facet_var = "ALL", filter_var = "ALL", labels = "no", scale_log2 = "no") {
+    if (filter_var != "ALL") {
+        df <- df %>% filter(str_detect(!!sym(filter_var), "FL$|^Intact|towards"))
+    }
+    if (scale_log2 == "no") {
+    pf <- df %>%
+        group_by(across(all_of(c(colsToKeep, "condition")))) %>%
+        summarise(mean(counts), padj = dplyr::first(!!sym(contrast_padj)), l2fc = dplyr::first(!!sym(contrast_l2fc))) %>%
+        pivot_wider(names_from = condition, values_from = `mean(counts)`) %>% 
+        mutate(color_direction = ifelse(is.na(padj), "NS", ifelse(padj > 0.05, "NS", ifelse(l2fc > 0, "UP", "DOWN"))))
+    } else {
+    pf <- df %>%
+        group_by(across(all_of(c(colsToKeep, "condition")))) %>%
+        summarise(mean(counts), padj = dplyr::first(!!sym(contrast_padj)), l2fc = dplyr::first(!!sym(contrast_l2fc))) %>%
+        pivot_wider(names_from = condition, values_from = `mean(counts)`) %>%
+        mutate(across(conf$levels, ~ log2(.x + 1))) %>% 
+        mutate(color_direction = ifelse(is.na(padj), "NS", ifelse(padj > 0.05, "NS", ifelse(l2fc > 0, "UP", "DOWN"))))
+    }
+
+    top_sig <- pf %>% filter(!!sym(contrast_padj) < 0.05) %>% arrange(padj) %>% head(6) %>% pull(gene_id) 
+    if (labels != "no") {
+    p <- pf %>%
+        {
+            ggplot(data = ., mapping = aes(x = !!sym(contrast_level_1), y = !!sym(contrast_level_2))) +
+                geom_abline(intercept = 0, slope = 1, alpha = 0.5) +
+                geom_point(aes(color = color_direction)) +
+                labs(x = sprintf("%s Norm Counts", contrast_level_1), y = sprintf("%s Norm Counts", contrast_level_2), 
+                    title = set_title,
+                    color = "DE",
+                    shape = "padj < 0.05") +
+                mtclosed + scale_directions +
+                theme(aspect.ratio = 1) +
+                coord_cartesian(clip = "off") +
+                geom_text_repel(data = . %>% mutate(label = ifelse(gene_id %in% top_sig, gene_id, "")), aes(label = label), max.overlaps = Inf, show.legend = FALSE) +
+                coord_fixed(
+                    xlim = range(c(.[[contrast_level_1]], .[[contrast_level_2]])),
+                    ylim = range(c(.[contrast_level_1], .[contrast_level_2]))
+                ) + guides(fill=guide_legend(title="Genomic Context"))
+         }
+    } else {
+
+    p <- pf %>%
+        {
+            ggplot(data = ., mapping = aes(x = !!sym(contrast_level_1), y = !!sym(contrast_level_2))) +
+                geom_abline(intercept = 0, slope = 1, alpha = 0.5) +
+                geom_point(aes(color = color_direction)) +
+                labs(x = sprintf("%s Norm Counts", contrast_level_1), y = sprintf("%s Norm Counts", contrast_level_2), 
+                    title = set_title,
+                    color = "DE",
+                    shape = "padj < 0.05") +
+                mtclosed + scale_directions +
+                theme(aspect.ratio = 1) +
+                coord_cartesian(clip = "off") +
+                    coord_fixed(
+                    xlim = range(c(.[[contrast_level_1]], .[[contrast_level_2]])),
+                    ylim = range(c(.[contrast_level_1], .[contrast_level_2]))
+                )
+         }
+
+    }
+    if (facet_var != "ALL") {
+        p <- p + facet_wrap(facet_var)
+    }
+    if (scale_log2 == "yes") {
+        p <- p + labs(x = sprintf("log2(%s Norm Counts + 1)", contrast_level_1), y = sprintf("log2(%s Norm Counts + 1)", contrast_level_2))
+    }
+    return(p)
+}
+
 n_top_sets <- 5
 for (contrast in params[["contrasts"]]) {
+    contrast_of_interest <- contrast
+    contrast_level_2 <- contrast_of_interest %>%
+        gsub("condition_", "", .) %>%
+        gsub("_vs_.*", "", .)
+    contrast_level_1 <- contrast_of_interest %>%
+        gsub(".*_vs_", "", .)
     contrast_string <- gsub("condition_", "", contrast) %>% str_replace_all("_vs_", " vs ")
     contrast_stat <- paste0("stat_", contrast)
     contrast_l2fc <- paste0("log2FoldChange_", contrast)
     contrast_padj <- paste0("padj_", contrast)
+    contrast_samples <- sample_table %>%
+        filter(condition %in% c(contrast_level_1, contrast_level_2)) %>%
+        pull(sample_name)
+    condition_vec <- sample_table %>% filter(sample_name %in% contrast_samples) %$% condition
     res <- res %>% arrange(-!!sym(contrast_stat))
-    for (collec in genecollections) {
+
+    for (collec in genecollections[1]) {
         gse <- gse_df %>% filter(collection == collec)
         df <- arrange(gse, -abs(NES)) %>%
             group_by(sign(NES)) %>%
@@ -191,7 +288,12 @@ for (contrast in params[["contrasts"]]) {
         core_enrichments <- df$core_enrichment
         core_enrichments <- str_split(core_enrichments, "/")
         names(core_enrichments) <- ids
-        for (geneset in names(core_enrichments)) {
+        for (geneset in c(names(core_enrichments),conf$genesets_for_gseaplot)) {
+            all_genes_in_set <- read.gmt(params[["collections_for_gsea"]][[collec]]) %>% filter(term == geneset) %$% gene
+            if (length(all_genes_in_set) == 0) {
+                next
+            }
+            params[["collections_for_gsea"]][[collection]]
             genestoplot <- core_enrichments[[geneset]]
             set_title <- geneset
 
@@ -216,66 +318,113 @@ for (contrast in params[["contrasts"]]) {
             tryCatch(
                 {
                     mysaveandstore(sprintf("%s/%s/gsea/%s/core_enrichments/barplot_%s.pdf", params[["outputdir"]], contrast, collec, set_title),8, 2*round(length(genestoplot)/ncol))
+
+                    p <- pvp(tidydf %>% filter(gene_id %in% all_genes_in_set), labels = "no", scale_log2 = "yes")
+                    mysaveandstore(sprintf("%s/%s/gsea/%s/all_genes/scatter_%s.pdf", params[["outputdir"]], contrast, collec, set_title), w = 5, h = 5, res = 300)
+
+                    p <- pvp(tidydf %>% filter(gene_id %in% all_genes_in_set), labels = "yes", scale_log2 = "yes")
+                    mysaveandstore(sprintf("%s/%s/gsea/%s/all_genes/scatter_labs_%s.pdf", params[["outputdir"]], contrast, collec, set_title), w = 5, h = 5, res = 300)
+
+                    heatmapprep <- res %>% filter(gene_id %in% all_genes_in_set)
+                    m <- as.matrix(heatmapprep %>% dplyr::select(sample_vec))
+                    rownames(m) <- heatmapprep %$% gene_id
+                    scaledm <- t(scale(t(m))) %>% na.omit()
+
+                    pvals <- heatmapprep %>%
+                        filter(gene_id %in% rownames(scaledm)) %>%
+                        pull(!!sym(contrast_padj))
+                    pch <- ifelse(pvals < 0.05, "*", "ns")
+                    row_ha <- rowAnnotation(pvalue = anno_simple(pch, pch = pch), col = list(pvalue = c("ns" = "grey", "*" = "red")))
+
+                    pvalue_adj <- heatmapprep %>%
+                        filter(gene_id %in% rownames(scaledm)) %>%
+                        pull(!!sym(contrast_padj))
+                    is_sig <- pvalue_adj < 0.05
+                    pch <- rep("*", length(pvalue_adj))
+                    pch[!is_sig] <- NA
+                    pvalue_adj_col_fun <- colorRamp2(c(0, 2, 3), c("white", "blue", "red"))
+                    ha <- rowAnnotation(pvalue_adj = anno_simple(-log10(pvalue_adj), col = pvalue_adj_col_fun, pch = pch))
+                    conditions <- sample_table[match(colnames(m), sample_table$sample_name),]$condition
+                    topAnn <- ComplexHeatmap::HeatmapAnnotation(Condition = conditions, col = list(Condition = condition_palette))
+                            
+                    hm <- scaledm %>%
+                        Heatmap(
+                            name = "Scaled Normalized Counts",
+                            cluster_rows = FALSE,
+                            cluster_columns = FALSE,
+                            show_row_names = TRUE,
+                            show_column_names = TRUE,
+                            column_names_rot = 90,
+                            split = pch,
+                            top_annotation = topAnn,
+                            right_annotation = ha,
+                            row_title = set_title,
+                            # border_gp = gpar(col = "black")
+                        )
+                    lgd_pvalue_adj <- Legend(
+                        title = "p-value", col_fun = pvalue_adj_col_fun, at = c(0, 1, 2, 3),
+                        labels = c("1", "0.1", "0.01", "0.001")
+                    )
+                    # and one for the significant p-values
+                    lgd_sig <- Legend(pch = "*", type = "points", labels = "< 0.05")
+                    # these two self-defined legends are added to the plot by `annotation_legend_list`
+                    p <- wrap_elements(grid.grabExpr(draw(hm, annotation_legend_list = list(lgd_pvalue_adj, lgd_sig), heatmap_legend_side = "bottom", annotation_legend_side = "bottom")))
+                    mysaveandstore(sprintf("%s/%s/gsea/%s/core_enrichments/heatmap_%s.pdf", params[["outputdir"]], contrast, collection, set_title), w = min(0.75* dim(scaledm)[2], 12), h = min(dim(scaledm)[1], 12), res = 300)
+                
+                #heatmap all samples
+                    m <- as.matrix(heatmapprep %>% dplyr::select(sample_table$sample_name))
+                    rownames(m) <- heatmapprep %$% gene_id
+                    scaledm <- t(scale(t(m))) %>% na.omit()
+
+                    conditions <- sample_table[match(colnames(m), sample_table$sample_name),]$condition
+                    topAnn <- ComplexHeatmap::HeatmapAnnotation(Condition = conditions, col = list(Condition = condition_palette))
+                            
+                    hm <- scaledm %>%
+                        Heatmap(
+                            name = "Scaled Normalized Counts",
+                            cluster_rows = TRUE,
+                            cluster_columns = FALSE,
+                            show_row_names = TRUE,
+                            show_column_names = TRUE,
+                            column_names_rot = 90,
+                            top_annotation = topAnn,
+                            row_title = set_title,
+                            border_gp = gpar(col = "black")
+                        )
+                    
+                    for (contrast_padj in grep("padj", colnames(heatmapprep), value = TRUE)) {
+                        pvals <- heatmapprep %>%
+                            filter(gene_id %in% rownames(scaledm)) %>%
+                            pull(!!sym(contrast_padj))
+                        pch <- ifelse(pvals < 0.05, "*", "ns")
+                        row_ha <- rowAnnotation(pvalue = anno_simple(pch, pch = pch), col = list(pvalue = c("ns" = "grey", "*" = "red")))
+
+                        pvalue_adj <- heatmapprep %>%
+                            filter(gene_id %in% rownames(scaledm)) %>%
+                            pull(!!sym(contrast_padj))
+                        is_sig <- pvalue_adj < 0.05
+                        pch <- rep("*", length(pvalue_adj))
+                        pch[!is_sig] <- NA
+                        pvalue_adj_col_fun <- colorRamp2(c(0, 2, 3), c("tan", "tan", "tan"))
+                        ha <- rowAnnotation(contrast_padj = anno_simple(-log10(pvalue_adj), col = pvalue_adj_col_fun, pch = pch))
+                        hm <- hm + ha
+                    }
+
+                    lgd_pvalue_adj <- Legend(
+                        title = "p-value", col_fun = pvalue_adj_col_fun, at = c(0, 1, 2, 3),
+                        labels = c("1", "0.1", "0.01", "0.001")
+                    )
+                    # and one for the significant p-values
+                    lgd_sig <- Legend(pch = "*", type = "points", labels = "< 0.05")
+                    # these two self-defined legends are added to the plot by `annotation_legend_list`
+                    p <- wrap_elements(grid.grabExpr(draw(hm, auto_adjust = FALSE, annotation_legend_list = list(lgd_pvalue_adj, lgd_sig), heatmap_legend_side = "right", annotation_legend_side = "right")))
+                    mysaveandstore(sprintf("%s/%s/gsea/%s/core_enrichments/heatmap_%s.pdf", params[["outputdir"]], contrast, collection, set_title), w = min(0.75* dim(scaledm)[2], 12), h = min(dim(scaledm)[1] / 7.5, 20), res = 300)
+                
                 },
                 error = function(e) {
                     print(e)
                 }
             )
-
-            all_genes_in_set <- read.gmt(params[["collections_for_gsea"]][[collection]]) %>% filter(term == geneset) %$% gene
-            pvppres <- res %>% filter(gene_id %in% all_genes_in_set) %>% mutate(logpadj = ifelse(-log10(!!sym(contrast_padj)) > 100, 100,-log10(!!sym(contrast_padj)) ))
-            pvppres %$% logpadj
-            pvprestopsig <- pvppres %>% arrange(-abs(!!sym(contrast_l2fc))) %>% slice_head(n = 15) %$% gene_id
-            p <- pvppres  %>% ggscatter(x = contrast_l2fc, y = "logpadj", label = "gene_id", shape = 1, label.select = pvprestopsig, repel = TRUE) + mtclosed +
-                labs(title = set_title, x = "log2fc", y = "-log10(padj)", subtitle = contrast_string) + scale_palette + scale_y_continuous(expand = expansion(mult = c(0, .075)))
-            mysaveandstore(sprintf("%s/%s/gsea/%s/all_genes/scatter_%s.pdf", params[["outputdir"]], contrast, collec, set_title), w = 6, h = 6, res = 300)
-
-
-            heatmapprep <- res %>% filter(gene_id %in% genestoplot)
-            m <- as.matrix(heatmapprep %>% dplyr::select(sample_vec))
-            rownames(m) <- heatmapprep %$% gene_id
-            scaledm <- t(scale(t(m))) %>% na.omit()
-
-            pvals <- heatmapprep %>%
-                filter(gene_id %in% rownames(scaledm)) %>%
-                pull(!!sym(contrast_padj))
-            pch <- ifelse(pvals < 0.05, "*", "ns")
-            row_ha <- rowAnnotation(pvalue = anno_simple(pch, pch = pch), col = list(pvalue = c("ns" = "grey", "*" = "red")))
-
-            pvalue_adj <- heatmapprep %>%
-                filter(gene_id %in% rownames(scaledm)) %>%
-                pull(!!sym(contrast_padj))
-            is_sig <- pvalue_adj < 0.05
-            pch <- rep("*", length(pvalue_adj))
-            pch[!is_sig] <- NA
-            pvalue_adj_col_fun <- colorRamp2(c(0, 2, 3), c("white", "blue", "red"))
-            ha <- rowAnnotation(pvalue_adj = anno_simple(-log10(pvalue_adj), col = pvalue_adj_col_fun, pch = pch))
-            conditions <- sample_table[match(colnames(m), sample_table$sample_name),]$condition
-            topAnn <- ComplexHeatmap::HeatmapAnnotation(Condition = conditions, col = list(Condition = condition_palette))
-                    
-            hm <- scaledm %>%
-                Heatmap(
-                    name = "Scaled Normalized Counts",
-                    cluster_rows = FALSE,
-                    cluster_columns = FALSE,
-                    show_row_names = TRUE,
-                    show_column_names = TRUE,
-                    column_names_rot = 90,
-                    split = pch,
-                    top_annotation = topAnn,
-                    right_annotation = ha,
-                    row_title = set_title,
-                    # border_gp = gpar(col = "black")
-                )
-            lgd_pvalue_adj <- Legend(
-                title = "p-value", col_fun = pvalue_adj_col_fun, at = c(0, 1, 2, 3),
-                labels = c("1", "0.1", "0.01", "0.001")
-            )
-            # and one for the significant p-values
-            lgd_sig <- Legend(pch = "*", type = "points", labels = "< 0.05")
-            # these two self-defined legends are added to the plot by `annotation_legend_list`
-            p <- wrap_elements(grid.grabExpr(draw(hm, annotation_legend_list = list(lgd_pvalue_adj, lgd_sig), heatmap_legend_side = "bottom", annotation_legend_side = "bottom")))
-            mysaveandstore(sprintf("%s/%s/gsea/%s/core_enrichments/heatmap_%s.pdf", params[["outputdir"]], contrast, collection, set_title), w = min(dim(scaledm)[2], 12), h = min(dim(scaledm)[1], 12), res = 300)
         }
     }
 }
@@ -330,9 +479,20 @@ for (geneset in names(params[["genesets_for_heatmaps"]])) {
 
     # now for each contrast
     for (contrast in params[["contrasts"]]) {
-        contrast_stat <- paste0("stat_", contrast)
-        contrast_l2fc <- paste0("log2FoldChange_", contrast)
-        contrast_padj <- paste0("padj_", contrast)
+    contrast_of_interest <- contrast
+    contrast_level_2 <- contrast_of_interest %>%
+        gsub("condition_", "", .) %>%
+        gsub("_vs_.*", "", .)
+    contrast_level_1 <- contrast_of_interest %>%
+        gsub(".*_vs_", "", .)
+    contrast_string <- gsub("condition_", "", contrast) %>% str_replace_all("_vs_", " vs ")
+    contrast_stat <- paste0("stat_", contrast)
+    contrast_l2fc <- paste0("log2FoldChange_", contrast)
+    contrast_padj <- paste0("padj_", contrast)
+    contrast_samples <- sample_table %>%
+        filter(condition %in% c(contrast_level_1, contrast_level_2)) %>%
+        pull(sample_name)
+    condition_vec <- sample_table %>% filter(sample_name %in% contrast_samples) %$% condition
         res <- res %>% arrange(-!!sym(contrast_stat))
 
         contrastconditions <- gsub("condition_", "", contrast) %>% str_split("_vs_") %>% pluck(1)
@@ -396,8 +556,20 @@ gene_sets = msigdbr(species = confALL$aref$species)
 rm(gse_df)
 for (contrast in params[["contrasts"]]) {
     # PREP RESULTS FOR GSEA
+    contrast_of_interest <- contrast
+    contrast_level_2 <- contrast_of_interest %>%
+        gsub("condition_", "", .) %>%
+        gsub("_vs_.*", "", .)
+    contrast_level_1 <- contrast_of_interest %>%
+        gsub(".*_vs_", "", .)
+    contrast_string <- gsub("condition_", "", contrast) %>% str_replace_all("_vs_", " vs ")
     contrast_stat <- paste0("stat_", contrast)
     contrast_l2fc <- paste0("log2FoldChange_", contrast)
+    contrast_padj <- paste0("padj_", contrast)
+    contrast_samples <- sample_table %>%
+        filter(condition %in% c(contrast_level_1, contrast_level_2)) %>%
+        pull(sample_name)
+    condition_vec <- sample_table %>% filter(sample_name %in% contrast_samples) %$% condition
     res <- res %>% arrange(-!!sym(contrast_stat))
 
     ordered_by_stat <- setNames(res[[contrast_stat]], res$gene_id) %>% na.omit()
@@ -475,11 +647,22 @@ for (contrast in params[["contrasts"]]) {
 
 n_top_sets <- 5
 for (contrast in params[["contrasts"]]) {
+    contrast_of_interest <- contrast
+    contrast_level_2 <- contrast_of_interest %>%
+        gsub("condition_", "", .) %>%
+        gsub("_vs_.*", "", .)
+    contrast_level_1 <- contrast_of_interest %>%
+        gsub(".*_vs_", "", .)
     contrast_string <- gsub("condition_", "", contrast) %>% str_replace_all("_vs_", " vs ")
     contrast_stat <- paste0("stat_", contrast)
     contrast_l2fc <- paste0("log2FoldChange_", contrast)
     contrast_padj <- paste0("padj_", contrast)
+    contrast_samples <- sample_table %>%
+        filter(condition %in% c(contrast_level_1, contrast_level_2)) %>%
+        pull(sample_name)
+    condition_vec <- sample_table %>% filter(sample_name %in% contrast_samples) %$% condition
     contrast_significance <- paste0("Significance_", contrast)
+
     res <- res %>% arrange(-!!sym(contrast_stat))
     for (collec in gse_df %$% collection %>% unique()) {
         gse <- gse_df %>% filter(collection == collec)
@@ -487,71 +670,78 @@ for (contrast in params[["contrasts"]]) {
             group_by(sign(NES)) %>%
             slice(1:n_top_sets)
         ids <- df$ID
-        for (geneset in ids) {
-            genestoplot <- gene_sets %>% filter(gs_name == geneset) %>% pull(gene_symbol) %>% unique()
-            set_title <- geneset
+        for (geneset in c(ids, conf$genesets_for_gseaplot)) {
+            tryCatch(
+                {
+                    genestoplot <- gene_sets %>% filter(gs_name == geneset) %>% pull(gene_symbol) %>% unique()
+                    set_title <- geneset
 
-            contrastconditions <- gsub("condition_", "", contrast) %>% str_split("_vs_") %>% pluck(1)
-            sample_vec <- sample_table %>%
-                filter(condition %in% contrastconditions) %>%
-                pull(sample_name)
-            condition_vec <- sample_table %>%
-                filter(sample_name %in% sample_vec) %>%
-                pull(condition)
+                    contrastconditions <- gsub("condition_", "", contrast) %>% str_split("_vs_") %>% pluck(1)
+                    sample_vec <- sample_table %>%
+                        filter(condition %in% contrastconditions) %>%
+                        pull(sample_name)
+                    condition_vec <- sample_table %>%
+                        filter(sample_name %in% sample_vec) %>%
+                        pull(condition)
 
-            pvppres <- res %>% filter(gene_id %in% genestoplot) %>% mutate(logpadj = ifelse(-log10(!!sym(contrast_padj)) > 100, 100,-log10(!!sym(contrast_padj)) ))
-            pvppres %$% logpadj
-            pvprestopsig <- pvppres %>% arrange(-abs(!!sym(contrast_l2fc))) %>% slice_head(n = 15) %$% gene_id
-            p <- pvppres %>% ggscatter(x = contrast_l2fc, y = "logpadj", label = "gene_id", shape = 1, label.select = pvprestopsig, repel = TRUE) + mtclosed +
-                labs(title = set_title, x = "log2fc", y = "-log10(padj)", subtitle = contrast_string) + scale_palette + scale_y_continuous(expand = expansion(mult = c(0, .075)))
-            mysaveandstore(sprintf("%s/%s/gsea/%s/core_enrichments/scatter_%s.pdf", params[["outputdir"]], contrast, collection, set_title), w = 6, h = 6, res = 300)
+                    p <- pvp(tidydf %>% filter(gene_id %in% genestoplot), labels = "no", scale_log2 = "yes")
+                    mysaveandstore(sprintf("%s/%s/gsea/%s/all_genes/scatter_%s.pdf", params[["outputdir"]], contrast, collection, set_title), w = 5, h = 5, res = 300)
 
+                    p <- pvp(tidydf %>% filter(gene_id %in% genestoplot), labels = "yes", scale_log2 = "yes")
+                    mysaveandstore(sprintf("%s/%s/gsea/%s/all_genes/scatter_labs_%s.pdf", params[["outputdir"]], contrast, collection, set_title), w = 5, h = 5, res = 300)
 
-            heatmapprep <- res %>% filter(gene_id %in% genestoplot)
-            m <- as.matrix(heatmapprep %>% dplyr::select(sample_vec))
-            rownames(m) <- heatmapprep %$% gene_id
-            scaledm <- t(scale(t(m))) %>% na.omit()
+                    heatmapprep <- res %>% filter(gene_id %in% genestoplot)
+                    m <- as.matrix(heatmapprep %>% dplyr::select(sample_vec))
+                    rownames(m) <- heatmapprep %$% gene_id
+                    scaledm <- t(scale(t(m))) %>% na.omit()
 
-            pvals <- heatmapprep %>%
-                filter(gene_id %in% rownames(scaledm)) %>%
-                pull(!!sym(contrast_padj))
-            pch <- ifelse(pvals < 0.05, "*", "ns")
-            row_ha <- rowAnnotation(pvalue = anno_simple(pch, pch = pch), col = list(pvalue = c("ns" = "grey", "*" = "red")))
+                    pvals <- heatmapprep %>%
+                        filter(gene_id %in% rownames(scaledm)) %>%
+                        pull(!!sym(contrast_padj))
+                    pch <- ifelse(pvals < 0.05, "*", "ns")
+                    row_ha <- rowAnnotation(pvalue = anno_simple(pch, pch = pch), col = list(pvalue = c("ns" = "grey", "*" = "red")))
 
-            pvalue_adj <- heatmapprep %>%
-                filter(gene_id %in% rownames(scaledm)) %>%
-                pull(!!sym(contrast_padj))
-            is_sig <- pvalue_adj < 0.05
-            pch <- rep("*", length(pvalue_adj))
-            pch[!is_sig] <- NA
-            pvalue_adj_col_fun <- colorRamp2(c(0, 2, 3), c("white", "blue", "red"))
-            ha <- rowAnnotation(pvalue_adj = anno_simple(-log10(pvalue_adj), col = pvalue_adj_col_fun, pch = pch))
-            conditions <- sample_table[match(colnames(m), sample_table$sample_name),]$condition
-            topAnn <- ComplexHeatmap::HeatmapAnnotation(Condition = conditions, col = list(Condition = condition_palette))
-                    
-            hm <- scaledm %>%
-                Heatmap(
-                    name = "Scaled Normalized Counts",
-                    cluster_rows = FALSE,
-                    cluster_columns = FALSE,
-                    show_row_names = TRUE,
-                    show_column_names = TRUE,
-                    column_names_rot = 90,
-                    split = pch,
-                    top_annotation = topAnn,
-                    right_annotation = ha,
-                    row_title = set_title,
-                    # border_gp = gpar(col = "black")
-                )
-            lgd_pvalue_adj <- Legend(
-                title = "p-value", col_fun = pvalue_adj_col_fun, at = c(0, 1, 2, 3),
-                labels = c("1", "0.1", "0.01", "0.001")
+                    pvalue_adj <- heatmapprep %>%
+                        filter(gene_id %in% rownames(scaledm)) %>%
+                        pull(!!sym(contrast_padj))
+                    is_sig <- pvalue_adj < 0.05
+                    pch <- rep("*", length(pvalue_adj))
+                    pch[!is_sig] <- NA
+                    pvalue_adj_col_fun <- colorRamp2(c(0, 2, 3), c("white", "blue", "red"))
+                    ha <- rowAnnotation(pvalue_adj = anno_simple(-log10(pvalue_adj), col = pvalue_adj_col_fun, pch = pch))
+                    conditions <- sample_table[match(colnames(m), sample_table$sample_name),]$condition
+                    topAnn <- ComplexHeatmap::HeatmapAnnotation(Condition = conditions, col = list(Condition = condition_palette))
+                            
+                    hm <- scaledm %>%
+                        Heatmap(
+                            name = "Scaled Normalized Counts",
+                            cluster_rows = FALSE,
+                            cluster_columns = FALSE,
+                            show_row_names = TRUE,
+                            show_column_names = TRUE,
+                            column_names_rot = 90,
+                            split = pch,
+                            top_annotation = topAnn,
+                            right_annotation = ha,
+                            row_title = set_title,
+                            # border_gp = gpar(col = "black")
+                        )
+                    lgd_pvalue_adj <- Legend(
+                        title = "p-value", col_fun = pvalue_adj_col_fun, at = c(0, 1, 2, 3),
+                        labels = c("1", "0.1", "0.01", "0.001")
+                    )
+                    # and one for the significant p-values
+                    lgd_sig <- Legend(pch = "*", type = "points", labels = "< 0.05")
+                    # these two self-defined legends are added to the plot by `annotation_legend_list`
+                    p <- wrap_elements(grid.grabExpr(draw(hm, annotation_legend_list = list(lgd_pvalue_adj, lgd_sig), heatmap_legend_side = "bottom", annotation_legend_side = "bottom")))
+                    mysaveandstore(sprintf("%s/%s/gsea/%s/core_enrichments/heatmap_%s.pdf", params[["outputdir"]], contrast, collection, set_title), w = min(dim(scaledm)[2], 12), h = min(dim(scaledm)[1], 12), res = 300)
+
+                },
+                error = function(e) {
+                    print("")
+                }
             )
-            # and one for the significant p-values
-            lgd_sig <- Legend(pch = "*", type = "points", labels = "< 0.05")
-            # these two self-defined legends are added to the plot by `annotation_legend_list`
-            p <- wrap_elements(grid.grabExpr(draw(hm, annotation_legend_list = list(lgd_pvalue_adj, lgd_sig), heatmap_legend_side = "bottom", annotation_legend_side = "bottom")))
-            mysaveandstore(sprintf("%s/%s/gsea/%s/core_enrichments/heatmap_%s.pdf", params[["outputdir"]], contrast, collection, set_title), w = min(dim(scaledm)[2], 12), h = min(dim(scaledm)[1], 12), res = 300)
+
         }
     }
 }
@@ -559,7 +749,7 @@ for (contrast in params[["contrasts"]]) {
 gres <- gse_df %>% tibble()
 gres %>% write_delim(outputs$results_table_unbiased, delim = "\t")
 for (collec in gse_df %$% collection %>% unique()) {
-    grestemp <- gres %>% filter(collection == collec)
+    grestemp <- gres %>% filter(collection == collec) %>% left_join(contrast_label_map) %>% filter(grepl(paste0(conf$levels[1], "$"), label))
     sigIDs <- grestemp %>% mutate(direction = ifelse(NES > 0, "UP", "DOWN")) %>% group_by(contrast, direction) %>% arrange(p.adjust) %>% slice_head(n = 5) %$% ID %>% unique()
     p <- grestemp %>% dplyr::filter(ID %in% sigIDs) %>% mutate(sig = ifelse(p.adjust < 0.05, "*", "")) %>%
         mutate(ID = str_wrap(as.character(ID) %>% gsub("_", " ", .), width = 40)) %>%
@@ -575,7 +765,9 @@ for (collec in gse_df %$% collection %>% unique()) {
         labs(x = "", y = "", title = collec) +
         theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
         coord_equal()
-    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/unbiased/gsea_top_%s_grid.pdf", collec), 7,12)
+    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/unbiased/gsea_top_%s_grid_1.pdf", collec), 6,0.5*length(sigIDs))
+    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/unbiased/gsea_top_%s_grid_2.pdf", collec), 6,0.75*length(sigIDs))
+    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/unbiased/gsea_top_%s_grid_3.pdf", collec), 6,1*length(sigIDs))
 }
 
 if (conf$store_env_as_rds == "yes") {
