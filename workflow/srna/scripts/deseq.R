@@ -114,11 +114,12 @@ cnames <- colnames(cts)
 # cts <- cts[rowSums(cts > 0) != 0, ]
 # rounding since genes are not allowed fractional counts
 cts <- cts %>% mutate(across(everything(), ~ as.integer(round(.))))
-if ("batch" %in% colnames(coldata)) {
+if (any(grepl("batch", colnames(coldata)))) {
     dds <- DESeqDataSetFromMatrix(
     countData = cts,
     colData = coldata,
-    design = ~batch + condition)
+    design = formula(paste0("~",paste0(grep("batch", colnames(coldata), value = TRUE), collapse = " + "), " + condition"))
+    )
 } else {
     dds <- DESeqDataSetFromMatrix(
     countData = cts,
@@ -176,11 +177,18 @@ counttablesizenormedgenes <- counts(ddsgeneslist[[1]], normalized = TRUE)
 counttablesizenormedbatchnotremoved <- rbind(as.data.frame(counttablesizenormedrtes), as.data.frame(counttablesizenormedgenes))
 colnames(counttablesizenormedbatchnotremoved) == coldata$sample_name
 
-if ("batch" %in% colnames(coldata)) {
-counttablesizenormed <- removeBatchEffect(counttablesizenormedbatchnotremoved, batch=coldata$batch, design=model.matrix(~coldata$condition))
-countsbatchnotremovedpath <- paste(outputdir, tecounttype, "counttablesizenormedbatchnotremoved.csv", sep = "/")
-dir.create(dirname(countsbatchnotremovedpath), recursive = TRUE, showWarnings = FALSE)
-write.csv(counttablesizenormedbatchnotremoved, file = countsbatchnotremovedpath)
+if (any(grepl("batch", colnames(coldata)))) {
+    if (sum(grepl("batch", colnames(coldata))) == 2) {
+        batches <- grep("batch", colnames(coldata), value = TRUE)
+        batch_vector <- coldata[[batches[1]]]
+        batch2_vector <- coldata[[batches[2]]]
+        counttablesizenormedbatchnotremoved <- removeBatchEffect(counttablesizenormedbatchnotremoved, batch=batch_vector, batch2 =batch2_vector, design=model.matrix(~coldata$condition))
+    } else {
+        counttablesizenormed <- removeBatchEffect(counttablesizenormedbatchnotremoved, batch=coldata$batch, design=model.matrix(~coldata$condition))
+    }
+    countsbatchnotremovedpath <- paste(outputdir, tecounttype, "counttablesizenormedbatchnotremoved.csv", sep = "/")
+    dir.create(dirname(countsbatchnotremovedpath), recursive = TRUE, showWarnings = FALSE)
+    write.csv(counttablesizenormedbatchnotremoved, file = countsbatchnotremovedpath)
 } else {
     counttablesizenormed <- counttablesizenormedbatchnotremoved
 }
@@ -195,7 +203,7 @@ write.csv(counttablesizenormed, file = countspath)
 
 for (batchnormed in c("yes", "no")) {
 
-if (batchnormed == "yes" & !("batch" %in% colnames(coldata))) { next }
+if (batchnormed == "yes" & !(any(grepl("batch", colnames(coldata))))) { next }
 
 for (subset in c("rtes", "genes")) {
     if (subset == "rtes") {
@@ -247,6 +255,15 @@ for (subset in c("rtes", "genes")) {
     vst <- varianceStabilizingTransformation(ddstemp, blind = FALSE)
     vst_assay <- assay(vst)
     if (batchnormed == "yes") {
+    if (sum(grepl("batch", colnames(coldata))) == 2) {
+        batches <- grep("batch", colnames(coldata), value = TRUE)
+        batch_vector <- coldata[[batches[1]]]
+        batch2_vector <- coldata[[batches[2]]]
+        vst_assay <- removeBatchEffect(vst_assay, batch = batch_vector, batch2 = batch2_vector, design = model.matrix(~colData(ddstemp)$condition))
+
+    } else {
+        vst_assay <- removeBatchEffect(vst_assay, batch = colData(ddstemp)$batch, design = model.matrix(~colData(ddstemp)$condition))
+    }
         vst_assay <- removeBatchEffect(vst_assay, batch = colData(ddstemp)$batch, design = model.matrix(~colData(ddstemp)$condition))
     }
 
@@ -268,7 +285,7 @@ for (subset in c("rtes", "genes")) {
     ) + mtopen
     mysaveandstore(paste(outputdir, tecounttype, subset,sprintf("batchRemoved_%s", batchnormed), "loadings.pdf", sep = "/"), 10, 7)
 
-if ("batch" %in% colnames(coldata)) {
+if (any(grepl("batch", colnames(coldata)))) {
 
     p <- biplot(pcaObj,
         showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0,
@@ -277,7 +294,7 @@ if ("batch" %in% colnames(coldata)) {
     ) + mtopen + scale_conditions
     mysaveandstore(paste(outputdir, tecounttype, subset,sprintf("batchRemoved_%s", batchnormed), "pca.pdf", sep = "/"), 5, 5)
 
-        p <- biplot(pcaObj,
+    p <- biplot(pcaObj,
         showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0,
         colby = "batch", legendPosition = "right",
         labSize = 5, pointSize = 5, sizeLoadingsNames = 5
@@ -301,7 +318,7 @@ if ("batch" %in% colnames(coldata)) {
     print("no batch")
 }
 
-        p <- biplot(pcaObj,
+    p <- biplot(pcaObj,
         showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0,
         colby = "condition", legendPosition = "right",
         labSize = 5, pointSize = 5, sizeLoadingsNames = 5

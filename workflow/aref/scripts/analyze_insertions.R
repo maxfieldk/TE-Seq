@@ -61,7 +61,7 @@ p1 <- nrdf %>% group_by(rte_family, rte_subfamily, req_integrative) %>% summaris
     scale_palette +
     mtclosed + anchorbar + theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-mysaveandstore(sprintf("%s/insertions_subfamily.pdf", outputdir), 6, 4)
+mysaveandstore(pl = p1, sprintf("%s/insertions_subfamily.pdf", outputdir), 6, 4)
 
 
 
