@@ -66,6 +66,13 @@ def aref_complete_input(wildcards):
     return final_input
 
 
+#tag FILESTRUCTURE
+paths = [
+    "aref/benchmarks",
+    ]
+for path in paths:
+    os.makedirs(path, exist_ok = True)
+
 
 rule aref_complete:
     input: aref_complete_input
