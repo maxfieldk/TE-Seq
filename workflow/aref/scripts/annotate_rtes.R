@@ -598,13 +598,25 @@ region_annot <- region_annot %>% mutate(loc_integrative = case_when(
     loc_integrative == "Telomeric" ~ "Intergenic",
     TRUE ~ "Other"))
 
-dist_to_nearest_coding_tx <- distanceToNearest(rmfragmentsgr_properinsertloc, coding_transcripts, ignore.strand = TRUE) %>% mcols() %>% as.data.frame() %>% tibble() %$% distance
-dist_to_nearest_noncoding_tx <- distanceToNearest(rmfragmentsgr_properinsertloc, noncoding_transcripts, ignore.strand = TRUE) %>% mcols() %>% as.data.frame() %>% tibble() %$% distance
-dist_to_nearest_tx <- distanceToNearest(rmfragmentsgr_properinsertloc, transcripts, ignore.strand = TRUE) %>% mcols() %>% as.data.frame() %>% tibble() %$% distance
-dist_to_nearest_txs_df <- tibble(gene_id = mcols(rmfragmentsgr_properinsertloc)$gene_id, dist_to_nearest_coding_tx = dist_to_nearest_coding_tx, dist_to_nearest_noncoding_tx = dist_to_nearest_noncoding_tx, dist_to_nearest_tx = dist_to_nearest_tx)
+dist_to_nearest_coding_tx <- distanceToNearest(rmfragmentsgr_properinsertloc, coding_transcripts, ignore.strand = TRUE)%>% as.data.frame() %>% tibble()
+dist_to_nearest_coding_tx_df <- tibble(gene_id = mcols(rmfragmentsgr_properinsertloc[dist_to_nearest_coding_tx$queryHits,])$gene_id, dist_to_nearest_coding_tx = dist_to_nearest_coding_tx$distance)
 
+dist_to_nearest_noncoding_tx <- distanceToNearest(rmfragmentsgr_properinsertloc, noncoding_transcripts, ignore.strand = TRUE) %>% as.data.frame() %>% tibble()
+dist_to_nearest_noncoding_tx_df <- tibble(gene_id = mcols(rmfragmentsgr_properinsertloc[dist_to_nearest_noncoding_tx$queryHits,])$gene_id, dist_to_nearest_noncoding_tx = dist_to_nearest_noncoding_tx$distance)
 
+dist_to_nearest_tx <- distanceToNearest(rmfragmentsgr_properinsertloc, transcripts, ignore.strand = TRUE) %>% as.data.frame() %>% tibble() 
+dist_to_nearest_tx_df <- tibble(gene_id = mcols(rmfragmentsgr_properinsertloc[dist_to_nearest_tx$queryHits,])$gene_id, dist_to_nearest_tx = dist_to_nearest_tx$distance)
 
+dist_to_nearest_txs_df <- left_join(rmfamilies %>% dplyr::select(gene_id), dist_to_nearest_coding_tx_df) %>%
+    left_join(dist_to_nearest_noncoding_tx_df) %>%
+    left_join(dist_to_nearest_tx_df)
+
+length(dist_to_nearest_noncoding_tx)
+length(dist_to_nearest_coding_tx)
+length(rownames(rmfamilies))
+length(rmfragmentsgr_properinsertloc)
+mcols(rmfragmentsgr_properinsertloc)$refstatus %>% table()
+rmfragments %$% seqnames %>% table()
 annots <- rmfamilies %>%
     full_join(req_annot) %>%
     full_join(ltr_viral_status) %>%
