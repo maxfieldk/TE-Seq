@@ -19,6 +19,7 @@ peptable = pd.read_csv("conf/peptable_srna.csv")
 #tag FILESTRUCTURE
 paths = [
     "srna/qc",
+    "srna/benchmarks",
     "srna/rawdata/{sample}",
     "srna/outs/{sample}/trimmedReads",
     "srna/outs/{sample}/{counttype}",
