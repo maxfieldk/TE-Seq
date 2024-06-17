@@ -125,8 +125,6 @@ srna:
 
   paralellize_bioc: 8
   counttypes:
-    - "featurecounts_genes"
-  tecounttypes:
     - "telescope_multi"
     - "telescope_unique"
 
@@ -166,6 +164,7 @@ ldna:
   single_condition: "no"
   tldr_input_bams:
   store_plots_as_rds: "no" #yes or no
+  store_env_as_rds: "no" #yes or no
 
   samples:
     - "N2102EP1"
@@ -271,6 +270,7 @@ lrna:
     - "relaxed"
     - "stringent"
   store_plots_as_rds: "no" #yes or no
+  store_env_as_rds: "no" #yes or no
 
   levels:
     - "PRO"
@@ -306,7 +306,7 @@ lrna:
 
   paralellize_bioc: 8
 
-  dorado: "/users/mkelsey/data/tools/dorado-0.5.1-linux-x64/bin/dorado"
+  dorado: "/users/mkelsey/data/tools/dorado-0.6.2-linux-x64/bin/dorado"
   guppy: "/oscar/data/jsedivy/mkelsey/tools/ont-guppy/bin/guppy_basecaller"
   guppy_config: "/oscar/data/jsedivy/mkelsey/tools/ont-guppy/data/rna_r9.4.1_70bps_sup.cfg"
 

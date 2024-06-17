@@ -162,10 +162,10 @@ for (contrast in params[["contrasts"]]) {
 
                     genesettheme <- theme_gray() + theme(axis.text.y = element_text(colour = "black"))
                     # p <- dotplot(gse, showCategory = 20) + ggtitle(paste("GSEA", contrast, sep = " ")) + genesettheme + mtopen
-                        # mysaveandstore(sprintf("%s/%s/%s/gsea/%s/%s/dotplot.pdf", params[["outputdir"]], tecounttype, contrast, ontology, filter_var), w = 3, h = 4, res = 300)
+                        # mysaveandstore(sprintf("%s/%s/%s/gsea/%s/%s/dotplot.pdf", params[["outputdir"]], counttype, contrast, ontology, filter_var), w = 3, h = 4, res = 300)
                     
                     # p <- ridgeplot(gse, core_enrichment = FALSE) + ggtitle(paste("GSEA", contrast, sep = " ")) + xlab("Log2 FC") + xlim(c(-4, 4)) + genesettheme + mtopen
-                        # mysaveandstore(sprintf("%s/%s/%s/gsea/%s/%s/ridgeplot.pdf", params[["outputdir"]], tecounttype, contrast, ontology, filter_var), w = 3, h = 4, res = 300)
+                        # mysaveandstore(sprintf("%s/%s/%s/gsea/%s/%s/ridgeplot.pdf", params[["outputdir"]], counttype, contrast, ontology, filter_var), w = 3, h = 4, res = 300)
                     
 
                     # tryCatch(
@@ -183,7 +183,7 @@ for (contrast in params[["contrasts"]]) {
                                     #                 theme(axis.text.y = element_text(colour = "black")) +
                                     #                 ylab(NULL)
 
-                                #             mysaveandstore(sprintf("%s/%s/%s/gsea/%s/%s/nes%s.pdf", params[["outputdir"]], tecounttype, contrast, ontology, filter_var, num), w = 3, h = min(num/2, 7), res = 300)
+                                #             mysaveandstore(sprintf("%s/%s/%s/gsea/%s/%s/nes%s.pdf", params[["outputdir"]], counttype, contrast, ontology, filter_var, num), w = 3, h = min(num/2, 7), res = 300)
                                                             #         }
                         #     },
                         #     error = function(e) {

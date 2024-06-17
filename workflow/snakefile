@@ -62,7 +62,7 @@ for pipeline in config["pipelines_to_deploy"]:
             deseq = expand("lrna/results/agg/deseq/{counttype}/{contrast}/results_genes.csv", alignmenttype = config["lrna"]["alignmenttypes"], counttype = config["lrna"]["counttypes"], contrast = config["lrna"]["contrasts"])
             enrichment_analysis = "lrna/results/agg/enrichment_analysis/enrichment_analysis_environment.RData"
             enrichment_analysis_repeats = expand("lrna/results/agg/enrichment_analysis_repeats/{counttype}/enrichment_analysis_repeats_environment.RData", alignmenttype = config["lrna"]["alignmenttypes"], counttype = config["lrna"]["counttypes"])
-            repeatanalysisplots = expand("lrna/results/agg/repeatanalysis_telescope/{counttype}/repeatanalysisplots_environment.RData", alignmenttype = config["lrna"]["alignmenttypes"], counttype = config["lrna"]["counttypes"])
+            repeatanalysisplots = expand("lrna/results/agg/repeatanalysis/{counttype}/repeatanalysisplots_environment.RData", alignmenttype = config["lrna"]["alignmenttypes"], counttype = config["lrna"]["counttypes"])
             # genomebrowserplots = expand("lrna/outfiles/genomebrowserplots{alignmenttype}.out", alignmenttype = config["lrna"]["alignmenttypes"])
             qc = [expand("lrna/qc/mycoplasma/mycoplasma{sample}.bam", sample = config["lrna"]["samples"]), "lrna/qc/multiqc_report.html"]
             bw = [expand("lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.F.bw", sample = config["lrna"]["samples"], rate = config["lrna"]["rate"],  type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"]), expand("lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.R.bw", sample = config["lrna"]["samples"], rate = config["lrna"]["rate"],  type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"])]
@@ -88,15 +88,15 @@ for pipeline in config["pipelines_to_deploy"]:
                     r2 = "srna/outs/{sample}/subsampled/{sample}_2.subsampled.fastq.gz"
 
         samples = config["srna"]["samples"]
-        tecounttypes = config["srna"]["tecounttypes"]
+        counttypes = config["srna"]["counttypes"]
         contrasts = config["srna"]["contrasts"]
         counttypes = config["srna"]["counttypes"]
 
         def srna_rally():
-            deseq = expand("srna/results/agg/deseq/{tecounttype}/{contrast}/results_genes.csv", tecounttype = config["srna"]["tecounttypes"], contrast = config["srna"]["contrasts"])
+            deseq = expand("srna/results/agg/deseq/{counttype}/{contrast}/results_genes.csv", counttype = config["srna"]["counttypes"], contrast = config["srna"]["contrasts"])
             enrichment_analysis = "srna/results/agg/enrichment_analysis/enrichment_analysis_environment.RData"
-            enrichment_analysis_repeats = expand("srna/results/agg/enrichment_analysis_repeats/{tecounttype}/enrichment_analysis_repeats_environment.RData", tecounttype = config["srna"]["tecounttypes"])
-            repeatanalysisplots = expand("srna/results/agg/repeatanalysis_telescope/{tecounttype}/repeatanalysisplots_environment.RData", tecounttype = config["srna"]["tecounttypes"])
+            enrichment_analysis_repeats = expand("srna/results/agg/enrichment_analysis_repeats/{counttype}/enrichment_analysis_repeats_environment.RData", counttype = config["srna"]["counttypes"])
+            repeatanalysisplots = expand("srna/results/agg/repeatanalysis/{counttype}/repeatanalysisplots_environment.RData", counttype = config["srna"]["counttypes"])
             bigwigs = "srna/results/agg/bigwig_plots/bigwigplots_environment.RData"
             qc = [expand("srna/qc/mycoplasma/mycoplasma{sample}.sam", sample = config["srna"]["samples"]), "srna/qc/multiqc/multiqc_report.html"]
             return list(flatten([bigwigs, deseq, enrichment_analysis, enrichment_analysis_repeats, repeatanalysisplots, qc]))
