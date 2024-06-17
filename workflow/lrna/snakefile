@@ -654,7 +654,7 @@ rule consolidateDeseqResults:
     params:
         inputdir = "lrna/results/agg/deseq",
         outputdir = "lrna/results/agg/deseq",
-        module_name = "srna"
+        module_name = "lrna"
     conda:
         "repeatanalysis"
     resources:
@@ -709,7 +709,7 @@ rule enrichment_analysis_repeats:
     params:
         inputdir =lambda w, input: os.path.dirname(os.path.dirname(input.resultsdf)),
         contrasts = config["contrasts"],
-        tecounttype = lambda w: w.tecounttype, 
+        counttype = lambda w: w.counttype, 
         sample_table = config["sample_table"],
         outputdir = lambda w, output: os.path.dirname(output.environment),
         r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
@@ -722,14 +722,14 @@ rule enrichment_analysis_repeats:
         mem_mb = 164000,
         runtime = 300
     output:
-        results_table = "lrna/results/agg/enrichment_analysis_repeats/{tecounttype}/results_table.tsv",
-        environment = "lrna/results/agg/enrichment_analysis_repeats/{tecounttype}/enrichment_analysis_repeats_environment.RData",
+        results_table = "lrna/results/agg/enrichment_analysis_repeats/{counttype}/results_table.tsv",
+        environment = "lrna/results/agg/enrichment_analysis_repeats/{counttype}/enrichment_analysis_repeats_environment.RData",
         report = report(
-            directory("lrna/results/agg/enrichment_analysis_repeats/{tecounttype}"),
-            patterns=["{tecounttype}/gsea_top_{name}.png"],
+            directory("lrna/results/agg/enrichment_analysis_repeats/{counttype}"),
+            patterns=["{counttype}/gsea_top_{name}.png"],
             category="RTE Enrichment")
     benchmark:
-        "lrna/benchmarks/enrichment_analysis_repeats/{tecounttype}.tsv"
+        "lrna/benchmarks/enrichment_analysis_repeats/{counttype}.tsv"
     script:
         "../srna/scripts/ea_repeats.R"
 
@@ -739,7 +739,7 @@ rule repeatanalysis_plots:
         r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
         r_repeatmasker_annotation = config["r_repeatmasker_annotation"]
     params:
-        tecounttype = lambda w: w.tecounttype,
+        counttype = lambda w: w.counttype,
         contrasts = config["contrasts"],
         inputdir = lambda w, input: os.path.dirname(input.resultsdf),
         outputdir = lambda w, output: os.path.dirname(output.environment),
@@ -751,13 +751,13 @@ rule repeatanalysis_plots:
         mem_mb = 164000,
         runtime = 300
     output:
-        environment = "lrna/results/agg/repeatanalysis_telescope/{tecounttype}/repeatanalysisplots_environment.RData", 
+        environment = "lrna/results/agg/repeatanalysis/{counttype}/repeatanalysisplots_environment.RData", 
         report = report(
-            directory("lrna/results/agg/repeatanalysis_telescope/{tecounttype}"),
+            directory("lrna/results/agg/repeatanalysis/{counttype}"),
             patterns=["pan_contrast/{rte}_{restofstring}.png", "{contrast}/{rte}_{restofstring}rte_length_req_genic_loc.png"],
-            category="Repeat Analysis {tecounttype}")
+            category="Repeat Analysis {counttype}")
     benchmark:
-        "lrna/benchmarks/repeatanalysis_plots/{tecounttype}.tsv"
+        "lrna/benchmarks/repeatanalysis_plots/{counttype}.tsv"
     script:
         "../srna/scripts/repeatanalysisPlots.R"
     
@@ -766,16 +766,16 @@ rule repeatanalysis_plots:
 
 
 def bigwig_sizefactor_input(wildcards):
-    sizefactor_path = "srna/results/agg/deseq/%s/sizefactors.csv"%(wildcards.tecounttype)
+    sizefactor_path = "lrna/results/agg/deseq/%s/sizefactors.csv"%(wildcards.counttype)
     if not Path(sizefactor_path).exists():
         return "NA"
     else:
-        return 1/float(pd.read_csv("srna/results/agg/deseq/%s/sizefactors.csv"%(wildcards.tecounttype)).set_index("sample_name").loc[wildcards.sample, "sizefactor"])
+        return 1/float(pd.read_csv("lrna/results/agg/deseq/%s/sizefactors.csv"%(wildcards.counttype)).set_index("sample_name").loc[wildcards.sample, "sizefactor"])
 
 # rule getBigWigF:
 #     input:
 #         sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.primary.bam",
-#         sizefactors = "srna/results/agg/deseq/{tecounttype}/sizefactors.csv",
+#         sizefactors = "srna/results/agg/deseq/{counttype}/sizefactors.csv",
 #     params:
 #         sample_size_factor = bigwig_sizefactor_input
 #     output:

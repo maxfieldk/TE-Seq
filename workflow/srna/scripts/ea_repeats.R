@@ -38,7 +38,7 @@ library(patchwork)
         },
         error = function(e) {
             assign("params", list(
-                "tecounttype" = "telescope_multi",
+                "counttype" = "telescope_multi",
                 "sample_table" = conf$sample_table,
                 "contrasts" = conf$contrasts,
                 "SenMayoHuman" = conf$SenMayoHuman,
@@ -62,7 +62,7 @@ library(patchwork)
 
 }
 
-tecounttype <- params$tecounttype
+counttype <- params$counttype
 
 ## Load Data and add annotations
 resultsdf1 <- read_delim(inputs$resultsdf, delim = "\t")
@@ -119,7 +119,7 @@ for (contrast in params[["contrasts"]]) {
     condition_vec <- sample_table %>% filter(sample_name %in% contrast_samples) %$% condition
 
     res <- resultsdf %>%
-        filter(tecounttype == tecounttype) %>%
+        filter(counttype == counttype) %>%
         arrange(-!!sym(contrast_stat)) %>%
         filter(gene_or_te == "repeat")
     ordered_by_stat <- setNames(res %>% pull(!!sym(contrast_stat)), res$gene_id) %>% na.omit()
@@ -173,10 +173,10 @@ for (contrast in params[["contrasts"]]) {
 
                     genesettheme <- theme_gray() + theme(axis.text.y = element_text(colour = "black"))
                     # p <- dotplot(gse, showCategory = 20) + ggtitle(paste("GSEA", contrast, sep = " ")) + genesettheme + mtopen
-                    # mysaveandstore(sprintf("%s/%s/%s/gsea/%s/%s/dotplot.pdf", params[["outputdir"]], tecounttype, contrast, ontology, filter_var), w = 3, h = 4, res = 300)
+                    # mysaveandstore(sprintf("%s/%s/%s/gsea/%s/%s/dotplot.pdf", params[["outputdir"]], counttype, contrast, ontology, filter_var), w = 3, h = 4, res = 300)
 
                     # p <- ridgeplot(gse, core_enrichment = FALSE) + ggtitle(paste("GSEA", contrast, sep = " ")) + xlab("Log2 FC") + xlim(c(-4, 4)) + genesettheme + mtopen
-                    # mysaveandstore(sprintf("%s/%s/%s/gsea/%s/%s/ridgeplot.pdf", params[["outputdir"]], tecounttype, contrast, ontology, filter_var), w = 3, h = 4, res = 300)
+                    # mysaveandstore(sprintf("%s/%s/%s/gsea/%s/%s/ridgeplot.pdf", params[["outputdir"]], counttype, contrast, ontology, filter_var), w = 3, h = 4, res = 300)
 
 
                     # tryCatch(
@@ -194,7 +194,7 @@ for (contrast in params[["contrasts"]]) {
                     #                 theme(axis.text.y = element_text(colour = "black")) +
                     #                 ylab(NULL)
 
-                    #             mysaveandstore(sprintf("%s/%s/%s/gsea/%s/%s/nes%s.pdf", params[["outputdir"]], tecounttype, contrast, ontology, filter_var, num), w = 3, h = min(num/2, 7), res = 300)
+                    #             mysaveandstore(sprintf("%s/%s/%s/gsea/%s/%s/nes%s.pdf", params[["outputdir"]], counttype, contrast, ontology, filter_var, num), w = 3, h = min(num/2, 7), res = 300)
                     #         }
                     #     },
                     #     error = function(e) {

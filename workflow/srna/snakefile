@@ -27,9 +27,9 @@ paths = [
 for path in paths:
     for sample in samples:
         for counttype in config["counttypes"]:
-            for tecounttype in config["tecounttypes"]:
+            for counttype in config["counttypes"]:
                 for contrast in config["contrasts"]:
-                    os.makedirs(path.format(sample=sample, counttype=counttype,tecounttype=tecounttype, contrast=contrast), exist_ok = True)
+                    os.makedirs(path.format(sample=sample, counttype=counttype,counttype=counttype, contrast=contrast), exist_ok = True)
 
 #tag FUNCTIONS
 import re
@@ -190,7 +190,7 @@ infer_experiment.py -r {params.gtf} -i {input.bam} > {output.librarytype}
 rule multiqc:
     input:
         bams = expand("srna/outs/{sample}/star_output/{sample}.sorted.bam.stats.txt", sample = samples),
-        deseq = expand("srna/results/agg/deseq/{tecounttype}/counttablesizenormed.csv", tecounttype = config["tecounttypes"])
+        deseq = expand("srna/results/agg/deseq/{counttype}/counttablesizenormed.csv", counttype = config["counttypes"])
     output:
         "srna/qc/multiqc/multiqc_report.html"
     benchmark:
@@ -464,7 +464,7 @@ rule deseq:
         contrasts = config["contrasts"],
         levels = config["levels"],
         paralellize_bioc = config["paralellize_bioc"],
-        tecounttype = lambda w: w.tecounttype,
+        counttype = lambda w: w.counttype,
         outputdir =lambda w, output: os.path.dirname(os.path.dirname(output.counts_normed)),
     benchmark:
         "srna/benchmarks/deseq/deseq.tsv"
@@ -474,25 +474,25 @@ rule deseq:
         runtime = 1000
     conda: "deseq"
     wildcard_constraints:
-        tecounttype="[A-Za-z0-9_]+"
+        counttype="[A-Za-z0-9_]+"
     output:
-        results_genes = expand("srna/results/agg/deseq/{{tecounttype}}/{contrast}/results_genes.csv", contrast = config["contrasts"]),
-        results_rtes = expand("srna/results/agg/deseq/{{tecounttype}}/{contrast}/results_rtes.csv", contrast = config["contrasts"]),
-        counts_normed = "srna/results/agg/deseq/{tecounttype}/counttablesizenormed.csv",
-        sizefactors = "srna/results/agg/deseq/{tecounttype}/sizefactors.csv",
-        environment = "srna/results/agg/deseq/{tecounttype}/deseq_environment.RData",
+        results_genes = expand("srna/results/agg/deseq/{{counttype}}/{contrast}/results_genes.csv", contrast = config["contrasts"]),
+        results_rtes = expand("srna/results/agg/deseq/{{counttype}}/{contrast}/results_rtes.csv", contrast = config["contrasts"]),
+        counts_normed = "srna/results/agg/deseq/{counttype}/counttablesizenormed.csv",
+        sizefactors = "srna/results/agg/deseq/{counttype}/sizefactors.csv",
+        environment = "srna/results/agg/deseq/{counttype}/deseq_environment.RData",
         report = report(
-            directory("srna/results/agg/deseq/{tecounttype}"),
+            directory("srna/results/agg/deseq/{counttype}"),
             patterns=["{gene_or_te}/{name}.png"],
-            category="Differential Expression {tecounttype}",
+            category="Differential Expression {counttype}",
             subcategory="{gene_or_te}")
     script:
         "scripts/deseq.R"
 
 rule consolidateDeseqResults:
     input:
-        results = expand("srna/results/agg/deseq/{tecounttype}/{contrast}/results_rtes.csv", contrast = config["contrasts"], tecounttype = config["tecounttypes"]),
-        counts_normed = expand("srna/results/agg/deseq/{tecounttype}/counttablesizenormed.csv", tecounttype = config["tecounttypes"])
+        results = expand("srna/results/agg/deseq/{counttype}/{contrast}/results_rtes.csv", contrast = config["contrasts"], counttype = config["counttypes"]),
+        counts_normed = expand("srna/results/agg/deseq/{counttype}/counttablesizenormed.csv", counttype = config["counttypes"])
     params:
         inputdir = "srna/results/agg/deseq",
         outputdir = "srna/results/agg/deseq",
@@ -548,14 +548,14 @@ rule enrichment_analysis_repeats:
     params:
         inputdir =lambda w, input: os.path.dirname(os.path.dirname(input.resultsdf)),
         contrasts = config["contrasts"],
-        tecounttype = lambda w: w.tecounttype, 
+        counttype = lambda w: w.counttype, 
         sample_table = config["sample_table"],
         outputdir = lambda w, output: os.path.dirname(output.environment),
         r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
         r_repeatmasker_annotation = config["r_repeatmasker_annotation"],
         module_name = "srna"
     benchmark:
-        "srna/benchmarks/enrichment_analysis_repeats/{tecounttype}.tsv"
+        "srna/benchmarks/enrichment_analysis_repeats/{counttype}.tsv"
     conda:
         "ea"
     resources:
@@ -563,11 +563,11 @@ rule enrichment_analysis_repeats:
         mem_mb = 164000,
         runtime = 300
     output:
-        results_table = "srna/results/agg/enrichment_analysis_repeats/{tecounttype}/results_table.tsv",
-        environment = "srna/results/agg/enrichment_analysis_repeats/{tecounttype}/enrichment_analysis_repeats_environment.RData",
+        results_table = "srna/results/agg/enrichment_analysis_repeats/{counttype}/results_table.tsv",
+        environment = "srna/results/agg/enrichment_analysis_repeats/{counttype}/enrichment_analysis_repeats_environment.RData",
         report = report(
-            directory("srna/results/agg/enrichment_analysis_repeats/{tecounttype}"),
-            patterns=["{tecounttype}/gsea_top_{name}.png"],
+            directory("srna/results/agg/enrichment_analysis_repeats/{counttype}"),
+            patterns=["{counttype}/gsea_top_{name}.png"],
             category="RTE Enrichment")
     script:
         "scripts/ea_repeats.R"
@@ -578,13 +578,13 @@ rule repeatanalysis_plots:
         r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
         r_repeatmasker_annotation = config["r_repeatmasker_annotation"]
     params:
-        tecounttype = lambda w: w.tecounttype,
+        counttype = lambda w: w.counttype,
         contrasts = config["contrasts"],
         inputdir = lambda w, input: os.path.dirname(input.resultsdf),
         outputdir = lambda w, output: os.path.dirname(output.environment),
         module_name = "srna"
     benchmark:
-        "srna/benchmarks/repeatanalysis_plots/{tecounttype}.tsv"
+        "srna/benchmarks/repeatanalysis_plots/{counttype}.tsv"
     conda:
         "repeatanalysis"
     resources:
@@ -592,11 +592,11 @@ rule repeatanalysis_plots:
         mem_mb = 164000,
         runtime = 300
     output:
-        environment = "srna/results/agg/repeatanalysis_telescope/{tecounttype}/repeatanalysisplots_environment.RData", 
+        environment = "srna/results/agg/repeatanalysis/{counttype}/repeatanalysisplots_environment.RData", 
         report = report(
-            directory("srna/results/agg/repeatanalysis_telescope/{tecounttype}"),
+            directory("srna/results/agg/repeatanalysis/{counttype}"),
             patterns=["pan_contrast/{rte}_{restofstring}.png", "{contrast}/{rte}_{restofstring}rte_length_req_genic_loc.png"],
-            category="Repeat Analysis {tecounttype}")
+            category="Repeat Analysis {counttype}")
     script:
         "scripts/repeatanalysisPlots.R"
     
@@ -604,9 +604,9 @@ rule repeatanalysis_plots:
 
 # rule figures:
 #     input:
-#         repeatanalysis_plots <- "srna/results/agg/repeatanalysis_telescope/repeatanalysisplots_plots.RData",
-#         enrichment_analysis_repeats_plots = "srna/results/agg/enrichment_analysis_repeats/{tecounttype}/enrichment_analysis_repeats_plots.RData",
-#         deseq_plots = "srna/results/agg/deseq/{tecounttype}/deseq_plots.RData",
+#         repeatanalysis_plots <- "srna/results/agg/repeatanalysis/repeatanalysisplots_plots.RData",
+#         enrichment_analysis_repeats_plots = "srna/results/agg/enrichment_analysis_repeats/{counttype}/enrichment_analysis_repeats_plots.RData",
+#         deseq_plots = "srna/results/agg/deseq/{counttype}/deseq_plots.RData",
 #         enrichment_analysis_plots = "srna/results/agg/enrichment_analysis/enrichment_analysis_plots.RData"
 
 
@@ -628,16 +628,16 @@ rule repeatanalysis_plots:
 #         "scripts/rteVariance.ipynb"
 
 def bigwig_sizefactor_input(wildcards):
-    sizefactor_path = "srna/results/agg/deseq/%s/sizefactors.csv"%(config["tecounttypes"][0])
+    sizefactor_path = "srna/results/agg/deseq/%s/sizefactors.csv"%(config["counttypes"][0])
     if not Path(sizefactor_path).exists():
         return "NA"
     else:
-        return 1/float(pd.read_csv("srna/results/agg/deseq/%s/sizefactors.csv"%(config["tecounttypes"][0])).set_index("sample_name").loc[wildcards.sample, "sizefactor"])
+        return 1/float(pd.read_csv("srna/results/agg/deseq/%s/sizefactors.csv"%(config["counttypes"][0])).set_index("sample_name").loc[wildcards.sample, "sizefactor"])
 
 rule getBigWigF:
     input:
         sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.primary.bam",
-        sizefactors = expand("srna/results/agg/deseq/{tecounttype}/sizefactors.csv", tecounttype = config["tecounttypes"][0])
+        sizefactors = expand("srna/results/agg/deseq/{counttype}/sizefactors.csv", counttype = config["counttypes"][0])
     params:
         sample_size_factor = bigwig_sizefactor_input
     output:
@@ -662,7 +662,7 @@ rule getBigWigF:
 rule getBigWigR:
     input:
         sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.primary.bam",
-        sizefactors = expand("srna/results/agg/deseq/{tecounttype}/sizefactors.csv",tecounttype = config["tecounttypes"][0])
+        sizefactors = expand("srna/results/agg/deseq/{counttype}/sizefactors.csv",counttype = config["counttypes"][0])
     params:
         sample_size_factor = bigwig_sizefactor_input
     output:
