@@ -479,7 +479,7 @@ group_res %$% gene_id %>% duplicated()
 # mysave("temp1.png", 8, 8)
 
 
-counttype_label <- ifelse(grepl("multi|Multi", counttype), "Multi", "Unique")
+counttype_label <- gsub("telescope_", "", counttype) %>% gsub("counttype_", "", .)  %>% str_to_title()
 #### GETTING TIDY DATA
 map <- setNames(sample_table$condition, sample_table$sample_name)
 pvals <- colnames(resultsdf)[str_detect(colnames(resultsdf), "padj_condition")]
