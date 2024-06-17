@@ -117,7 +117,7 @@ if (length(conf$levels) == 1) {
     }
     mycolor = "darkgrey"
 } else if (length(conf$levels) >= 11){
-    condition_palette <- setNames(c("darkgrey", as.character(paletteer_c("virids::inferno", direction = 1, n = length(conf$levels)-1))), conf$levels)  
+    condition_palette <- setNames(c("darkgrey", as.character(paletteer_c("viridis::inferno", direction = 1, n = length(conf$levels)-1))), conf$levels)  
 
     color_table <- sample_table %>% group_by(condition) %>% mutate(replicate = row_number()) %>% ungroup() %>%
         left_join(tibble(condition = names(condition_palette), color = condition_palette))
