@@ -433,6 +433,7 @@ rule telescope:
     params:
         strandparam = getTelescopeStrandParam(),
         gff = lambda wildcards: "aref/%s_annotations/%s_repeatmasker.gff2"%(wildcards.sample, wildcards.sample) if config["per_sample_ref"] == "yes" else "aref/A.REF_annotations/A.REF_repeatmasker.gff2"
+    retries: 3
     output:
         counts = "srna/outs/{sample}/telescope/telescope-run_stats.tsv"
     benchmark:
