@@ -148,7 +148,7 @@ ddsrteslist <- list()
 ddsgeneslist <- list()
 # determine all the DESeq calls that will need to be run, a different one for each base level that is used in contrasts
 baselevels <- contrasts %>%
-    str_extract("vs_\\w+") %>%
+    str_extract("vs_.*") %>%
     str_remove("vs_") %>%
     unique()
 for (baselevel in baselevels) {
