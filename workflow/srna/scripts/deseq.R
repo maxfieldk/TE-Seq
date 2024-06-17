@@ -182,7 +182,7 @@ if (any(grepl("batch", colnames(coldata)))) {
         batches <- grep("batch", colnames(coldata), value = TRUE)
         batch_vector <- coldata[[batches[1]]]
         batch2_vector <- coldata[[batches[2]]]
-        counttablesizenormedbatchnotremoved <- removeBatchEffect(counttablesizenormedbatchnotremoved, batch=batch_vector, batch2 =batch2_vector, design=model.matrix(~coldata$condition))
+        counttablesizenormed <- removeBatchEffect(counttablesizenormedbatchnotremoved, batch=batch_vector, batch2 =batch2_vector, design=model.matrix(~coldata$condition))
     } else {
         counttablesizenormed <- removeBatchEffect(counttablesizenormedbatchnotremoved, batch=coldata$batch, design=model.matrix(~coldata$condition))
     }
