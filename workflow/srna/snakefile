@@ -589,7 +589,7 @@ rule repeatanalysis_plots:
         "repeatanalysis"
     resources:
         cpus_per_task =10,
-        mem_mb = 164000,
+        mem_mb = 200000,
         runtime = 300
     output:
         environment = "srna/results/agg/repeatanalysis/{counttype}/repeatanalysisplots_environment.RData", 
