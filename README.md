@@ -1,4 +1,6 @@
 # TE-Seq: A Transposable Element Annotation & RNA-Seq Pipeline
+[![Snakemake](https://img.shields.io/badge/snakemake-≥8.0.0-brightgreen.svg)](https://snakemake.github.io)
+
 This project consists of a __snakemake pipeline__ to analyze transposable element (TE) sequencing data.
 
 To the unacquainted, the analysis of TE, and more generally repetitive element, sequencing data can be a daunting task: the repetitive nature of these elements imposes  analytical pitfalls and raises a number of practical questions including:  

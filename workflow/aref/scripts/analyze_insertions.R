@@ -29,7 +29,7 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            tldroutput = "aref/tldr/A.REF.table.txt",
+            tldroutput = "aref/A.REF_tldr/A.REF.table.txt",
             r_annotation_fragmentsjoined = "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
             r_repeatmasker_annotation = "aref/A.REF_annotations/A.REF_repeatmasker_annotation.csv",
             ref = "aref/ref_pre_ins_filtering.fa",
