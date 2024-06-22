@@ -38,7 +38,7 @@ if (length(conf$levels) == 1) {
             {
                 to_append_palette <- setNames(as.character(paletteer_d(conf$default_palette)[palette_index_start:palette_index_start+length(contrasts_to_append)]), contrasts_to_append)
             }, error = function(e) {
-                to_append_palette <- setNames(as.character(paletteer_c("viridis::inferno", direction = 1, n = length(contrasts_to_append))), contrasts_to_append)
+                to_append_palette <- setNames(as.character(paletteer_c("viridis::cividis", direction = 1, n = length(contrasts_to_append))), contrasts_to_append)
             }
         )
         contrast_palette <- c(contrast_palette, to_append_palette)
@@ -94,7 +94,7 @@ if (length(conf$levels) == 1) {
             {
                 to_append_palette <- setNames(as.character(paletteer_d(conf$default_palette)[palette_index_start:palette_index_start+length(contrasts_to_append)]), contrasts_to_append)
             }, error = function(e) {
-                to_append_palette <- setNames(as.character(paletteer_c("viridis::inferno", direction = 1, n = length(contrasts_to_append))), contrasts_to_append)
+                to_append_palette <- setNames(as.character(paletteer_c("viridis::cividis", direction = 1, n = length(contrasts_to_append))), contrasts_to_append)
             }
         )
         contrast_palette <- c(contrast_palette, to_append_palette)
@@ -117,7 +117,7 @@ if (length(conf$levels) == 1) {
     }
     mycolor = "darkgrey"
 } else if (length(conf$levels) >= 11){
-    condition_palette <- setNames(c("darkgrey", as.character(paletteer_c("scico::berlin", direction = 1, n = length(conf$levels)-1))), conf$levels)  
+    condition_palette <- setNames(c("darkgrey", as.character(paletteer_c("viridis::inferno", direction = 1, n = length(conf$levels)-1))), conf$levels)  
 
     color_table <- sample_table %>% group_by(condition) %>% mutate(replicate = row_number()) %>% ungroup() %>%
         left_join(tibble(condition = names(condition_palette), color = condition_palette))
@@ -144,7 +144,7 @@ if (length(conf$levels) == 1) {
     if (length(rownames(toappend)) > 0) {
         palette_index_start <- length(conf$levels)
         contrasts_to_append <- toappend$contrast
-        to_append_palette <- setNames(as.character(paletteer_c("viridis::inferno", direction = 1, n = length(contrasts_to_append))), contrasts_to_append)
+        to_append_palette <- setNames(as.character(paletteer_c("viridis::cividis", direction = 1, n = length(contrasts_to_append))), contrasts_to_append)
         contrast_palette <- c(contrast_palette, to_append_palette)
     }
     scale_contrasts <- list(scale_fill_manual(values = contrast_palette), scale_color_manual(values = contrast_palette))

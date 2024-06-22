@@ -212,7 +212,7 @@ for (subset in c("rtes", "genes")) {
         ddstemplist <- ddsgeneslist
     }
     for (contrast in contrasts) {
-        baselevel <- str_extract(contrast, "vs_\\w+") %>% str_remove("vs_")
+        baselevel <- str_extract(contrast, "vs_.*") %>% str_remove("vs_")
         ddstemp <- ddstemplist[[baselevel]]
         colData(ddstemp)$condition
         res <- results(ddstemp, name = contrast)
