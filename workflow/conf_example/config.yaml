@@ -23,7 +23,8 @@ aref:
   running_ldna:
     response: "no"
   store_plots_as_rds: "yes" #yes or no
-
+  store_env_as_rds: "no" #yes or no
+  
   #USER PROVIDED ANNOTATIONS - CHANGE PATHS AS NEEDED
   #Be sure to follow ucsc naming conventions, e.g. chr1, chr2, ...
   starting_ref: ../genome_files/reference.ucsc.fa

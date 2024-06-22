@@ -646,7 +646,8 @@ rule getBigWigF:
         "srna/benchmarks/getBigWigF/{sample}.tsv"
     resources:
         cpus_per_task =10,
-        mem_mb = 40000
+        mem_mb = 10000,
+        runtime = 10
     conda:
         "deeptools"
     shell: "bamCoverage -b {input.sortedbam} -o {output.bwF} --numberOfProcessors max  --samFlagExclude 256 --filterRNAstrand forward --binSize 50"
@@ -671,7 +672,8 @@ rule getBigWigR:
         "srna/benchmarks/getBigWigR/{sample}.tsv"
     resources:
         cpus_per_task =10,
-        mem_mb = 40000
+        mem_mb = 10000,
+        runtime = 10
     conda:
         "deeptools"
     shell: "bamCoverage -b {input.sortedbam} -o {output.bwR} --numberOfProcessors max  --samFlagExclude 256 --filterRNAstrand reverse --binSize 50"
