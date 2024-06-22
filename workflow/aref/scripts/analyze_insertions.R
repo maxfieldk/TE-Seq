@@ -64,6 +64,7 @@ p1 <- nrdf %>% group_by(rte_family, rte_subfamily, req_integrative) %>% summaris
 mysaveandstore(pl = p1, sprintf("%s/insertions_subfamily.pdf", outputdir), 6, 4)
 
 
+
 p2 <- nrdf %>% group_by(loc_integrative) %>% summarise(count = n()) %>% 
     mutate(loc_integrative = fct_reorder(loc_integrative, count)) %>%
     mutate(counts = count) %>%

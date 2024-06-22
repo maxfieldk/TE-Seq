@@ -55,7 +55,7 @@ mysave <- function(fn = "ztmp.pdf", w = 5, h = 5, res = 600, pl = p, store = sto
 }
 }
 store_var <- "yes"
-mysaveandstore <- function(fn = "ztmp.pdf", w = 5, h = 5, res = 600, pl = p, store = store_var, raster = FALSE) {
+mysaveandstore <- function(fn = "ztmp.pdf", w = 5, h = 5, res = 600, pl = p, store = store_var, raster = FALSE, sf = NULL) {
     dn <- dirname(fn)
     dir.create(dn, showWarnings = FALSE, recursive = TRUE)
 
@@ -91,8 +91,13 @@ mysaveandstore <- function(fn = "ztmp.pdf", w = 5, h = 5, res = 600, pl = p, sto
     if (store == "yes") {
         mysaveandstoreplots[[fn]] <<- pl
         print("plot_stored!")
+        }
     }
-}
+    if (!is.null(sf)) {
+        write_delim(sf, gsub(".pdf", "_stats.tsv", fn), delim = "\t", col_names = TRUE)
+        print(paste(getwd(),gsub(".pdf", "_stats.tsv", fn), sep = "/"))
+    }
+
 }
 
 

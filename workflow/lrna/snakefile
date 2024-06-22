@@ -8,6 +8,7 @@ paths = [
     "lrna/envs",
     "lrna/report",
     "lrna/qc",
+    "lrna/benchmarks",
     "lrna/scripts",
     "lrna/qc/{sample}",
     "lrna/rawdata/{sample}",
@@ -249,6 +250,8 @@ rule dorado:
         reference = lambda wildcards: "aref/%s.fa"%(wildcards.sample) if config["per_sample_ref"] == "yes" else "aref/A.REF.fa"
     output:
         protected("lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.bam")
+    benchmark:
+        "lrna/benchmarks/dorado/{rate}.{sample}.{type}.{modification_string}.tsv"
     wildcard_constraints:
         sample="[0-9A-Za-z_]+",
         type = "[0-9A-Za-z]+",
@@ -286,6 +289,8 @@ rule dorado_fastq:
         reference = lambda wildcards: "aref/%s.fa"%(wildcards.sample) if config["per_sample_ref"] == "yes" else "aref/A.REF.fa"
     output:
         protected("lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.nopolya.unaligned.bam")
+    benchmark:
+        "lrna/benchmarks/dorado_fastq/{rate}.{sample}.{type}.{modification_string}.tsv"
     wildcard_constraints:
         sample="[0-9A-Za-z_]+",
         type = "[0-9A-Za-z]+",
@@ -518,6 +523,8 @@ rule fc_relaxed:
     output:
         countsmessy = "lrna/intermediates/{sample}/counts/relaxed/{sample}rtesandgenes.counts_messy.txt",
         counts = "lrna/intermediates/{sample}/counts/relaxed/{sample}rtesandgenes.counts.txt",
+    benchmark:
+        "lrna/benchmarks/fc_relaxed/{sample}.tsv"
     params: 
         featureCountsstrandparam = getFeatureCountsStrandParam(),
         annotation_genesandrtes = lambda wildcards: "aref/%s_annotations/%s_repeatmasker_refseq.complete.gtf"%(wildcards.sample, wildcards.sample) if config["per_sample_ref"] == "yes" else "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf"
@@ -542,6 +549,8 @@ rule fc_relaxed_unstranded:
     output:
         countsmessy = "lrna/intermediates/{sample}/counts/relaxed_unstranded/{sample}rtesandgenes.counts_messy.txt",
         counts = "lrna/intermediates/{sample}/counts/relaxed_unstranded/{sample}rtesandgenes.counts.txt",
+    benchmark:
+        "lrna/benchmarks/fc_relaxed_unstranded/{sample}.tsv"
     params: 
         annotation_genesandrtes = lambda wildcards: "aref/%s_annotations/%s_repeatmasker_refseq.complete.gtf"%(wildcards.sample, wildcards.sample) if config["per_sample_ref"] == "yes" else "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf"
     conda:
@@ -565,6 +574,8 @@ rule fc_relaxedunstrandedmapped:
     output:
         countsmessy = "lrna/intermediates/{sample}/counts/relaxedunstrandedmapped/{sample}rtesandgenes.counts_messy.txt",
         counts = "lrna/intermediates/{sample}/counts/relaxedunstrandedmapped/{sample}rtesandgenes.counts.txt",
+    benchmark:
+        "lrna/benchmarks/fc_relaxedunstrandedmapped/{sample}.tsv"
     params: 
         annotation_genesandrtes = lambda wildcards: "aref/%s_annotations/%s_repeatmasker_refseq.complete.gtf"%(wildcards.sample, wildcards.sample) if config["per_sample_ref"] == "yes" else "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf"
     conda:
@@ -588,6 +599,8 @@ rule fc_stringent:
     output:
         countsmessy = "lrna/intermediates/{sample}/counts/stringent/{sample}rtesandgenes.counts_messy.txt",
         counts = "lrna/intermediates/{sample}/counts/stringent/{sample}rtesandgenes.counts.txt",
+    benchmark:
+        "lrna/benchmarks/fc_stringent/{sample}.tsv"
     params: 
         featureCountsstrandparam = getFeatureCountsStrandParam(),
         annotation_genesandrtes = lambda wildcards: "aref/%s_annotations/%s_repeatmasker_refseq.complete.gtf"%(wildcards.sample, wildcards.sample) if config["per_sample_ref"] == "yes" else "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf"
@@ -629,6 +642,8 @@ rule deseq:
         counts_normed = "lrna/results/agg/deseq/{counttype}/counttablesizenormed.csv",
         sizefactors = "lrna/results/agg/deseq/{counttype}/sizefactors.csv",
         plots = "lrna/results/agg/deseq/{counttype}/deseq_plots.RData"
+    benchmark:
+        "lrna/benchmarks/deseq/{counttype}.tsv"
     script:
         "scripts/deseq.R"
 
@@ -639,7 +654,7 @@ rule consolidateDeseqResults:
     params:
         inputdir = "lrna/results/agg/deseq",
         outputdir = "lrna/results/agg/deseq",
-        module_name = "srna"
+        module_name = "lrna"
     conda:
         "repeatanalysis"
     resources:
@@ -648,6 +663,8 @@ rule consolidateDeseqResults:
         runtime = 300
     output:
         resultsdf = "lrna/results/agg/deseq/resultsdf.tsv"
+    benchmark:
+        "lrna/benchmarks/consolidateDeseqResults/consolidateDeseqResults.tsv"
     script:
         "../srna/scripts/consolidateDeseqResults.R"
 
@@ -681,6 +698,8 @@ rule enrichment_analysis:
             directory("lrna/results/agg/enrichment_analysis"),
             patterns=["gsea_top_{name}_grid.png", "{leading_path}heatmap_{trailingpath}.png"],
             category="Gene Enrichment")
+    benchmark:
+        "lrna/benchmarks/enrichment_analysis/enrichment_analysis.tsv"
     script:
         "../srna/scripts/ea.R"
 
@@ -690,7 +709,7 @@ rule enrichment_analysis_repeats:
     params:
         inputdir =lambda w, input: os.path.dirname(os.path.dirname(input.resultsdf)),
         contrasts = config["contrasts"],
-        tecounttype = lambda w: w.tecounttype, 
+        counttype = lambda w: w.counttype, 
         sample_table = config["sample_table"],
         outputdir = lambda w, output: os.path.dirname(output.environment),
         r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
@@ -703,12 +722,14 @@ rule enrichment_analysis_repeats:
         mem_mb = 164000,
         runtime = 300
     output:
-        results_table = "lrna/results/agg/enrichment_analysis_repeats/{tecounttype}/results_table.tsv",
-        environment = "lrna/results/agg/enrichment_analysis_repeats/{tecounttype}/enrichment_analysis_repeats_environment.RData",
+        results_table = "lrna/results/agg/enrichment_analysis_repeats/{counttype}/results_table.tsv",
+        environment = "lrna/results/agg/enrichment_analysis_repeats/{counttype}/enrichment_analysis_repeats_environment.RData",
         report = report(
-            directory("lrna/results/agg/enrichment_analysis_repeats/{tecounttype}"),
-            patterns=["{tecounttype}/gsea_top_{name}.png"],
+            directory("lrna/results/agg/enrichment_analysis_repeats/{counttype}"),
+            patterns=["{counttype}/gsea_top_{name}.png"],
             category="RTE Enrichment")
+    benchmark:
+        "lrna/benchmarks/enrichment_analysis_repeats/{counttype}.tsv"
     script:
         "../srna/scripts/ea_repeats.R"
 
@@ -718,7 +739,7 @@ rule repeatanalysis_plots:
         r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
         r_repeatmasker_annotation = config["r_repeatmasker_annotation"]
     params:
-        tecounttype = lambda w: w.tecounttype,
+        counttype = lambda w: w.counttype,
         contrasts = config["contrasts"],
         inputdir = lambda w, input: os.path.dirname(input.resultsdf),
         outputdir = lambda w, output: os.path.dirname(output.environment),
@@ -730,11 +751,13 @@ rule repeatanalysis_plots:
         mem_mb = 164000,
         runtime = 300
     output:
-        environment = "lrna/results/agg/repeatanalysis_telescope/{tecounttype}/repeatanalysisplots_environment.RData", 
+        environment = "lrna/results/agg/repeatanalysis/{counttype}/repeatanalysisplots_environment.RData", 
         report = report(
-            directory("lrna/results/agg/repeatanalysis_telescope/{tecounttype}"),
+            directory("lrna/results/agg/repeatanalysis/{counttype}"),
             patterns=["pan_contrast/{rte}_{restofstring}.png", "{contrast}/{rte}_{restofstring}rte_length_req_genic_loc.png"],
-            category="Repeat Analysis {tecounttype}")
+            category="Repeat Analysis {counttype}")
+    benchmark:
+        "lrna/benchmarks/repeatanalysis_plots/{counttype}.tsv"
     script:
         "../srna/scripts/repeatanalysisPlots.R"
     
@@ -743,16 +766,16 @@ rule repeatanalysis_plots:
 
 
 def bigwig_sizefactor_input(wildcards):
-    sizefactor_path = "srna/results/agg/deseq/%s/sizefactors.csv"%(wildcards.tecounttype)
+    sizefactor_path = "lrna/results/agg/deseq/%s/sizefactors.csv"%(wildcards.counttype)
     if not Path(sizefactor_path).exists():
         return "NA"
     else:
-        return 1/float(pd.read_csv("srna/results/agg/deseq/%s/sizefactors.csv"%(wildcards.tecounttype)).set_index("sample_name").loc[wildcards.sample, "sizefactor"])
+        return 1/float(pd.read_csv("lrna/results/agg/deseq/%s/sizefactors.csv"%(wildcards.counttype)).set_index("sample_name").loc[wildcards.sample, "sizefactor"])
 
 # rule getBigWigF:
 #     input:
 #         sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.primary.bam",
-#         sizefactors = "srna/results/agg/deseq/{tecounttype}/sizefactors.csv",
+#         sizefactors = "srna/results/agg/deseq/{counttype}/sizefactors.csv",
 #     params:
 #         sample_size_factor = bigwig_sizefactor_input
 #     output:
@@ -824,6 +847,8 @@ rule sortbam:
         sortedbam = "lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam",
         sortedbambai = "lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam.bai",
         stats = "lrna/qc/{sample}/{rate}/{sample}.{type}.{modification_string}.sorted.bam.stats.txt"
+    benchmark:
+        "lrna/benchmarks/sortbam/{rate}.{sample}.{type}.{modification_string}.tsv"
     resources:
         cpus_per_task =10,
         mem_mb = 128000
@@ -843,6 +868,8 @@ rule filterbam:
         bam = "lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.filtered.bam",
         bai = "lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.filtered.bam.bai",
         stats = "lrna/qc/{sample}/{rate}/{sample}.{type}.{modification_string}.filtered.bam.stats.txt"
+    benchmark:
+        "lrna/benchmarks/filterbam/{rate}.{sample}.{type}.{modification_string}.tsv"
     resources:
         cpus_per_task =6,
         mem_mb = 60000
@@ -855,6 +882,8 @@ rule mod_bam_to_fastq:
         sortedbam = "lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.nopolya.unaligned.bam",
     output:
         fastq = "lrna/intermediates/{sample}/fastqs/{rate}/{sample}.{type}.{modification_string}.fq.gz",
+    benchmark:
+        "lrna/benchmarks/mod_bam_to_fastq/{rate}.{sample}.{type}.{modification_string}.tsv"
     conda: 
         "omics"
     resources:
@@ -874,6 +903,8 @@ rule realign:
         reference = lambda wildcards: "aref/%s.fa"%(wildcards.sample) if config["per_sample_ref"] == "yes" else "aref/A.REF.fa"
     output:
         bam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.good.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
+    benchmark:
+        "lrna/benchmarks/realign/{sample}.tsv"
     resources:
         cpus_per_task =20,
         runtime = 900,
@@ -894,6 +925,8 @@ rule realign_only_mapped:
         reference = lambda wildcards: "aref/%s.fa"%(wildcards.sample) if config["per_sample_ref"] == "yes" else "aref/A.REF.fa"
     output:
         bam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.good.mapped.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
+    benchmark:
+        "lrna/benchmarks/realign_only_mapped/{sample}.tsv"
     resources:
         cpus_per_task =20,
         runtime = 900,
@@ -916,6 +949,8 @@ rule mycoplasmaCheck:
         reference = config["mycoplasma"]
     output:
         bam = "lrna/qc/mycoplasma/mycoplasma{sample}.bam"
+    benchmark:
+        "lrna/benchmarks/mycoplasmaCheck/{sample}.tsv"
     resources:
         cpus_per_task =20,
         runtime = 900,
@@ -939,6 +974,8 @@ rule dorado_seqsummary:
         dorado = config["dorado"]
     output:
         "lrna/qc/{sample}/{sample}.doradosummary.txt"
+    benchmark:
+        "lrna/benchmarks/dorado_seqsummary/{sample}.tsv"
     conda:
         "omics"
     shell:
@@ -952,6 +989,8 @@ rule pycoQC:
         sortedbam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.good.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
     output:
         "lrna/qc/{sample}/{sample}pycoQC.html"
+    benchmark:
+        "lrna/benchmarks/pycoQC/{sample}.tsv"
     conda:
         "pycoQC"
     shell:
@@ -971,6 +1010,8 @@ rule inferLibraryType:
         librarytype = "lrna/qc/library_type.txt"
     params:
         gtf = config['annotation_genes_bed12'],
+    benchmark:
+        "lrna/benchmarks/inferLibraryType/inferLibraryType.tsv"
     resources:
         mem_mb  = 30000
     conda:
@@ -987,6 +1028,8 @@ rule multiqc:
         "omics"
     output:
         report = "lrna/qc/multiqc_report.html",
+    benchmark:
+        "lrna/benchmarks/multiqc/multiqc.tsv"
     shell:
         """
 multiqc --force --filename {output.report} --export --ignore "*guppy_basecaller_log*" .
@@ -999,6 +1042,8 @@ rule nanosimCharaceterization:
         reads = "lrna/intermediates/sen1/fastqs/sen1.fq.gz"
     output:
         outfile =  "lrna/nanosim/characterization/characterization/nanosimCharaceterization.out",
+    benchmark:
+        "lrna/benchmarks/nanosimCharaceterization/nanosimCharaceterization.tsv"
     params:
         reference = config["reference"],
         annotation = config["rtes_genes_gtf"],
@@ -1023,6 +1068,8 @@ rule nanosimSimulation:
         nanosimtranscriptome = "lrna/nanosim/l1hs_intact.compatiblewithnanosim.fa",
         reads = "lrna/nanosim/simulated_aligned_reads.fasta",
         readsPerfect = "lrna/nanosim/simulated_perfect_aligned_reads.fasta"
+    benchmark:
+        "lrna/benchmarks/nanosimSimulation/nanosimSimulation.tsv"
     params:
         reference = config["reference"],
         annotation = config["rtes_genes_gtf"],
@@ -1062,7 +1109,9 @@ rule nanosimAlignment:
         bam =  "lrna/nanosim/nanosimAlignment.bam",
         bamp =  "lrna/nanosim/nanosimAlignment.perfect.bam",
         bamgenome =  "lrna/nanosim/nanosimAlignment_genome.bam",
-        bampgenome =  "lrna/nanosim/nanosimAlignment_genome.perfect.bam"  
+        bampgenome =  "lrna/nanosim/nanosimAlignment_genome.perfect.bam"
+    benchmark:
+        "lrna/benchmarks/nanosimAlignment/nanosimAlignment.tsv"
     resources:
         cpus_per_task =32,
         mem_mb = 128000
@@ -1083,7 +1132,7 @@ minimap2 -ax map-ont -uf -N 10 -k14 -t 12 --junc-bed {params.junctionbed} {param
 samtools index {output.bampgenome}
         """
 
-rule filterForPrimaryAlignments:
+rule filterNanosimForPrimaryAlignments:
     input:
         bam = "lrna/nanosim/nanosimAlignment.bam",
         bamp = "lrna/nanosim/nanosimAlignment.perfect.bam",
@@ -1094,6 +1143,8 @@ rule filterForPrimaryAlignments:
         bamp =  "lrna/nanosim/nanosimAlignment.perfect.primary.bam",
         bamgenome =  "lrna/nanosim/nanosimAlignment_genome.primary.bam",
         bampgenome =  "lrna/nanosim/nanosimAlignment_genome.perfect.primary.bam"
+    benchmark:
+        "lrna/benchmarks/filterNanosimForPrimaryAlignments/filterNanosimForPrimaryAlignments.tsv"
     threads: 4
     conda:
         "omics"
@@ -1116,6 +1167,8 @@ rule analyzeNanosim:
         r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"]
     output:
         plot = "lrna/nanosim/plots/mapping_accuracy_by_read_length.png"
+    benchmark:
+        "lrna/benchmarks/analyzeNanosim/analyzeNanosim.tsv"
     conda:
         "repeatanalysis"
     script: 

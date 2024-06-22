@@ -15,7 +15,7 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            dss = sprintf("ldna/intermediates/%s/methylation/%s_CG_m_dss.tsv", sample_table$sample_name, sample_table$sample_name),
+            dss = sprintf("ldna/intermediates/%s/methylation/%s_CG_m_dss.tsv", sample_table$sample_name, sample_table$sample_name)
         ), env = globalenv())
         assign("outputs", list(plots = "ldna/results/plots/genomewide/genomewide_meth_plots.rds"), env = globalenv())
     }
@@ -95,8 +95,8 @@ mParam <- MulticoreParam(workers = 12, progressbar = TRUE)
 conditions <- conf$levels
 condition1samples <- sample_table[sample_table$condition == conditions[1], ]$sample_name
 condition2samples <- sample_table[sample_table$condition == conditions[2], ]$sample_name
-condition1 <- sample_table$condition[1]
-condition2 <- sample_table$condition[2]
+condition1 <- conditions[1]
+condition2 <- conditions[2]
 # condition1samples <- sample_table[sample_table$condition == conditions[1], ]$sample_name[1]
 # condition2samples <- sample_table[sample_table$condition == conditions[2], ]$sample_name[1]
 # need to adjust numbering given idiosyncracies of dmltest
@@ -146,11 +146,12 @@ mysaveandstore(pl = p, fn = sprintf("ldna/results/plots/genomewide/globalmeth_%s
 
 tryCatch(
     {
-    globalmeth <- globalmeth %>% pivot_longer(cols = sample_table$sample_name, names_to = "sample", values_to = "methylation") %>% left_join(sample_table) %>% group_by(condition, csum, seqnames) %>% summarize(methylation = mean(methylation, na.rm = TRUE)) %>%
+    globalmeth1 <- globalmeth %>% pivot_longer(cols = sample_table$sample_name, names_to = "sample_name", values_to = "methylation") %>% left_join(sample_table) %>% group_by(condition, csum, seqnames) %>% summarize(methylation = mean(methylation, na.rm = TRUE)) %>%
         pivot_wider(names_from = condition, values_from = methylation) %>% mutate(diff = !!sym(condition2) - !!sym(condition1)) %>% mutate(direction = factor(ifelse(diff > 0, "Hyper", "Hypo"), levels = c("Hyper", "Hypo")))
-    p <- globalmeth %>% 
+
+    p <- globalmeth1 %>% 
         ggplot() +
-            geom_point(aes(x = csum, y = !!sym(sample), color = factor(seqnames)), alpha = 0.2) +
+            geom_point(aes(x = csum, y = diff, color = factor(seqnames), alpha = 0.2)) +
             geom_segment(data = centromeres, aes(x = start_cumsum, xend = end_cumsum, y = 1.05, yend = 1.05), color = "red", size = 3) +
             scale_color_manual(values = rep(c("#276FBF", "#183059"), unique(length(axis_set$seqnames)))) +
             scale_x_continuous(label = axis_set$seqnames, breaks = axis_set$center) +

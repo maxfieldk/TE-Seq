@@ -1,4 +1,6 @@
 # TE-Seq: A Transposable Element Annotation & RNA-Seq Pipeline
+[![Snakemake](https://img.shields.io/badge/snakemake-≥8.0.0-brightgreen.svg)](https://snakemake.github.io)
+
 This project consists of a __snakemake pipeline__ to analyze transposable element (TE) sequencing data.
 
 To the unacquainted, the analysis of TE, and more generally repetitive element, sequencing data can be a daunting task: the repetitive nature of these elements imposes  analytical pitfalls and raises a number of practical questions including:  
@@ -83,7 +85,7 @@ cp -r workflow/conf_example conf
 ## Configure your analysis
   In order to run this pipeline, a number of configuration files must be edited to reflect your data and analytical decisions. Here I will walk you through the setup needed to execute the AREF and SRNA modules.
   
-  Modify the contents of __conf/sample_table_srna.csv__. You provide two mandatory columns "sample_names" (e.g. Profiferating_1) and "condition" (e.g. Proliferating), and optionally meta-data variables, such as "batch" (which will be used to batch correct the differential expression analysis and provide batch-corrected counts, e.g. A). Make sure sample names do not start with numbers (add an X in front if they do), and cannot contain a period "." or dash "-" character (these are excluded by wildcard constraints in several rules).
+  Modify the contents of __conf/sample_table_srna.csv__. You provide two mandatory columns "sample_names" (e.g. Profiferating_1) and "condition" (e.g. Proliferating), and optionally meta-data variables. You can include up to 2 columns which contain the string "batch" (e.g. "batch", and "batch_lane"), which will be used to batch correct the differential expression analysis and provide batch-corrected counts. If you only have one batch variable to model, it must be called "batch", and if you have two, the main batch effect should be titled "batch", and this will be the batch effect shown in various qc plots (but both will be modeled by Deseq2/limma). Make sure sample names do not start with numbers (add an X in front if they do), and cannot contain a period "." or dash "-" character (these are excluded by wildcard constraints in several rules).
   If you have added meta-data columns to your sample_table_srna which you would like to be represented as ordered factors in downstream visualizations (e.g. you are studying Alzheimer's samples and want Braak stage I to be followed by stages II, III, etc. in your plots), modify the contents of __conf/sample_table_source.R__ as suggested in the commented out code block of the script.
 
 Modify the contents of __conf/config.yaml__. This file's contents determine the way in which the pipeline is run.
