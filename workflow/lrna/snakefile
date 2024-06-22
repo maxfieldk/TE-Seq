@@ -836,45 +836,6 @@ def bigwig_sizefactor_input(wildcards):
 #     script: "scripts/bigwig_analysis.R"
     
 #tag ALIGNMENT TOOLS
-<<<<<<< HEAD
-# rule sortbam:
-#     input:
-#         bam = "lrna/intermediates/{sample}/alignments/{alignmenttype}/{sample}.bam"
-#     output:
-#         sortedbam = "lrna/intermediates/{sample}/alignments/{alignmenttype}/{sample}.sorted.bam"
-#     resources:
-#         cpus_per_task =10,
-#         mem_mb = 128000
-#     conda:
-#         "omics"
-#     shell: "samtools sort -@8 -m4g {input.bam} > {output.sortedbam} 2> {log}"
-    
-# rule indexbam:
-#     input:
-#         sortedbam = "lrna/intermediates/{sample}/alignments/{alignmenttype}/{bamname}.bam"
-#     output:
-#         bai = "lrna/intermediates/{sample}/alignments/{alignmenttype}/{bamname}.bam.bai"
-#     resources:
-#         cpus_per_task =10,
-#         mem_mb = 128000
-#     conda:
-#         "minimap2"
-#     shell: "samtools index  -@6 {input.sortedbam}"
-
-# rule bamstats:
-#     input:
-#         sortedbam = "lrna/intermediates/{sample}/alignments/genome/{alignmenttype}/{sample}.sorted.bam",
-#         bai = "lrna/intermediates/{sample}/alignments/genome/{alignmenttype}/{sample}.sorted.bam.bai"
-#     output:
-#         "lrna/qc/{sample}/{sample}.bamstats.txt"
-#     conda:
-#         "omics"
-#     shell:
-#         """
-# samtools stats {input.sortedbam} > {output}
-#         """
-
-=======
 rule sortbam:
     input:
         bam = "lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.bam"
@@ -901,7 +862,6 @@ samtools index  -@6 {output.sortedbam}
 samtools stats {output.sortedbam} > {output.stats}
         """
     
->>>>>>> a2746b1b285c6faf334cbada7091582ab322e214
 rule filterbam:
     input:
         bam = "lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam",
