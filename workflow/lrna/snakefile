@@ -5,14 +5,9 @@ samples = config["samples"]
 
 #tag FILESTRUCTURE
 paths = [
-    "lrna/envs",
-    "lrna/report",
     "lrna/qc",
     "lrna/benchmarks",
     "lrna/scripts",
-    "lrna/qc/{sample}",
-    "lrna/rawdata/{sample}",
-    "lrna/logs/{sample}",
     "lrna/intermediates/{sample}/methylation",
     "lrna/intermediates/{sample}/dorado",
     "lrna/intermediates/{sample}/fastqs",

@@ -236,6 +236,27 @@ mkdir -p $(dirname {output.subsampled})
 samtools view -b {input.bam} chr10 > {output.subsampled}
         """
 
+ruleorder: merge_bams_when_per_sample_is_no_for_ldna_variants > sortBam 
+rule merge_bams_when_per_sample_is_no_for_ldna_variants:
+    input:
+        sorted_bams = expand("aref/intermediates/{sample}/alignments/{{rate}}/{sample}.{{type}}.{{modifications_string}}.sorted.bam", sample = config["samples"])
+    output:
+        merged_bams = "aref/intermediates/A.REF/alignments/{rate}/A.REF.{type}.{modifications_string}.sorted.bam"
+    benchmark:
+        "aref/benchmarks/sortBam/{rate}.{type}.{modifications_string}.tsv"
+    wildcard_constraints:
+        modifications_string = "[A-Za-z0-9_-]+"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 128000
+    conda:
+        "omics"
+    shell:
+        """
+mkdir -p $(dirname {output})
+samtools merge -@8 {output.merged_bams} {input.sorted_bams}
+        """
+
 rule sortBam:
     input:
         bam = "aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.bam"
