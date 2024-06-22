@@ -65,14 +65,20 @@ rmann %$% intactness_req %>% table()
 
 options(scipen = 999)
 
+genome_length <- seqlengths(fa) %>% sum()
+repeat_lengths <- rmann %>% group_by(repeat_superfamily) %>% summarise(n = n(), basepairs = sum(length)) %>% ungroup()
+rls <- repeat_lengths %$% basepairs %>% sum()
+nonrepeat_genome_length <- genome_length - rls
+repeat_lengths <- add_row(repeat_lengths, repeat_superfamily = "Non Repeat", n = 1, basepairs = nonrepeat_genome_length)
+repeat_lengths <- mutate(repeat_lengths, pct = basepairs / genome_length * 100) %>% filter(pct > 1)
 
-rmanngr <- GRanges(rmann)
-l1hsgr <- rmanngr[grepl("L1HS", rmanngr$gene_id)]
-l1pa2gr <- rmanngr[grepl("L1PA2", rmanngr$gene_id)]
-l1pa3gr <- rmanngr[grepl("L1PA3", rmanngr$gene_id)]
+library(ggpubr)
+p <- ggpie(repeat_lengths, "pct", label = "repeat_superfamily",
+   lab.pos = "out", fill = "repeat_superfamily", lab.adjust = 1) + scale_palette + theme(legend.position = "none")
+mysaveandstore(sprintf("%s/repeat_pie.pdf", outputdir), w = 3, h = 3)
 
-hs_pa2_pa3_gr <- c(c(l1hsgr, l1pa2gr), l1pa3gr)
-hs_pa2_pa3 <- as.data.frame(hs_pa2_pa3_gr) %>% tibble()
+
+# Summary Statistics
 
 # plot number of l1 sequences
 pf <- rmann %>%
@@ -93,19 +99,88 @@ mysaveandstore(sprintf("%s/l1familycount.pdf", outputdir), w = 8, h = 5)
 
 p <- rmann %>%
     filter(grepl("L1PA|L1HS", rte_subfamily)) %>%
-    filter(length > 5999) %>%
-    group_by(rte_subfamily, refstatus, intactness_req) %>%
+    group_by(rte_subfamily, refstatus, req_integrative) %>%
     summarise(n = n()) %>%
     ungroup() %>%
     ggplot() +
-    geom_bar(aes(x = rte_subfamily, y = n, fill = intactness_req), color = "black", stat = "identity") +
+    geom_bar(aes(x = rte_subfamily, y = n, fill = req_integrative), color = "black", stat = "identity") +
     labs(title = "Number of Full Length L1 Elements per Subfamily", x = "Family", y = "Number of Elements", fill = "Reference Status") +
     facet_grid(~refstatus, scales = "free" , space = "free_x") +
     mtclosed +
     anchorbar +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-mysaveandstore(sprintf("%s/l1FLfamilycount.pdf", outputdir), w = 8, h = 5)
+mysaveandstore(sprintf("%s/l1_familycount.pdf", outputdir), w = 6, h = 5)
+
+p <- rmann %>%
+    filter(grepl("L1PA|L1HS", rte_subfamily)) %>%
+    filter(rte_length_req == "FL") %>%
+    group_by(rte_subfamily, refstatus, req_integrative) %>%
+    summarise(n = n()) %>%
+    ungroup() %>%
+    ggplot() +
+    geom_bar(aes(x = rte_subfamily, y = n, fill = req_integrative), color = "black", stat = "identity") +
+    labs(title = "Number of Full Length L1 Elements per Subfamily", x = "Family", y = "Number of Elements", fill = "Reference Status") +
+    facet_grid(~refstatus, scales = "free" , space = "free_x") +
+    mtclosed +
+    anchorbar +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+mysaveandstore(sprintf("%s/l1FL_familycount.pdf", outputdir), w = 6, h = 5)
+
+p <- rmann %>%
+    filter(grepl("L1PA|L1HS", rte_subfamily)) %>%
+    filter(rte_length_req == "FL") %>%
+    group_by(rte_subfamily, refstatus, req_integrative) %>%
+    summarise(n = n()) %>%
+    ungroup() %>%
+    ggplot() +
+    geom_bar(aes(x = rte_subfamily, y = n, fill = req_integrative), color = "black", stat = "identity") +
+    labs(title = "Number of Full Length L1 Elements per Subfamily", x = "Family", y = "Number of Elements", fill = "Reference Status") +
+    facet_grid(~refstatus, scales = "free" , space = "free_x") +
+    mtclosed +
+    anchorbar +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+mysaveandstore(sprintf("%s/l1FL_familycount.pdf", outputdir), w = 6, h = 5)
+
+p <- rmann %>%
+    filter(grepl("L1HS", rte_subfamily)) %>%
+    filter(rte_length_req == "FL") %>%
+    group_by(rte_subfamily, refstatus, req_integrative) %>%
+    summarise(n = n()) %>%
+    ungroup() %>%
+    ggplot() +
+    geom_bar(aes(x = rte_subfamily, y = n, fill = req_integrative), color = "black", stat = "identity") +
+    labs(title = "Number of Full Length L1 Elements per Subfamily", x = "Family", y = "Number of Elements", fill = "Reference Status") +
+    facet_grid(~refstatus, scales = "free") +
+    mtclosed +
+    anchorbar +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) + scale_palette
+
+mysaveandstore(sprintf("%s/l1FL_familycount.pdf", outputdir), w = 4, h = 5)
+
+
+# human_per_ncl_per_year_mut_rate <- 0.33e-9
+
+# 0.02/human_per_ncl_per_year_mut_rate
+# l1hs <- rmann %>%
+#     filter(grepl("L1HS", rte_subfamily)) 
+# l1hs %>% dplyr::select(gene_id, pctdiv, pctconsensuscovered, refstatus, family_av_pctdiv)
+# l1hs %>% filter(pctconsensuscovered > 90) %>% dplyr::select(gene_id, pctdiv, pctconsensuscovered, refstatus, family_av_pctdiv) %>% summarise(mean(pctdiv))
+
+
+#sequence analyses
+
+
+
+rmanngr <- GRanges(rmann)
+l1hsgr <- rmanngr[grepl("L1HS", rmanngr$gene_id)]
+l1pa2gr <- rmanngr[grepl("L1PA2", rmanngr$gene_id)]
+l1pa3gr <- rmanngr[grepl("L1PA3", rmanngr$gene_id)]
+
+hs_pa2_pa3_gr <- c(c(l1hsgr, l1pa2gr), l1pa3gr)
+hs_pa2_pa3 <- as.data.frame(hs_pa2_pa3_gr) %>% tibble()
 
 
 gene_ids <- hs_pa2_pa3_gr$gene_id

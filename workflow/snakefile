@@ -45,13 +45,22 @@ for pipeline in config["pipelines_to_deploy"]:
         clair3 = expand("ldna/intermediates/{sample}/clair3/full_alignment.vcf.gz", sample = config["ldna"]["samples"])
         methylartist = "ldna/results/plots/methylartist/locus/methylartistlocusplot_loci_of_interest.outfile"
         gimme = "ldna/results/gimme/gimme_plots.rds"
-        pepper = expand("ldna/intermediates/{sample}/pepper/out.outfile", sample = config["ldna"]["samples"])
+        pepper_aref = expand("ldna/intermediates/{sample}/pepper/out.outfile", sample = config["ldna"]["samples"])
+        variants_aref = expand("ldna/intermediates/{sample_or_ref}/snpeff/snpeff_sml.pass.vcf", sample_or_ref = "A.REF")
+        variants_per_sample = expand("ldna/intermediates/{sample_or_ref}/snpeff/snpeff_sml.pass.vcf", sample_or_ref = config["ldna"]["samples"])
         if config["ldna"]["single_condition"] == "yes":
-            for e in list(flatten([pepper, bedmethanalysis_single_sample,sniffles, methylartist])):
+            for e in list(flatten([bedmethanalysis_single_sample, methylartist])):
                 final_input.append(e)
         else:
-            for e in list(flatten([pepper, bedmethanalysis,dmrs, sniffles, methylartist])):
+            for e in list(flatten([bedmethanalysis,dmrs, methylartist])):
                 final_input.append(e)
+        if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
+            if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
+                for e in list(flatten([variants_per_sample])):
+                    final_input.append(e)
+            else:
+                for e in list(flatten([variants_aref])):
+                    final_input.append(e)
 
     if pipeline == "lrna":
         module lrna:
