@@ -121,7 +121,6 @@ def getTelescopeStrandParam():
 # --recursive
 #         """
 
-<<<<<<< HEAD
 rule mergeGuppyFastqs:
     input:
         summary = "lrna/intermediates/{sample}/guppy/sequencing_summary.txt"
@@ -141,26 +140,6 @@ gzip {wildcards.sample}_temp_fq.txt
 mkdir -p $(dirname {output.fq})
 mv {wildcards.sample}_temp_fq.txt.gz {output.fq}
         """
-=======
-# rule mergeGuppyFastqs:
-#     input:
-#         summary = "lrna/intermediates/{sample}/guppy/sequencing_summary.txt"
-#     output:
-#         fq = "lrna/intermediates/{sample}/fastqs/guppy/{sample}.fq.gz"
-#     resources:
-#         cpus_per_task = 8,
-#         mem_mb = 64000
-#     shell:
-#         """
-# rm -f {output.fq}
-# for file in $(find $(dirname {input.summary})/pass -name "*.fastq" -type f)
-# do
-# cat $file >> {wildcards.sample}_temp_fq.txt
-# done
-# gzip {wildcards.sample}_temp_fq.txt
-# mv {wildcards.sample}_temp_fq.txt.gz > {output.fq}
-#         """
->>>>>>> a2746b1b285c6faf334cbada7091582ab322e214
 
 # rule gunzipfq:
 #     input:
@@ -177,93 +156,6 @@ mv {wildcards.sample}_temp_fq.txt.gz {output.fq}
 # mv {input.fqcalls}.temp {output.fq}
 #         """
 
-<<<<<<< HEAD
-rule nanopolishindex:
-    input:
-        fq = "lrna/intermediates/{sample}/fastqs/{alignmenttype}/{sample}.fq",
-        dir = "lrna/rawdata/fast5/{sample}"
-    params:
-        guppy = config["guppy"],
-        guppy_config = config["guppy_config"],
-        reference = config["reference"]
-    output:
-        outfile = "lrna/outfiles/{alignmenttype}_nanopolishindex_{sample}.txt"
-    resources:
-        cpus_per_task = 8,
-        runtime = 600,
-        mem_mb = 64000,
-    conda: "nanopolish"
-    shell:
-        """
-nanopolish index -d {input.dir} {input.fq}
-touch {output.outfile}
-        """
-
-rule eventalign:
-    input:
-        fq = "lrna/intermediates/{sample}/fastqs/{alignmenttype}/{sample}.fq",
-        bam = "lrna/intermediates/{sample}/alignments/genome/{alignmenttype}/{sample}.sorted.bam",
-        nanopolishindex = "lrna/outfiles/{alignmenttype}_nanopolishindex_{sample}.txt"
-    params:
-        reference = config["reference"]
-    output:
-        eventalign = "lrna/intermediates/{sample}/eventalign/{alignmenttype}/reads-ref.eventalign.txt"
-    resources:
-        cpus_per_task = 32,
-        runtime = 5760,
-        mem_mb = 156000,
-        disk_mb = 10000000
-    conda: "nanopolish"
-    shell:
-        """
-mkdir -p $(dirname {output.eventalign})
-nanopolish eventalign \
-    --reads {input.fq} \
-    --bam {input.bam} \
-    --genome {params.reference} \
-    --signal-index \
-    --threads 30 \
-    --scale-events > {output.eventalign}
-        """
-
-rule m6a_dataprep:
-    input:
-        eventalign = "lrna/intermediates/{sample}/eventalign/dorado/reads-ref.eventalign.txt"
-    output:
-        json = "lrna/intermediates/{sample}/m6a/prep/data.json"
-    resources:
-        cpus_per_task = 32,
-        runtime = 3000,
-        mem_mb = 128000,
-    conda: "m6anet"
-    shell:
-        """
-mkdir -p $(dirname {output.json})
-m6anet dataprep \
---eventalign {input.eventalign} \
---out_dir $(dirname {output.json}) \
---n_processes 20
-        """
-
-rule m6a_inference:
-    input:
-        json = "lrna/intermediates/{sample}/m6a/prep/data.json"
-    output:
-        csv = "lrna/intermediates/{sample}/m6a/results/data.indiv_proba.csv"
-    resources:
-        cpus_per_task = 32,
-        runtime = 3000,
-        mem_mb = 128000,
-    conda: "m6anet"
-    shell:
-        """
-m6anet inference \
---input_dir $(dirname {input.json}) \
---out_dir $(dirname {output.csv})  \
---n_processes 20 \
---num_iterations 1000
-        """
-=======
 # rule nanopolishindex:
 #     input:
 #         fq = "lrna/intermediates/{sample}/fastqs/guppy/{sample}.fq",
@@ -330,7 +222,6 @@ m6anet inference \
 # --out_dir $(dirname {output.json}) \
 # --n_processes 20
 #         """
->>>>>>> a2746b1b285c6faf334cbada7091582ab322e214
 
 # rule m6a_inference:
 #     input:

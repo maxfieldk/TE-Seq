@@ -164,7 +164,7 @@ ldna:
   use_aref_basecalls: "yes"
   single_condition: "no"
   tldr_input_bams:
-  store_plots_as_rds: "no" #yes or no
+  store_plots_as_rds: "yes" #yes or no
   store_env_as_rds: "no" #yes or no
 
   samples:
@@ -279,7 +279,7 @@ lrna:
   counttypes:
     - "relaxed"
     - "stringent"
-  store_plots_as_rds: "no" #yes or no
+  store_plots_as_rds: "yes" #yes or no
   store_env_as_rds: "no" #yes or no
 
   levels:

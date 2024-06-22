@@ -74,17 +74,10 @@ for pipeline in config["pipelines_to_deploy"]:
             repeatanalysisplots = expand("lrna/results/agg/repeatanalysis/{counttype}/repeatanalysisplots_environment.RData", alignmenttype = config["lrna"]["alignmenttypes"], counttype = config["lrna"]["counttypes"])
             # genomebrowserplots = expand("lrna/outfiles/genomebrowserplots{alignmenttype}.out", alignmenttype = config["lrna"]["alignmenttypes"])
             qc = [expand("lrna/qc/mycoplasma/mycoplasma{sample}.bam", sample = config["lrna"]["samples"]), "lrna/qc/multiqc_report.html"]
-<<<<<<< HEAD
-            bw = [expand("lrna/intermediates/{sample}/alignments/genome/{alignmenttype}/{sample}.F.bw", alignmenttype = config["lrna"]["alignmenttypes"], sample = config["lrna"]["samples"]), expand("lrna/intermediates/{sample}/alignments/genome/{alignmenttype}/{sample}.R.bw", alignmenttype = config["lrna"]["alignmenttypes"], sample = config["lrna"]["samples"])],
-            m6a = expand("lrna/intermediates/{sample}/m6a/results/data.indiv_proba.csv", sample = config["lrna"]["samples"])
-            return list(flatten([m6a]))
-# , bw, deseq, enrichment_analysis, enrichment_analysis_repeats, qc
-=======
             bw = [expand("lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.F.bw", sample = config["lrna"]["samples"], rate = config["lrna"]["rate"],  type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"]), expand("lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.R.bw", sample = config["lrna"]["samples"], rate = config["lrna"]["rate"],  type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"])]
             # bw, enrichment_analysis, enrichment_analysis_repeats
             return list(flatten([deseq, qc, enrichment_analysis, enrichment_analysis_repeats, repeatanalysisplots]))
 
->>>>>>> a2746b1b285c6faf334cbada7091582ab322e214
         for e in lrna_rally():
             final_input.append(e)
 
