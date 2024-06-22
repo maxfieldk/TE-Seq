@@ -1,6 +1,6 @@
-source("workflow/scripts/defaults.R")
 module_name <- "aref"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 
 library(readr)
@@ -66,9 +66,9 @@ sets_of_interest <- c("REACTOME_ONCOGENIC_MAPK_SIGNALING", "REACTOME_ONCOGENE_IN
 all.genes <- refseq_select[refseq_select$type == "transcript"]
 
 rmann %>% filter(rte_subfamily == "L1HS") %$% req_integrative %>% unique()
-intact_l1hs <- rmann %>% filter(rte_subfamily == "L1HS") %>% filter(grepl("Intact", req_integrative)) %>% GRanges()
+intact_l1hs <- rmann %>% filter(rte_subfamily == "L1HS") %>% filter(grepl("^Intact", req_integrative)) %>% GRanges()
 nonintact_l1hs_fl <- rmann %>% filter(rte_subfamily == "L1HS") %>% filter(grepl("Full Length", req_integrative)) %>% GRanges()
-l1hs_fl <- rmann %>% filter(rte_subfamily == "L1HS") %>% filter(grepl(">", rte_length_req)) %>% GRanges()
+l1hs_fl <- rmann %>% filter(rte_subfamily == "L1HS") %>% filter(grepl("FL$", rte_length_req)) %>% GRanges()
 (intact_l1hs %$% gene_id) %in% (nonintact_l1hs_fl %$% gene_id)
 
 #I'll run two test per set of interest
@@ -153,11 +153,6 @@ hit_resdf <- tibble(
 )
 }
 
-
-
-png("ztemp.png", width = 10, height = 10, units = "in", res = 300)
-plot(pt1)
-dev.off()
 
 
 pt <- permTest(A=my.regions, B=repeats, randomize.function=randomizeRegions,

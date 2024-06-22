@@ -53,7 +53,7 @@ tryCatch(
 print(sprintf("chromosome is %s", params$chromosome))
 
 sample_dfs <- list()
-for (sample in sample_table$sample_name[c(1,8)]) {
+for (sample in sample_table$sample_name) {
     sample_dfs[[sample]] <- read_delim(grep(sprintf("/%s/", sample), inputs$data, value = TRUE), col_names = TRUE) %>% filter(chr == params$chromosome)
 }
 

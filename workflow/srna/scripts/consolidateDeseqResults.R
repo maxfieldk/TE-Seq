@@ -9,8 +9,9 @@ library("stringr")
 library("dplyr")
 library("tibble")
 library("tidyr")
-
-conf <- configr::read.config(file = "conf/config.yaml")[["srna"]]
+# conf <- configr::read.config(file = "conf/config.yaml")[["lrna"]]
+module_name <- snakemake@params$module_name
+conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
 
 tryCatch(
     {
@@ -20,11 +21,11 @@ tryCatch(
     },
     error = function(e) {
         assign("params", list(
-            "inputdir" = "results/agg/deseq_telescope",
-            "outputdir" = "results/agg/repeatanalysis_telescope"
+            "inputdir" = "results/agg/deseq",
+            "outputdir" = "results/agg/repeatanalysis"
         ), env = globalenv())
         assign("outputs", list(
-            "resultsdf" = "results/agg/repeatanalysis_telescope/resultsdf.tsv"
+            "resultsdf" = "results/agg/repeatanalysis/resultsdf.tsv"
         ), env = globalenv())
     }
 )
@@ -34,14 +35,18 @@ tryCatch(
 outputdir <- params$outputdir
 dir.create(outputdir, recursive = TRUE, showWarnings = FALSE)
 contrasts <- conf$contrasts
-tecounttypes <- conf$tecounttypes
-tecounttypes <- conf$tecounttypes
+counttypes <- conf$counttypes
+
+ifelse(module_name == "srna", assign("counttypes", conf$counttypes, env = globalenv()), 
+ifelse(module_name == "lrna", assign("counttypes", conf$counttypes, env = globalenv()), NA))
+
+
 lengthreq <- conf$lengthreq
 maincontrast <- contrasts[1]
 
 
 
-peptable <- read.csv(conf$peptable)
+sample_table <- read.csv(conf$sample_table)
 
 
 
@@ -52,12 +57,12 @@ peptable <- read.csv(conf$peptable)
 
 # build dds frames
 RESLIST <- list()
-for (tecounttype in tecounttypes) {
+for (counttype in counttypes) {
     contrastl <- list()
     for (contrast in contrasts) {
-        ddsres_rtes <- read_csv(paste(params$inputdir, tecounttype, contrast, "results_rtes.csv", sep = "/"))
+        ddsres_rtes <- read_csv(paste(params$inputdir, counttype, contrast, "results_rtes.csv", sep = "/"))
         ddsres_rtes$gene_or_te <- "repeat"
-        ddsres_genes <- read_csv(paste(params$inputdir, tecounttype, contrast, "results_genes.csv", sep = "/"))
+        ddsres_genes <- read_csv(paste(params$inputdir, counttype, contrast, "results_genes.csv", sep = "/"))
         ddsres_genes$gene_or_te <- "gene"
         ddsres <- bind_rows(ddsres_rtes, ddsres_genes)
         ddsresmod <- ddsres %>%
@@ -71,25 +76,25 @@ for (tecounttype in tecounttypes) {
         contrastl[[contrast]] <- ddsresmod
     }
     ddsrestetype <- Reduce(function(x, y) merge(x, y, by = c("gene_id", "gene_or_te")), contrastl, accumulate = FALSE)
-    ddsrestetype <- ddsrestetype %>% mutate(tecounttype = tecounttype)
-    RESLIST[[tecounttype]] <- ddsrestetype
+    ddsrestetype <- ddsrestetype %>% mutate(counttype = counttype)
+    RESLIST[[counttype]] <- ddsrestetype
 }
 ddsfinal <- bind_rows(RESLIST)
 
 COUNTLIST <- list()
-for (tecounttype in tecounttypes) {
-    conditions <- peptable$condition %>% unique()
-    ddscounts <- read_csv(paste(params$inputdir, tecounttype, "counttablesizenormed.csv", sep = "/")) %>%
+for (counttype in counttypes) {
+    conditions <- sample_table$condition %>% unique()
+    ddscounts <- read_csv(paste(params$inputdir, counttype, "counttablesizenormed.csv", sep = "/")) %>%
         rename(gene_id = ...1) %>%
-        mutate(tecounttype = tecounttype)
-    COUNTLIST[[tecounttype]] <- ddscounts
+        mutate(counttype = counttype)
+    COUNTLIST[[counttype]] <- ddscounts
 }
 countsfinal <- bind_rows(COUNTLIST)
 # merge counts and dds, then add TE annotations
 
 
 # merge counts and dds, then add TE annotations
-resultsdf <- full_join(ddsfinal, countsfinal, by = c("gene_id", "tecounttype"))
+resultsdf <- full_join(ddsfinal, countsfinal, by = c("gene_id", "counttype"))
 
 
 write_tsv(resultsdf, outputs$resultsdf)

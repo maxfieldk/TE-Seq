@@ -1,4 +1,3 @@
-source("workflow/scripts/defaults.R")
 library(knitr)
 library(rmarkdown)
 library(circlize)
@@ -25,7 +24,7 @@ library(GGally)
 
 
 conf <- configr::read.config(file = "conf/config.yaml")
-
+source("workflow/scripts/defaults.R")
 
 tryCatch(
     {
@@ -44,7 +43,7 @@ tryCatch(
             "txdb" = conf[["lrna"]]$txdb
         ), env = globalenv())
         assign("inputs", list(
-            "srna_results" = "srna/results/agg/deseq_telescope/resultsdf.tsv",
+            "srna_results" = "srna/results/agg/deseq/resultsdf.tsv",
             "lrna_results" = "lrna/results/agg/deseq/dorado/relaxed/resultsdf.tsv",
             "ldna_methylation" = sprintf("ldna/intermediates/%s/methylation/%s_CG_m_dss.tsv", conf[["ldna"]][["samples"]], conf[["ldna"]][["samples"]]),
             "rteprommeth" = "ldna/Rintermediates/perelementdf_promoters.tsv"

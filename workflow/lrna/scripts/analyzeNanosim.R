@@ -1,6 +1,6 @@
-source("workflow/scripts/defaults.R")
 module_name <- "lrna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 
 library(GenomicAlignments)

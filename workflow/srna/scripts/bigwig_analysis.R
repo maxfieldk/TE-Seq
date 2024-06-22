@@ -1,7 +1,8 @@
-source("workflow/scripts/defaults.R")
 module_name <- "srna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
+set.seed(123)
 
 library(knitr)
 library(rmarkdown)
@@ -42,20 +43,18 @@ tryCatch(
     error = function(e) {
         print("not sourced snake variables")
         assign("params", list(
-            "inputdir" = "srna/results/agg/deseq_telescope",
-            "outputdir" = "srna/results/agg/repeatanalysis_telescope",
-            "tecounttypes" = c("telescope_multi", "telescope_unique"),
+            "inputdir" = "srna/results/agg/deseq",
+            "outputdir" = "srna/results/agg/repeatanalysis",
             "r_annotation_fragmentsjoined" = conf$r_annotation_fragmentsjoined,
-            "r_repeatmasker_annotation" = conf$r_repeatmasker_annotation
+            "r_repeatmasker_annotation" = conf$r_repeatmasker_annotation,
+            txdbrefseq = "aref/A.REF_annotations/refseq.sqlite"        
         ), env = globalenv())
         assign("inputs", list(
-            bwF = sprintf("srna/outs/%s/star_output/%s.%s.F.bw", conf$samples, conf$samples, conf$tecounttypes),
-            bwR = sprintf("srna/outs/%s/star_output/%s.%s.R.bw", conf$samples, conf$samples, conf$tecounttypes),
-            txdbrefseq = "aref/A.REF_annotations/refseq.sqlite"
-
+            bwF = sprintf("srna/outs/%s/star_output/%s.F.bw", conf$samples, conf$samples),
+            bwR = sprintf("srna/outs/%s/star_output/%s.R.bw", conf$samples, conf$samples)
         ), env = globalenv())
         assign("outputs", list(
-            "plots" = "srna/results/agg/bigwig_plots/plots.rds"
+            "environment" = "srna/results/agg/bigwig_plots/bigwigplots_environment.RData"
         ), env = globalenv())
     }
 )
@@ -75,6 +74,8 @@ refseq_select <- temptxs[mcols(temptxs)$tag == "RefSeq Select"]
 noncoding_transcripts <- refseq[(mcols(refseq)$type == "transcript" & grepl("^NR", mcols(refseq)$transcript_id))]
 transcripts <- c(coding_transcripts, noncoding_transcripts)
 table(mcols(coding_transcripts)$tag)
+
+norm_by_aligned_reads <- read_delim("srna/qc/multiqc/multiqc_data/samtools-stats-dp.txt") %>% filter(Sample %in% sample_table$sample_name) %>% mutate(meanmandp = mean(`Mapped &amp; paired`)) %>% mutate(scale_factor = `Mapped &amp; paired`/meanmandp) %>% dplyr::select(Sample, scale_factor, `Mapped &amp; paired`, meanmandp) %>% dplyr::rename(sample_name = Sample)
 
 
 
@@ -100,241 +101,270 @@ table(mcols(coding_transcripts)$tag)
 }
 
 
-for (tecounttype in conf$tecounttypes) {
-paths_bwF <- grep(tecounttype, inputs$bwF, value = TRUE)
-paths_bwR <- grep(tecounttype, inputs$bwR, value = TRUE)
+paths_bwF <- inputs$bwF
+paths_bwR <- inputs$bwR
 
-    groups_that_have_been_run <- c()
-    groups_not_to_run <- c()
-    for (ontology in c("rte_family", "rte_subfamily_limited")) {
-        ontology_groups <- r_repeatmasker_annotation %>%
-            pull(!!sym(ontology)) %>%
-            unique()
-        ontology_groups <- ontology_groups[ontology_groups != "Other"]
-        for (group in ontology_groups) {
-            if (!(group %in% groups_that_have_been_run | group %in% groups_not_to_run | group %in% big_ontology_groups)) {
-                groups_that_have_been_run <- c(groups_that_have_been_run, group)
-                #maybe change to !!group
-                groupframe <- rmann %>% dplyr::filter(!!sym(ontology) == group)
-                eligible_modifiers <- c()
-                for (modifier in modifiers) {
-                    values_present <- rmann %>%
-                        filter(!!sym(ontology) == group) %>%
-                        pull(!!sym(modifier)) %>%
-                        unique()
-                    if ((length(values_present) > 1) | !("Other" %in% values_present)) {
-                        eligible_modifiers <- c(eligible_modifiers, modifier)
-                    }
+groups_that_have_been_run <- c()
+groups_not_to_run <- c()
+for (ontology in c("rte_family", "rte_subfamily_limited")) {
+    ontology_groups <- r_repeatmasker_annotation %>%
+        pull(!!sym(ontology)) %>%
+        unique()
+    ontology_groups <- ontology_groups[ontology_groups != "Other"]
+    for (group in ontology_groups) {
+        if (!(group %in% groups_that_have_been_run | group %in% groups_not_to_run | group %in% big_ontology_groups)) {
+            print(group)
+            groups_that_have_been_run <- c(groups_that_have_been_run, group)
+            #maybe change to !!group
+            groupframe <- rmann %>% dplyr::filter(!!sym(ontology) == group)
+            eligible_modifiers <- c()
+            for (modifier in modifiers) {
+                values_present <- rmann %>%
+                    filter(!!sym(ontology) == group) %>%
+                    pull(!!sym(modifier)) %>%
+                    unique()
+                if ((length(values_present) > 1) | !("Other" %in% values_present)) {
+                    eligible_modifiers <- c(eligible_modifiers, modifier)
                 }
-                for (modifier in eligible_modifiers) {
-                    values_present <- rmann %>%
-                        filter(!!sym(ontology) == group) %>%
-                        pull(!!sym(modifier)) %>%
-                        unique()
-                    if ((length(values_present) > 1) | !("Other" %in% values_present)) {
-                        eligible_modifiers <- c(eligible_modifiers, modifier)
-                    }
-                    eligible_filter_modifiers <- c(eligible_modifiers[grepl("_req$", eligible_modifiers)], "ALL")
-                    eligible_facet_modifiers <- c("ALL")
-                    eligible_modifier_combinations <- expand.grid(filter_var = eligible_filter_modifiers, facet_var = eligible_facet_modifiers, stringsAsFactors = FALSE)
+            }
+            for (modifier in eligible_modifiers) {
+                values_present <- rmann %>%
+                    filter(!!sym(ontology) == group) %>%
+                    pull(!!sym(modifier)) %>%
+                    unique()
+                if ((length(values_present) > 1) | !("Other" %in% values_present)) {
+                    eligible_modifiers <- c(eligible_modifiers, modifier)
                 }
-                for (i in seq(1, length(rownames(eligible_modifier_combinations)))) {
-                    filter_var <- eligible_modifier_combinations[i, ]$filter_var
-                    facet_var <- eligible_modifier_combinations[i, ]$facet_var
-                    tryCatch(
+                eligible_filter_modifiers <- c(eligible_modifiers[grepl("_req$", eligible_modifiers)], "ALL")
+                eligible_facet_modifiers <- c("ALL")
+                eligible_modifier_combinations <- expand.grid(filter_var = eligible_filter_modifiers, facet_var = eligible_facet_modifiers, stringsAsFactors = FALSE)
+            }
+            for (i in seq(1, length(rownames(eligible_modifier_combinations)))) {
+                filter_var <- eligible_modifier_combinations[i, ]$filter_var
+                facet_var <- eligible_modifier_combinations[i, ]$facet_var
+                print(filter_var)
+                print(facet_var)
+                tryCatch(
+                    {
+                        if (filter_var != "ALL") {
+                            elements_of_interest <- rmann %>%
+                                filter(!!sym(ontology) == group) %>%
+                                filter(str_detect(!!sym(filter_var), "Intact|FL$|^LTR")) 
+                        } else {
+                            elements_of_interest <- rmann %>%
+                                filter(!!sym(ontology) == group)
+                        }
+
+                        if (length(rownames(elements_of_interest)) > 10000) {
+                            elements_of_interest <- elements_of_interest %>% sample_n(10000)
+                        }
+                        signal_group <- paste0(group, "_", filter_var)
+                        windowsF <- elements_of_interest %>% filter(strand == "+") %>% GRanges()
+                        windowsR <- elements_of_interest %>% filter(strand == "-") %>% GRanges()
+
                         {
-                            if (filter_var != "ALL") {
-                                elements_of_interest <- rmann %>%
-                                    filter(!!sym(ontology) == group) %>%
-                                    filter(str_detect(!!sym(filter_var), ">|Intact|^Fl|^LTR")) 
-                            } else {
-                                elements_of_interest <- rmann %>%
-                                    filter(!!sym(ontology) == group)
-                            }
+                        nbin = 100
+                        smlF = genomation::ScoreMatrixList(targets = paths_bwF, windows = windowsF, strand.aware = TRUE, bin.num = nbin)
+                        smlR = genomation::ScoreMatrixList(targets = paths_bwR, windows = windowsR, strand.aware = TRUE, bin.num = nbin)
+                        mF = plotMeta(smlF, plot = FALSE) %>% t()
+                        mR = plotMeta(smlR, plot = FALSE) %>% t()
+                        m <- mF + mR
+                        df = m %>% as.data.frame() %>% tibble()
+                        dfF = mF %>% as.data.frame() %>% tibble()
+                        dfR = mR %>% as.data.frame() %>% tibble()
+                        colnames(df) <- conf$samples
+                        colnames(dfF) <- conf$samples
+                        colnames(dfR) <- conf$samples
 
-                            if (length(rownames(elements_of_interest)) > 10000) {
-                                elements_of_interest <- elements_of_interest %>% sample_n(10000)
-                            }
-                            signal_group <- paste0(group, "_", filter_var)
-                            windowsF <- elements_of_interest %>% filter(strand == "+") %>% GRanges()
-                            windowsR <- elements_of_interest %>% filter(strand == "-") %>% GRanges()
+                        df$x <- seq(0, width(windowsF) %>% mean(), length.out = nbin)
+                        dfF$x <- seq(0, width(windowsF) %>% mean(), length.out = nbin)
+                        dfR$x <- seq(0, width(windowsF) %>% mean(), length.out = nbin)
+                        dfF$strand = "+"
+                        dfR$strand = "-"
+                        dfStranded = rbind(dfF, dfR)
+                        pf <- df%>% pivot_longer(cols = c(-x), names_to = "sample_name", values_to = "value") %>% 
+                            left_join(sample_table) %>% group_by(sample_name) %>%
+                            mutate(smoothed_value = zoo::rollmean(value, 5, fill = NA, align = "left")) %>%
+                            left_join(norm_by_aligned_reads) %>% mutate(value = value / scale_factor) %>% mutate(smoothed_value = smoothed_value / scale_factor)
+                        pf1 <- pf %>% ungroup() %>% group_by(x, condition) %>% mutate(condition_value = mean(value, na.rm = TRUE)) %>% 
+                            mutate(smoothed_condition_value = zoo::rollmean(condition_value, 5, fill = NA, align = "left")) %>% ungroup()
 
-                            {
-                            nbin = 100
-                            smlF = genomation::ScoreMatrixList(targets = paths_bwF, windows = windowsF, strand.aware = TRUE, bin.num = nbin)
-                            smlR = genomation::ScoreMatrixList(targets = paths_bwR, windows = windowsR, strand.aware = TRUE, bin.num = nbin)
-                            mF = plotMeta(smlF, plot = FALSE) %>% t()
-                            mR = plotMeta(smlR, plot = FALSE) %>% t()
-                            m <- mF + mR
-                            df = m %>% as.data.frame() %>% tibble()
-                            dfF = mF %>% as.data.frame() %>% tibble()
-                            dfR = mR %>% as.data.frame() %>% tibble()
-                            colnames(df) <- conf$samples
-                            colnames(dfF) <- conf$samples
-                            colnames(dfR) <- conf$samples
+                        pfStranded <- dfStranded %>% pivot_longer(cols = c(-x, -strand), names_to = "sample_name", values_to = "value") %>% 
+                            left_join(sample_table) %>% group_by(sample_name, strand) %>%
+                            mutate(smoothed_value = zoo::rollmean(value, 5, fill = NA, align = "left")) %>%
+                            left_join(norm_by_aligned_reads) %>% mutate(value = value / scale_factor) %>% mutate(smoothed_value = smoothed_value / scale_factor)
+                        pfStranded1 <- pfStranded %>% ungroup() %>% group_by(x, strand, condition) %>% mutate(condition_value = mean(value, na.rm = TRUE)) %>%
+                            mutate(smoothed_condition_value = zoo::rollmean(condition_value, 5, fill = NA, align = "left")) %>% ungroup()
 
-                            df$x <- seq(0, width(windowsF) %>% mean(), length.out = nbin)
-                            dfF$x <- seq(0, width(windowsF) %>% mean(), length.out = nbin)
-                            dfR$x <- seq(0, width(windowsF) %>% mean(), length.out = nbin)
-                            dfF$strand = "+"
-                            dfR$strand = "-"
-                            dfStranded = rbind(dfF, dfR)
-                            pf <- df%>% pivot_longer(cols = c(-x), names_to = "sample_name", values_to = "value") %>% 
-                                left_join(sample_table) %>% group_by(sample_name) %>%
-                                mutate(smoothed_value = zoo::rollmean(value, 5, fill = NA, align = "left"))
-                            pf1 <- pf %>% ungroup() %>% group_by(x, condition) %>% mutate(condition_value = mean(value, na.rm = TRUE)) %>% 
-                                mutate(smoothed_condition_value = zoo::rollmean(condition_value, 5, fill = NA, align = "left")) %>% ungroup()
+                        element_anatomy <- read_delim("aref/A.REF_Analysis/intact_l1_anatomy_coordinates.tsv")
+                        representative_element <- element_anatomy %>% filter(gene_id == element_anatomy$gene_id[1]) %>% filter(!(feature %in% c("EN", "RT")))
+                        p2 <- representative_element %>% 
+                            ggplot() +
+                            geom_rect(aes(xmin = start, xmax = end, ymin = 0.25, ymax = 0.75), fill = "darkgrey") +
+                            geom_rect(aes(xmin = start, xmax = end, ymin = 0, ymax = 1, fill = feature), alpha = 1) +
+                            geom_text(aes(x = (start + end) / 2, y = 1.5, label = feature)) +
+                            ggtitle(signal_group) +
+                            scale_fill_paletteer_d("dutchmasters::milkmaid") + mtclosed + 
+                            theme(axis.text.x = element_blank(), axis.text.y = element_blank(), axis.title = element_blank(), axis.ticks = element_blank(), panel.grid = element_blank()) +
+                            scale_y_continuous(expand = c(0, 0.4)) + theme(legend.position = "none")
+                        }
 
-                            pfStranded <- dfStranded %>% pivot_longer(cols = c(-x, -strand), names_to = "sample_name", values_to = "value") %>% 
-                                left_join(sample_table) %>% group_by(sample_name, strand) %>%
-                                mutate(smoothed_value = zoo::rollmean(value, 5, fill = NA, align = "left"))
-                            pfStranded1 <- pfStranded %>% ungroup() %>% group_by(x, strand, condition) %>% mutate(condition_value = mean(value, na.rm = TRUE)) %>%
-                                mutate(smoothed_condition_value = zoo::rollmean(condition_value, 5, fill = NA, align = "left")) %>% ungroup()
+                        {
+                        p1 <- pf %>%
+                            ggplot(aes(x = x, y = smoothed_value, color = sample_name)) + geom_line() + mtclosed + scale_samples+ labs(x = "Position (bp)", y = "Read Density", caption = "Multi")
+                        if (elements_of_interest %$% rte_family %>% unique() == "L1") {
+                            p2temp <- p2 + coord_cartesian(xlim = layer_scales(p1)$x$range$range)
+                            p <- p2temp / p1 + plot_layout(heights = c(0.2, 1))
+                        } else {
+                            p <- p1
+                        }
 
-                            element_anatomy <- read_delim("aref/A.REF_Analysis/intact_l1_anatomy_coordinates.tsv")
-                            representative_element <- element_anatomy %>% filter(gene_id == element_anatomy$gene_id[1]) %>% filter(!(feature %in% c("EN", "RT")))
-                            p2 <- representative_element %>% 
-                                ggplot() +
-                                geom_rect(aes(xmin = start, xmax = end, ymin = 0.25, ymax = 0.75), fill = "darkgrey") +
-                                geom_rect(aes(xmin = start, xmax = end, ymin = 0, ymax = 1, fill = feature), alpha = 1) +
-                                geom_text(aes(x = (start + end) / 2, y = 1.5, label = feature)) +
-                                ggtitle(signal_group) +
-                                scale_fill_paletteer_d("dutchmasters::milkmaid") + mtclosed + 
-                                theme(axis.text.x = element_blank(), axis.text.y = element_blank(), axis.title = element_blank(), axis.ticks = element_blank(), panel.grid = element_blank()) +
-                                scale_y_continuous(expand = c(0, 0.4)) + theme(legend.position = "none")
-                            }
+                        mysaveandstore(sprintf("srna/results/agg/bigwig_plots/rte/%s_profile_by_sample.pdf",  signal_group), 8,6)
 
-                            {
-                            p1 <- pf %>%
-                                ggplot(aes(x = x, y = smoothed_value, color = sample_name)) + geom_line() + mtclosed + scale_samples+ labs(x = "Position (bp)", y = "Read Density", caption = "Multi")
-                            if (elements_of_interest %$% rte_family %>% unique() == "L1") {
-                                p2temp <- p2 + coord_cartesian(xlim = layer_scales(p1)$x$range$range)
-                                p <- p2temp / p1 + plot_layout(heights = c(0.2, 1))
-                            } else {
-                                p <- p1
-                            }
+                        p1 <- pf %>% group_by(x) %>% summarise(value = mean(value, na.rm = TRUE)) %>% ungroup() %>%
+                            ggplot(aes(x = x, y = value)) + geom_line() + mtclosed + scale_samples + labs(x = "Position (bp)", y = "Read Density", caption = "Multi")
+                        if (elements_of_interest %$% rte_family %>% unique() == "L1") {
+                            p2temp <- p2 + coord_cartesian(xlim = layer_scales(p1)$x$range$range)
+                            p <- p2temp / p1 + plot_layout(heights = c(0.2, 1))
+                        } else {
+                            p <- p1
+                        }
+                        mysaveandstore(sprintf("srna/results/agg/bigwig_plots/rte/%s_profile_all.pdf",  signal_group))
 
-                            mysaveandstore(sprintf("srna/results/agg/bigwig_plots/%s/%s_profile_by_sample.png",tecounttype,  signal_group), 8,6)
-
-                            p1 <- pf %>% group_by(x) %>% summarise(value = mean(value, na.rm = TRUE)) %>% ungroup() %>%
-                                ggplot(aes(x = x, y = value)) + geom_line() + mtclosed + scale_samples + labs(x = "Position (bp)", y = "Read Density", caption = "Multi")
-                            if (elements_of_interest %$% rte_family %>% unique() == "L1") {
-                                p2temp <- p2 + coord_cartesian(xlim = layer_scales(p1)$x$range$range)
-                                p <- p2temp / p1 + plot_layout(heights = c(0.2, 1))
-                            } else {
-                                p <- p1
-                            }
-                            mysaveandstore(sprintf("srna/results/agg/bigwig_plots/%s/%s_profile_all.png",tecounttype,  signal_group))
-
-                            p1 <- pf1%>%
-                                ggplot(aes(x = x, y = condition_value, color = condition)) + geom_line() + mtclosed + scale_conditions + labs(x = "Position (bp)", y = "Read Density", caption = "Multi")
-                            if (elements_of_interest %$% rte_family %>% unique() == "L1") {
-                                p2temp <- p2 + coord_cartesian(xlim = layer_scales(p1)$x$range$range)
-                                p <- p2temp / p1 + plot_layout(heights = c(0.2, 1))
-                            } else {
-                                p <- p1
-                            }
-                            mysaveandstore(sprintf("srna/results/agg/bigwig_plots/%s/%s_profile_by_condition.png",tecounttype,  signal_group),6,4)
+                        p1 <- pf1%>%
+                            ggplot(aes(x = x, y = condition_value, color = condition)) + geom_line() + mtclosed + scale_conditions + labs(x = "Position (bp)", y = "Read Density", caption = "Multi")
+                        if (elements_of_interest %$% rte_family %>% unique() == "L1") {
+                            p2temp <- p2 + coord_cartesian(xlim = layer_scales(p1)$x$range$range)
+                            p <- p2temp / p1 + plot_layout(heights = c(0.2, 1))
+                        } else {
+                            p <- p1
+                        }
+                        mysaveandstore(sprintf("srna/results/agg/bigwig_plots/rte/%s_profile_by_condition.pdf",  signal_group),6,4)
 
 
-                            p1 <- pfStranded %>%
-                                ggplot(aes(x = x, y = smoothed_value, color = sample_name)) + geom_line() + facet_wrap(~strand, nrow = 2) + mtclosed + scale_samples +
-                                labs(x = "Position (bp)", y = "Read Density", caption = "Multi")
-                            if (elements_of_interest %$% rte_family %>% unique() == "L1") {
-                                p2temp <- p2 + coord_cartesian(xlim = layer_scales(p1)$x$range$range)
-                                p <- p2temp / p1 + plot_layout(heights = c(0.2, 1))
-                            } else {
-                                p <- p1
-                            }
-                            mysaveandstore(sprintf("srna/results/agg/bigwig_plots/%s/%s_profile_by_sample_stranded.png",tecounttype, signal_group), 8,6)
+                        p1 <- pfStranded %>%
+                            ggplot(aes(x = x, y = smoothed_value, color = sample_name)) + geom_line() + facet_wrap(~strand, nrow = 2) + mtclosed + scale_samples +
+                            labs(x = "Position (bp)", y = "Read Density", caption = "Multi")
+                        if (elements_of_interest %$% rte_family %>% unique() == "L1") {
+                            p2temp <- p2 + coord_cartesian(xlim = layer_scales(p1)$x$range$range)
+                            p <- p2temp / p1 + plot_layout(heights = c(0.2, 1))
+                        } else {
+                            p <- p1
+                        }
+                        mysaveandstore(sprintf("srna/results/agg/bigwig_plots/rte/%s_profile_by_sample_stranded.pdf", signal_group), 8,6)
 
-                            p1 <- pfStranded %>% group_by(x, strand) %>% summarise(value = mean(value, na.rm = TRUE)) %>% ungroup() %>%
-                                ggplot(aes(x = x, y = value)) + geom_line() + facet_wrap(~strand, nrow = 2) + mtclosed + scale_samples + labs(x = "Position (bp)", y = "Read Density", caption = "Multi")
-                            if (elements_of_interest %$% rte_family %>% unique() == "L1") {
-                                p2temp <- p2 + coord_cartesian(xlim = layer_scales(p1)$x$range$range)
-                                p <- p2temp / p1 + plot_layout(heights = c(0.2, 1))
-                            } else {
-                                p <- p1
-                            }
-                            mysaveandstore(sprintf("srna/results/agg/bigwig_plots/%s/%s_profile_all_stranded.png",tecounttype,  signal_group), 6,6)
+                        p1 <- pfStranded %>% group_by(x, strand) %>% summarise(value = mean(value, na.rm = TRUE)) %>% ungroup() %>%
+                            ggplot(aes(x = x, y = value)) + geom_line() + facet_wrap(~strand, nrow = 2) + mtclosed + scale_samples + labs(x = "Position (bp)", y = "Read Density", caption = "Multi")
+                        if (elements_of_interest %$% rte_family %>% unique() == "L1") {
+                            p2temp <- p2 + coord_cartesian(xlim = layer_scales(p1)$x$range$range)
+                            p <- p2temp / p1 + plot_layout(heights = c(0.2, 1))
+                        } else {
+                            p <- p1
+                        }
+                        mysaveandstore(sprintf("srna/results/agg/bigwig_plots/rte/%s_profile_all_stranded.pdf",  signal_group), 6,6)
 
-                            p1 <- pfStranded1 %>%
-                                ggplot(aes(x = x, y = condition_value, color = condition)) + geom_line() + facet_wrap(~strand, nrow = 2) + mtclosed + scale_conditions + labs(x = "Position (bp)", y = "Read Density", caption = "Multi")
-                            if (elements_of_interest %$% rte_family %>% unique() == "L1") {
-                                p2temp <- p2 + coord_cartesian(xlim = layer_scales(p1)$x$range$range)
-                                p <- p2temp / p1 + plot_layout(heights = c(0.2, 1))
-                            } else {
-                                p <- p1
-                            }
-                            mysaveandstore(sprintf("srna/results/agg/bigwig_plots/%s/%s_profile_by_condition_stranded.png", tecounttype, signal_group), 6,6)
-                            }
+                        p1 <- pfStranded1 %>%
+                            ggplot(aes(x = x, y = condition_value, color = condition)) + geom_line() + facet_wrap(~strand, nrow = 2) + mtclosed + scale_conditions + labs(x = "Position (bp)", y = "Read Density", caption = "Multi")
+                        if (elements_of_interest %$% rte_family %>% unique() == "L1") {
+                            p2temp <- p2 + coord_cartesian(xlim = layer_scales(p1)$x$range$range)
+                            p <- p2temp / p1 + plot_layout(heights = c(0.2, 1))
+                        } else {
+                            p <- p1
+                        }
+                        mysaveandstore(sprintf("srna/results/agg/bigwig_plots/rte/%s_profile_by_condition_stranded.pdf", signal_group), 6,6)
+                        }
 
-                        })
-                }
+                    })
             }
         }
     }
-
-
-
-    grs_list <- list()
-    for (sample in sample_table$sample_name) {
-        bwF <- import(grep(sprintf("/%s/", sample), paths_bwF, value = TRUE))
-        strand(bwF) <- "+"
-        bwR <- import(grep(sprintf("/%s/", sample), inputs$bwR, value = TRUE))
-        strand(bwR) <- "-"
-        grstemp <- c(bwF, bwR)
-        mcols(grstemp)$sample_name <- sample
-        grs_list[[sample]] <- grstemp
-    }
-    grs <- Reduce(c, grs_list)
-
-
-
-    txdb <- loadDb(inputs$txdbrefseq)
-    introns <- intronsByTranscript(txdb, use.names = TRUE)
-    introns <- introns[grepl("^NM", names(introns))]
-    introns <- introns[names(introns) %in% mcols(refseq_select)$transcript_id]
-    exons <- exonsBy(txdb, by = "tx", use.names = TRUE)
-    exons <- exons[grepl("^NM", names(exons))]
-    exons <- exons[names(exons) %in% mcols(refseq_select)$transcript_id]
-    fiveUTRs <- fiveUTRsByTranscript(txdb, use.names = TRUE)
-    fiveUTRs <- fiveUTRs[grepl("^NM", names(fiveUTRs))]
-    fiveUTRs <- fiveUTRs[names(fiveUTRs) %in% mcols(refseq_select)$transcript_id]
-    threeUTRs <- threeUTRsByTranscript(txdb, use.names = TRUE)
-    threeUTRs <- threeUTRs[grepl("^NM", names(threeUTRs))]
-    threeUTRs <- threeUTRs[names(threeUTRs) %in% mcols(refseq_select)$transcript_id]
-
-    getannotation <- function(to_be_annotated, regions_of_interest, property, name_in, name_out) {
-        inregions <- to_be_annotated %>% subsetByOverlaps(regions_of_interest, invert = FALSE, ignore.strand = FALSE)
-        mcols(inregions)[[property]] <- name_in
-        outregions <- to_be_annotated %>% subsetByOverlaps(regions_of_interest, invert = TRUE, ignore.strand = FALSE)
-        mcols(outregions)[[property]] <- name_out
-        merged <- c(inregions, outregions)
-        return(merged)
-    }
-
-    exonic_annot <- getannotation(grs, exons, "exonic", "Exonic", "NonExonic")%>% as.data.frame() %>% tibble()
-    intron_annot <- getannotation(grs, introns, "intronic", "Intronic", "NonIntronic")%>% as.data.frame() %>% tibble()
-
-    region_annot <- left_join(exonic_annot, intron_annot)
-
-    region_annot1 <- region_annot %>% mutate(loc_integrative = case_when(
-        exonic == "Exonic" ~ "Exonic",
-        intronic == "Intronic" ~ "Intronic",
-        TRUE ~ "Intergenic"
-    ))
-
-    pf <- region_annot1 %>% group_by(sample_name, loc_integrative) %>% summarise(score_sum = sum(score)) %>% left_join(sample_table) %>% ungroup()
-
-    barframe <- pf %>% group_by(condition, loc_integrative) %>% summarise(score_condition_mean = mean(score_sum)) 
-
-    p<- pf %>% ggplot(aes(x = loc_integrative, y = score_sum, fill = sample_name)) + geom_col(position = position_dodge(preserve = "single")) + scale_samples_unique + mtopen + anchorbar
-    mysaveandstore(sprintf("srna/results/agg/bigwig_plots/%s/gene_oriented_signal.png", tecounttype), 12,5)
-
-    p<- pf %>% ggplot(aes(x = sample_name, y = score_sum, fill = sample_name)) + geom_col(position = position_dodge(preserve = "single")) +
-        facet_wrap(~loc_integrative, scale = "free_y") + scale_samples_unique + mtclosed + anchorbar + theme(axis.text.x = element_blank())
-    mysaveandstore(sprintf("srna/results/agg/bigwig_plots/%s/gene_oriented_signal_faceted.png", tecounttype), 12,5)
-
 }
-save(mysaveandstoreplots, file = outputs$plots)
+
+grs_list <- list()
+for (sample in sample_table$sample_name) {
+    bwF <- import(grep(sprintf("/%s/", sample), paths_bwF, value = TRUE))
+    strand(bwF) <- "+"
+
+    bwR <- import(grep(sprintf("/%s/", sample), inputs$bwR, value = TRUE))
+    strand(bwR) <- "-"
+    grstemp <- c(bwF, bwR)
+    mcols(grstemp)$sample_name <- sample
+    mcols(grstemp)$score <- mcols(grstemp)$score / norm_by_aligned_reads$scale_factor[norm_by_aligned_reads$sample_name == sample]
+    grs_list[[sample]] <- grstemp
+}
+grs <- Reduce(c, grs_list)
+
+txdb <- loadDb(params$txdbrefseq)
+introns <- intronsByTranscript(txdb, use.names = TRUE)
+# introns <- introns[grepl("^NM", names(introns))]
+introns <- introns[names(introns) %in% mcols(refseq_select)$transcript_id]
+exons <- exonsBy(txdb, by = "tx", use.names = TRUE)
+# exons <- exons[grepl("^NM", names(exons))]
+exons <- exons[names(exons) %in% mcols(refseq_select)$transcript_id]
+fiveUTRs <- fiveUTRsByTranscript(txdb, use.names = TRUE)
+# fiveUTRs <- fiveUTRs[grepl("^NM", names(fiveUTRs))]
+fiveUTRs <- fiveUTRs[names(fiveUTRs) %in% mcols(refseq_select)$transcript_id]
+threeUTRs <- threeUTRsByTranscript(txdb, use.names = TRUE)
+# threeUTRs <- threeUTRs[grepl("^NM", names(threeUTRs))]
+threeUTRs <- threeUTRs[names(threeUTRs) %in% mcols(refseq_select)$transcript_id]
+
+getannotation <- function(to_be_annotated, regions_of_interest, property, name_in, name_out) {
+    inregions <- to_be_annotated %>% subsetByOverlaps(regions_of_interest, invert = FALSE, ignore.strand = FALSE)
+    mcols(inregions)[[property]] <- name_in
+    outregions <- to_be_annotated %>% subsetByOverlaps(regions_of_interest, invert = TRUE, ignore.strand = FALSE)
+    mcols(outregions)[[property]] <- name_out
+    merged <- c(inregions, outregions)
+    return(merged)
+}
+
+exonic_annot <- getannotation(grs, exons, "exonic", "Exonic", "NonExonic")%>% as.data.frame() %>% tibble()
+intron_annot <- getannotation(grs, introns, "intronic", "Intronic", "NonIntronic")%>% as.data.frame() %>% tibble()
+
+region_annot <- left_join(exonic_annot, intron_annot)
+
+region_annot1 <- region_annot %>% mutate(loc_integrative = case_when(
+    exonic == "Exonic" ~ "Exonic",
+    intronic == "Intronic" ~ "Intronic",
+    TRUE ~ "Intergenic"
+))
+
+pf <- region_annot1 %>% group_by(sample_name, loc_integrative) %>% summarise(score_sum = sum(score)) %>% left_join(sample_table) %>% ungroup()
+
+barframe <- pf %>% group_by(condition, loc_integrative) %>% summarise(score_condition_mean = mean(score_sum)) 
+
+p<- pf %>% ggplot(aes(x = loc_integrative, y = score_sum, fill = sample_name)) + geom_col(position = position_dodge(preserve = "single")) + scale_samples_unique + mtopen + anchorbar
+mysaveandstore(sprintf("srna/results/agg/bigwig_plots/genomic_context/gene_oriented_signal.pdf"), 12,5)
+
+p<- pf %>% mutate(condition = factor(condition, levels = conf$levels)) %>% ggbarplot(x = "condition", y = "score_sum",facet.by = "loc_integrative", fill = "condition",  scales = "free_y", add = c("mean_se", "dotplot")) +
+ geom_pwc(
+    method = "t_test", label = "p.adj.signif",
+    ref.group = conf$levels[1],
+    p.adjust.method = "fdr", hide.ns = TRUE
+  )+ scale_conditions + mtclosed + anchorbar + labs(x = "", y = "Normalized Read Count")
+
+mysaveandstore(sprintf("srna/results/agg/bigwig_plots/genomic_context/gene_oriented_signal_faceted.pdf"), 8,3.8)
+library(scales)
+
+if (conf$store_env_as_rds == "yes") {
+    save.image(file = outputs$environment)
+} else {
+    x = tibble(Env_file = "Opted not to store environment. If this is not desired, change 'store_plots_as_rds' to 'yes' in the relevant config file and rerun this rule.")
+    write_tsv(x, file = outputs$environment)
+}
+
+# figures: modify plot compositions at will!
+# load(outputs$environment)
+tryCatch(
+    {
+        library(patchwork)
+        p1 <- mysaveandstoreplots[["srna/results/agg/bigwig_plots/genomic_context/gene_oriented_signal_faceted.pdf"]]
+        p2 <- mysaveandstoreplots[["srna/results/agg/bigwig_plots/rte/L1HS_rte_length_req_profile_by_sample_stranded.pdf"]]
+        names(mysaveandstoreplots)
+        ptch <- p1 + p2 + plot_layout(ncol = 2, guides = "collect")
+        mysaveandstore(pl = ptch, fn = "srna/results/agg/bigwig_plots/composition.pdf", w = 15, h = 7)
+
+    },
+    error = function(e) {
+
+    }
+)

@@ -6,7 +6,8 @@ samples = config["ldna"]["samples"]
 #tag BASECALLING
 rule dorado:
     input:
-        dir = "ldna/rawdata/{rate}/{sample}"
+        dir = "ldna/rawdata/{rate}/{sample}",
+        aref = "aref.done.outfile"
     output:
         calls = "ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.bam"
     wildcard_constraints:
@@ -14,9 +15,9 @@ rule dorado:
         type = "[0-9A-Za-z]+",
         rate = "[0-9A-Za-z]+",
         modification_string = "[0-9A-Za-z_-]+"
+    container: None
     params:
         dorado = config["ldna"]["dorado"],
-        basecallingModel = lambda w: config["ldna"]["basecallingModel"][w.rate][w.type],
         reference = config["ldna"]["reference"]
     resources:
         cpus_per_task =12,
@@ -55,10 +56,11 @@ samtools fastq -TMM,ML {input.bam} > {output.fastq}
 
 rule align_to_updated_ref:
     input:
-        fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq",
-        ref = lambda w: "aref/{sample}.fa" if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF.fa"
+        fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq"
+    params:
+        ref = lambda wildcards: "aref/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF.fa"
     output:
-        sam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+        sam = temp(expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]))
     resources:
         cpus_per_task =20,
         runtime = 1200,
@@ -67,14 +69,14 @@ rule align_to_updated_ref:
     shell:
         """
 mkdir -p $(dirname {output.sam})
-minimap2 -a -x map-ont -t 14 -y {input.ref} {input.fastq} > {output.sam}
+minimap2 -a -x map-ont -t 14 -y {params.ref} {input.fastq} > {output.sam}
         """
 
 rule samToBam:
     input:
         sam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
     output:
-        bam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+        bam = temp(expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]))
     conda:
         "omics"
     resources:
@@ -347,7 +349,8 @@ rule modbamtobed:
     input:
         sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
         sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-        ref = lambda w: "aref/{sample}.fa" if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF.fa"
+    params:
+        ref = lambda wildcards: "aref/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF.fa"
     resources:
         cpus_per_task = 36,
         mem_mb = 128000
@@ -361,7 +364,7 @@ rule modbamtobed:
         """
 mkdir -p $(dirname {output})
 /oscar/data/jsedivy/mkelsey/tools/modkit pileup {input.sortedbam} {output.bed} \
---ref {input.ref} \
+--ref {params.ref} \
 --interval-size 30000 \
 --combine-strands \
 --cpg \
@@ -465,23 +468,25 @@ rule dss:
         "dss2"
     resources:
         cpus_per_task = 10,
-        mem_mb = 60000
+        mem_mb = lambda w, attempt: 60000 * attempt
+    retries: 3
     script:
         "scripts/dss.R"
 
 
 rule merge_dss:
     input:
-        dmrs = expand("ldna/results/tables/dmrs.{chr}.CG_m.tsv", chr = ["chr%s"%chrid for chrid in list(range(1, 23)) + ["X", "Y"]]),
-        dmls = expand("ldna/results/tables/dmls.{chr}.CG_m.tsv", chr = ["chr%s"%chrid for chrid in list(range(1, 23)) + ["X", "Y"]])
+        dmrs = expand("ldna/results/tables/dmrs.{chr}.CG_m.tsv", chr = [chrid for chrid in ["chr%s"%e for e in list(range(1, 23)) + ["X", "Y"]] if chrid not in config["ldna"]["SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS"]]),
+        dmls = expand("ldna/results/tables/dmls.{chr}.CG_m.tsv", chr = [chrid for chrid in ["chr%s"%e for e in list(range(1, 23)) + ["X", "Y"]] if chrid not in config["ldna"]["SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS"]])
     output:
         dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
         dmls = "ldna/results/tables/dmls.CG_m.tsv",
         dmrs_bed = "ldna/results/tables/dmrs.CG_m.bed",
         dmrs_hypo_bed = "ldna/results/tables/dmrs_hypo.CG_m.bed",
         dmrs_hyper_bed = "ldna/results/tables/dmrs_hyper.CG_m.bed"
+    priority: 100
     conda:
-        "omics"
+        "repeatanalysis"
     script:
         "scripts/merge_dss.R"
 
@@ -507,13 +512,13 @@ rule merge_dss:
 rule extractmods:
     input:
         sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-        region = lambda w: "aref/{sample}_annotations/{sample}_rte_beds/outfile.txt" if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF_annotations/A.REF_rte_beds/outfile.txt"
+        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
     output:
         read_mods = 'ldna/intermediates/{sample}/methylation/{sample}_readmods_NoContext_{region}.tsv'
     params:
         ref = config["ldna"]["reference"],
         ref_annotation_dir = config["ldna"]["reference_annotation_dir"],
+        region = lambda wildcards: "aref/%s_annotations/%s_rte_beds/outfile.txt"%(wildcards.sample, wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF_annotations/A.REF_rte_beds/outfile.txt"
     resources:
         cpus_per_task = 8,
         mem_mb = 80000
@@ -525,7 +530,7 @@ mkdir -p $(dirname {output})
 /oscar/data/jsedivy/mkelsey/tools/modkit extract \
 --mapped \
 --no-filtering \
---include-bed $(dirname {input.region})/{wildcards.region}.bed \
+--include-bed $(dirname {params.region})/{wildcards.region}.bed \
 --ref {params.ref} \
 --threads {resources.cpus_per_task} \
 {input.sortedbam} \
@@ -536,12 +541,12 @@ rule extractmods_cg_context:
     input:
         sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
         sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-        region = lambda w: "aref/{sample}_annotations/{sample}_rte_beds/outfile.txt" if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF_annotations/A.REF_rte_beds/outfile.txt"
     output:
         read_mods = 'ldna/intermediates/{sample}/methylation/{sample}_readmods_CpG_{region}.tsv'
     params:
         ref = config["ldna"]["reference"],
         ref_annotation_dir = config["ldna"]["reference_annotation_dir"],
+        region = lambda wildcards: "aref/%s_annotations/%s_rte_beds/outfile.txt"%(wildcards.sample, wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF_annotations/A.REF_rte_beds/outfile.txt"
     resources:
         cpus_per_task = 8,
         mem_mb = 80000
@@ -555,7 +560,7 @@ mkdir -p $(dirname {output})
 --cpg \
 --mapped \
 --no-filtering \
---include-bed $(dirname {input.region})/{wildcards.region}.bed \
+--include-bed $(dirname {params.region})/{wildcards.region}.bed \
 --ref {params.ref} \
 --threads {resources.cpus_per_task} \
 {input.sortedbam} \
@@ -616,12 +621,10 @@ rule bedmethylanalysis_single_sample:
 
 
 rule insertion_analysis:
-    input:
-        tldroutput = "aref/{sample_or_ref}_tldr/{sample_or_ref}.table.txt",
-        filtered_tldr = "aref/{sample_or_ref}_tldr/{sample_or_ref}.table.kept_in_updated_ref.txt",
-        r_annotation_fragmentsjoined = "aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
-        r_repeatmasker_annotation = "aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_annotation.csv",
-        ref = "aref/{sample_or_ref}-pre-ins-filtering.fa"
+    params:
+        filtered_tldr = lambda wildcards: expand("aref/{sample}_tldr/{sample}.table.kept_in_updated_ref.txt", sample = samples) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF_tldr/A.REF.table.kept_in_updated_ref.txt",
+        r_annotation_fragmentsjoined = lambda wildcards: expand("aref/{sample}_annotations/{sample}_repeatmasker.gtf.rformatted.fragmentsjoined.csv", sample = samples) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
+        r_repeatmasker_annotation = lambda wildcards: expand("aref/{sample}_annotations/{sample}_repeatmasker_annotation.csv", sample = samples) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF_annotations/A.REF_repeatmasker_annotation.csv"
     output:
         plots = "ldna/results/insertion_analysis/insertion_analysis.rds",
     conda:
@@ -685,11 +688,134 @@ rule callmodbamtobedandextractmods:
         expand("ldna/intermediates/{sample}/methylation/{sample}_mods.tsv", sample = samples)]
 
 
-#tag METHYLARTIST_PLOTS
+#tag Methylation plots
+
+rule init_wgbstools:
+    input:
+        ref = "aref/A.REF.fa"
+    output:
+        outfile = "aref/A.REF.wgbs.init.out"
+    resources:
+        runtime = 1000,
+        mem_mb = 128000,
+        cpus_per_task = 10
+    conda: "omics"
+    shell:
+        """
+mkdir -p $(dirname {output})
+/users/mkelsey/data/tools/wgbs_tools/wgbstools init_genome --fasta_path /users/mkelsey/data/Nanopore/alz/RTE/aref/A.REF.fa hs1
+touch {output.outfile}
+        """
+
+rule wgbs_bam2pat:
+    input:
+        outfile = "aref/A.REF.wgbs.init.out",
+        bam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+    output:
+        pat = expand("ldna/results/wgbs/{{sample}}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+    resources:
+        runtime = 1000,
+        mem_mb = 128000,
+        cpus_per_task = 26
+    conda: "omics"
+    shell:
+        """
+mkdir -p $(dirname {output})
+/users/mkelsey/data/tools/wgbs_tools/wgbstools bam2pat --genome hs1 -@ 26 --nanopore {input.bam} --out_dir $(dirname {output.pat})
+        """
+
+rule get_merged_pat:
+    input:
+        pat = expand("ldna/results/wgbs/{sample}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
+    params:
+        inputdir = "ldna/results/wgbs",
+        level1 = config["ldna"]["levels"][0],
+        level2 = config["ldna"]["levels"][1]
+    conda:
+        "omics"
+    output:
+        outfile = "ldna/results/wgbs/merged/merged.outfile"
+    shell:
+        """
+mkdir -p $(dirname {output.outfile})
+/users/mkelsey/data/tools/wgbs_tools/wgbstools merge -p $(dirname {output.outfile})/{params.level1} --genome hs1 {params.inputdir}/{params.level1}*.pat.gz
+/users/mkelsey/data/tools/wgbs_tools/wgbstools merge -p $(dirname {output.outfile})/{params.level2} --genome hs1 {params.inputdir}/{params.level2}*.pat.gz
+touch {output.outfile}
+        """
+        
+rule pat_fig:
+    input:
+        outfile = "ldna/results/wgbs/merged/merged.outfile"
+        # pat = expand("ldna/results/wgbs/{sample}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
+    params:
+        # methylartist_loci_of_interest = config["ldna"]["methylartist_loci_of_interest"],
+        methylartist_loci_of_interest = "/users/mkelsey/data/Nanopore/alz/RTE/ldna/Rintermediates/dm_intact_l1hs_promoters.bed"
+
+    output:
+        outfile = "ldna/results/wgbs/plots/pat_fig.outfile"
+        # pat_fig = "ldna/results/wgbs/plots/{region}.pat.pdf"
+    resources:
+        runtime = 30,
+        mem_mb = 10000,
+        cpus_per_task = 4
+    conda: "omics"
+    shell:
+        """
+coords=$(awk '{{print $1":"$2"-"$3}}' {params.methylartist_loci_of_interest})
+mapfile -t coords_array <<< "$coords"
+for coord in "${{coords_array[@]}}"
+do
+coordfnsafe=$(echo $coord | sed 's/:/-/')
+/users/mkelsey/data/tools/wgbs_tools/wgbstools pat_fig --nanopore --circle_size 1.2 --line_width 0.25  --col_wrap 1 --font_size 3 --meth_color "beige" --unmeth_color "black"  -o $(dirname {output.outfile})/${{coordfnsafe}}.pdf -r $coord --strict --genome hs1 $(dirname {input.outfile})/*.pat.gz
+
+/users/mkelsey/data/tools/wgbs_tools/wgbstools pat_fig --nanopore --circle_size 1.2 --line_width 0.25  --col_wrap 4 --font_size 3 --meth_color "beige" --unmeth_color "black"  -o $(dirname {output.outfile})/${{coordfnsafe}}_2col.pdf -r $coord --strict --genome hs1 $(dirname {input.outfile})/*.pat.gz
+
+/users/mkelsey/data/tools/wgbs_tools/wgbstools pat_fig --nanopore --circle_size 1.2 --line_width 0.25 --col_wrap 6 --font_size 3 --meth_color "beige" --unmeth_color "black"  -o $(dirname {output.outfile})/${{coordfnsafe}}_all_samples.pdf -r $coord --strict --name_table /users/mkelsey/data/Nanopore/alz/RTE/conf/WGBS_rename.csv --genome hs1 $(dirname $(dirname {input.outfile}))/*.pat.gz
+
+done
+touch {output.outfile}
+        """
+
+rule pat_fig_rtes:
+    input:
+        outfile = "ldna/results/wgbs/merged/merged.outfile"
+        # pat = expand("ldna/results/wgbs/{sample}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
+    params:
+        fl_rte = "/users/mkelsey/data/Nanopore/alz/RTE/ldna/Rintermediates/flRTEpromoter.tsv"
+    output:
+        outfile = "ldna/results/wgbs/plots/l1hs/l1hs_fl.outfile"
+        # pat_fig = "ldna/results/wgbs/plots/{region}.pat.pdf"
+    resources:
+        runtime = 30,
+        mem_mb = 10000,
+        cpus_per_task = 4
+    conda: "omics"
+    shell:
+        """
+coords=$(awk '{{print $1":"$2"-"$3}}' <<< $(grep "L1HS" {params.fl_rte} | grep "L1HS_3q25.32_3\\|L1HS_1p22.3_2\\|L1HS_7q31.1_6" | head))
+rte_name=$(awk '{{print $6}}' <<< $(grep "L1HS" {params.fl_rte} | head -))
+mapfile -t coords_array <<< "$coords"
+mapfile -t rte_name_array <<< "$rte_name"
+for (( i=0; i<${{#coords_array[@]}}; i++ ))
+do
+coord=${{coords_array[$i]}}
+rte_name=${{rte_name_array[$i]}}
+coordfnsafe=$(echo $coord | sed 's/:/-/')
+/users/mkelsey/data/tools/wgbs_tools/wgbstools pat_fig --nanopore --shuffle --line_width 0.5 --col_wrap 1 --font_size 3 --meth_color "beige" --unmeth_color "black"  -o $(dirname {output.outfile})/${{coordfnsafe}}_top20.pdf -r $coord --title $rte_name --strict --genome hs1 --top 20 $(dirname {input.outfile})/*.pat.gz
+/users/mkelsey/data/tools/wgbs_tools/wgbstools pat_fig --nanopore --shuffle --line_width 0.5 --col_wrap 1 --font_size 3 --meth_color "beige" --unmeth_color "black"  -o $(dirname {output.outfile})/${{coordfnsafe}}.pdf -r $coord --title $rte_name --strict --genome hs1 $(dirname {input.outfile})/*.pat.gz
+/users/mkelsey/data/tools/wgbs_tools/wgbstools pat_fig --nanopore --shuffle --line_width 0.5 --col_wrap 1 --font_size 3 --meth_color "beige" --unmeth_color "black"  -o $(dirname {output.outfile})/${{coordfnsafe}}_top50.pdf -r $coord --title $rte_name --strict --genome hs1 --top 50 $(dirname {input.outfile})/*.pat.gz
+/users/mkelsey/data/tools/wgbs_tools/wgbstools pat_fig --nanopore --shuffle --line_width 0.5 --col_wrap 1 --font_size 3 --meth_color "beige" --unmeth_color "black"  -o $(dirname {output.outfile})/${{coordfnsafe}}_top100.pdf -r $coord --title $rte_name --strict --genome hs1 --top 100 $(dirname {input.outfile})/*.pat.gz
+done
+touch {output.outfile}
+        """
+
+
 rule methylartistlocusplot_loci_of_interest:
     input:
         sortedbam = expand("ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples),
-        sortedbai = expand("ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
+        sortedbai = expand("ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples),
+        dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
+        repeatmaskerbgz = "/users/mkelsey/data/Nanopore/alz/RTE/aref/A.REF_annotations/A.REF_repeatmasker.complete.gtf.gz",
     resources:
         runtime = 180,
         mem_mb = 5000
@@ -716,12 +842,23 @@ mapfile -t coords_array <<< "$coords"
 for coord in "${{coords_array[@]}}"
 do
 coordfnsafe=$(echo $coord | sed 's/:/-/')
-if /users/mkelsey/data/tools/methylartist/methylartist locus --bams {params.methylartist_bam_config} -o ${{outputprefix}}${{coordfnsafe}}.png -i $coord --ref {params.ref} --motif CG -m m --highlight_bed {params.module_prefix}/results/tables/dmrs.bed -p 1,6,1,0,4 --labelgenes; then
+if /users/mkelsey/data/tools/methylartist/methylartist locus \
+--bams {params.methylartist_bam_config} \
+-o ${{outputprefix}}${{coordfnsafe}}.png \
+-i $coord \
+--ref {params.ref} \
+--motif CG \
+-m m \
+--highlight_bed {input.dmrs} \
+-p 1,6,1,0,4 \
+--labelgenes \
+--gtf {input.repeatmaskerbgz}; \
+then
 echo "worked"
 else
 echo "failed"
 fi
-if /users/mkelsey/data/tools/methylartist/methylartist locus --bams {params.methylartist_bam_config} -o ${{outputprefix}}${{coordfnsafe}}.png -i $coord --ref {params.ref} --motif CG -m m --highlight_bed {params.module_prefix}/results/tables/dmrs.bed -p 1,6,1,0,4 --labelgenes --svg; then
+if /users/mkelsey/data/tools/methylartist/methylartist locus --bams {params.methylartist_bam_config} -o ${{outputprefix}}${{coordfnsafe}}.png -i $coord --ref {params.ref} --motif CG -m m --highlight_bed {input.dmrs} -p 1,6,1,0,4 --labelgenes --svg; then
 echo "worked"
 else
 echo "failed"
@@ -926,7 +1063,6 @@ rule gimme_maelstrom:
         clusters = "/users/mkelsey/data/n2102ep/RTE/ldna/Rintermediates/l1_dif_meth_for_motif_analysis.tsv"
     params:
         ref = config["ldna"]["reference"],
-        pwms = config["ldna"]["tf_position_weighted_matrices"]
     output:
         out = "ldna/results/gimme/l1hs_promoter_methylation_dif_motif.out75.outfile"
     container: "https://depot.galaxyproject.org/singularity/gimmemotifs:0.17.1--py39h67e14b5_1"
@@ -1233,10 +1369,10 @@ flye --nano-raw {input.fq} --out-dir $(dirname {output.outfile}) --threads 30
 
 rule sniffles:
     input:
-        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+        sortedbam = expand("ldna/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        sortedbamindex = expand("ldna/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
     output:
-        vcf = "ldna/intermediates/{sample}/sniffles/sniffles.vcf"
+        vcf = "ldna/intermediates/{sample_or_ref}/sniffles/sniffles.vcf"
     params:
         ref = config["ldna"]["reference"]
     resources:
@@ -1250,80 +1386,16 @@ mkdir -p $(dirname {output})
 sniffles -i {input.sortedbam} -v {output.vcf} --threads 28 --mosaic --reference {params.ref}
         """
 
-rule snpeff_build_db:
-    input:
-        ref = config["ldna"]["reference"],
-        refseq = config["aref"]["ref_refseq_gtf"]
-    output:
-        outfile = "ldna/intermediates/snpeff/db.outfile"
-    resources:
-        runtime = 1000,
-        mem_mb = 128000,
-        cpus_per_task = 12
-    conda: "snpeff"
-    shell:
-        """
-configfile=$(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.config
-echo '# Human genome, version hs1
-hs1.genome : Human' >> $configfile
-mkdir -p $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/data/hs1
-cp {input.refseq} $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/data/hs1/genes.gtf
-cp {input.ref} $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/data/hs1/sequences.fa
-
-java -Xmx60g -jar $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.jar build -gtf22 -v hs1 -noCheckCds -noCheckProtein
-mkdir -p $(dirname {output.outfile})
-touch {output.outfile}
-        """
-
-rule snpeff:
-    input: 
-        vcf = "ldna/intermediates/{sample}/clair3/full_alignment.vcf.gz",
-        db_outfile = "ldna/intermediates/snpeff/db.outfile"
-    resources:
-        runtime = 1000,
-        mem_mb = 128000,
-        cpus_per_task = 12
-    conda: "snpeff"
-    output:
-        outfile = "ldna/intermediates/{sample}/snpeff/snpeff.outfile"
-    shell:
-        """
-cat {input.vcf} | java -Xmx60g -jar $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.jar hs1 -v -c $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.config -chr 'chr' -csvStats ldna/intermediates/{wildcards.sample}/snpeff/csvStats.csv -htmlStats ldna/intermediates/{wildcards.sample}/snpeff/snpeffStats.html {input.vcf} > ldna/intermediates/{wildcards.sample}/snpeff/snpeff.vcf
-mkdir -p $(dirname {output.outfile})
-touch {output.outfile}
-        """
-
-rule snpsift_genesets:
-    input:
-        vcf = "ldna/intermediates/{sample}/snpeff/snpeff.vcf"
-    output:
-        vcf = "ldna/intermediates/{sample}/snpeff/snpeff.pass.vcf"
-    conda:
-        "omics"
-    shell:
-        """
-bcftools view -f 'PASS' {input.vcf} > {output.vcf}
-        """
-
-# rule snpsift_genesets:
-#     input:
-#         vcf = "ldna/intermediates/{sample}/snpeff/snpeff.vcf"
-#     output:
-#         outfile = "ldna/intermediates/{sample}/snpeff/snpeff.geneSets.vcf"
-#     shell:
-#         """
-# java -Xmx60g -jar $(dirname $(dirname $(which snpEff)))/share/snpsift-5.2-0/SnpSift.jar geneSets -v /users/mkelsey/data/n2102ep/RTE/aref/A.REF_annotations/msigdb.v2023.2.Hs.symbols.gmt.txt test.ann.vcf > test.eff.geneSets.vcf
-#         """
-    
 rule pepper:
     input:
-        sortedbam = expand("ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples),
-        sortedbamindex = expand("ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
+        sortedbam = expand("ldna/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        sortedbamindex = expand("ldna/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
     params:
         ref = config["ldna"]["reference"]
     output:
-        outfile = "ldna/intermediates/{sample}/pepper/out.outfile",
-        vcf_intermediate_for_margin_haplotag = "ldna/intermediates/{sample}/pepper/intermediate_files/PEPPER_VARIANT_FULL.vcf.gz"
+        outfile = "ldna/intermediates/{sample_or_ref}/pepper/out.outfile",
+        vcf_intermediate_for_margin_haplotag = "ldna/intermediates/{sample_or_ref}/pepper/intermediate_files/PEPPER_VARIANT_FULL.vcf.gz",
+        vcf = "ldna/intermediates/{sample_or_ref}/pepper/PEPPER_MARGIN_DEEPVARIANT_FINAL_OUTPUT.vcf.gz",
     resources:
         cpus_per_task =32,
         runtime = 4000,
@@ -1346,12 +1418,12 @@ touch {output.outfile}
 
 rule margin_get_haplotagged_bam:
     input:
-        vcf_intermediate_for_margin_haplotag = "ldna/intermediates/{sample}/pepper/intermediate_files/PEPPER_VARIANT_FULL.vcf.gz",
-        bam = expand("ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
+        vcf_intermediate_for_margin_haplotag = "ldna/intermediates/{sample_or_ref}/pepper/intermediate_files/PEPPER_VARIANT_FULL.vcf.gz",
+        bam = expand("ldna/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
     params:
         ref = config["ldna"]["reference"]
     output:
-        outfile = "ldna/intermediates/{sample}/pepper/intermediate_files/happlotagged_manual.out"
+        outfile = "ldna/intermediates/{sample_or_ref}/pepper/intermediate_files/happlotagged_manual.out"
     resources:
         cpus_per_task = 32,
         runtime = 1000,
@@ -1385,4 +1457,84 @@ samtools index $(dirname {output.outfile})/haplotagged.haplotagged.bam
 mv $(dirname {output.outfile})/haplotagged.haplotagged.bam {input.bam}
 mv $(dirname {output.outfile})/haplotagged.haplotagged.bam.bai {input.bam}.bai
 touch {output.outfile}
+        """
+
+rule snpeff_build_db:
+    input:
+        ref = config["ldna"]["reference"],
+        refseq = config["aref"]["ref_refseq_gtf"]
+    output:
+        outfile = "ldna/intermediates/snpeff/db.outfile"
+    resources:
+        runtime = 1000,
+        mem_mb = 128000,
+        cpus_per_task = 12
+    conda: "snpeff"
+    shell:
+        """
+configfile=$(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.config
+echo '# Human genome, version hs1
+hs1.genome : Human' >> $configfile
+mkdir -p $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/data/hs1
+cp {input.refseq} $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/data/hs1/genes.gtf
+cp {input.ref} $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/data/hs1/sequences.fa
+
+java -Xmx60g -jar $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.jar build -gtf22 -v hs1 -noCheckCds -noCheckProtein
+mkdir -p $(dirname {output.outfile})
+touch {output.outfile}
+        """
+
+rule snpeff_smv:
+    input: 
+        vcf = "ldna/intermediates/{sample_or_ref}/pepper/PEPPER_MARGIN_DEEPVARIANT_FINAL_OUTPUT.vcf.gz",
+        db_outfile = "ldna/intermediates/snpeff/db.outfile"
+    resources:
+        runtime = 1000,
+        mem_mb = 128000,
+        cpus_per_task = 12
+    conda: "snpeff"
+    output:
+        outfile = "ldna/intermediates/{sample_or_ref}/snpeff/snpeff_smv.outfile",
+        vcf = "ldna/intermediates/{sample_or_ref}/snpeff/snpeff_sml.vcf"
+    shell:
+        """
+cat {input.vcf} | java -Xmx60g -jar $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.jar hs1 -v -c $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.config -chr 'chr' -csvStats ldna/intermediates/{wildcards.sample_or_ref}/snpeff/csvStats_sml.csv -htmlStats ldna/intermediates/{wildcards.sample_or_ref}/snpeff/snpeffStats_sml.html {input.vcf} > {output.vcf}
+mkdir -p $(dirname {output.outfile})
+touch {output.outfile}
+exit 0
+        """
+
+rule snpeff_sv:
+    input: 
+        vcf = "ldna/intermediates/{sample_or_ref}/sniffles/sniffles.vcf",
+        db_outfile = "ldna/intermediates/snpeff/db.outfile"
+    resources:
+        runtime = 1000,
+        mem_mb = 128000,
+        cpus_per_task = 12
+    conda: "snpeff"
+    output:
+        outfile = "ldna/intermediates/{sample_or_ref}/snpeff/snpeff_sv.outfile",
+        vcf = "ldna/intermediates/{sample_or_ref}/snpeff/snpeff_sv.vcf"
+    shell:
+        """
+cat {input.vcf} | java -Xmx60g -jar $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.jar hs1 -v -c $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.config -chr 'chr' -csvStats ldna/intermediates/{wildcards.sample_or_ref}/snpeff/csvStats_sv.csv -htmlStats ldna/intermediates/{wildcards.sample_or_ref}/snpeff/snpeffStats_sv.html {input.vcf} > {output.vcf}
+mkdir -p $(dirname {output.outfile})
+touch {output.outfile}
+exit 0
+        """
+
+rule pass_vcf:
+    input:
+        vcf_sml = "ldna/intermediates/{sample_or_ref}/snpeff/snpeff_sml.vcf",
+        vcf_sv = "ldna/intermediates/{sample_or_ref}/snpeff/snpeff_sv.vcf"
+    output:
+        vcf_sml = "ldna/intermediates/{sample_or_ref}/snpeff/snpeff_sml.pass.vcf",
+        vcf_sv = "ldna/intermediates/{sample_or_ref}/snpeff/snpeff_sv.pass.vcf"
+    conda:
+        "omics"
+    shell:
+        """
+bcftools view -f 'PASS' {input.vcf_sml} > {output.vcf_sml}
+bcftools view -f 'PASS' {input.vcf_sv} > {output.vcf_sv}
         """
