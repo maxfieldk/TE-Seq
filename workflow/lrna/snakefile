@@ -5,14 +5,9 @@ samples = config["samples"]
 
 #tag FILESTRUCTURE
 paths = [
-    "lrna/envs",
-    "lrna/report",
     "lrna/qc",
     "lrna/benchmarks",
     "lrna/scripts",
-    "lrna/qc/{sample}",
-    "lrna/rawdata/{sample}",
-    "lrna/logs/{sample}",
     "lrna/intermediates/{sample}/methylation",
     "lrna/intermediates/{sample}/dorado",
     "lrna/intermediates/{sample}/fastqs",
@@ -121,24 +116,25 @@ def getTelescopeStrandParam():
 # --recursive
 #         """
 
-# rule mergeGuppyFastqs:
-#     input:
-#         summary = "lrna/intermediates/{sample}/guppy/sequencing_summary.txt"
-#     output:
-#         fq = "lrna/intermediates/{sample}/fastqs/guppy/{sample}.fq.gz"
-#     resources:
-#         cpus_per_task = 8,
-#         mem_mb = 64000
-#     shell:
-#         """
-# rm -f {output.fq}
-# for file in $(find $(dirname {input.summary})/pass -name "*.fastq" -type f)
-# do
-# cat $file >> {wildcards.sample}_temp_fq.txt
-# done
-# gzip {wildcards.sample}_temp_fq.txt
-# mv {wildcards.sample}_temp_fq.txt.gz > {output.fq}
-#         """
+rule mergeGuppyFastqs:
+    input:
+        summary = "lrna/intermediates/{sample}/guppy/sequencing_summary.txt"
+    output:
+        fq = "lrna/intermediates/{sample}/fastqs/guppy/{sample}.fq.gz"
+    resources:
+        cpus_per_task = 8,
+        mem_mb = 64000
+    shell:
+        """
+rm -f {output.fq}
+for file in $(find $(dirname {input.summary})/pass -name "*.fastq" -type f)
+do
+cat $file >> {wildcards.sample}_temp_fq.txt
+done
+gzip {wildcards.sample}_temp_fq.txt
+mkdir -p $(dirname {output.fq})
+mv {wildcards.sample}_temp_fq.txt.gz {output.fq}
+        """
 
 # rule gunzipfq:
 #     input:
