@@ -56,7 +56,8 @@ samtools fastq -TMM,ML {input.bam} > {output.fastq}
 
 rule align_to_updated_ref:
     input:
-        fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq"
+        fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq",
+        aref = "aref.done.outfile"
     params:
         ref = lambda wildcards: "aref/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF.fa"
     output:

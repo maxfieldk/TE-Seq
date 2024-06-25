@@ -5,14 +5,9 @@ samples = config["samples"]
 
 #tag FILESTRUCTURE
 paths = [
-    "lrna/envs",
-    "lrna/report",
     "lrna/qc",
     "lrna/benchmarks",
     "lrna/scripts",
-    "lrna/qc/{sample}",
-    "lrna/rawdata/{sample}",
-    "lrna/logs/{sample}",
     "lrna/intermediates/{sample}/methylation",
     "lrna/intermediates/{sample}/dorado",
     "lrna/intermediates/{sample}/fastqs",
@@ -121,24 +116,25 @@ def getTelescopeStrandParam():
 # --recursive
 #         """
 
-# rule mergeGuppyFastqs:
-#     input:
-#         summary = "lrna/intermediates/{sample}/guppy/sequencing_summary.txt"
-#     output:
-#         fq = "lrna/intermediates/{sample}/fastqs/guppy/{sample}.fq.gz"
-#     resources:
-#         cpus_per_task = 8,
-#         mem_mb = 64000
-#     shell:
-#         """
-# rm -f {output.fq}
-# for file in $(find $(dirname {input.summary})/pass -name "*.fastq" -type f)
-# do
-# cat $file >> {wildcards.sample}_temp_fq.txt
-# done
-# gzip {wildcards.sample}_temp_fq.txt
-# mv {wildcards.sample}_temp_fq.txt.gz > {output.fq}
-#         """
+rule mergeGuppyFastqs:
+    input:
+        summary = "lrna/intermediates/{sample}/guppy/sequencing_summary.txt"
+    output:
+        fq = "lrna/intermediates/{sample}/fastqs/guppy/{sample}.fq.gz"
+    resources:
+        cpus_per_task = 8,
+        mem_mb = 64000
+    shell:
+        """
+rm -f {output.fq}
+for file in $(find $(dirname {input.summary})/pass -name "*.fastq" -type f)
+do
+cat $file >> {wildcards.sample}_temp_fq.txt
+done
+gzip {wildcards.sample}_temp_fq.txt
+mkdir -p $(dirname {output.fq})
+mv {wildcards.sample}_temp_fq.txt.gz {output.fq}
+        """
 
 # rule gunzipfq:
 #     input:
@@ -266,18 +262,29 @@ rule dorado:
     conda: "minimap2"
     shell:
         """
-mkdir -p $(dirname {output})
-mod_string=$(echo {wildcards.modification_string} | tr "-" ",")
-
-{params.dorado} \
-basecaller \
-{wildcards.type},$mod_string \
-{input.dir} \
---recursive \
---verbose \
---estimate-poly-a \
---reference {params.reference} \
---mm2-preset "splice" > {output}
+mkdir -p $(dirname {output}) 
+if [[ {wildcards.modification_string} == "unmod" ]]; then
+    mod_string=$(echo {wildcards.modification_string} | tr "-" ",")
+    {params.dorado} \
+    basecaller \
+    {wildcards.type},$mod_string \
+    {input.dir} \
+    --recursive \
+    --verbose \
+    --estimate-poly-a \
+    --reference {params.reference} \
+    --mm2-preset "splice" > {output}
+else
+    {params.dorado} \
+    basecaller \
+    {wildcards.type} \
+    {input.dir} \
+    --recursive \
+    --verbose \
+    --estimate-poly-a \
+    --reference {params.reference} \
+    --mm2-preset "splice" > {output}
+fi
         """
 
 rule dorado_fastq:
@@ -288,7 +295,7 @@ rule dorado_fastq:
         dorado = config["dorado"],
         reference = lambda wildcards: "aref/%s.fa"%(wildcards.sample) if config["per_sample_ref"] == "yes" else "aref/A.REF.fa"
     output:
-        protected("lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.nopolya.unaligned.bam")
+        protected("lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.doradofastqderived.bam")
     benchmark:
         "lrna/benchmarks/dorado_fastq/{rate}.{sample}.{type}.{modification_string}.tsv"
     wildcard_constraints:
@@ -518,7 +525,7 @@ rule call_dorado:
 
 rule fc_relaxed:
     input:
-        sortedbam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.good.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
+        sortedbam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
         libtype = "lrna/qc/library_type.txt"
     output:
         countsmessy = "lrna/intermediates/{sample}/counts/relaxed/{sample}rtesandgenes.counts_messy.txt",
@@ -544,7 +551,7 @@ cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
 
 rule fc_relaxed_unstranded:
     input:
-        sortedbam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.good.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
+        sortedbam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
         libtype = "lrna/qc/library_type.txt"
     output:
         countsmessy = "lrna/intermediates/{sample}/counts/relaxed_unstranded/{sample}rtesandgenes.counts_messy.txt",
@@ -569,7 +576,7 @@ cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
 
 rule fc_relaxedunstrandedmapped:
     input:
-        sortedbam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.good.mapped.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
+        sortedbam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.mapped.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
         libtype = "lrna/qc/library_type.txt"
     output:
         countsmessy = "lrna/intermediates/{sample}/counts/relaxedunstrandedmapped/{sample}rtesandgenes.counts_messy.txt",
@@ -594,7 +601,7 @@ cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
 
 rule fc_stringent:
     input:
-        sortedbam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.good.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
+        sortedbam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
         libtype = "lrna/qc/library_type.txt"
     output:
         countsmessy = "lrna/intermediates/{sample}/counts/stringent/{sample}rtesandgenes.counts_messy.txt",
@@ -877,9 +884,28 @@ rule filterbam:
         "omics"
     shell: "samtools view -b -F 0x100 -q 1 {input.bam} > {output.bam}; samtools index -@4 {output.bam}; samtools stats {output.bam} > {output.bam}.stats.txt"
 
+rule mod_bam_unalignedbam_to_fastq:
+    input:
+        sortedbam = "lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.doradofastqderived.bam",
+    output:
+        fastq = "lrna/intermediates/{sample}/fastqs/{rate}/{sample}.{type}.{modification_string}.doradofastqderived.fq.gz",
+    benchmark:
+        "lrna/benchmarks/mod_bam_to_fastq/{rate}.{sample}.{type}.{modification_string}.tsv"
+    conda: 
+        "omics"
+    resources:
+        cpus_per_task =12
+    shell:
+        """
+mkdir -p $(dirname {output.fastq})
+samtools fastq -TMM,ML {input.sortedbam} > {input.sortedbam}.fq
+gzip {input.sortedbam}.fq
+mv {input.sortedbam}.fq.gz {output.fastq}
+        """
+
 rule mod_bam_to_fastq:
     input:
-        sortedbam = "lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.nopolya.unaligned.bam",
+        sortedbam = "lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.bam",
     output:
         fastq = "lrna/intermediates/{sample}/fastqs/{rate}/{sample}.{type}.{modification_string}.fq.gz",
     benchmark:
@@ -898,11 +924,11 @@ mv {input.sortedbam}.fq.gz {output.fastq}
 
 rule realign:
     input:
-        fastq = expand("lrna/intermediates/{{sample}}/fastqs/{rate}/{{sample}}.{type}.{modification_string}.fq.gz", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
+        fastq = expand("lrna/intermediates/{{sample}}/fastqs/{rate}/{{sample}}.{type}.{modification_string}.doradofastqderived.fq.gz", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
     params:
         reference = lambda wildcards: "aref/%s.fa"%(wildcards.sample) if config["per_sample_ref"] == "yes" else "aref/A.REF.fa"
     output:
-        bam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.good.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
+        bam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.doradofastqderived.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
     benchmark:
         "lrna/benchmarks/realign/{sample}.tsv"
     resources:
@@ -924,7 +950,7 @@ rule realign_only_mapped:
     params:
         reference = lambda wildcards: "aref/%s.fa"%(wildcards.sample) if config["per_sample_ref"] == "yes" else "aref/A.REF.fa"
     output:
-        bam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.good.mapped.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
+        bam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.doradofastqderived.mapped.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
     benchmark:
         "lrna/benchmarks/realign_only_mapped/{sample}.tsv"
     resources:
@@ -968,8 +994,8 @@ samtools stats {output.bam} > {output.bam}.stats.txt
 
 rule dorado_seqsummary:
     input:
-        sortedbam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.good.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
-        sortedbambai = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.good.sorted.bam.bai", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
+        sortedbam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
+        sortedbambai = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam.bai", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
     params:
         dorado = config["dorado"]
     output:
@@ -986,7 +1012,7 @@ rule dorado_seqsummary:
 rule pycoQC:
     input:
         seqsummary = "lrna/qc/{sample}/{sample}.doradosummary.txt",
-        sortedbam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.good.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
+        sortedbam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
     output:
         "lrna/qc/{sample}/{sample}pycoQC.html"
     benchmark:

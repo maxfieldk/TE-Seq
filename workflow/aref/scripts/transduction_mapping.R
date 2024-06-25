@@ -52,10 +52,7 @@ tryCatch(
             transduction_df = "aref/A.REF_Analysis/transduction_df.csv"
         ), env = globalenv())
         assign("params", list(
-            sample_or_ref = "aref/A.REF"
-        ), env = globalenv())
-        assign("params", list(
-            sample_or_ref = "aref/A.REF"
+            sample_or_ref = "A.REF"
         ), env = globalenv())
     }
 )
@@ -67,14 +64,16 @@ dir.create(outputdir, recursive = TRUE, showWarnings = FALSE)
 rmfragments <- read_csv(inputs$r_annotation_fragmentsjoined, col_names = TRUE)
 rmfamilies <- read_csv(inputs$r_repeatmasker_annotation, col_names = TRUE)
 rmann <- left_join(rmfragments, rmfamilies)
-
+rmann %>% filter(refstatus == "NonRef")
 df_filtered <- read_delim(inputs$filtered_tldr)
-df_nonfiltered <- read_delim(inputs$unfiltered_tldr)
-l1ta <- df_nonfiltered %>%
+l1ta <- df_filtered %>%
     filter(Family %in% c("L1")) %>% 
     filter(Filter == "PASS")
 l1ta_sankey <- l1ta %$% UUID
 
+
+
+#TRANSDUCTION BASED MAPPING
 trsd <- l1ta %>%
     mutate(TransductionLen = nchar(Transduction_3p)) %>%
     filter(TransductionLen > 20)
@@ -92,91 +91,84 @@ trsd_ss_for_blast <- trsd_ss[which(at_content < 0.9)]
 trsd_ss_for_blast_sankey <-names(trsd_ss_for_blast)
 
 bl <- blast(db = sub('\\.[^.]*$', '', inputs$blast_njs))
-bres <- tibble(predict(bl, trsd_ss_for_blast)) %>% left_join(rmfragments, by = c("QueryID" = "gene_id"))
+bres <- tibble(predict(bl, trsd_ss_for_blast)) 
 
+bres1 <- bres %>% left_join(trsd, by = c("qseqid" = "UUID"))
 
-bres %$% QueryID %>%
+bres %$% qseqid %>%
     unique() %>%
     length()
 
-bres_hits <- bres %>%
-    filter(!grepl("nonref", SubjectID)) %>%
-    group_by(QueryID) %>%
-    filter(Bits == max(Bits)) %>%
-    filter(Perc.Ident == max(Perc.Ident)) %>%
-    filter(Gap.Openings == min(Gap.Openings)) %>%
-    filter(Alignment.Length == max(Alignment.Length))
+bres_hits <- bres1 %>%
+    filter(!grepl("nonref", sseqid)) %>%
+    group_by(qseqid) %>%
+    filter(bitscore == max(bitscore)) %>%
+    filter(pident == max(pident)) %>%
+    filter(gapopen == min(gapopen)) %>%
+    filter(length == max(length)) %>% ungroup()
 
+join_df <- rmann %>% filter(refstatus == "NonRef") %>% dplyr::select(gene_id, nonref_insert_id) %>% mutate(Chrom = gsub(".*chr", "chr", nonref_insert_id) %>% gsub("_.*", "", .)) %>% mutate(Start = gsub(".*chr", "chr", nonref_insert_id) %>% str_split_i("_", 2) %>% as.numeric()) %>% dplyr::select(-nonref_insert_id)
+bres_hits1 <- bres_hits %>% left_join(join_df)
 
 l1grs <- GRanges(rmann %>% filter(grepl("L1HS|L1PA[2]", rte_subfamily)))
 
-bres_hits_grs_prep <- bres_hits %>%
-    dplyr::select(SubjectID, S.start, S.end) %>%
-    group_by(QueryID) %>%
-    mutate(seqnames = SubjectID) %>%
-    mutate(start = min(S.start, S.end), end = max(S.start, S.end)) %>%
-    dplyr::select(seqnames, start, end, QueryID)
+bres_hits_grs_prep <- bres_hits1 %>%
+    dplyr::select(gene_id, sseqid, sstart, send) %>%
+    group_by(gene_id) %>%
+    mutate(seqnames = sseqid) %>%
+    mutate(start = min(sstart, send), end = max(sstart, send)) %>%
+    dplyr::select(seqnames, start, end, gene_id)
 bresgrs <- GRanges(bres_hits_grs_prep)
 # extend by 500 bp on either side
 bresgrs <- resize(bresgrs, width = width(bresgrs) + 20000, fix = "center")
 
-trsd_adjacent_l1 <- subsetByOverlaps(bresgrs, l1grs)
+trsd_adjacent_l1 <- mergeByOverlaps(bresgrs, l1grs) %>% as.data.frame() %>% tibble() %>% dplyr::rename(from_gene_id = l1grs.gene_id, to_gene_id = bresgrs.gene_id) %>% dplyr::select(from_gene_id, to_gene_id)
+
+from_df <- trsd_adjacent_l1 %>% dplyr::select(gene_id = from_gene_id) %>% left_join(rmann) %>% dplyr::select(gene_id, seqnames, start, end)
+to_df <- trsd_adjacent_l1 %>%
+    dplyr::select(gene_id = to_gene_id) %>%
+    left_join(rmann ) %>% dplyr::select(gene_id, nonref_insert_id) %>%
+        mutate(seqnames = gsub(".*chr", "chr", nonref_insert_id) %>%
+            gsub("_.*", "", .)) %>%
+        mutate(start = gsub(".*chr", "chr", nonref_insert_id) %>%
+            str_split_i("_", 2) %>% as.numeric()) %>% 
+        mutate(end = gsub(".*chr", "chr", nonref_insert_id) %>% 
+            str_split_i("_", 3) %>% as.numeric()) %>%
+        dplyr::select(gene_id, seqnames, start, end)
+
+from_elements <- from_df %>% pull(gene_id) %>% unique()
+from_elements_colors <- tibble(gene_id = from_elements, color = adjust_transparency(as.character(paletteer_c("grDevices::Roma", direction = 1, n = length(from_elements))), alpha = 1))
+from_df <- left_join(from_df, from_elements_colors, by = "gene_id")
+cytobands <- read.cytoband(
+    cytoband = ,
+    species = NULL,
+    sort.chr = TRUE)
+
+{
+pdf(sprintf("%s/transduction_mapping.pdf", outputdir), width = 5, height = 5)
+
+circos.initializeWithIdeogram(
+    cytoband = conf$ref_cytobands,
+    sort.chr = TRUE,
+    major.by = NULL,
+    plotType = c("ideogram", "labels"),
+    track.height = NULL,
+    ideogram.height = convert_height(5, "mm"))
+
+circos.genomicLink(from_df %>% relocate(-gene_id), to_df%>% relocate(-gene_id),col = from_df$color, lwd = 2, direction = 1)
+title("L1HS Source Element Mapping")
+dev.off()
+}
+
+number_of_offspring <- from_df %>% group_by(gene_id) %>% summarize(n = n())
+p <- number_of_offspring  %>% ggplot(aes(x = fct_reorder(gene_id, n), y = n)) + geom_col() + mtopen + coord_flip() +
+    scale_y_continuous(labels = scales::number_format(accuracy = 1)) +
+    labs(x = "Source Element", y = "Number of Offspring", caption = "Transduction-based Source Element Mapping") +
+    anchorbar
+mysaveandstore(sprintf("%s/Transduction_based_offspring_per_source_element.pdf", outputdir), 3, 4)
 
 
-
-trsd_adjacent_l1_sankey <- trsd_adjacent_l1$QueryID
-
-trsd_adjacent_l1 <- subsetByOverlaps(bresgrs, l1grs)
-
-
-
-
-
-# `NON_REF L1TA` <- ifelse(l1ta_sankey %in% l1ta_sankey, "NON-REF L1TA", "FAIL")
-# `3' Tsd` <- ifelse(l1ta_sankey %in% trsd_sankey, "PASS", "FAIL")
-# `AT content < 0.9` <- ifelse(l1ta_sankey %in% trsd_ss_for_blast_sankey, "PASS", "FAIL")
-# `Source Element Identified` <- ifelse(l1ta_sankey %in% trsd_adjacent_l1_sankey, "PASS", "FAIL")
-
-# sankey_df <- tibble(
-#     `Non_reference_L1TA` = `NON_REF L1TA`,
-#     `3_Prime_Transduction` = `3' Tsd`,
-#     `AT_content` = `AT content < 0.9`,
-#     `Adjacent_Source_Element` = `Source Element Identified`
-# ) %>%
-#     make_long(`Non_reference_L1TA`, `3_Prime_Transduction`, `AT_content`, `Adjacent_Source_Element`)
-
-# {
-# p <- ggplot(sankey_df, aes(x = x, next_x = next_x, node = node, next_node = next_node, fill = factor(node), label = node)) +
-#   geom_sankey(flow.alpha = .6,
-#               node.color = "gray30") +
-#   geom_sankey_label(size = 3, color = "white", fill = "gray40") +
-#   scale_fill_viridis_d(drop = FALSE) +
-#   theme_sankey(base_size = 12) +
-#   labs(x = NULL, y = NULL) +
-#   theme(legend.position = "none",
-#         plot.title = element_text(hjust = .5)) +
-#   ggtitle("Non-Ref L1TA Transduction Mapping") 
-
-# flow_labels <- sankey_df %>% group_by(x, node, next_x, next_node) %>% tally() %>% drop_na()
-# # get corresponding positions of flows from the sankey plot
-# flow_info <- layer_data(p) %>% select(xmax, flow_start_ymax, flow_start_ymin) %>% distinct() # get flow related key positions related from the plot
-# flow_info <- flow_info[with(flow_info, order(xmax, flow_start_ymax)), ] # order the positions to match the order of flow_labels
-# rownames(flow_info) <- NULL # drop the row indexes
-# flow_info <- cbind(as.data.frame(flow_info), as.data.frame(flow_labels)) # bind the flow positions and the corresponding labels
-
-# # add labels to the flows
-# for (i in 1:nrow(flow_info)){
-#    p <- p + annotate("text", x = flow_info$xmax[i] + 0.1,
-#                        y = (flow_info$flow_start_ymin[i] + flow_info$flow_start_ymax[i])/2,
-#                        label = sprintf("%d", flow_info$n[i]), hjust = -1,
-#                        size = 3
-#                        )
-#  }
-
-# mysaveandstore(sprintf("%s/transduction_sankey.pdf", outputdir), 7, 5)
-# }
-
-
+#PHYLOGENY BASED MAPPING
 
 l1hs_intact_aln <- read.alignment(sprintf("aref/%s_Analysis/l1hs_intact.aln.fa", params$sample_or_ref), format = "fasta")
 d <- dist.alignment(l1hs_intact_aln, "identity", gap = FALSE)
@@ -234,13 +226,13 @@ cytobands <- read.cytoband(
     sort.chr = TRUE)
 
 {
-png(outputs$circlize_phylogeny, width = 6, height = 6, units = "in", res = 300)
+pdf(sprintf("%s/phylogeny_mapping.pdf", outputdir), width = 5, height = 5)
 
 circos.initializeWithIdeogram(
     cytoband = conf$ref_cytobands,
     sort.chr = TRUE,
     major.by = NULL,
-    plotType = c("ideogram", "axis", "labels"),
+    plotType = c("ideogram", "labels"),
     track.height = NULL,
     ideogram.height = convert_height(5, "mm"))
 

@@ -20,7 +20,7 @@ for pipeline in config["pipelines_to_deploy"]:
             final_input.append("aref.done.outfile")
             if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
                 if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
-                    use rule * from aref exclude sym_link,tldr_aggregate_multiple_samples as aref_*
+                    use rule * from aref exclude sym_link,tldr_aggregate_multiple_samples,merge_bams_when_per_sample_is_no_for_ldna_variants as aref_*
                 else: 
                     use rule * from aref exclude sym_link,move_starting_reference,tldr_per_sample,get_repeatmasker_raw,process_gtf as aref_*
             else:
