@@ -841,7 +841,6 @@ rule element_analysis:
     params:
         l13 = config["l13fasta"]
     output:
-        outfile = "aref/{sample_or_ref}_Analysis/l1element_analysis.outfile",
         plots = "aref/{sample_or_ref}_Analysis/l1element_analysis.rds"
     benchmark:
         "aref/benchmarks/element_analysis/{sample_or_ref}.tsv"

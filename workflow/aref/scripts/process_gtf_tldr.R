@@ -114,13 +114,13 @@ new_id_mapping <- new_id_mapping %>%
 
 
 
-rmgr <- GRanges(rm %>% full_join(new_id_mapping) %>% relocate(GiesmaID, .after = gene_id) %>% dplyr::select(-gene_id) %>% dplyr::rename(gene_id = GiesmaID))
+rmgr <- GRanges(rm %>% full_join(new_id_mapping) %>% relocate(GiesmaID, .after = gene_id) %>% dplyr::rename(nonref_insert_id = gene_id) %>% dplyr::rename(gene_id = GiesmaID) %>% dplyr::relocate(-nonref_insert_id))
 # write_csv(rm3 %>% full_join(new_id_mapping) %>% relocate(GiesmaID, .after = gene_id) %>% dplyr::select(-gene_id) %>% dplyr::rename(gene_id = GiesmaID), outputs$r_annotation)
 
 rmfragments <- rmfragments %>%
     full_join(new_id_mapping) %>%
     relocate(GiesmaID, .after = gene_id) %>%
-    dplyr::select(-gene_id) %>%
+    dplyr::rename(nonref_insert_id = gene_id) %>%
     dplyr::rename(gene_id = GiesmaID)
 
 # now determine which nonref contigs should be kept in the reference
@@ -195,7 +195,7 @@ rmnonref_noncentral_elements <- rmnonref %>%
 
 
 rm <- rbind(rmref, rmnonrefkeep_central_element, rmnonref_noncentral_elements)
-write_csv(rm, outputs$r_annotation_fragmentsjoined)
+write_csv(rm %>% dplyr::relocate(-nonref_insert_id), outputs$r_annotation_fragmentsjoined)
 
 contigs_to_keep <- rm %$% seqnames %>% unique()
 rtracklayer::export(rmgr[seqnames(rmgr) %in% contigs_to_keep], con = outputs$repmask_gff2, format = "GFF2")
