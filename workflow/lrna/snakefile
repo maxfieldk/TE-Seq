@@ -264,10 +264,9 @@ rule dorado:
         """
 mkdir -p $(dirname {output}) 
 if [[ {wildcards.modification_string} == "unmod" ]]; then
-    mod_string=$(echo {wildcards.modification_string} | tr "-" ",")
     {params.dorado} \
     basecaller \
-    {wildcards.type},$mod_string \
+    {wildcards.type} \
     {input.dir} \
     --recursive \
     --verbose \
@@ -275,9 +274,10 @@ if [[ {wildcards.modification_string} == "unmod" ]]; then
     --reference {params.reference} \
     --mm2-preset "splice" > {output}
 else
+    mod_string=$(echo {wildcards.modification_string} | tr "-" ",")
     {params.dorado} \
     basecaller \
-    {wildcards.type} \
+    {wildcards.type},$mod_string \
     {input.dir} \
     --recursive \
     --verbose \
