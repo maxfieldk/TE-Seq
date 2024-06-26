@@ -23,6 +23,7 @@ def aref_complete_input(wildcards):
         "aref/A.REF_annotations/A.REF_rte_beds/outfile.txt",
         "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.sqlite",
         "aref/A.REF_annotations/cytobands.bed",
+        "aref/A.REF_Analysis/l1element_analysis.rds"
     ]
     # paths.append(expand("aref/{sample_or_ref}_Analysis/l1element_analysis.outfile", sample_or_ref = "A.REF"))
 
@@ -33,7 +34,7 @@ def aref_complete_input(wildcards):
         if config["update_ref_with_tldr"]["per_sample"] == "yes":
             paths.append(expand("aref/{sample_or_ref}_Analysis/tldr_plots/tldr_plots.rds", sample_or_ref = config["samples"]))
             paths.append(expand("aref/{sample_or_ref}_Analysis/tldr_plots/transduction_mapping.rds", sample_or_ref = config["samples"]))
-            paths.append(expand("aref/{sample_or_ref}_Analysis/l1element_analysis.outfile", sample_or_ref = config["samples"]))
+            paths.append(expand("aref/{sample_or_ref}_Analysis/l1element_analysis.rds", sample_or_ref = config["samples"]))
             paths.append(expand("aref/{sample_or_ref}_annotations/{sample_or_ref}_rte_beds/outfile.txt", sample_or_ref = config["samples"]))
             paths.append(expand("aref/{sample_or_ref}_tldr/{sample_or_ref}.table.txt", sample_or_ref = config["samples"]))
             
