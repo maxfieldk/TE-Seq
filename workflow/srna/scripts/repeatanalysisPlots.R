@@ -1181,8 +1181,8 @@ tryCatch(
                 # vdf_wide <- vdf %>% pivot_wider(names_from = contrast, values_from = direction)
 
                 vdf <- df %>%
-                    mutate(across(starts_with("padj"), ~ ifelse(is.na(.), FALSE, ifelse(. < 0.05, TRUE, FALSE)))) %>%
-                    mutate(req_integrative = ifelse(req_integrative == "Other", "Old Truncated", req_integrative))
+                    mutate(across(starts_with("padj"), ~ ifelse(is.na(.), FALSE, ifelse(. < 0.05, TRUE, FALSE))))
+
                 categories <- colnames(vdf) %>%
                     grep(paste0("^padj.*", conf$levels[1]), ., value = TRUE) %>%
                     gsub("padj_condition_", "", .) %>%
@@ -1214,6 +1214,7 @@ tryCatch(
                             p <- vdf %>%
                                 upset(categories_all, name = "condition", width_ratio = 0.3, min_degree = 1) +
                                 labs(title = sprintf("DE %s", group), subtitle = counttype)
+                            mysaveandstore(sprintf("%s/%s/pan_contrast/venn/upset_%s.pdf", outputdir, counttype, group), 9, 6)
                         } else {
                             p <- vdf %>%
                                 upset(categories_all,
@@ -1223,8 +1224,21 @@ tryCatch(
                                     )
                                 ) +
                                 labs(title = sprintf("DE %s", group), subtitle = counttype)
+                            mysaveandstore(sprintf("%s/%s/pan_contrast/venn/upset_%s.pdf", outputdir, counttype, group), 9, 6)
+
+                            p <- vdf %>%
+                                upset(categories_all,
+                                    name = "condition", width_ratio = 0.3, min_degree = 1,
+                                    base_annotations = list(
+                                        "Intersection size" = intersection_size(counts = TRUE)
+                                    ),
+                                    encode_sets = FALSE,
+                                    set_sizes = (
+                                        upset_set_size() + geom_text(aes(label = ..count..), hjust = 1.1, stat = "count"))
+                                ) +
+                                labs(title = sprintf("DE %s", group), subtitle = counttype)
+                            mysaveandstore(sprintf("%s/%s/pan_contrast/venn/upset_%s_nofill.pdf", outputdir, counttype, group), 9, 6)
                         }
-                        mysaveandstore(sprintf("%s/%s/pan_contrast/venn/upset_%s.pdf", outputdir, counttype, group), 9, 6)
                     },
                     error = function(e) {
                         print(e)
