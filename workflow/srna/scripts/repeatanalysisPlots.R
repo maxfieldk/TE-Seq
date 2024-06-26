@@ -49,11 +49,7 @@ tryCatch(
         if (module_name == "srna") {
             assign("params", list(
                 "inputdir" = "srna/results/agg/deseq",
-<<<<<<< HEAD
-                "outputdir" = "srna/results/agg/repeatanalysis/telescope_multi",
-=======
                 "outputdir" = "srna/results/agg/repeatanalysis",
->>>>>>> eccd9be1c891073718496bb4407a86a196568612
                 "counttype" = "telescope_multi"
             ), env = globalenv())
             assign("inputs", list(
@@ -450,11 +446,7 @@ stripp <- function(df, stats = "no", extraGGoptions = NULL, facet_var = "ALL", f
     }
     if (stats == "yes") {
         p <- p + geom_pwc(
-<<<<<<< HEAD
-            method = "t_test", label = "p.adj.signif",
-=======
             method = "t_test", label = "p.adj.format",
->>>>>>> eccd9be1c891073718496bb4407a86a196568612
             ref.group = conf$levels[1],
             p.adjust.method = "fdr", hide.ns = TRUE
         )
@@ -744,17 +736,10 @@ for (group_var in c("repeat_superfamily", "rte_subfamily", "rte_family", "l1_sub
         geom_pwc(
             aes(group = condition),
             tip.length = 0,
-<<<<<<< HEAD
-            method = "t_test", label = "p.adj.signif",
-            p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1]
-        )
-    # stat_pwc(method = "t_test", label = "p.adj.signif", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1])
-=======
             method = "t_test", label = "p.adj.format",
             p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1]
         )
     # stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1])
->>>>>>> eccd9be1c891073718496bb4407a86a196568612
     mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar.pdf", outputdir, counttype, group_var), length(stat_frame %$% condition %>% unique()) * length(stat_frame %>% pull(!!sym(group_var)) %>% unique()) * 0.2 + 1.5, 4)
 
     m <- stat_frame %>%
@@ -818,11 +803,7 @@ for (rte_fam in rte_fams) {
         scale_conditions +
         scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-<<<<<<< HEAD
-        stat_pwc(method = "t_test", label = "p.adj.signif", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
-=======
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
->>>>>>> eccd9be1c891073718496bb4407a86a196568612
     mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats.pdf", outputdir, counttype, rte_fam), width, height)
 
     p <- pf %>%
@@ -834,13 +815,8 @@ for (rte_fam in rte_fams) {
         scale_conditions +
         scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-<<<<<<< HEAD
-        stat_pwc(method = "t_test", label = "p.adj.signif", p.adjust.method = "fdr", hide.ns = FALSE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
-    mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats_allsigannot.pdf", outputdir, counttype, rte_fam), width, height)
-=======
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = FALSE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
     mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats_allsigannot.pdf", outputdir, counttype, rte_fam), width + 1, height)
->>>>>>> eccd9be1c891073718496bb4407a86a196568612
 
     p <- pf %>%
         arrange(req_integrative) %>%
@@ -850,11 +826,7 @@ for (rte_fam in rte_fams) {
         scale_palette +
         scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-<<<<<<< HEAD
-        stat_pwc(method = "t_test", label = "p.adj.signif", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
-=======
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
->>>>>>> eccd9be1c891073718496bb4407a86a196568612
     mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_reqintegrative_stats.pdf", outputdir, counttype, rte_fam), 5, 5)
 
     if (df %$% rte_superfamily %>% unique() == "LTR") {
@@ -881,11 +853,7 @@ for (rte_fam in rte_fams) {
             scale_conditions +
             scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
             theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-<<<<<<< HEAD
-            stat_pwc(method = "t_test", label = "p.adj.signif", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
-=======
             stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
->>>>>>> eccd9be1c891073718496bb4407a86a196568612
         mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_ltr_viral_status_stats.pdf", outputdir, counttype, rte_fam), width, height + 4)
 
         p <- pf %>%
@@ -896,11 +864,7 @@ for (rte_fam in rte_fams) {
             scale_conditions +
             scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
             theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-<<<<<<< HEAD
-            stat_pwc(method = "t_test", label = "p.adj.signif", p.adjust.method = "fdr", hide.ns = FALSE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
-=======
             stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = FALSE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
->>>>>>> eccd9be1c891073718496bb4407a86a196568612
         mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_ltr_viral_status_stats_allsigannot.pdf", outputdir, counttype, rte_fam), width, height + 4)
     }
 }
@@ -911,11 +875,8 @@ rte_subfams <- tidydf %$% rte_subfamily %>%
     na.omit()
 rte_subfams <- rte_subfams[rte_subfams != "Other"]
 for (rte_subfam in rte_subfams) {
-<<<<<<< HEAD
-=======
     width <- 5
     height <- 8
->>>>>>> eccd9be1c891073718496bb4407a86a196568612
     df <- tidydf %>% filter(rte_subfamily == rte_subfam)
 
     pf <- df %>%
@@ -940,11 +901,7 @@ for (rte_subfam in rte_subfams) {
         scale_conditions +
         scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-<<<<<<< HEAD
-        stat_pwc(method = "t_test", label = "p.adj.signif", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
-=======
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
->>>>>>> eccd9be1c891073718496bb4407a86a196568612
     mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats.pdf", outputdir, counttype, rte_subfam), width, height)
 
     p <- pf %>%
@@ -955,11 +912,7 @@ for (rte_subfam in rte_subfams) {
         scale_conditions +
         scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-<<<<<<< HEAD
-        stat_pwc(method = "t_test", label = "p.adj.signif", p.adjust.method = "fdr", hide.ns = FALSE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
-=======
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = FALSE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
->>>>>>> eccd9be1c891073718496bb4407a86a196568612
     mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats_allsigannot.pdf", outputdir, counttype, rte_subfam), width, height)
 
 
@@ -976,13 +929,8 @@ for (rte_subfam in rte_subfams) {
         scale_conditions +
         anchorbar +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-<<<<<<< HEAD
-        stat_pwc(method = "t_test", label = "p.adj.signif", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
-    mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_nonref_stats.pdf", outputdir, counttype, rte_subfam), 7, 5)
-=======
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
     mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_nonref_stats.pdf", outputdir, counttype, rte_subfam), 4.5, 5)
->>>>>>> eccd9be1c891073718496bb4407a86a196568612
 
     if (df %$% rte_superfamily %>% unique() == "LTR") {
         pf <- df %>%
@@ -1008,11 +956,7 @@ for (rte_subfam in rte_subfams) {
             scale_conditions +
             anchorbar +
             theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-<<<<<<< HEAD
-            stat_pwc(method = "t_test", label = "p.adj.signif", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
-=======
             stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
->>>>>>> eccd9be1c891073718496bb4407a86a196568612
         mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_ltr_viral_status_stats.pdf", outputdir, counttype, rte_subfam), width, height)
 
         p <- pf %>%
@@ -1044,8 +988,6 @@ for (contrast in contrasts) {
         filter(condition %in% c(contrast_level_1, contrast_level_2)) %>%
         pull(sample_name)
     condition_vec <- sample_table %>% filter(sample_name %in% contrast_samples) %$% condition
-<<<<<<< HEAD
-=======
     groups_that_have_been_run <- c()
     groups_not_to_run <- c()
     for (ontology in ontologies) {
@@ -1144,7 +1086,6 @@ for (contrast in contrasts) {
         filter(condition %in% c(contrast_level_1, contrast_level_2)) %>%
         pull(sample_name)
     condition_vec <- sample_table %>% filter(sample_name %in% contrast_samples) %$% condition
->>>>>>> eccd9be1c891073718496bb4407a86a196568612
     groups_that_have_been_run <- c()
     groups_not_to_run <- c()
     for (ontology in ontologies) {
@@ -1155,13 +1096,8 @@ for (contrast in contrasts) {
         for (group in ontology_groups) {
             if (!(group %in% groups_that_have_been_run | group %in% groups_not_to_run | group %in% big_ontology_groups)) {
                 groups_that_have_been_run <- c(groups_that_have_been_run, group)
-<<<<<<< HEAD
-                # maybe change to !!group
-                groupframe <- tidydf %>% dplyr::filter(!!sym(ontology) == group)
-=======
                 groupframe <- resultsdf %>%
                     filter(!!sym(ontology) == group)
->>>>>>> eccd9be1c891073718496bb4407a86a196568612
                 eligible_modifiers <- c()
                 for (modifier in modifiers) {
                     values_present <- groupframe %>%
@@ -1233,86 +1169,89 @@ for (contrast in contrasts) {
     }
 }
 
-# #Heatmaps
-# for (contrast in contrasts) {
-#     contrast_of_interest <- contrast
-#     contrast_level_2 <- contrast_of_interest %>%
-#         gsub("condition_", "", .) %>%
-#         gsub("_vs_.*", "", .)
-#     contrast_level_1 <- contrast_of_interest %>%
-#         gsub(".*_vs_", "", .)
-#     contrast_stat <- paste0("stat_", contrast_of_interest)
-#     contrast_padj <- paste0("padj_", contrast_of_interest)
-#     contrast_log2FoldChange <- paste0("log2FoldChange_", contrast_of_interest)
-#     contrast_samples <- sample_table %>%
-#         filter(condition %in% c(contrast_level_1, contrast_level_2)) %>%
-#         pull(sample_name)
-#     condition_vec <- sample_table %>% filter(sample_name %in% contrast_samples) %$% condition
-#     groups_that_have_been_run <- c()
-#     groups_not_to_run <- c("AluY")
-#     for (ontology in ontologies) {
-#         print(ontology)
-#         ontology_groups <- r_repeatmasker_annotation %>%
-#             pull(!!sym(ontology)) %>%
-#             unique()
-#         ontology_groups <- ontology_groups[ontology_groups != "Other"]
-#         for (group in ontology_groups) {
-#             if (!(group %in% groups_that_have_been_run | group %in% groups_not_to_run | group %in% big_ontology_groups)) {
-#                 groups_that_have_been_run <- c(groups_that_have_been_run, group)
-#                 groupframe <- resultsdf %>%
-#                     filter(!!sym(ontology) == group)
-#                 eligible_modifiers <- c()
-#                 for (modifier in modifiers) {
-#                     values_present <- groupframe %>%
-#                         pull(!!sym(modifier)) %>%
-#                         unique()
-#                     if ((length(values_present) > 1) | !("Other" %in% values_present)) {
-#                         eligible_modifiers <- c(eligible_modifiers, modifier)
-#                     }
-#                     eligible_filter_modifiers <- c(eligible_modifiers[grepl("_req$", eligible_modifiers)], "ALL")
-#                     eligible_facet_modifiers <- c(eligible_modifiers[grepl("genic_loc$", eligible_modifiers)], "ALL")
-#                     eligible_modifier_combinations <- expand.grid(filter_var = eligible_filter_modifiers, facet_var = eligible_facet_modifiers, stringsAsFactors = FALSE)
-#                 }
-#                 # first plots without any modifiers
-#                 plotting_functions <- c("myheatmap", "myheatmap_allsamples")
+# Heatmaps
+for (contrast in contrasts) {
+    contrast_of_interest <- contrast
+    contrast_level_2 <- contrast_of_interest %>%
+        gsub("condition_", "", .) %>%
+        gsub("_vs_.*", "", .)
+    contrast_level_1 <- contrast_of_interest %>%
+        gsub(".*_vs_", "", .)
+    contrast_stat <- paste0("stat_", contrast_of_interest)
+    contrast_padj <- paste0("padj_", contrast_of_interest)
+    contrast_log2FoldChange <- paste0("log2FoldChange_", contrast_of_interest)
+    contrast_samples <- sample_table %>%
+        filter(condition %in% c(contrast_level_1, contrast_level_2)) %>%
+        pull(sample_name)
+    condition_vec <- sample_table %>% filter(sample_name %in% contrast_samples) %$% condition
+    groups_that_have_been_run <- c()
+    groups_not_to_run <- c("AluY")
+    for (ontology in small_ontologies) {
+        print(ontology)
+        ontology_groups <- r_repeatmasker_annotation %>%
+            pull(!!sym(ontology)) %>%
+            unique()
+        ontology_groups <- ontology_groups[ontology_groups != "Other"]
+        for (group in ontology_groups) {
+            if (!(group %in% groups_that_have_been_run | group %in% groups_not_to_run | group %in% big_ontology_groups)) {
+                groups_that_have_been_run <- c(groups_that_have_been_run, group)
+                groupframe <- resultsdf %>%
+                    filter(!!sym(ontology) == group)
+                if (length(rownames(groupframe > 10000))) {
+                    next
+                }
+                eligible_modifiers <- c()
+                for (modifier in modifiers) {
+                    values_present <- groupframe %>%
+                        pull(!!sym(modifier)) %>%
+                        unique()
+                    if ((length(values_present) > 1) | !("Other" %in% values_present)) {
+                        eligible_modifiers <- c(eligible_modifiers, modifier)
+                    }
+                    eligible_filter_modifiers <- c(eligible_modifiers[grepl("_req$", eligible_modifiers)], "ALL")
+                    eligible_facet_modifiers <- c(eligible_modifiers[grepl("genic_loc$", eligible_modifiers)], "ALL")
+                    eligible_modifier_combinations <- expand.grid(filter_var = eligible_filter_modifiers, facet_var = eligible_facet_modifiers, stringsAsFactors = FALSE)
+                }
+                # first plots without any modifiers
+                plotting_functions <- c("myheatmap", "myheatmap_allsamples")
 
-#                 for (function_name in plotting_functions) {
-#                     for (DEvar in c("ALL", "DE")) {
-#                         for (scaled in c("notscaled", "scaled")) {
-#                             for (i in seq(1, length(rownames(eligible_modifier_combinations)))) {
-#                                 filter_var <- eligible_modifier_combinations[i, ]$filter_var
-#                                 facet_var <- eligible_modifier_combinations[i, ]$facet_var
+                for (function_name in plotting_functions) {
+                    for (DEvar in c("ALL", "DE")) {
+                        for (scaled in c("notscaled", "scaled")) {
+                            for (i in seq(1, length(rownames(eligible_modifier_combinations)))) {
+                                filter_var <- eligible_modifier_combinations[i, ]$filter_var
+                                facet_var <- eligible_modifier_combinations[i, ]$facet_var
 
-#                                 tryCatch(
-#                                     {
-#                                         function_current <- get(function_name)
-#                                         hm_output <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, DEvar = DEvar, scaled = scaled, contrast_samples = contrast_samples, condition_vec = condition_vec)
-#                                         p <- hm_output[["plot"]]
-#                                         plot_width <- hm_output[["width"]]
-#                                         plot_height <- hm_output[["height"]]
-#                                         mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_%s_%s.pdf", outputdir, counttype, contrast, function_name, group, filter_var, facet_var, DEvar, scaled), plot_width, plot_height)
-#                                     },
-#                                     error = function(e) {
-#                                         print(sprintf("Error with  %s %s %s %s %s %s %s %s %s", counttype, contrast, group, function_name, ontology, filter_var, facet_var, DEvar, scaled))
-#                                         print(e)
-#                                         tryCatch(
-#                                             {
-#                                                 dev.off()
-#                                             },
-#                                             error = function(e) {
-#                                                 print(e)
-#                                             }
-#                                         )
-#                                     }
-#                                 )
-#                             }
-#                         }
-#                     }
-#                 }
-#             }
-#         }
-#     }
-# }
+                                tryCatch(
+                                    {
+                                        function_current <- get(function_name)
+                                        hm_output <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, DEvar = DEvar, scaled = scaled, contrast_samples = contrast_samples, condition_vec = condition_vec)
+                                        p <- hm_output[["plot"]]
+                                        plot_width <- hm_output[["width"]]
+                                        plot_height <- hm_output[["height"]]
+                                        mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_%s_%s.pdf", outputdir, counttype, contrast, function_name, group, filter_var, facet_var, DEvar, scaled), plot_width, plot_height)
+                                    },
+                                    error = function(e) {
+                                        print(sprintf("Error with  %s %s %s %s %s %s %s %s %s", counttype, contrast, group, function_name, ontology, filter_var, facet_var, DEvar, scaled))
+                                        print(e)
+                                        tryCatch(
+                                            {
+                                                dev.off()
+                                            },
+                                            error = function(e) {
+                                                print(e)
+                                            }
+                                        )
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 
 

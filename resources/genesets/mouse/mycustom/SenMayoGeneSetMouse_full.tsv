@@ -1,4 +1,3 @@
-Gene(murine)	Classification	State	Reference
 Acvr1b	Transmembrane signal receptors	Transmembrane	26
 Ang	Miscellaneous	Secreted	"81,88"
 Angpt1	Intercellular signal molecule	Secreted	57
@@ -27,7 +26,7 @@ Csf2rb	Transmembrane signal receptors	Transmembrane	89
 Cst10	Protease inhibitors	Secreted	85
 Ctnnb1	Transcription factors and regulators	Transmembrane	88
 Ctsb	(Metallo-)proteases	Secreted	81
-Cxcl1	Cytokine/Chemokine	Secreted	"26,57,63,81,88Ð90"
+Cxcl1	Cytokine/Chemokine	Secreted	"26,57,63,81,88ï¿½90"
 Cxcl10	Cytokine/Chemokine	Secreted	"57,82,88"
 Cxcl12	Cytokine/Chemokine	Secreted	"81,88"
 Cxcl16	Cytokine/Chemokine	Secreted	88
@@ -64,10 +63,10 @@ Il10	Cytokine/Chemokine	Secreted	86
 Il13	Cytokine/Chemokine	Secreted	"81,89"
 Il15	Cytokine/Chemokine	Secreted	"42,84,88,89"
 Il18	Cytokine/Chemokine	Secreted	"57,88"
-Il1a	Cytokine/Chemokine	Secreted	"26,42,57,63,81,82,88Ð90"
-Il1b	Cytokine/Chemokine	Secreted	"18,42,86,88Ð90"
+Il1a	Cytokine/Chemokine	Secreted	"26,42,57,63,81,82,88ï¿½90"
+Il1b	Cytokine/Chemokine	Secreted	"18,42,86,88ï¿½90"
 Il2	Cytokine/Chemokine	Secreted	88
-Il6	Cytokine/Chemokine	Secreted	"26,42,57,63,82Ð84,86,88,89"
+Il6	Cytokine/Chemokine	Secreted	"26,42,57,63,82ï¿½84,86,88,89"
 Il6st	Transmembrane signal receptors	Transmembrane	42
 Il7	Cytokine/Chemokine	Secreted	"42,89"
 Inha	Growth factor	Secreted	89
