@@ -1,3 +1,4 @@
+# module_name <- "srna"
 module_name <- snakemake@params$module_name
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
 confALL <- configr::read.config(file = "conf/config.yaml")

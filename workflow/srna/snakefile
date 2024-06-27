@@ -532,7 +532,6 @@ rule enrichment_analysis:
         mem_mb = 164000,
         runtime = 300
     output:
-        results_table_targetted = "srna/results/agg/enrichment_analysis/results_table_targetted.tsv",
         results_table_unbiased = "srna/results/agg/enrichment_analysis/results_table_unbiased.tsv",
         environment = "srna/results/agg/enrichment_analysis/enrichment_analysis_environment.RData",
         report = report(
