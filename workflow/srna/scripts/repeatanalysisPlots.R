@@ -1197,7 +1197,7 @@ for (contrast in contrasts) {
                 groups_that_have_been_run <- c(groups_that_have_been_run, group)
                 groupframe <- resultsdf %>%
                     filter(!!sym(ontology) == group)
-                if (length(rownames(groupframe > 10000))) {
+                if (length(rownames(groupframe > 2000))) {
                     next
                 }
                 eligible_modifiers <- c()
