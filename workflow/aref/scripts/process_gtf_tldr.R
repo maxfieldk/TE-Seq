@@ -45,9 +45,9 @@ rm2 <- rm1 %>%
     mutate(element_bp_remaining = as.numeric(gsub("\\(|\\)", "", element_bp_remaining))) %>%
     mutate(element_start = as.numeric(element_start)) %>%
     mutate(element_end = as.numeric(element_end)) %>%
-    mutate(length = element_end - element_start) %>% 
+    mutate(length = element_end - element_start) %>%
     mutate(consensus_length = element_end + element_bp_remaining) %>%
-    mutate(pctconsensuscovered = 100*(length / consensus_length))
+    mutate(pctconsensuscovered = 100 * (length / consensus_length))
 rm3 <- rm2 %>%
     mutate(pctdiv = as.numeric(pctdiv)) %>%
     mutate(pctdel = as.numeric(pctdel)) %>%
@@ -57,9 +57,9 @@ rm3 <- rm2 %>%
 
 rmfragments <- rm3 %>%
     group_by(gene_id) %>%
-    summarise(seqnames = dplyr::first(seqnames), source = dplyr::first(source), type = dplyr::first(type), start = min(start), end = max(end), strand = dplyr::first(strand), phase = dplyr::first(phase), family = dplyr::first(family), element_start = min(element_start), element_end = max(element_end), pctdiv = sum(pctdiv * length) / sum(length), length = sum(length), pctconsensuscovered = sum(pctconsensuscovered), num_fragments = n()) %>% 
+    summarise(seqnames = dplyr::first(seqnames), source = dplyr::first(source), type = dplyr::first(type), start = min(start), end = max(end), strand = dplyr::first(strand), phase = dplyr::first(phase), family = dplyr::first(family), element_start = min(element_start), element_end = max(element_end), pctdiv = sum(pctdiv * length) / sum(length), length = sum(length), pctconsensuscovered = sum(pctconsensuscovered), num_fragments = n()) %>%
     mutate(pctconsensustruncated = 100 - pctconsensuscovered)
-rmfragments <- rmfragments %>% mutate(refstatus = ifelse(str_detect(seqnames, "nonref"), "NonRef", "Ref"))
+rmfragments <- rmfragments %>% mutate(refstatus = ifelse(str_detect(seqnames, "NI"), "NonRef", "Ref"))
 
 # for annotation purposes, I will have to have the location of nonreference inserts be their insertion site
 if (any(str_detect(rmfragments$refstatus, "NonRef"))) {
@@ -69,16 +69,18 @@ if (any(str_detect(rmfragments$refstatus, "NonRef"))) {
     insert_seqnames <- c()
     insert_start <- c()
     insert_end <- c()
-    for (seqnames in seqnamesNonref) {
-        split <- str_split(seqnames, "_") %>% unlist()
+    for (seqname in seqnamesNonref) {
+        seqname_no_rte <- seqname %>% gsub(".*_chr", "chr", .)
+        split <- str_split(seqname_no_rte, "_") %>% unlist()
         splitlen <- length(split)
-        insert_seqnames <- c(insert_seqnames, split[splitlen - 2])
         insert_start <- c(insert_start, split[splitlen - 1])
         insert_end <- c(insert_end, split[splitlen])
+        insert_seqnames <- c(insert_seqnames, gsub(paste0("_", split[splitlen - 1], "_", split[splitlen]), "", seqname_no_rte))
     }
     rmfragments_nonref$insert_seqnames <- insert_seqnames
     rmfragments_nonref$insert_start <- insert_start
     rmfragments_nonref$insert_end <- insert_end
+    rmfragments_nonref %$% seqnames
 
     rmfragments_nonrefgr <- GRanges(rmfragments_nonref %>% dplyr::select(-seqnames, -start, -end) %>% dplyr::relocate(gene_id, insert_seqnames, source, type, insert_start, insert_end, strand) %>% dplyr::rename(seqnames = insert_seqnames, start = insert_start, end = insert_end))
     rmfragments_refgr <- GRanges(rmfragments_ref)
@@ -88,13 +90,16 @@ if (any(str_detect(rmfragments$refstatus, "NonRef"))) {
     gr_for_overlap_analysis <- GRanges(rmfragments)
 }
 
-
+seqnames(gr_for_overlap_analysis)
 cytobandsdf <- read_delim(conf$ref_cytobands, col_names = FALSE, delim = "\t")
 cytobands <- cytobandsdf %>%
     dplyr::rename(seqnames = X1, start = X2, end = X3) %>%
     GRanges()
+length(gr_for_overlap_analysis)
+length(overlaps)
 
 overlaps <- findOverlaps(gr_for_overlap_analysis, cytobands, select = "first")
+
 gr_for_overlap_analysis$cytobands <- mcols(cytobands[overlaps])$X4
 
 new_id_mapping <- gr_for_overlap_analysis %>%
@@ -125,7 +130,7 @@ rmfragments <- rmfragments %>%
 
 # now determine which nonref contigs should be kept in the reference
 df <- read_delim(inputs$tldroutput) %>%
-    mutate(faName = paste0("nonrefins_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>%
+    mutate(faName = paste0("NI_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>%
     filter(!is.na(Family)) %>%
     filter(!is.na(StartTE)) %>%
     filter(Filter == "PASS")
@@ -146,7 +151,7 @@ nonrefcontigs <- rmfragments %>% filter(grepl("nonref", seqnames))
 # this will ensure that 1) only elements which are actually picked up by repeat masker (as opposed to 3p transductions with a tiny bit of TE sequence, are retainined in the reference
 # and that 2) I can make a gtf with only those elements which inserted, and not elements which are merely contained in the nonref contig (but which are also present in the reference).
 nonrefelementspass <- nonrefcontigs %>%
-    mutate(seqnames_element_type = gsub("_chr.*", "", gsub("nonrefins_", "", seqnames))) %>%
+    mutate(seqnames_element_type = gsub("_chr.*", "", gsub("NI_", "", seqnames))) %>%
     mutate(seqnames_element_type = gsub("L1Ta", "L1HS", seqnames_element_type)) %>%
     mutate(seqnames_element_type = gsub("L1preTa", "L1HS", seqnames_element_type)) %>%
     mutate(family_element_type = gsub("^.*/", "", family)) %>%
@@ -172,9 +177,9 @@ rmnonref <- rmfragments %>%
 rmnonrefkeep <- nonrefelementspass
 # determine which of these is the bona fide nonref ins, and which are just ref ins which are on a nonref contig
 a <- rmnonrefkeep %>%
-    mutate(seqname_ins_type = gsub("_chr.*", "", gsub("nonrefins_", "", seqnames))) %>%
+    mutate(seqname_ins_type = gsub("_chr.*", "", gsub("NI_", "", seqnames))) %>%
     mutate(seqname_ins_type = gsub("L1Ta", "L1HS", gsub("L1preTa", "L1HS", seqname_ins_type))) %>%
-    mutate(ins_type = gsub("^.*/", "", gsub("/nonrefins_.*", "", family))) %>%
+    mutate(ins_type = gsub("^.*/", "", gsub("/NI_.*", "", family))) %>%
     filter(ins_type == seqname_ins_type)
 
 # bonafide element should be the center of the contig, so select the central element

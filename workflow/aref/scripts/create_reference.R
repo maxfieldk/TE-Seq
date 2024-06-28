@@ -22,23 +22,29 @@ tryCatch(
     }
 )
 
-df <- read_delim(inputs$tldroutput) 
+df <- read_delim(inputs$tldroutput)
 er <- df %$% EmptyReads %>% str_extract_all("\\|[0-9]+")
 
 emptyreadsnum <- c()
 for (i in 1:length(er)) {
     if (length(er[[i]]) == 1) {
-        val <- er[[i]] %>% gsub("\\|", "", .) %>% as.numeric()
+        val <- er[[i]] %>%
+            gsub("\\|", "", .) %>%
+            as.numeric()
     } else {
-        val <- er[[i]] %>% gsub("\\|", "", .) %>% as.numeric() %>% sum()
+        val <- er[[i]] %>%
+            gsub("\\|", "", .) %>%
+            as.numeric() %>%
+            sum()
     }
     emptyreadsnum <- c(emptyreadsnum, val)
 }
 
 df$emptyreadsnum <- emptyreadsnum
-df <- df %>% mutate(fraction_reads_count = UsedReads / (UsedReads + emptyreadsnum)) %>% 
+df <- df %>%
+    mutate(fraction_reads_count = UsedReads / (UsedReads + emptyreadsnum)) %>%
     filter(fraction_reads_count > 0.20) %>%
-    mutate(faName = paste0("nonrefins_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>%
+    mutate(faName = paste0("NI_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>%
     filter(!is.na(Family)) %>%
     filter(!is.na(StartTE)) %>%
     filter(Filter == "PASS")
