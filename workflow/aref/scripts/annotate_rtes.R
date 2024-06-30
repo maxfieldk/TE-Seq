@@ -194,7 +194,7 @@ if (conf$species == "human") {
 
 # Annotate Intactness
 fa <- Rsamtools::FaFile(inputs$ref)
-
+seqnames(seqinfo(fa))
 rmfragments %$% refstatus %>% unique()
 if (conf$species == "human") {
 element_to_annotate <- c("L1HS","L1PA2")
@@ -204,8 +204,11 @@ element_to_annotate <- c("L1MdTf_I","L1MdTf_II","L1MdTf_III",
     "L1MdA_I", "L1MdA_II", "L1MdA_III")
 }
 #trycatch needed if you are not using human/mouse
-tryCatch({
 
+"NI_L1MdTf_II_chrX_31746749_31746761" %in% contigs_to_keep
+seqnames(active_family_ranges[1868])
+tryCatch({
+rmfragments %$% seqnames %in% contigs_to_keep %>% all()
 element_info_list <- list()
 for (element in element_to_annotate) {
     active_family_ranges <- GRanges(rmfragments %>% filter(grepl(paste0(element, "$"), family)))
