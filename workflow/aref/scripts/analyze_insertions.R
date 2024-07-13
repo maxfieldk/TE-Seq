@@ -86,7 +86,7 @@ mysaveandstore(sprintf("%s/insertions_sub_fig.pdf", outputdir), 12, 5)
 
 
 df <- read_delim(inputs$tldroutput) %>%
-    mutate(faName = paste0("nonrefins_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>%
+    mutate(faName = paste0("NI_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>%
     filter(!is.na(Family)) %>%
     filter(!is.na(StartTE)) %>%
     filter(Filter == "PASS")

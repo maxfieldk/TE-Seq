@@ -59,29 +59,42 @@ rmfragments <- read_csv(inputs$r_annotation_fragmentsjoined, col_names = TRUE)
 rmfamilies <- read_csv(inputs$r_repeatmasker_annotation, col_names = TRUE)
 rmann <- left_join(rmfragments, rmfamilies) %>%
     filter(refstatus != "NonCentral")
-outputdir <- dirname(outputs$outfile)
+outputdir <- dirname(outputs$plots)
 dir.create(outputdir, recursive = TRUE, showWarnings = FALSE)
 
-rmann %>% filter(str_detect(intactness_req, "Intact")) %>% head() %>% write_delim(sprintf("%s/rmann_head.csv", outputdir), delim = "\t", col_names = TRUE)
+rmann %>%
+    filter(str_detect(intactness_req, "Intact")) %>%
+    head() %>%
+    write_delim(sprintf("%s/rmann_head.csv", outputdir), delim = "\t", col_names = TRUE)
 rmann %$% intactness_req %>% table()
-rmann %>% filter(refstatus == "NonRef") %$% rte_subfamily  %>% table()
+rmann %>%
+    filter(refstatus == "NonRef") %$% rte_subfamily %>%
+    table()
 
 options(scipen = 999)
 
 genome_length <- seqlengths(fa) %>% sum()
-repeat_lengths <- rmann %>% group_by(repeat_superfamily) %>% summarise(n = n(), basepairs = sum(length)) %>% ungroup()
+repeat_lengths <- rmann %>%
+    group_by(repeat_superfamily) %>%
+    summarise(n = n(), basepairs = sum(length)) %>%
+    ungroup()
 rls <- repeat_lengths %$% basepairs %>% sum()
 nonrepeat_genome_length <- genome_length - rls
 repeat_lengths <- add_row(repeat_lengths, repeat_superfamily = "Non Repeat", n = 1, basepairs = nonrepeat_genome_length)
 repeat_lengths <- mutate(repeat_lengths, pct = basepairs / genome_length * 100) %>% filter(pct > 1)
 
 library(ggpubr)
-p <- ggpie(repeat_lengths, "pct", label = "repeat_superfamily",
-   lab.pos = "out", fill = "repeat_superfamily", lab.adjust = 1) + scale_palette + theme(legend.position = "none")
+p <- ggpie(repeat_lengths, "pct",
+    label = "repeat_superfamily",
+    lab.pos = "out", fill = "repeat_superfamily", lab.adjust = 1
+) + scale_palette + theme(legend.position = "none")
 mysaveandstore(sprintf("%s/repeat_pie.pdf", outputdir), w = 3, h = 3)
 
 
-p <- rmann %>% filter(refstatus == "NonRef") %>% mutate(rte_subfamily = gsub("SVA.*", "SVA", rte_subfamily)) %>% group_by(rte_subfamily, refstatus, req_integrative) %>%
+p <- rmann %>%
+    filter(refstatus == "NonRef") %>%
+    mutate(rte_subfamily = gsub("SVA.*", "SVA", rte_subfamily)) %>%
+    group_by(rte_subfamily, refstatus, req_integrative) %>%
     summarise(n = n()) %>%
     ungroup() %>%
     ggplot() +
@@ -94,74 +107,81 @@ p <- rmann %>% filter(refstatus == "NonRef") %>% mutate(rte_subfamily = gsub("SV
 mysaveandstore(sprintf("%s/nonref_familycount.pdf", outputdir), w = 6, h = 5)
 
 # Summary Statistics
-families_of_interest <- rmann %>% filter(rte_subfamily != "Other") %$% rte_family %>% unique()
+families_of_interest <- rmann %>%
+    filter(rte_subfamily != "Other") %$% rte_family %>%
+    unique()
 for (fam in families_of_interest) {
+    p <- rmann %>%
+        filter(rte_family == fam) %>%
+        filter(rte_subfamily != "Other") %>%
+        group_by(rte_subfamily, refstatus, req_integrative) %>%
+        summarise(n = n()) %>%
+        ungroup() %>%
+        ggplot() +
+        geom_bar(aes(x = rte_subfamily, y = n, fill = req_integrative), color = "black", stat = "identity") +
+        labs(title = "Full Length Elements per Subfamily", x = "Family", y = "Number of Elements", fill = "Reference Status") +
+        facet_grid(~refstatus, scales = "free", space = "free_x") +
+        mtclosed +
+        anchorbar +
+        scale_palette +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    mysaveandstore(sprintf("%s/%s_familycount.pdf", outputdir, fam), w = 6, h = 5)
 
-p <- rmann %>%
-    filter(rte_family == fam) %>%
-    filter(rte_subfamily != "Other") %>%
-    group_by(rte_subfamily, refstatus, req_integrative) %>%
-    summarise(n = n()) %>%
-    ungroup() %>%
-    ggplot() +
-    geom_bar(aes(x = rte_subfamily, y = n, fill = req_integrative), color = "black", stat = "identity") +
-    labs(title = "Full Length Elements per Subfamily", x = "Family", y = "Number of Elements", fill = "Reference Status") +
-    facet_grid(~refstatus, scales = "free" , space = "free_x") +
-    mtclosed +
-    anchorbar +
-    scale_palette +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1))
-mysaveandstore(sprintf("%s/%s_familycount.pdf", outputdir, fam), w = 6, h = 5)
-
-p <- rmann %>%
-    filter(rte_family == fam) %>%
-    filter(rte_subfamily != "Other") %>%
-    filter(rte_length_req == "FL") %>%
-    group_by(rte_subfamily, refstatus, req_integrative) %>%
-    summarise(n = n()) %>%
-    ungroup() %>%
-    ggplot() +
-    geom_bar(aes(x = rte_subfamily, y = n, fill = req_integrative), color = "black", stat = "identity") +
-    labs(title = "Number of Full Length L1 Elements per Subfamily", x = "Family", y = "Number of Elements", fill = "Reference Status") +
-    facet_grid(~refstatus, scales = "free" , space = "free_x") +
-    mtclosed +
-    anchorbar +
-    scale_palette +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1))
-mysaveandstore(sprintf("%s/%s_FL_familycount.pdf", outputdir, fam), w = 6, h = 5)
+    p <- rmann %>%
+        filter(rte_family == fam) %>%
+        filter(rte_subfamily != "Other") %>%
+        filter(rte_length_req == "FL") %>%
+        group_by(rte_subfamily, refstatus, req_integrative) %>%
+        summarise(n = n()) %>%
+        ungroup() %>%
+        ggplot() +
+        geom_bar(aes(x = rte_subfamily, y = n, fill = req_integrative), color = "black", stat = "identity") +
+        labs(title = "Number of Full Length L1 Elements per Subfamily", x = "Family", y = "Number of Elements", fill = "Reference Status") +
+        facet_grid(~refstatus, scales = "free", space = "free_x") +
+        mtclosed +
+        anchorbar +
+        scale_palette +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    mysaveandstore(sprintf("%s/%s_FL_familycount.pdf", outputdir, fam), w = 6, h = 5)
 
 
-intact_fams <-rmann  %>% filter(intactness_req != "Other") %$% rte_subfamily %>% unique()
-p <- rmann %>%
-    filter(rte_family == fam) %>%
-    filter(rte_subfamily != "Other") %>%
-    filter(rte_subfamily %in% intact_fams) %>%
-    filter(rte_length_req == "FL") %>%
-    group_by(rte_subfamily, refstatus, req_integrative) %>%
-    summarise(n = n()) %>%
-    ungroup() %>%
-    ggplot() +
-    geom_bar(aes(x = rte_subfamily, y = n, fill = req_integrative), color = "black", stat = "identity") +
-    labs(title = "FL Elements per Subfamily", x = "Family", y = "Number of FL Elements", fill = "Reference Status") +
-    facet_grid(~refstatus, scales = "free_x", space = "free_x") +
-    mtclosed +
-    anchorbar +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1)) + scale_palette
-mysaveandstore(sprintf("%s/%s_FL_active_families_familycount.pdf", outputdir, fam), w = 4, h = 5)
+    intact_fams <- rmann %>%
+        filter(intactness_req != "Other") %$% rte_subfamily %>%
+        unique()
+    p <- rmann %>%
+        filter(rte_family == fam) %>%
+        filter(rte_subfamily != "Other") %>%
+        filter(rte_subfamily %in% intact_fams) %>%
+        filter(rte_length_req == "FL") %>%
+        group_by(rte_subfamily, refstatus, req_integrative) %>%
+        summarise(n = n()) %>%
+        ungroup() %>%
+        ggplot() +
+        geom_bar(aes(x = rte_subfamily, y = n, fill = req_integrative), color = "black", stat = "identity") +
+        labs(title = "FL Elements per Subfamily", x = "Family", y = "Number of FL Elements", fill = "Reference Status") +
+        facet_grid(~refstatus, scales = "free_x", space = "free_x") +
+        mtclosed +
+        anchorbar +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        scale_palette
+    mysaveandstore(sprintf("%s/%s_FL_active_families_familycount.pdf", outputdir, fam), w = 4, h = 5)
 }
 
 # human_per_ncl_per_year_mut_rate <- 0.33e-9
 
 # 0.02/human_per_ncl_per_year_mut_rate
 # l1hs <- rmann %>%
-#     filter(grepl("L1HS", rte_subfamily)) 
+#     filter(grepl("L1HS", rte_subfamily))
 # l1hs %>% dplyr::select(gene_id, pctdiv, pctconsensuscovered, refstatus, family_av_pctdiv)
 # l1hs %>% filter(pctconsensuscovered > 90) %>% dplyr::select(gene_id, pctdiv, pctconsensuscovered, refstatus, family_av_pctdiv) %>% summarise(mean(pctdiv))
 
 
-#sequence analyses
+# sequence analyses
 library(Rsamtools)
-intact_fams <-rmann%>% filter(rte_family == "L1")   %>% filter(intactness_req != "Other") %$% rte_subfamily %>% unique()
+intact_fams <- rmann %>%
+    filter(rte_family == "L1") %>%
+    filter(intactness_req != "Other") %$% rte_subfamily %>%
+    unique()
 grs <- GRanges(rmann %>% filter(rte_subfamily %in% intact_fams))
 grs_df <- as.data.frame(grs) %>% tibble()
 
@@ -170,7 +190,7 @@ gene_ids <- grs_df$gene_id
 grs_ss <- Rsamtools::getSeq(fa, grs)
 mcols(grs_ss) <- mcols(grs)
 names(grs_ss) <- mcols(grs)$gene_id
-grs_fl_ss <- grs_ss[mcols(grs_ss)$rte_length_req =="FL"]
+grs_fl_ss <- grs_ss[mcols(grs_ss)$rte_length_req == "FL"]
 
 grs_intact_ss <- grs_fl_ss[grepl("^Intact", mcols(grs_fl_ss)$intactness_req)]
 
@@ -205,7 +225,7 @@ for (element in names(grs_intact_ss)) {
         mutate(gene_id = element) %>%
         mutate(feature = "3UTR")
 
-    element_ann_df <- rbind(element_ann_df, X5UTRrow, firstorfrow,secondorfrow, X3UTRrow)
+    element_ann_df <- rbind(element_ann_df, X5UTRrow, firstorfrow, secondorfrow, X3UTRrow)
     orf1[[element]] <- grs_intact_ss[[element]][firstorf]
     orf2[[element]] <- grs_intact_ss[[element]][secondorf]
 }
@@ -235,7 +255,7 @@ dev.off()
 for (subfam in mcols(grs_intact_ss)$rte_subfamily %>% unique()) {
     subfam_ss <- grs_intact_ss[mcols(grs_intact_ss)$rte_subfamily == subfam]
     writeXStringSet(subfam_ss, sprintf("%s/%s_intact.fa", outputdir, subfam))
-    system(sprintf("echo $(pwd); mafft --auto %s/%s_intact.fa > %s/%s_intact.aln.fa", outputdir,subfam, outputdir, subfam))
+    system(sprintf("echo $(pwd); mafft --auto %s/%s_intact.fa > %s/%s_intact.aln.fa", outputdir, subfam, outputdir, subfam))
 
     subfam_intact_aln <- read.alignment(sprintf("%s/%s_intact.aln.fa", outputdir, subfam), format = "fasta")
     d <- dist.alignment(subfam_intact_aln, "identity", gap = FALSE)
@@ -316,7 +336,6 @@ for (subfam in mcols(grs_intact_ss)$rte_subfamily %>% unique()) {
         geom_hline(yintercept = 0.95, col = "red", lty = 2) +
         mtopen
     mysaveandstore(sprintf("%s/%s_intact_alnWconensus_similarity_ONTdRNAerror.pdf", outputdir, subfam), w = 10, h = 5)
-
 }
 
 ####
@@ -324,6 +343,6 @@ for (subfam in mcols(grs_intact_ss)$rte_subfamily %>% unique()) {
 if (conf$store_env_as_rds == "yes") {
     save.image(file = outputs$plots)
 } else {
-    x = tibble(Env_file = "Opted not to store environment. If this is not desired, change 'store_plots_as_rds' to 'yes' in the relevant config file and rerun this rule.")
+    x <- tibble(Env_file = "Opted not to store environment. If this is not desired, change 'store_plots_as_rds' to 'yes' in the relevant config file and rerun this rule.")
     write_tsv(x, file = outputs$plots)
 }
