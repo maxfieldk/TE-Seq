@@ -221,7 +221,6 @@ if (conf$species == "human") {
 
 tryCatch(
     {
-        rmfragments %$% seqnames %in% contigs_to_keep %>% all()
         element_info_list <- list()
         for (element in element_to_annotate) {
             active_family_ranges <- GRanges(rmfragments %>% filter(grepl(paste0(element, "$"), family)))
