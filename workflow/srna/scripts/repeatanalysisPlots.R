@@ -100,7 +100,11 @@ coding_transcripts <- refseq[(mcols(refseq)$type == "transcript" & grepl("^NM", 
 noncoding_transcripts <- refseq[(mcols(refseq)$type == "transcript" & grepl("^NR", mcols(refseq)$transcript_id))]
 transcripts <- c(coding_transcripts, noncoding_transcripts)
 
+r_annotation_fragmentsjoined %$% refstatus %>% table()
 
+resultsdfwithgenes
+resultsdf
+resultsdf %$% counttype %>% table()
 ### ONTOLOGY DEFINITION
 {
     annot_colnames <- colnames(r_repeatmasker_annotation)

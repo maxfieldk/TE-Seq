@@ -203,6 +203,7 @@ ldna:
   ccres: /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations3/cCREs/hs1-imr90-cCREsCuratedWithClosestGene.bed
   telomere: aref/A.REF_annotations/telomeres.bed
   censat: /users/mkelsey/data/ref/genomes/hs1/annotations7/chm13v2.0_censat_v2.0.bed
+  chromHMM: /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations7/ENCFF965JOC_lungfibroblast_chromHMM_hs1.bed
 
   refseqbgz: "aref/A.REF_annotations/refseq.complete.gff3.gz"
   repeatmasker: "aref/A.REF_annotations/A.REF_repeatmasker.complete.gtf"

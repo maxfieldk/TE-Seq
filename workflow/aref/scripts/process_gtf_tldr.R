@@ -5,7 +5,7 @@ source("workflow/scripts/defaults.R")
 library(GenomicFeatures)
 library(GenomicRanges)
 library(rtracklayer)
-library(dtplyr)
+library(dplyr)
 library(Biostrings)
 library(Rsamtools)
 
@@ -45,9 +45,9 @@ rm2 <- rm1 %>%
     mutate(element_bp_remaining = as.numeric(gsub("\\(|\\)", "", element_bp_remaining))) %>%
     mutate(element_start = as.numeric(element_start)) %>%
     mutate(element_end = as.numeric(element_end)) %>%
-    mutate(length = element_end - element_start) %>% 
+    mutate(length = element_end - element_start) %>%
     mutate(consensus_length = element_end + element_bp_remaining) %>%
-    mutate(pctconsensuscovered = 100*(length / consensus_length))
+    mutate(pctconsensuscovered = 100 * (length / consensus_length))
 rm3 <- rm2 %>%
     mutate(pctdiv = as.numeric(pctdiv)) %>%
     mutate(pctdel = as.numeric(pctdel)) %>%
@@ -57,7 +57,7 @@ rm3 <- rm2 %>%
 
 rmfragments <- rm3 %>%
     group_by(gene_id) %>%
-    summarise(seqnames = dplyr::first(seqnames), source = dplyr::first(source), type = dplyr::first(type), start = min(start), end = max(end), strand = dplyr::first(strand), phase = dplyr::first(phase), family = dplyr::first(family), element_start = min(element_start), element_end = max(element_end), pctdiv = sum(pctdiv * length) / sum(length), length = sum(length), pctconsensuscovered = sum(pctconsensuscovered), num_fragments = n()) %>% 
+    summarise(seqnames = dplyr::first(seqnames), source = dplyr::first(source), type = dplyr::first(type), start = min(start), end = max(end), strand = dplyr::first(strand), phase = dplyr::first(phase), family = dplyr::first(family), element_start = min(element_start), element_end = max(element_end), pctdiv = sum(pctdiv * length) / sum(length), length = sum(length), pctconsensuscovered = sum(pctconsensuscovered), num_fragments = n()) %>%
     mutate(pctconsensustruncated = 100 - pctconsensuscovered)
 rmfragments <- rmfragments %>% mutate(refstatus = ifelse(str_detect(seqnames, "nonref"), "NonRef", "Ref"))
 

@@ -648,7 +648,7 @@ rule deseq:
         results_rtes = expand("lrna/results/agg/deseq/{{counttype}}/{contrast}/results_rtes.csv", contrast = config["contrasts"]),
         counts_normed = "lrna/results/agg/deseq/{counttype}/counttablesizenormed.csv",
         sizefactors = "lrna/results/agg/deseq/{counttype}/sizefactors.csv",
-        plots = "lrna/results/agg/deseq/{counttype}/deseq_plots.RData"
+        environment = "srna/results/agg/deseq/{counttype}/deseq_environment.RData",
     benchmark:
         "lrna/benchmarks/deseq/{counttype}.tsv"
     script:

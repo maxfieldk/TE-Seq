@@ -589,7 +589,23 @@ rule bedmethylanalysis:
         bedmethylpaths = expand("ldna/intermediates/{sample}/methylation/{sample}_CG_bedMethyl.bed", sample = samples),
         read_mods = expand('ldna/intermediates/{sample}/methylation/{sample}_readmods_{context}_{region}.tsv', sample = samples, region = config["ldna"]["rte_subfamily_read_level_analysis"], context = ["CpG", "NoContext"])
     output:
-        outfile = "ldna/outfiles/bedmethylanalysis.txt",
+        grsdf = "ldna/Rintermediates/grsdf.tsv"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 200000,
+        runtime = 400
+    conda:
+        "ds"
+    script:
+        "scripts/bedmethylanalysis_process.R"
+
+rule bedmethylanalysis_plot:
+    input:
+        dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
+        dmls = "ldna/results/tables/dmls.CG_m.tsv",
+        grsdf = "ldna/Rintermediates/grsdf.tsv"
+        # read_mods = expand('ldna/intermediates/{sample}/methylation/{sample}_readmods_{context}_{region}.tsv', sample = samples, region = config["ldna"]["rte_subfamily_read_level_analysis"], context = ["CpG", "NoContext"])
+    output:
         plots = "ldna/results/plots/bedmethylanalysis.rds",
         promoters_bed = "ldna/Rintermediates/promoters.bed",
         dmrpromoterhyper_bed = "ldna/Rintermediates/promoters_dmhyperregions.bed",
@@ -601,7 +617,7 @@ rule bedmethylanalysis:
     conda:
         "ds"
     script:
-        "scripts/bedmethylanalysis.R"
+        "scripts/bedmethylanalysis_process.R"
 
 rule bedmethylanalysis_single_sample:
     input:
@@ -750,8 +766,7 @@ rule pat_fig:
         # pat = expand("ldna/results/wgbs/{sample}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
     params:
         # methylartist_loci_of_interest = config["ldna"]["methylartist_loci_of_interest"],
-        methylartist_loci_of_interest = "/users/mkelsey/data/Nanopore/alz/RTE/ldna/Rintermediates/dm_intact_l1hs_promoters.bed"
-
+        loci_of_interest = ["ldna/Rintermediates/dm_FL_L1HS_promoters.bed", "ldna/Rintermediates/dm_Intact_L1HS_promoters.bed"]
     output:
         outfile = "ldna/results/wgbs/plots/pat_fig.outfile"
         # pat_fig = "ldna/results/wgbs/plots/{region}.pat.pdf"
@@ -762,17 +777,20 @@ rule pat_fig:
     conda: "omics"
     shell:
         """
-coords=$(awk '{{print $1":"$2"-"$3}}' {params.methylartist_loci_of_interest})
-mapfile -t coords_array <<< "$coords"
-for coord in "${{coords_array[@]}}"
+for file in {params.loci_of_interest}
 do
-coordfnsafe=$(echo $coord | sed 's/:/-/')
-/users/mkelsey/data/tools/wgbs_tools/wgbstools pat_fig --nanopore --circle_size 1.2 --line_width 0.25  --col_wrap 1 --font_size 3 --meth_color "beige" --unmeth_color "black"  -o $(dirname {output.outfile})/${{coordfnsafe}}.pdf -r $coord --strict --genome hs1 $(dirname {input.outfile})/*.pat.gz
-
-/users/mkelsey/data/tools/wgbs_tools/wgbstools pat_fig --nanopore --circle_size 1.2 --line_width 0.25  --col_wrap 4 --font_size 3 --meth_color "beige" --unmeth_color "black"  -o $(dirname {output.outfile})/${{coordfnsafe}}_2col.pdf -r $coord --strict --genome hs1 $(dirname {input.outfile})/*.pat.gz
-
-/users/mkelsey/data/tools/wgbs_tools/wgbstools pat_fig --nanopore --circle_size 1.2 --line_width 0.25 --col_wrap 6 --font_size 3 --meth_color "beige" --unmeth_color "black"  -o $(dirname {output.outfile})/${{coordfnsafe}}_all_samples.pdf -r $coord --strict --name_table /users/mkelsey/data/Nanopore/alz/RTE/conf/WGBS_rename.csv --genome hs1 $(dirname $(dirname {input.outfile}))/*.pat.gz
-
+    basename=$(basename $file)
+    basename_no_ext=${{basename%%.*}}
+    coords=$(awk '{{print $1":"$2"-"$3}}' $file)
+    mapfile -t coords_array <<< "$coords"
+        for coord in "${{coords_array[@]}}"
+        do
+        coordfnsafe=$(echo $coord | sed 's/:/-/')
+        mkdir -p $(dirname {output.outfile})/${{basename_no_ext}}
+        /users/mkelsey/data/tools/wgbs_tools/wgbstools pat_fig --nanopore --circle_size 1.2 --line_width 0.25  --col_wrap 1 --font_size 3 --meth_color "beige" --unmeth_color "black"  -o $(dirname {output.outfile})/${{basename_no_ext}}/${{coordfnsafe}}.pdf -r $coord --strict --genome hs1 $(dirname {input.outfile})/*.pat.gz
+        /users/mkelsey/data/tools/wgbs_tools/wgbstools pat_fig --nanopore --circle_size 1.2 --line_width 0.25  --col_wrap 4 --font_size 3 --meth_color "beige" --unmeth_color "black"  -o $(dirname {output.outfile})/${{basename_no_ext}}/${{coordfnsafe}}_2col.pdf -r $coord --strict --genome hs1 $(dirname {input.outfile})/*.pat.gz
+        /users/mkelsey/data/tools/wgbs_tools/wgbstools pat_fig --nanopore --circle_size 1.2 --line_width 0.25 --col_wrap 6 --font_size 3 --meth_color "beige" --unmeth_color "black"  -o $(dirname {output.outfile})/${{basename_no_ext}}/${{coordfnsafe}}_all_samples.pdf -r $coord --strict --name_table /users/mkelsey/data/Nanopore/alz/RTE/conf/WGBS_rename.csv --genome hs1 $(dirname $(dirname {input.outfile}))/*.pat.gz
+    done
 done
 touch {output.outfile}
         """
@@ -1401,6 +1419,7 @@ rule pepper:
         cpus_per_task =32,
         runtime = 4000,
         mem_mb = 156000
+    retries: 0
     container:
         "docker://kishwars/pepper_deepvariant:r0.8"
     shell:	

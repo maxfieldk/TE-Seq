@@ -647,7 +647,7 @@ rule getBigWigF:
     resources:
         cpus_per_task =10,
         mem_mb = 10000,
-        runtime = 10
+        runtime = 60
     conda:
         "deeptools"
     shell: "bamCoverage -b {input.sortedbam} -o {output.bwF} --numberOfProcessors max  --samFlagExclude 256 --filterRNAstrand forward --binSize 50"
@@ -673,7 +673,7 @@ rule getBigWigR:
     resources:
         cpus_per_task =10,
         mem_mb = 10000,
-        runtime = 10
+        runtime = 60
     conda:
         "deeptools"
     shell: "bamCoverage -b {input.sortedbam} -o {output.bwR} --numberOfProcessors max  --samFlagExclude 256 --filterRNAstrand reverse --binSize 50"

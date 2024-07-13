@@ -27,30 +27,30 @@ sample_table <- read_csv(sprintf("conf/sample_table_%s.csv", conf$prefix))
 sample_table <- sample_table[match(samples, sample_table$sample_name), ]
 
 {
-genome_lengths <- fasta.seqlengths(conf$reference)
-chromosomesAll <- names(genome_lengths)
-nonrefchromosomes <- grep("nonref", chromosomesAll, value = TRUE)
-refchromosomes <- grep("^chr", chromosomesAll, value = TRUE)
-autosomes <- grep("^chr[1-9]", refchromosomes, value = TRUE)
-chrX <- c("chrX")
-chrY <- c("chrY")
+    genome_lengths <- fasta.seqlengths(conf$reference)
+    chromosomesAll <- names(genome_lengths)
+    nonrefchromosomes <- grep("nonref", chromosomesAll, value = TRUE)
+    refchromosomes <- grep("^chr", chromosomesAll, value = TRUE)
+    autosomes <- grep("^chr[1-9]", refchromosomes, value = TRUE)
+    chrX <- c("chrX")
+    chrY <- c("chrY")
 
-MINIMUMCOVERAGE <- conf$MINIMUM_COVERAGE_FOR_METHYLATION_ANALYSIS
-if ("chrY" %in% conf$SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS) {
-    if ("chrX" %in% conf$SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS) {
-        CHROMOSOMESINCLUDEDINANALYSIS <- c(autosomes, grep("_chrX_|_chrY_", nonrefchromosomes, invert = TRUE, value = TRUE))
-        CHROMOSOMESINCLUDEDINANALYSIS_REF <- c(autosomes)
+    MINIMUMCOVERAGE <- conf$MINIMUM_COVERAGE_FOR_METHYLATION_ANALYSIS
+    if ("chrY" %in% conf$SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS) {
+        if ("chrX" %in% conf$SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS) {
+            CHROMOSOMESINCLUDEDINANALYSIS <- c(autosomes, grep("_chrX_|_chrY_", nonrefchromosomes, invert = TRUE, value = TRUE))
+            CHROMOSOMESINCLUDEDINANALYSIS_REF <- c(autosomes)
+        } else {
+            CHROMOSOMESINCLUDEDINANALYSIS <- c(autosomes, chrX, grep("_chrY_", nonrefchromosomes, invert = TRUE, value = TRUE))
+            CHROMOSOMESINCLUDEDINANALYSIS_REF <- c(autosomes, chrX)
+        }
+    } else if ("chrX" %in% conf$SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS) {
+        CHROMOSOMESINCLUDEDINANALYSIS <- c(autosomes, chrY, grep("_chrX_", nonrefchromosomes, invert = TRUE, value = TRUE))
+        CHROMOSOMESINCLUDEDINANALYSIS_REF <- c(autosomes, chrY)
     } else {
-        CHROMOSOMESINCLUDEDINANALYSIS <- c(autosomes, chrX, grep("_chrY_", nonrefchromosomes, invert = TRUE, value = TRUE))
-        CHROMOSOMESINCLUDEDINANALYSIS_REF <- c(autosomes, chrX)
-    }
-} else if ("chrX" %in% conf$SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS) {
-    CHROMOSOMESINCLUDEDINANALYSIS <- c(autosomes, chrY, grep("_chrX_", nonrefchromosomes, invert = TRUE, value = TRUE))
-    CHROMOSOMESINCLUDEDINANALYSIS_REF <- c(autosomes, chrY)
-} else {
         CHROMOSOMESINCLUDEDINANALYSIS <- c(autosomes, chrX, chrY, nonrefchromosomes)
         CHROMOSOMESINCLUDEDINANALYSIS_REF <- c(autosomes, chrX, chrY)
-}
+    }
 }
 #################### functions and themes
 
@@ -83,141 +83,140 @@ rte_subfamily_read_level_analysis <- conf$rte_subfamily_read_level_analysis
 
 
 ####
-# RUN IF RESUMING
-if (interactive()) {
-    conditions <- conf$levels
-    condition1 <- conditions[1]
-    condition2 <- conditions[2]
-    condition1samples <- sample_table[sample_table$condition == conditions[1], ]$sample_name
-    condition2samples <- sample_table[sample_table$condition == conditions[2], ]$sample_name
+# # RUN IF RESUMING
+# if (interactive()) {
+#     conditions <- conf$levels
+#     condition1 <- conditions[1]
+#     condition2 <- conditions[2]
+#     condition1samples <- sample_table[sample_table$condition == conditions[1], ]$sample_name
+#     condition2samples <- sample_table[sample_table$condition == conditions[2], ]$sample_name
 
-    grsdf <- read_delim("ldna/Rintermediates/grsdf.tsv", col_names = TRUE)
-    grsdf %$% sample %>% unique()
-    grsdf$seqnames <- factor(grsdf$seqnames, levels = chromosomesAll)
-    grs <- GRanges(grsdf)
-    cpg_islands <- rtracklayer::import(conf$cpg_islands)
-    cpgi_shores <- rtracklayer::import(conf$cpgi_shores)
-    cpgi_shelves <- rtracklayer::import(conf$cpgi_shelves)
-    cpgi_features <- c(cpg_islands, cpgi_shelves, cpgi_shores)
-    grs_cpg_islands <- grs %>% subsetByOverlaps(cpg_islands)
-    grs_cpg_islands$islandStatus <- "island"
-    grs_cpgi_shelves <- grs %>% subsetByOverlaps(cpgi_shelves)
-    grs_cpgi_shelves$islandStatus <- "shelf"
-    grs_cpgi_shores <- grs %>% subsetByOverlaps(cpgi_shores)
-    grs_cpgi_shores$islandStatus <- "shore"
-    grs_cpg_opensea <- grs %>% subsetByOverlaps(cpgi_features, invert = TRUE)
-    grs_cpg_opensea$islandStatus <- "opensea"
-    # SETTING UP SOME SUBSETS FOR EXPLORATION
-    set.seed(75)
-    grsdfs <- grsdf %>%
-        group_by(sample, seqnames, islandStatus) %>%
-        slice_sample(n = 1000)
-    grss <- GRanges(grsdfs)
+#     grsdf <- read_delim("ldna/Rintermediates/grsdf.tsv", col_names = TRUE)
+#     grsdf %$% sample %>% unique()
+#     grsdf$seqnames <- factor(grsdf$seqnames, levels = chromosomesAll)
+#     grs <- GRanges(grsdf)
+#     cpg_islands <- rtracklayer::import(conf$cpg_islands)
+#     cpgi_shores <- rtracklayer::import(conf$cpgi_shores)
+#     cpgi_shelves <- rtracklayer::import(conf$cpgi_shelves)
+#     cpgi_features <- c(cpg_islands, cpgi_shelves, cpgi_shores)
+#     grs_cpg_islands <- grs %>% subsetByOverlaps(cpg_islands)
+#     grs_cpg_islands$islandStatus <- "island"
+#     grs_cpgi_shelves <- grs %>% subsetByOverlaps(cpgi_shelves)
+#     grs_cpgi_shelves$islandStatus <- "shelf"
+#     grs_cpgi_shores <- grs %>% subsetByOverlaps(cpgi_shores)
+#     grs_cpgi_shores$islandStatus <- "shore"
+#     grs_cpg_opensea <- grs %>% subsetByOverlaps(cpgi_features, invert = TRUE)
+#     grs_cpg_opensea$islandStatus <- "opensea"
+#     # SETTING UP SOME SUBSETS FOR EXPLORATION
+#     set.seed(75)
+#     grsdfs <- grsdf %>%
+#         group_by(sample, seqnames, islandStatus) %>%
+#         slice_sample(n = 1000)
+#     grss <- GRanges(grsdfs)
 
-    dmrs <- read_delim(inputs$dmrs, delim = "\t", col_names = TRUE)
-    dmls <- read_delim(inputs$dmls, delim = "\t", col_names = TRUE)
+#     dmrs <- read_delim(inputs$dmrs, delim = "\t", col_names = TRUE)
+#     dmls <- read_delim(inputs$dmls, delim = "\t", col_names = TRUE)
 
-    dmrsgr <- GRanges(dmrs)
-    dmlsgr <- GRanges(
-        seqnames = dmls$chr,
-        ranges = IRanges(start = dmls$pos, end = dmls$pos),
-        mu_c2 = dmls$mu_c2,
-        mu_c1 = dmls$mu_c1,
-        diff_c2_minus_c1 = dmls$diff_c2_minus_c1,
-        diff_c2_minus_c1.se = dmls$diff_c2_minus_c1.se,
-        stat = dmls$stat,
-        phi_c2 = dmls$phi_c2,
-        phi_c1 = dmls$phi_c1,
-        pval = dmls$pval,
-        fdr = dmls$fdr,
-        postprob.overThreshold = dmls$postprob.overThreshold,
-        direction = dmls$direction
-    )
-}
+#     dmrsgr <- GRanges(dmrs)
+#     dmlsgr <- GRanges(
+#         seqnames = dmls$chr,
+#         ranges = IRanges(start = dmls$pos, end = dmls$pos),
+#         mu_c2 = dmls$mu_c2,
+#         mu_c1 = dmls$mu_c1,
+#         diff_c2_minus_c1 = dmls$diff_c2_minus_c1,
+#         diff_c2_minus_c1.se = dmls$diff_c2_minus_c1.se,
+#         stat = dmls$stat,
+#         phi_c2 = dmls$phi_c2,
+#         phi_c1 = dmls$phi_c1,
+#         pval = dmls$pval,
+#         fdr = dmls$fdr,
+#         postprob.overThreshold = dmls$postprob.overThreshold,
+#         direction = dmls$direction
+#     )
+# }
 
 ##########################
-if (!interactive()) {
-    # PREP DATA FOR ANALYSIS
-    conditions <- conf$levels
-    condition1 <- conditions[1]
-    condition2 <- conditions[2]
-    condition1samples <- sample_table[sample_table$condition == conditions[1], ]$sample_name
-    condition2samples <- sample_table[sample_table$condition == conditions[2], ]$sample_name
+# PREP DATA FOR ANALYSIS
+conditions <- conf$levels
+condition1 <- conditions[1]
+condition2 <- conditions[2]
+condition1samples <- sample_table[sample_table$condition == conditions[1], ]$sample_name
+condition2samples <- sample_table[sample_table$condition == conditions[2], ]$sample_name
 
-    sample_grs <- list()
-    for (sample_name in samples) {
-        df <- read_table(grep(sprintf("/%s/", sample_name), inputs$bedmethlpaths, value = TRUE), col_names = FALSE)
-        df_m <- df %>% filter(X4 == "m")
-        df_h <- df %>% filter(X4 == "h")
-        rm(df)
-        gr <- GRanges(
-            seqnames = df_m$X1,
-            ranges = IRanges(start = df_m$X2, end = df_m$X2),
-            cov = df_m$X10,
-            pctM = as.double(df_m$X11)
-        )
-        gr$sample <- sample_name
-        gr$condition <- sample_table[sample_table$sample_name == sample_name, ]$condition
-        sample_grs[[sample_name]] <- gr
-    }
-
-    grs <- Reduce(c, sample_grs)
-    rm(sample_grs)
-    # filter out low coverage and ensure that all samples have the same cpgs
-    grs <- grs[grs$cov > MINIMUMCOVERAGE]
-    grsdf <- tibble(as.data.frame(grs))
-    grsdf %$% seqnames %>% unique()
-    write_delim(grsdf %>% filter(grepl("*nonref*", seqnames)), "ldna/Rintermediates/grsdf_nonref.tsv", col_names = TRUE)
-    grsdf$seqnames <- factor(grsdf$seqnames, levels = chromosomesAll)
-    seqnames <- grsdf$seqnames
-    start <- grsdf$start
-    end <- grsdf$end
-    pos <- paste0(seqnames, "_", start, "_", end)
-    grsdf$pos <- pos
-
-    grsdfuntidy <- grsdf %>%
-        filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS) %>%
-        pivot_wider(id_cols = c("pos", "seqnames"), names_from = "sample", values_from = "pctM", names_prefix = "pctM") %>%
-        drop_na()
-
-    grsinboth <- grsdfuntidy %>% pull(pos)
-    # TODO pivot wider introduces sample names as variables, this needs to be addressed
-    grsdffiltered <- grsdf %>%
-        filter(pos %in% grsinboth)
-    grsdf <- grsdffiltered
-    rm(grsdffiltered)
-    rm(grsdfuntidy)
-
-    cpg_islands <- rtracklayer::import(conf$cpg_islands)
-    cpgi_shores <- rtracklayer::import(conf$cpgi_shores)
-    cpgi_shelves <- rtracklayer::import(conf$cpgi_shelves)
-    cpgi_features <- c(cpg_islands, cpgi_shelves, cpgi_shores)
-
-
-    grs <- GRanges(grsdf)
-    grs_cpg_islands <- grs %>% subsetByOverlaps(cpg_islands)
-    grs_cpg_islands$islandStatus <- "island"
-    grs_cpgi_shelves <- grs %>% subsetByOverlaps(cpgi_shelves)
-    grs_cpgi_shelves$islandStatus <- "shelf"
-    grs_cpgi_shores <- grs %>% subsetByOverlaps(cpgi_shores)
-    grs_cpgi_shores$islandStatus <- "shore"
-    grs_cpg_opensea <- grs %>% subsetByOverlaps(cpgi_features, invert = TRUE)
-    grs_cpg_opensea$islandStatus <- "opensea"
-
-    grs <- c(grs_cpg_islands, grs_cpgi_shelves, grs_cpgi_shores, grs_cpg_opensea)
-    grsdf <- tibble(as.data.frame(grs))
-
-    dir.create("ldna/Rintermediates", showWarnings = FALSE)
-    write_delim(grsdf, "ldna/Rintermediates/grsdf.tsv", col_names = TRUE)
-
-    # SETTING UP SOME SUBSETS FOR EXPLORATION
-    set.seed(75)
-    grsdfs <- grsdf %>%
-        group_by(sample, seqnames, islandStatus) %>%
-        slice_sample(n = 1000)
-    grss <- GRanges(grsdfs)
-    write_delim(grsdfs, "ldna/Rintermediates/grsdfsmall.tsv", col_names = TRUE)
+sample_grs <- list()
+for (sample_name in samples) {
+    df <- read_table(grep(sprintf("/%s/", sample_name), inputs$bedmethlpaths, value = TRUE), col_names = FALSE)
+    df_m <- df %>% filter(X4 == "m")
+    df_h <- df %>% filter(X4 == "h")
+    rm(df)
+    gr <- GRanges(
+        seqnames = df_m$X1,
+        ranges = IRanges(start = df_m$X2, end = df_m$X2),
+        cov = df_m$X10,
+        pctM = as.double(df_m$X11)
+    )
+    gr$sample <- sample_name
+    gr$condition <- sample_table[sample_table$sample_name == sample_name, ]$condition
+    sample_grs[[sample_name]] <- gr
 }
+
+grs <- Reduce(c, sample_grs)
+rm(sample_grs)
+# filter out low coverage and ensure that all samples have the same cpgs
+grs <- grs[grs$cov > MINIMUMCOVERAGE]
+grsdf <- tibble(as.data.frame(grs))
+grsdf %$% seqnames %>% unique()
+write_delim(grsdf %>% filter(grepl("*nonref*", seqnames)), "ldna/Rintermediates/grsdf_nonref.tsv", col_names = TRUE)
+grsdf$seqnames <- factor(grsdf$seqnames, levels = chromosomesAll)
+seqnames <- grsdf$seqnames
+start <- grsdf$start
+end <- grsdf$end
+pos <- paste0(seqnames, "_", start, "_", end)
+grsdf$pos <- pos
+
+grsdfuntidy <- grsdf %>%
+    filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS) %>%
+    pivot_wider(id_cols = c("pos", "seqnames"), names_from = "sample", values_from = "pctM", names_prefix = "pctM") %>%
+    drop_na()
+
+grsinboth <- grsdfuntidy %>% pull(pos)
+# TODO pivot wider introduces sample names as variables, this needs to be addressed
+grsdffiltered <- grsdf %>%
+    filter(pos %in% grsinboth)
+grsdf <- grsdffiltered
+rm(grsdffiltered)
+rm(grsdfuntidy)
+
+cpg_islands <- rtracklayer::import(conf$cpg_islands)
+cpgi_shores <- rtracklayer::import(conf$cpgi_shores)
+cpgi_shelves <- rtracklayer::import(conf$cpgi_shelves)
+cpgi_features <- c(cpg_islands, cpgi_shelves, cpgi_shores)
+
+
+grs <- GRanges(grsdf)
+grs_cpg_islands <- grs %>% subsetByOverlaps(cpg_islands)
+grs_cpg_islands$islandStatus <- "island"
+grs_cpgi_shelves <- grs %>% subsetByOverlaps(cpgi_shelves)
+grs_cpgi_shelves$islandStatus <- "shelf"
+grs_cpgi_shores <- grs %>% subsetByOverlaps(cpgi_shores)
+grs_cpgi_shores$islandStatus <- "shore"
+grs_cpg_opensea <- grs %>% subsetByOverlaps(cpgi_features, invert = TRUE)
+grs_cpg_opensea$islandStatus <- "opensea"
+
+grs <- c(grs_cpg_islands, grs_cpgi_shelves, grs_cpgi_shores, grs_cpg_opensea)
+grsdf <- tibble(as.data.frame(grs))
+
+dir.create("ldna/Rintermediates", showWarnings = FALSE)
+write_delim(grsdf, "ldna/Rintermediates/grsdf.tsv", col_names = TRUE)
+
+# SETTING UP SOME SUBSETS FOR EXPLORATION
+set.seed(75)
+grsdfs <- grsdf %>%
+    group_by(sample, seqnames, islandStatus) %>%
+    slice_sample(n = 1000)
+grss <- GRanges(grsdfs)
+write_delim(grsdfs, "ldna/Rintermediates/grsdfsmall.tsv", col_names = TRUE)
+
 
 
 dmrs <- read_delim(inputs$dmrs, delim = "\t", col_names = TRUE)
@@ -305,15 +304,21 @@ write_delim(RMdf, "ldna/Rintermediates/RMdf.tsv", col_names = TRUE)
 grouping_var <- "rte_subfamily"
 rte_frame <- GRanges(RMdf %>% filter(!!sym(grouping_var) != "Other") %>% filter(rte_length_req == "FL"))
 mbo <- mergeByOverlaps(grs, rte_frame)
-methdf <- mbo$grs %>% as.data.frame %>% tibble()
-rte_only_frame <- mbo$rte_frame %>% as.data.frame %>% tibble() %>% dplyr::rename(rte_seqnames = seqnames, rte_start = start, rte_end = end, rte_strand = strand, rte_width = width)
+methdf <- mbo$grs %>%
+    as.data.frame() %>%
+    tibble()
+rte_only_frame <- mbo$rte_frame %>%
+    as.data.frame() %>%
+    tibble() %>%
+    dplyr::rename(rte_seqnames = seqnames, rte_start = start, rte_end = end, rte_strand = strand, rte_width = width)
 rtedf <- bind_cols(methdf, rte_only_frame)
 write_delim(rtedf, "ldna/Rintermediates/rtedf.tsv", col_names = TRUE)
 # rtedf <- read_delim("ldna/Rintermediates/rtedf.tsv", col_names = TRUE)
 perelementdf <- rtedf %>%
     filter(cov > MINIMUMCOVERAGE) %>%
     group_by(gene_id, sample, condition) %>%
-    summarize(mean_meth = mean(pctM)) %>% left_join(RMdf%>% dplyr::rename(rte_seqnames = seqnames, rte_start = start, rte_end = end, rte_strand = strand, rte_width = width))
+    summarize(mean_meth = mean(pctM)) %>%
+    left_join(RMdf %>% dplyr::rename(rte_seqnames = seqnames, rte_start = start, rte_end = end, rte_strand = strand, rte_width = width))
 
 perelementdf <- perelementdf %>% filter(!is.na(rte_length_req))
 
@@ -325,6 +330,11 @@ write_delim(perelementdf, "ldna/Rintermediates/perelementdf.tsv", col_names = TR
 # RTE PROMOTERS
 # annotate whether full length elements promoters overlap DMRs
 flelement <- rmann %>% filter(rte_length_req == "FL")
+rmann %$% rte_length_req %>% table()
+flLINE %>%
+    filter(rte_subfamily == "L1HS") %>%
+    arrange(length)
+
 flSINE <- flelement %>% filter(rte_superfamily == "SINE")
 flLINE <- flelement %>% filter(rte_superfamily == "LINE")
 rmann %$% ltr_viral_status %>% unique()
@@ -369,8 +379,13 @@ write_delim(flRTEpromoter, "ldna/Rintermediates/flRTEpromoter.tsv", col_names = 
 grouping_var <- "rte_subfamily"
 rte_frame <- GRanges(flRTEpromoter %>% filter(!!sym(grouping_var) != "Other") %>% filter(rte_length_req == "FL"))
 mbo <- mergeByOverlaps(grs, rte_frame)
-methdf <- mbo$grs %>% as.data.frame %>% tibble()
-rte_only_frame <- mbo$rte_frame %>% as.data.frame %>% tibble() %>% dplyr::rename(rte_seqnames = seqnames, rte_start = start, rte_end = end, rte_strand = strand, rte_width = width)
+methdf <- mbo$grs %>%
+    as.data.frame() %>%
+    tibble()
+rte_only_frame <- mbo$rte_frame %>%
+    as.data.frame() %>%
+    tibble() %>%
+    dplyr::rename(rte_seqnames = seqnames, rte_start = start, rte_end = end, rte_strand = strand, rte_width = width)
 rtedf_promoters <- bind_cols(methdf, rte_only_frame)
 
 write_delim(rtedf_promoters, "ldna/Rintermediates/rtedf_promoters.tsv", col_names = TRUE)
@@ -378,7 +393,8 @@ write_delim(rtedf_promoters, "ldna/Rintermediates/rtedf_promoters.tsv", col_name
 perelementdf_promoters <- rtedf_promoters %>%
     filter(cov > MINIMUMCOVERAGE) %>%
     group_by(gene_id, sample, condition) %>%
-    summarize(mean_meth = mean(pctM)) %>% left_join(flRTEpromoter %>% dplyr::rename(rte_seqnames = seqnames, rte_start = start, rte_end = end, rte_strand = strand, rte_width = width))
+    summarize(mean_meth = mean(pctM)) %>%
+    left_join(flRTEpromoter %>% dplyr::rename(rte_seqnames = seqnames, rte_start = start, rte_end = end, rte_strand = strand, rte_width = width))
 
 
 write_delim(perelementdf_promoters, "ldna/Rintermediates/perelementdf_promoters.tsv", col_names = TRUE)
@@ -420,7 +436,7 @@ for (region in conf$rte_subfamily_read_level_analysis) {
 }
 reads <- Reduce(rbind, readslist)
 write_delim(reads, "ldna/Rintermediates/reads_context_all.tsv", col_names = TRUE)
-# reads <- read_delim("ldna/Rintermediates/reads_context_cpg.tsv", col_names = TRUE) 
+# reads <- read_delim("ldna/Rintermediates/reads_context_cpg.tsv", col_names = TRUE)
 
 readslistcg <- list()
 for (region in conf$rte_subfamily_read_level_analysis) {
@@ -451,7 +467,4 @@ for (region in conf$rte_subfamily_read_level_analysis) {
 
 readscg <- Reduce(rbind, readslistcg)
 write_delim(readscg, "ldna/Rintermediates/reads_context_cpg.tsv", col_names = TRUE)
-# readscg <- read_delim("ldna/Rintermediates/reads_context_cpg.tsv", col_names = TRUE) 
-
-
-
+# readscg <- read_delim("ldna/Rintermediates/reads_context_cpg.tsv", col_names = TRUE)
