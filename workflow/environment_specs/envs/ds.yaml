@@ -1,0 +1,32 @@
+name: ds
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - r-tidyverse
+  - bioconductor-genomicranges
+  - bioconductor-complexheatmap
+  - r-patchwork
+  - bioconductor-rtracklayer
+  - radian
+  - r-httpgd
+  - r-pryr
+  - r-cowplot
+  - r-zoo
+  - bioconductor-rgreat
+  - bioconductor-reactome.db
+  - bioconductor-msigdb
+  - ca-certificates
+  - openssl
+  - r-paletteer
+  - r-configr
+  - r-ggbeeswarm
+  - bioconductor-clusterprofiler
+  - r-ggally
+  - r-ggcorrplot
+  - bioconductor-bsseq
+  - r-ggpmisc
+  - r-ggpubr
+  - r-ggh4x
+prefix: ds

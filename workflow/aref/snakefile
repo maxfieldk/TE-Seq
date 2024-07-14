@@ -23,17 +23,18 @@ def aref_complete_input(wildcards):
         "aref/A.REF_annotations/A.REF_rte_beds/outfile.txt",
         "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.sqlite",
         "aref/A.REF_annotations/cytobands.bed",
+        "aref/A.REF_Analysis/l1element_analysis.rds"
     ]
     # paths.append(expand("aref/{sample_or_ref}_Analysis/l1element_analysis.outfile", sample_or_ref = "A.REF"))
 
     if config["update_ref_with_tldr"]["response"] == "yes":
-        # paths.append(expand("aref/qc/{sample_or_ref}/{sample_or_ref}pycoQC.html", sample_or_ref = config["samples"]))
-        # paths.append("aref/results/insertions/analyze_nongermline_insertions.rds")
+        paths.append(expand("aref/qc/{sample_or_ref}/{sample_or_ref}pycoQC.html", sample_or_ref = config["samples"]))
+        paths.append("aref/results/insertions/analyze_nongermline_insertions.rds")
 
         if config["update_ref_with_tldr"]["per_sample"] == "yes":
             paths.append(expand("aref/{sample_or_ref}_Analysis/tldr_plots/tldr_plots.rds", sample_or_ref = config["samples"]))
             paths.append(expand("aref/{sample_or_ref}_Analysis/tldr_plots/transduction_mapping.rds", sample_or_ref = config["samples"]))
-            paths.append(expand("aref/{sample_or_ref}_Analysis/l1element_analysis.outfile", sample_or_ref = config["samples"]))
+            paths.append(expand("aref/{sample_or_ref}_Analysis/l1element_analysis.rds", sample_or_ref = config["samples"]))
             paths.append(expand("aref/{sample_or_ref}_annotations/{sample_or_ref}_rte_beds/outfile.txt", sample_or_ref = config["samples"]))
             paths.append(expand("aref/{sample_or_ref}_tldr/{sample_or_ref}.table.txt", sample_or_ref = config["samples"]))
             
@@ -115,7 +116,6 @@ rule dorado:
         "aref/benchmarks/dorado/{rate}.{sample}.{type}.{modifications_string}.tsv"
     params:
         dorado = config["dorado"],
-        basecallingModel = lambda w: config["basecallingModel"][w.rate][w.type],
         reference = config["update_ref_with_tldr"]["tldr_input_bam_ref"]
     resources:
         cpus_per_task =12,
@@ -234,6 +234,27 @@ rule subsample_bam:
 mkdir -p $(dirname {output.subsampled})
 
 samtools view -b {input.bam} chr10 > {output.subsampled}
+        """
+
+ruleorder: merge_bams_when_per_sample_is_no_for_ldna_variants > sortBam 
+rule merge_bams_when_per_sample_is_no_for_ldna_variants:
+    input:
+        sorted_bams = expand("aref/intermediates/{sample}/alignments/{{rate}}/{sample}.{{type}}.{{modifications_string}}.sorted.bam", sample = config["samples"])
+    output:
+        merged_bams = "aref/intermediates/A.REF/alignments/{rate}/A.REF.{type}.{modifications_string}.sorted.bam"
+    benchmark:
+        "aref/benchmarks/sortBam/{rate}.{type}.{modifications_string}.tsv"
+    wildcard_constraints:
+        modifications_string = "[A-Za-z0-9_-]+"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 128000
+    conda:
+        "omics"
+    shell:
+        """
+mkdir -p $(dirname {output})
+samtools merge -@8 {output.merged_bams} {input.sorted_bams}
         """
 
 rule sortBam:
@@ -420,12 +441,15 @@ rule repeatmasker:
         cpus_per_task =20,
         runtime = 1200,
         mem_mb = 50000
-    conda:
-        "rmtest"
+    container: "docker://dfam/tetools:latest"
     shell:
         """
+if [[ {params.species} == mouse ]]
+then
+species="Mus musculus"
+fi
 mkdir -p $(dirname {output})
-RepeatMasker -species {params.species} -pa {resources.cpus_per_task} -gff {input.fasta} -dir $(dirname {output})
+RepeatMasker -species "$species" -pa {resources.cpus_per_task} -gff {input.fasta} -dir $(dirname {output})
         """
 
 rule getGtfs:
@@ -820,7 +844,6 @@ rule element_analysis:
     params:
         l13 = config["l13fasta"]
     output:
-        outfile = "aref/{sample_or_ref}_Analysis/l1element_analysis.outfile",
         plots = "aref/{sample_or_ref}_Analysis/l1element_analysis.rds"
     benchmark:
         "aref/benchmarks/element_analysis/{sample_or_ref}.tsv"

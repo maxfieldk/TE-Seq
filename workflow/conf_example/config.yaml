@@ -8,8 +8,8 @@
 #uncomment pipelines to deploy
 pipelines_to_deploy:
   - aref
-  - srna
-  # - ldna
+  # - srna
+  - ldna
   # - lrna
 
 #PIPELINE SETTINGS - Ignore settings for pipelines not being deployed (i.e. not in pipelines_to_deploy)
@@ -23,7 +23,8 @@ aref:
   running_ldna:
     response: "no"
   store_plots_as_rds: "yes" #yes or no
-
+  store_env_as_rds: "no" #yes or no
+  
   #USER PROVIDED ANNOTATIONS - CHANGE PATHS AS NEEDED
   #Be sure to follow ucsc naming conventions, e.g. chr1, chr2, ...
   starting_ref: ../genome_files/reference.ucsc.fa
@@ -162,8 +163,7 @@ ldna:
   default_palette: "ggsci::default_aaas" #paletteer palettes https://emilhvitfeldt.github.io/paletteer/
   use_aref_basecalls: "yes"
   single_condition: "no"
-  tldr_input_bams:
-  store_plots_as_rds: "no" #yes or no
+  store_plots_as_rds: "yes" #yes or no
   store_env_as_rds: "no" #yes or no
 
   samples:
@@ -203,6 +203,7 @@ ldna:
   ccres: /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations3/cCREs/hs1-imr90-cCREsCuratedWithClosestGene.bed
   telomere: aref/A.REF_annotations/telomeres.bed
   censat: /users/mkelsey/data/ref/genomes/hs1/annotations7/chm13v2.0_censat_v2.0.bed
+  chromHMM: /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations7/ENCFF965JOC_lungfibroblast_chromHMM_hs1.bed
 
   refseqbgz: "aref/A.REF_annotations/refseq.complete.gff3.gz"
   repeatmasker: "aref/A.REF_annotations/A.REF_repeatmasker.complete.gtf"
@@ -250,6 +251,15 @@ ldna:
   rte_subfamily_read_level_analysis:
     - "L1HS_intactness_req_ALL"
 
+  genesets_for_great:
+    msigdbH: /users/mkelsey/data/ref/genesets/human/msigdb/h.all.v2023.2.Hs.symbols.gmt
+    msigdbC2_CPG: /users/mkelsey/data/ref/genesets/human/msigdb/c2.cgp.v2023.2.Hs.symbols.gmt
+    msigdbC2_CP: /users/mkelsey/data/ref/genesets/human/msigdb/c2.cp.v2023.2.Hs.symbols.gmt
+    msigdbC3_TFT: /users/mkelsey/data/ref/genesets/human/msigdb/c3.tft.v2023.2.Hs.symbols.gmt
+    msigdbC5_GO: /users/mkelsey/data/ref/genesets/human/msigdb/c5.go.v2023.2.Hs.symbols.gmt
+    msigdbC2_CPG_SENMAYO: /users/mkelsey/data/ref/genesets/human/msigdb/SAUL_SEN_MAYO.v2023.2.Hs.gmt
+
+
 lrna:
   prefix: "lrna"
   sample_table: "conf/sample_table_lrna.csv"
@@ -269,7 +279,7 @@ lrna:
   counttypes:
     - "relaxed"
     - "stringent"
-  store_plots_as_rds: "no" #yes or no
+  store_plots_as_rds: "yes" #yes or no
   store_env_as_rds: "no" #yes or no
 
   rate: "4khz"

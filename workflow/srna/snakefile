@@ -19,10 +19,7 @@ peptable = pd.read_csv("conf/peptable_srna.csv")
 #tag FILESTRUCTURE
 paths = [
     "srna/qc",
-    "srna/benchmarks",
-    "srna/rawdata/{sample}",
-    "srna/outs/{sample}/trimmedReads",
-    "srna/outs/{sample}/{counttype}",
+    "srna/benchmarks"
     ]
 for path in paths:
     for sample in samples:
@@ -532,7 +529,6 @@ rule enrichment_analysis:
         mem_mb = 164000,
         runtime = 300
     output:
-        results_table_targetted = "srna/results/agg/enrichment_analysis/results_table_targetted.tsv",
         results_table_unbiased = "srna/results/agg/enrichment_analysis/results_table_unbiased.tsv",
         environment = "srna/results/agg/enrichment_analysis/enrichment_analysis_environment.RData",
         report = report(
@@ -581,7 +577,7 @@ rule repeatanalysis_plots:
         counttype = lambda w: w.counttype,
         contrasts = config["contrasts"],
         inputdir = lambda w, input: os.path.dirname(input.resultsdf),
-        outputdir = lambda w, output: os.path.dirname(output.environment),
+        outputdir = lambda w, output: os.path.dirname(os.path.dirname(output.environment)),
         module_name = "srna"
     benchmark:
         "srna/benchmarks/repeatanalysis_plots/{counttype}.tsv"
@@ -589,7 +585,7 @@ rule repeatanalysis_plots:
         "repeatanalysis"
     resources:
         cpus_per_task =10,
-        mem_mb = 164000,
+        mem_mb = 200000,
         runtime = 300
     output:
         environment = "srna/results/agg/repeatanalysis/{counttype}/repeatanalysisplots_environment.RData", 
@@ -646,7 +642,8 @@ rule getBigWigF:
         "srna/benchmarks/getBigWigF/{sample}.tsv"
     resources:
         cpus_per_task =10,
-        mem_mb = 40000
+        mem_mb = 10000,
+        runtime = 60
     conda:
         "deeptools"
     shell: "bamCoverage -b {input.sortedbam} -o {output.bwF} --numberOfProcessors max  --samFlagExclude 256 --filterRNAstrand forward --binSize 50"
@@ -671,7 +668,8 @@ rule getBigWigR:
         "srna/benchmarks/getBigWigR/{sample}.tsv"
     resources:
         cpus_per_task =10,
-        mem_mb = 40000
+        mem_mb = 10000,
+        runtime = 60
     conda:
         "deeptools"
     shell: "bamCoverage -b {input.sortedbam} -o {output.bwR} --numberOfProcessors max  --samFlagExclude 256 --filterRNAstrand reverse --binSize 50"

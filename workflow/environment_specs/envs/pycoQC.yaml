@@ -1,0 +1,8 @@
+name: pycoQC
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - pycoqc
+prefix: pycoQC

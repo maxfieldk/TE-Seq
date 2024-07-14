@@ -1,0 +1,36 @@
+name: omics
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - ipykernel
+  - ipython
+  - bowtie2
+  - python=3.8
+  - bedtools
+  - cgatcore
+  - cgat-apps
+  - ca-certificates
+  - certifi
+  - multiqc
+  - samtools
+  - subread
+  - gffread
+  - openssl
+  - bcftools
+  - tectonic
+  - gxx_linux-64
+  - sambamba
+  - sra-tools
+  - pychopper
+  - bowtie
+  - seqfu[version='>1.10']
+  - seqtk
+  - chromeister
+  - bedops
+  - seqkit
+  - libnsl
+  - agat
+  - ucsc-fatotwobit
+prefix: omics

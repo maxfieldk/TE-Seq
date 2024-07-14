@@ -1,0 +1,8 @@
+name: rmtest
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - repeatmasker
+prefix: rmtest

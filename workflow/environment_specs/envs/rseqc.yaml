@@ -1,0 +1,8 @@
+name: rseqc
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - rseqc
+prefix: rseqc

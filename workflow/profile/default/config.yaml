@@ -9,10 +9,57 @@ rerun-incomplete: True
 latency-wait: 30
 executor: slurm
 jobs: 30
+retries: 2
+
 default-resources:
-  mem_mb: 30000
+  mem_mb: attempt * 12500
   disk_mb: 200000
   slurm_account: default
   slurm_partition: batch
   threads: 1
-  runtime: 300
+  runtime: attempt * 70
+set-resources:
+    srna_telescope:
+        mem_mb: attempt * 35000
+        runtime: attempt * 140
+    srna_repeatanalysis_plots:
+        mem_mb: attempt * 35000
+    srna_enrichment_analysis_repeats:
+        mem_mb: attempt * 35000
+    srna_enrichment_analysis:
+        mem_mb: attempt * 35000
+    srna_deseq:
+        mem_mb: attempt * 35000
+    srna_common_sortIndexBam:
+        mem_mb: attempt * 35000
+    srna_alignSTAR_PE:
+        mem_mb: attempt * 35000
+    srna_alignSTAR_SE:
+        mem_mb: attempt * 35000
+    aref_tldr_aggregate_multiple_samples:
+        mem_mb: attempt * 100000
+        runtime: attempt * 200
+    aref_process_gtf_tldr:
+        mem_mb: attempt * 35000
+    aref_merge_genes_and_repeats_gtf:
+        mem_mb: attempt * 120000
+        runtime: attempt * 140
+    aref_merge_genes_and_repeats_gff:
+        mem_mb: attempt * 120000
+        runtime: attempt * 200
+    aref_makeTxDB:
+        mem_mb: attempt * 60000
+    aref_make_star_index:
+        mem_mb: attempt * 60000
+    aref_gff_to_gtf:
+        mem_mb: attempt * 85000
+        runtime: attempt * 140
+    aref_gff_to_bed12:
+        mem_mb: attempt * 85000
+        runtime: attempt * 140
+    aref_getRTEbeds:
+        mem_mb: attempt * 35000
+    aref_complete_gff3:
+        mem_mb: attempt * 85000
+    aref_annotate_rtes:
+        mem_mb: attempt * 35000

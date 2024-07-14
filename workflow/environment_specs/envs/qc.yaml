@@ -1,0 +1,12 @@
+name: qc
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - multiqc
+  - fastp
+  - ca-certificates
+  - certifi
+  - openssl
+prefix: qc

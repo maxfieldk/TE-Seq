@@ -29,7 +29,7 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            tldroutput = "aref/tldr/A.REF.table.txt",
+            tldroutput = "aref/A.REF_tldr/A.REF.table.txt",
             r_annotation_fragmentsjoined = "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
             r_repeatmasker_annotation = "aref/A.REF_annotations/A.REF_repeatmasker_annotation.csv",
             ref = "aref/ref_pre_ins_filtering.fa",
@@ -52,7 +52,9 @@ rmann <- left_join(rmfragments, rmfamilies)
 nrdf <- rmann %>% filter(refstatus == "NonRef")
 nrdf %$% family %>% table()
 
-p1 <- nrdf %>% group_by(rte_family, rte_subfamily, req_integrative) %>% summarise(count = n()) %>% 
+p1 <- nrdf %>%
+    group_by(rte_family, rte_subfamily, req_integrative) %>%
+    summarise(count = n()) %>%
     mutate(counts = count) %>%
     ggbarplot(x = "rte_subfamily", y = "counts", fill = "req_integrative") +
     facet_grid2(rows = vars(rte_family), scales = "free", space = "free_x", independent = "y") +
@@ -65,7 +67,9 @@ mysaveandstore(pl = p1, sprintf("%s/insertions_subfamily.pdf", outputdir), 6, 4)
 
 
 
-p2 <- nrdf %>% group_by(loc_integrative) %>% summarise(count = n()) %>% 
+p2 <- nrdf %>%
+    group_by(loc_integrative) %>%
+    summarise(count = n()) %>%
     mutate(loc_integrative = fct_reorder(loc_integrative, count)) %>%
     mutate(counts = count) %>%
     ggbarplot(x = "loc_integrative", y = "counts", fill = "loc_integrative") +
@@ -82,7 +86,7 @@ mysaveandstore(sprintf("%s/insertions_sub_fig.pdf", outputdir), 12, 5)
 
 
 df <- read_delim(inputs$tldroutput) %>%
-    mutate(faName = paste0("nonrefins_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>%
+    mutate(faName = paste0("NI_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>%
     filter(!is.na(Family)) %>%
     filter(!is.na(StartTE)) %>%
     filter(Filter == "PASS")
@@ -99,7 +103,8 @@ p <- df %>%
     labs(x = "", y = "Count") +
     paletteer::scale_fill_paletteer_d(conf$default_palette) +
     ggtitle("Non-reference RTE Insertions") +
-    mtopen + anchorbar
+    mtopen +
+    anchorbar
 mysaveandstore(sprintf("%s/insertions.pdf", outputdir), 5, 5)
 
 
@@ -111,7 +116,8 @@ p <- df %>%
     labs(x = "", y = "Count") +
     paletteer::scale_fill_paletteer_d(conf$default_palette) +
     ggtitle("Non-reference RTE Insertions") +
-    mtclosed + anchorbar +
+    mtclosed +
+    anchorbar +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
 mysaveandstore(sprintf("%s/insertions_subfamily.pdf", outputdir), 5, 5)
 
@@ -137,7 +143,8 @@ p <- df_filtered %>%
     labs(x = "", y = "Count") +
     paletteer::scale_fill_paletteer_d(conf$default_palette) +
     ggtitle("Non-reference RTE Insertions") +
-    mtopen + anchorbar
+    mtopen +
+    anchorbar
 
 mysaveandstore(sprintf("%s/insertions_in_updated_ref.pdf", outputdir), 3, 4)
 
@@ -150,7 +157,8 @@ p <- df_filtered %>%
     labs(x = "", y = "Count") +
     paletteer::scale_fill_paletteer_d(conf$default_palette) +
     ggtitle("Non-reference RTE Insertions") +
-    mtclosed + anchorbar +
+    mtclosed +
+    anchorbar +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
 mysaveandstore(sprintf("%s/insertions_subfamily_in_updated_ref.pdf", outputdir), 6, 4)
 
@@ -161,7 +169,8 @@ p <- df_filtered %>%
     geom_vline(xintercept = 6000, color = "red", linetype = 2) +
     ggtitle("L1HS Insertion Lengths") +
     labs(x = "Length (bp)", y = "Count") +
-    mtopen + paletteer::scale_fill_paletteer_d(conf$default_palette) +
+    mtopen +
+    paletteer::scale_fill_paletteer_d(conf$default_palette) +
     anchorbar
 mysaveandstore(sprintf("%s/l1hs_length_in_updated_ref.pdf", outputdir), 5, 5)
 

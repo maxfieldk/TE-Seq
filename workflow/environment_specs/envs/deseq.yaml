@@ -1,0 +1,39 @@
+name: deseq
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - r-base=4.2
+  - ipykernel
+  - jupyter
+  - r-irkernel
+  - r-tibble
+  - r-readr
+  - r-dplyr
+  - r-ggplot2
+  - r-magrittr
+  - r-pheatmap
+  - r-deseqanalysis
+  - r-cowplot
+  - bioconductor-deseq2
+  - bioconductor-genomicfeatures
+  - bioconductor-pcatools
+  - bioconductor-limma
+  - r-tidyr
+  - r-ggally
+  - r-paletteer
+  - r-bcbiornaseq
+  - ca-certificates
+  - openssl
+  - bioconductor-enhancedvolcano
+  - radian
+  - r-ggpubr
+  - r-rstatix
+  - bioconductor-rwikipathways
+  - r-msigdbr
+  - bioconductor-experimenthub
+  - bioconductor-gseabase
+  - r-configr
+  - r-matrixstats=0
+prefix: deseq

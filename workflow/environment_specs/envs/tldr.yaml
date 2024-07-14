@@ -1,0 +1,19 @@
+name: tldr
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - setuptools==61.2.0=py310hff52083_1
+  - mafft==7.490=hec16e2b_1
+  - minimap2==2.24=h7132678_1
+  - python[version='>=3.8']
+  - pip==22.0.4=pyhd8ed1ab_0
+  - samtools[version='>=1.2']
+  - tabix==1.11=hdfd78af_0
+  - exonerate==2.4.0=h09da616_5
+  - six
+  - ca-certificates
+  - openssl
+  - statsmodels
+prefix: /users/mkelsey/anaconda/tldr
