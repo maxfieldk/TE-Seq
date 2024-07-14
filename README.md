@@ -114,12 +114,12 @@ wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/009/914/755/GCF_009914755.1_T2
 ```
 - If using using nanopore reads to update your reference, you will also need to provide a path to the repeatmasker executable on your system (download at https://www.repeatmasker.org/RepeatMasker/)
 - These files will need to be decompressed
-  ```
-  gunzip hs1.fa.gz; mv hs1.fa reference.ucsc.fa
-  gunzip GCF_009914755.1_T2T-CHM13v2.0_genomic.gtf.gz; mv GCF_009914755.1_T2T-CHM13v2.0_genomic.gtf refseq.gtf
-  gunzip GCF_009914755.1_T2T-CHM13v2.0_genomic.gff.gz; mv GCF_009914755.1_T2T-CHM13v2.0_genomic.gff refseq.gff3
-  gunzip hs1.repeatMasker.out.gz; mv hs1.repeatMasker.out repeatmasker.ucsc.out
-  ```
+```
+gunzip hs1.fa.gz; mv hs1.fa reference.ucsc.fa
+gunzip GCF_009914755.1_T2T-CHM13v2.0_genomic.gtf.gz; mv GCF_009914755.1_T2T-CHM13v2.0_genomic.gtf refseq.gtf
+gunzip GCF_009914755.1_T2T-CHM13v2.0_genomic.gff.gz; mv GCF_009914755.1_T2T-CHM13v2.0_genomic.gff refseq.gff3
+gunzip hs1.repeatMasker.out.gz; mv hs1.repeatMasker.out repeatmasker.ucsc.out
+```
 This pipeline expects chromosome names to be in UCSC format ie. "chr1, chr2, ...". You can easily inspect your annotation files to ensure they conform to this convention by using the following command:
   ```
   less {path_to_annotation}
@@ -154,12 +154,12 @@ wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/635/GCF_000001635.27_G
 ```
 - If using using nanopore reads to update your reference, you will also need to provide a path to the repeatmasker executable on your system (download at https://www.repeatmasker.org/RepeatMasker/)
 - These files will need to be decompressed
-  ```
-  gunzip mm39.fa.gz; mv mm39.fa reference.ucsc.fa
-  gunzip GCF_000001635.27_GRCm39_genomic.gtf.gz; mv GCF_000001635.27_GRCm39_genomic.gtf refseq.gtf
-  gunzip GCF_000001635.27_GRCm39_genomic.gff.gz; mv GCF_000001635.27_GRCm39_genomic.gff refseq.gff3
-  gunzip mm39.out.gz; mv mm39.out repeatmasker.ucsc.out
-  ```
+```
+gunzip mm39.fa.gz; mv mm39.fa reference.ucsc.fa
+gunzip GCF_000001635.27_GRCm39_genomic.gtf.gz; mv GCF_000001635.27_GRCm39_genomic.gtf refseq.gtf
+gunzip GCF_000001635.27_GRCm39_genomic.gff.gz; mv GCF_000001635.27_GRCm39_genomic.gff refseq.gff3
+gunzip mm39.out.gz; mv mm39.out repeatmasker.ucsc.out
+```
 This pipeline expects chromosome names to be in UCSC format ie. "chr1, chr2, ...". You can easily inspect your annotation files to ensure they conform to this convention by using the following command:
   ```
   less {path_to_annotation}
