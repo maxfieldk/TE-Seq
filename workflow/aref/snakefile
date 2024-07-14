@@ -28,8 +28,8 @@ def aref_complete_input(wildcards):
     # paths.append(expand("aref/{sample_or_ref}_Analysis/l1element_analysis.outfile", sample_or_ref = "A.REF"))
 
     if config["update_ref_with_tldr"]["response"] == "yes":
-        # paths.append(expand("aref/qc/{sample_or_ref}/{sample_or_ref}pycoQC.html", sample_or_ref = config["samples"]))
-        # paths.append("aref/results/insertions/analyze_nongermline_insertions.rds")
+        paths.append(expand("aref/qc/{sample_or_ref}/{sample_or_ref}pycoQC.html", sample_or_ref = config["samples"]))
+        paths.append("aref/results/insertions/analyze_nongermline_insertions.rds")
 
         if config["update_ref_with_tldr"]["per_sample"] == "yes":
             paths.append(expand("aref/{sample_or_ref}_Analysis/tldr_plots/tldr_plots.rds", sample_or_ref = config["samples"]))

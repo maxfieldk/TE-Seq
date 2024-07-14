@@ -1,0 +1,44 @@
+name: evo2
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - r-seqinr
+  - r-ape
+  - bioconductor-msa
+  - r-gggenes
+  - r-ggmsa
+  - r-ggnewscale
+  - r-rcolorbrewer
+  - r-tidyverse
+  - r-patchwork
+  - radian
+  - ca-certificates
+  - openssl
+  - r-rblast
+  - bioconductor-complexheatmap
+  - r-circlize
+  - bioconductor-genomicranges
+  - bioconductor-genomicfeatures
+  - bioconductor-ggtree
+  - mafft
+  - bioconductor-ggbio
+  - r-rstatix
+  - r-ggpubr
+  - r-ggextra
+  - r-dt
+  - r-paletteer
+  - r-devtools
+  - r-castor
+  - bioconductor-genomation
+  - r-msigdbr
+  - bioconductor-regioner
+  - r-vcfr
+  - paml
+  - iqtree
+  - hyphy
+  - r-configr
+  - bioconductor-orfik
+  - r-ggh4x
+prefix: evo2

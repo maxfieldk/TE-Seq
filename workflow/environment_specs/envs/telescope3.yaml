@@ -1,0 +1,20 @@
+name: telescope3
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python[version='>=3.7']
+  - future
+  - pyyaml
+  - cython
+  - numpy
+  - scipy
+  - pysam[version='>=0.19']
+  - htslib
+  - intervaltree
+  - pandas
+  - samtools
+  - pip:
+    - git+https://github.com/mlbendall/telescope.git@sc_remove
+prefix: telescope3

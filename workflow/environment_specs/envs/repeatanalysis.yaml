@@ -1,0 +1,40 @@
+name: repeatanalysis
+channels:
+  - bioconda
+  - conda-forge
+  - defaults
+dependencies:
+  - ipykernel
+  - jupyter
+  - r-base=4.2.2
+  - r-irkernel
+  - r-readr
+  - r-dplyr
+  - r-ggplot2
+  - r-tibble
+  - r-rcolorbrewer
+  - r-magrittr
+  - r-cowplot
+  - r-devtools
+  - r-ggvenndiagram
+  - r-ggrepel
+  - r-ggpubr
+  - bioconductor-genomicfeatures
+  - bioconductor-trackviewer
+  - bioconductor-org.hs.eg.db
+  - bioconductor-annotationdbi
+  - bioconductor-gviz
+  - r-gridgraphics
+  - radian
+  - ca-certificates
+  - openssl
+  - r-ggpubr
+  - r-ggpmisc
+  - bioconductor-igvr
+  - bioconductor-plotgardener
+  - bioconductor-bsgenome.hsapiens.ncbi.t2t.chm13v2.0
+  - r-paletteer
+  - r-configr
+  - r-circlize
+  - bioconductor-complexheatmap
+prefix: repeatanalysis

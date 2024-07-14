@@ -841,7 +841,7 @@ l1hsintactmethdf <- l1hsintactmethgr %>%
 
 for (gene_id in l1hsintactmethdf %$% gene_id %>% unique()) {
     pf <- l1hsintactmethdf %>%
-        filter(gene_id == gene_id) %>%
+        filter(gene_id == !!gene_id) %>%
         filter(cov > MINIMUMCOVERAGE) %>%
         group_by(sample) %>%
         mutate(rM = rollmean(pctM, 15, na.pad = TRUE, align = "center")) %>%
