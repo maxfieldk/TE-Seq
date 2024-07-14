@@ -17,7 +17,7 @@ It also aims address concerns pertaining to:
 
 This project derives from my work in the __Sedivy Lab at Brown University__, where we study transposable elements, in particular __LINE1__.
 #
-![Asset 17](https://github.com/maxfieldk/RTE/assets/44215152/ef4b1ca2-56bc-4328-a71d-a2ce9c6bf33b)
+![Asset 17](https://github.com/maxfieldk/TE-Seq/assets/44215152/ef4b1ca2-56bc-4328-a71d-a2ce9c6bf33b)
 
 ## Pipeline Overview
   This pipeline conducts an end-to-end analysis of raw sequencing data, implementing state of the art TE-minded computational methods. It produces a comprehensive analyses of repetitive element expression at both the level of an individual repetitive element as well as family groupings of these elements. It consists of 4 modules, "Annotate Referene" (AREF), short-read RNA-Seq (SRNA), long-read RNA-Seq (LRNA), and long-read DNA-Seq (LDNA). LRNA and LDNA remain in active development, while AREF and SRNA are comparatively stable.
@@ -44,7 +44,7 @@ This project derives from my work in the __Sedivy Lab at Brown University__, whe
  
 - Each individual human has only the order of 100 L1 insertions which are not captured by a reference genome. This speaks to the degree of polymorphism incurred by the TE way of life. Analytically, this means that reads derived from such elements will necessarily be assigned to other, reference, elements. This problem is particularly acute seeing as the polymorphic, non-reference TEs are likely some of the most active elements in the genome (they have had less time since insertion to accrue mutations versus older, and hence potentially fixed, elements). If nanopore DNA-sequences are not available, this problem can still be attenuated by using the most up to date reference genomes, such as telomere-to-telomere assemblies (Nurk, Sergey, Sergey Koren, Arang Rhie, Mikko Rautiainen, Andrey V. Bzikadze, Alla Mikheenko, Mitchell R. Vollger, et al. “The Complete Sequence of a Human Genome.” Science 376, no. 6588 (April 2022): 44–53. https://doi.org/10.1126/science.abj6987), which provide a more accurate map of TE insertions, especially in hard to assemble regions such as centromeres.
 - If using an rRNA-depletion library preparation strategy, one should be aware that differences in RNA-quality (fragmentation) can have profound effects on repetitive element expression estimates. Degraded libraries will have a greater fraction of intronic reads, and seeing as introns contains many TEs, our TE signal will be artificially inflated. For this reason, poly-A selected libraries are preferred.
-![Figure1_ReadDistribution_0714](https://github.com/maxfieldk/RTE/assets/44215152/ebca6a5a-1933-46f1-a505-d41965300d02)
+![Figure1_ReadDistribution_0714](https://github.com/maxfieldk/TE-Seq/assets/44215152/ebca6a5a-1933-46f1-a505-d41965300d02)
 - https://www.neb.com/en-us/products/e6310-nebnext-rrna-depletion-kit-human-mouse-rat
 - The following twitter discussion may further illuminate the present concern: https://x.com/Faulkner_Lab/status/1578598533334458368
 - Young L1 element sub-family (L1HS, L1PA2, etc.) transcripts contain a G-rich stretch of nucleotides in their 3' UTR which is thought to form a G-quadruplex secondary structure. Internal data show that during sequencing library amplification, can DNA polymerase can struggles with this structure, leading to artificially depressed count estimates. PCR free approaches such as long-read RNA sequencing may therefore provide a more accurate assessment of young L1 transcript abundance.
@@ -75,11 +75,11 @@ This project derives from my work in the __Sedivy Lab at Brown University__, whe
   Create a project directory  
   Clone this pipeline into said directory, using a tag to specify a frozen version, or without one to get the latest version (this may give you more errors than a stable version).  
   ```
-  git clone https://github.com/maxfieldk/RTE.git
+  git clone https://github.com/maxfieldk/TE-Seq.git
   ```
   Copy the workflow/conf_example directory to ./conf  
   ```
-cd RTE
+cd TE-Seq
 cp -r workflow/conf_example conf
   ```
 ## Configure your analysis
@@ -130,35 +130,15 @@ This pipeline expects chromosome names to be in UCSC format ie. "chr1, chr2, ...
   sort -k1,1V -k4,4n -k5,5n refseq.gtf > refseq.sorted.gtf
   sort -k1,1V -k4,4n -k5,5n refseq.gff3 > refseq.sorted.gff3
   wget https://hgdownload.soe.ucsc.edu/goldenPath/hs1/bigZips/hs1.chromAlias.txt
-  chmod +x ../RTE/resources/programs/chromToUcsc
-  ../RTE/resources/programs/chromToUcsc -i refseq.sorted.gtf -a hs1.chromAlias.txt > refseq.sorted.ucsc.gtf
-  ../RTE/resources/programs/chromToUcsc -i refseq.sorted.gff3 -a hs1.chromAlias.txt > refseq.sorted.ucsc.gff3
+  chmod +x ../TE-Seq/resources/programs/chromToUcsc
+  ../TE-Seq/resources/programs/chromToUcsc -i refseq.sorted.gtf -a hs1.chromAlias.txt > refseq.sorted.ucsc.gtf
+  ../TE-Seq/resources/programs/chromToUcsc -i refseq.sorted.gff3 -a hs1.chromAlias.txt > refseq.sorted.ucsc.gff3
 rm refseq.gtf; rm refseq.sorted.gtf; rm refseq.gff3; rm refseq.sorted.gff3
   ```
 ***
 ***
 ### MOUSE - Genome: MM39
 - Download these files, and place them in a genome directory adjacent to your project directory
-
-10350  wget 
-10351* cd RTE
-10352* cd ..
-10353* cd genome_files
-10354* wget 
-10355* wget 
-10356* wget 
-10357* l
-10358* 
-10359* mv mm39.fa reference.ucsc.fa
-10360* mv mm39.fa.out repeatmasker.ucsc.out
-10361* mv .gff refseq.gff32
-10362* mv refseq.gff32 refseq.gff32
-10363* mv refseq.gff32 refseq.gff3
-10364* mv GCF_000001635.27_GRCm39_genomic.gtf refseq.gtf
-10365* l
-10366* wget 
-10367* 
-
 ```
 cd ..
 mkdir genome_files
@@ -191,14 +171,14 @@ This pipeline expects chromosome names to be in UCSC format ie. "chr1, chr2, ...
   sort -k1,1V -k4,4n -k5,5n refseq.gff3 > refseq.sorted.gff3
   wget http://hgdownload.soe.ucsc.edu/goldenPath/mm39/database/chromAlias.txt.gz
   gunzip chromAlias.txt.gz
-  chmod +x ../RTE/resources/programs/chromToUcsc
-  ../RTE/resources/programs/chromToUcsc -i refseq.sorted.gtf -a chromAlias.txt > refseq.sorted.ucsc.gtf
-  ../RTE/resources/programs/chromToUcsc -i refseq.sorted.gff3 -a chromAlias.txt > refseq.sorted.ucsc.gff3
+  chmod +x ../TE-Seq/resources/programs/chromToUcsc
+  ../TE-Seq/resources/programs/chromToUcsc -i refseq.sorted.gtf -a chromAlias.txt > refseq.sorted.ucsc.gtf
+  ../TE-Seq/resources/programs/chromToUcsc -i refseq.sorted.gff3 -a chromAlias.txt > refseq.sorted.ucsc.gff3
   rm refseq.gtf; rm refseq.sorted.gtf; rm refseq.gff3; rm refseq.sorted.gff3
   ```
 ***
 ***
-  I recommend you store these downloaded annotations in a directory one level above your project directory (place genomes_files/ adjacent to the RTE/ directory). Don't store any large files in resources/ seeing as it is under git control (git does not like large files). Just ensure that the paths are nested within a singularity bound directory if using the containerized workflow (read on to the segment on "workflow/profile/default/config.yaml" below for more details).  
+  I recommend you store these downloaded annotations in a directory one level above your project directory (place genomes_files/ adjacent to the TE-Seq/ directory). Don't store any large files in resources/ seeing as it is under git control (git does not like large files). Just ensure that the paths are nested within a singularity bound directory if using the containerized workflow (read on to the segment on "workflow/profile/default/config.yaml" below for more details).  
   
 Create, in your project directory, the srna/rawdata directory structure, and move your fastqs there. Make sure the naming is consistent with the naming scheme set forth in the conf/project_config_srna.yaml, which uses sample_name from the conf/sample_table_srna.csv i.e.:  
   ```
@@ -228,7 +208,7 @@ Create, in your project directory, the srna/rawdata directory structure, and mov
   
   "symlink_aref" determines whether to run all the rules in aref module and thereby create an annotation set from scratch, or whether to merely symlink an existing directory of annotation files. If "symlink_aref" is set to "no", the "aref" module will be run (this is what you will do for your first analysis using this pipeline). If "symlink_aref" is set to "yes", the "aref" module will not be run, and the "aref" directory will be symlinked to the directory specified in "aref_dir" (this is recommended if you have previously completed an analysis with this pipeline, and with to re-use the annotations that analysis had created).  
   
-  If you are not merely symlinking an existing AREF directory, you will need to specify whether you are creating an enhanced annotation set using long read DNA sequences (to call non-reference RTE insertions) or not.  
+  If you are not merely symlinking an existing AREF directory, you will need to specify whether you are creating an enhanced annotation set using long read DNA sequences (to call non-reference TE-Seq insertions) or not.  
   The "update_ref_with_tldr" "response" value (yes or no) turn this feature on or off. If turning it on, you can specify whether to create one custom reference which all samples will use (e.g. if you had a number of long read sequencing data on spanning several conditions in ONE cell line) or to create one custom reference per sample (e.g. if you had long read sequencing done on multiple individuals). The "per_sample" key toggles between these two modes.  
   The "samples" , "sample_table", and "levels" keys in the aref section of the config are only relevant if creating a custom reference genome using long-read dna sequencing, and you can ignore these values if you are not using this feature. The same is true for the associated sample_table file, conf/sample_table_aref.csv, which will not be used in this case.  
 ### SRNA
@@ -237,7 +217,7 @@ Create, in your project directory, the srna/rawdata directory structure, and mov
   First perform a pipeline dry-run this tells you which rules snakemake will deploy once really called  
   ```
   conda activate snakemake
-  #ensure you are in the pipeline directory which lives in your project folder, i.e. myproject/RTE/
+  #ensure you are in the pipeline directory which lives in your project folder, i.e. myproject/TE-Seq/
   snakemake --profile workflow/profile/default -n
   ```
   If you are happy with this plan of action, deploy the pipeline by calling snakemake  
