@@ -1027,10 +1027,13 @@ library(scales)
 library(msigdbr)
 
 {
+
+
     gs <- msigdbr("human")
     tablesMsigdb <- list()
     results <- list()
-    genecollections <- c("H")
+    
+    genecollections <- gs %$% gs_cat %>% unique()
     for (collection in genecollections) {
         tryCatch({
             dir.create(paste(mydir, collection, sep = "/"))
@@ -1105,8 +1108,7 @@ library(msigdbr)
 
 }
 
-
-
+tablesMsigdb[["H"]][[direction]] %>% tibble() %>% arrange(mean_tss_dist)
 
 {
     promoters <- promoters(genes_gr, upstream = 5000, downstream = 1000)
@@ -1130,7 +1132,7 @@ library(msigdbr)
     mm[(mm$max_val > 0 & mm$min_val < 0), "concordance"] <- "discordant"
     mm[!(mm$max_val > 0 & mm$min_val < 0), "concordance"] <- "concordant"
 
-    mergeddf <- mm %>% mutate(direction = ifelse(is.na(concordance), NA_character_, ifelse(concordance == "discordant", "Discordant", ifelse(max_val > 0, "Hyper", "Hypo"))))
+    mergeddf <- mm %>% mutate(direction = ifelse(is.na(concordance), NA_character_, ifelse(concordance == "discordant", "Discordant", ifelse(max_val > 0, "Hyper", "Hypo")))) %>% ungroup()
 
     merged <- GRanges(
         seqnames = mergeddf$promoters.seqnames,
@@ -1171,19 +1173,49 @@ library(msigdbr)
         anchorbar
 
     mysaveandstore(pl = p, "ldna/results/plots/genes/genes_density.pdf", 4, 4)
+    library(clusterProfiler)
+    #DM promoter ORA
+    for (collection in genecollections) {
+        for (direction in directions) {
+            if (direction == "Hypo") {
+                genes <- mergeddf %>% filter(concordance == "concordant") %>% filter(direction == "Hypo") %$% promoters.gene_id %>% unique()
+            } else if (direction == "Hyper") {
+                genes <- mergeddf %>% filter(concordance == "concordant") %>% filter(direction == "Hyper") %$% promoters.gene_id %>% unique()
+            } else {
+                genes <- mergeddf %>% filter(concordance == "concordant") %$% promoters.gene_id %>% unique()
+            }
+            genesets <- gs %>% filter(gs_cat == collection) %>% dplyr::select(gs_name, gene_symbol) %>% dplyr::rename(term = gs_name, gene = gene_symbol) %>% as.data.frame()
+            promoter_ora <- enricher(genes, TERM2GENE=genesets, universe = mcols(genes_gr)$gene_id)
+            df <- promoter_ora@result %>% tibble()
+            df$collection <- collection
+            df$direction<- direction
+            if (!exists("promoter_ora_df")) {
+                promoter_ora_df <<- df
+            } else {
+                promoter_ora_df <<- rbind(promoter_ora_df, df)
+            }
 
-    # highly_enriched_notch_sets <- tablesReactome[["Higher_in_Alz"]] %>% head(n = 15) %>% filter(grepl("NOTCH", anno.result) | grepl("LFNG", anno.result))
-    # highly_enriched_notch_sets$id
-    # gs[highly_enriched_notch_sets$id]
+            tryCatch(
+                {
+                    for (num in c(5, 10, 15)) {
+                        dftemp <- arrange(df, p.adjust) %>%
+                            slice(1:num) %>%
+                            mutate(log10padj = -log10(p.adjust))
+                        dftemp <- dftemp %>% mutate(Description = str_wrap(as.character(Description) %>% gsub("_", " ", .), width = 40)) 
+                        p <- ggplot(dftemp, aes(log10padj, fct_reorder(Description, log10padj), fill = log10padj)) +
+                            geom_col(orientation = "y") +
+                            scale_fill_gradient(high = "red", low = "white", limits = c(0,5), oob = scales::squish) +
+                            mtopen +
+                            theme(axis.text.y = element_text(colour = "black")) +
+                            ylab(NULL)
+                        mysaveandstore(sprintf("%s/%s/ORA/%s/promoter_ora_%s.pdf", mydir, collection,direction, num), w = 8, h = min(num, 7), res = 300)
+                    }
+                })
+        }
 
-    # library(ComplexHeatmap)
-    # m1 = make_comb_mat(gs[highly_enriched_notch_sets$id])
-    # m1
-    # p = UpSet(m1)
-    # png("ldna/results/plots/genes/notch_upset_plot.png", 4, 4, units = "in", res = 300)
-    # print(p)
-    # dev.off()
+    }
 }
+
 
 
 

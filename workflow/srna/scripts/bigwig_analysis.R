@@ -75,7 +75,12 @@ noncoding_transcripts <- refseq[(mcols(refseq)$type == "transcript" & grepl("^NR
 transcripts <- c(coding_transcripts, noncoding_transcripts)
 table(mcols(coding_transcripts)$tag)
 
-norm_by_aligned_reads <- read_delim("srna/qc/multiqc/multiqc_data/samtools-stats-dp.txt") %>% filter(Sample %in% sample_table$sample_name) %>% mutate(meanmandp = mean(`Mapped &amp; paired`)) %>% mutate(scale_factor = `Mapped &amp; paired`/meanmandp) %>% dplyr::select(Sample, scale_factor, `Mapped &amp; paired`, meanmandp) %>% dplyr::rename(sample_name = Sample)
+tryCatch({
+    norm_by_aligned_reads <- read_delim("srna/qc/multiqc/multiqc_data/samtools-stats-dp.txt") %>% filter(Sample %in% sample_table$sample_name) %>% mutate(meanmandp = mean(`Mapped &amp; paired`)) %>% mutate(scale_factor = `Mapped &amp; paired`/meanmandp) %>% dplyr::select(Sample, scale_factor, `Mapped &amp; paired`, meanmandp) %>% dplyr::rename(sample_name = Sample)
+},    error = function(e) {
+    norm_by_aligned_reads <- read_delim("srna/qc/multiqc/multiqc_data/multiqc_samtools_stats.txt") %>% filter(Sample %in% sample_table$sample_name) %>% mutate(meanmandp = mean(reads_mapped_and_paired)) %>% mutate(scale_factor = reads_mapped_and_paired/meanmandp) %>% dplyr::select(Sample, scale_factor, reads_mapped_and_paired, meanmandp) %>% dplyr::rename(sample_name = Sample)
+
+})
 
 
 
