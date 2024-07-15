@@ -290,33 +290,35 @@ for (subfam in mcols(grs_intact_ss)$rte_subfamily %>% unique()) {
     p <- ggtree(subfam_intact_tree) +
         geom_treescale() +
         geom_tippoint(aes(color = refstatus)) +
-        geom_tiplab(aes(label = label)) +
         theme_tree2() +
         xlab("% Mutation") +
         ggtitle(sprintf("%s ORF1&2 Intact Phylogeny", subfam)) + scale_palette
+    mysaveandstore(sprintf("%s/%s_intact_tree_nolab.pdf", outputdir, subfam), w = 7.5, h = 20)
+    p <- p + geom_tiplab(aes(label = label))
     mysaveandstore(sprintf("%s/%s_intact_tree.pdf", outputdir, subfam), w = 7.5, h = 20)
+
     # make the tree horizontal
     p <- ggtree(subfam_intact_tree) +
         geom_treescale() +
         geom_tippoint(aes(color = refstatus)) +
-        geom_tiplab(aes(label = label, angle = 90)) +
         theme_tree2() +
         xlab("% Mutation") +
         ggtitle(sprintf("%s ORF1&2 Intact Phylogeny", subfam)) +
         coord_flip() + scale_palette
+    mysaveandstore(sprintf("%s/%s_intact_tree_horizontal_nolab.pdf", outputdir, subfam), w = 20, h = 8)
+    p <- p + geom_tiplab(aes(label = label, angle = 90))
     mysaveandstore(sprintf("%s/%s_intact_tree_horizontal.pdf", outputdir, subfam), w = 20, h = 8)
 
 
     p <- ggtree(subfam_intact_tree_gapped) +
         geom_treescale() +
         geom_tippoint(aes(color = refstatus)) +
-        geom_tiplab(aes(label = label)) +
         theme_tree2() +
         xlab("% Mutation") +
         ggtitle(sprintf("%s ORF1&2 Intact Phylogeny", subfam)) + scale_palette
-
+    mysaveandstore(sprintf("%s/%s_intact_tree_gapped_nolab.pdf", outputdir, subfam), w = 7.5, h = 20)
+    p <- p + geom_tiplab(aes(label = label))
     mysaveandstore(sprintf("%s/%s_intact_tree_gapped.pdf", outputdir, subfam), w = 7.5, h = 20)
-
 
     subfam_intact_aln <- readDNAMultipleAlignment(sprintf("%s/%s_intact.aln.fa", outputdir, subfam), format = "fasta")
     consensus <- consensusString(subfam_intact_aln)

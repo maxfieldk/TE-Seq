@@ -521,7 +521,7 @@ rule analyze_insertions:
     benchmark:
         "aref/benchmarks/analyze_insertions/{sample_or_ref}.tsv"
     conda:
-        "repeatanalysis"
+        "evo2"
     script:
         "scripts/analyze_insertions.R"
 
