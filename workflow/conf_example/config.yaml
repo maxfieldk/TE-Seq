@@ -282,6 +282,10 @@ lrna:
   store_plots_as_rds: "yes" #yes or no
   store_env_as_rds: "no" #yes or no
 
+  rate: "4khz"
+  type: "sup"
+  modification_string: "m6A_DRACH"
+
   levels:
     - "PRO"
     - "SEN"

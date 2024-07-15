@@ -1,4 +1,4 @@
-container: "docker://maxfieldkelsey/pipelinertedocker:v0.2"
+container: "docker://maxfieldkelsey/pipelinerteseq:v0.4"
 import os
 import pandas as pd
 import csv
@@ -521,7 +521,7 @@ rule analyze_insertions:
     benchmark:
         "aref/benchmarks/analyze_insertions/{sample_or_ref}.tsv"
     conda:
-        "repeatanalysis"
+        "evo2"
     script:
         "scripts/analyze_insertions.R"
 
