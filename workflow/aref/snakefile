@@ -77,7 +77,7 @@ for path in paths:
 
 rule aref_complete:
     input: aref_complete_input
-    output: "aref.done.outfile"
+    output: ancient("aref.done.outfile")
     shell: "touch {output}"
 rule sym_link:
     input:
