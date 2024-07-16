@@ -823,6 +823,20 @@ for (rte_fam in rte_fams) {
     mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats_allsigannot.pdf", outputdir, counttype, rte_fam), width + 1, height)
 
     p <- pf %>%
+        filter(grepl("Yng", req_integrative)) %>% 
+        mutate(req_integrative = factor(req_integrative, levels = c("Old Trnc", "Old FL", "Yng Trnc", "Yng FL", "Yng Intact"))) %>%
+        arrange(req_integrative) %>%
+        ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = c("req_integrative", "genic_loc"), add = c("mean_se", "dotplot"), scales = "free_y") +
+        labs(x = "", y = "Sum Normalized Counts", subtitle = counttype_label, title = rte_fam) +
+        mtclosedgridh +
+        scale_conditions +
+        scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = FALSE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
+    mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats_allsigannot_yng.pdf", outputdir, counttype, rte_fam), width + 1, height -2.5)
+
+
+    p <- pf %>%
         arrange(req_integrative) %>%
         ggbarplot(x = "condition", y = "sample_sum", fill = "req_integrative", facet.by = c("genic_loc"), add = c("mean_se"), scales = "free_y") +
         labs(x = "", y = "Sum Normalized Counts", subtitle = counttype_label, title = rte_fam) +
@@ -1075,7 +1089,6 @@ for (contrast in contrasts) {
     }
 }
 
-
 # Heatmaps
 for (contrast in contrasts) {
     contrast_of_interest <- contrast
@@ -1104,7 +1117,7 @@ for (contrast in contrasts) {
                 groups_that_have_been_run <- c(groups_that_have_been_run, group)
                 groupframe <- resultsdf %>%
                     filter(!!sym(ontology) == group)
-                if (length(rownames(groupframe > 2000))) {
+if (length(rownames(groupframe > 2000))) {
                     next
                 }
                 eligible_modifiers <- c()

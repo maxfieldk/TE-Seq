@@ -65,7 +65,7 @@ for pipeline in config["pipelines_to_deploy"]:
     if pipeline == "lrna":
         module lrna:
             snakefile: "lrna/snakefile"
-            config: config["lrna"]
+            config: config
         use rule * from lrna as lrna_*
         def lrna_rally():
             deseq = expand("lrna/results/agg/deseq/{counttype}/{contrast}/results_genes.csv", alignmenttype = config["lrna"]["alignmenttypes"], counttype = config["lrna"]["counttypes"], contrast = config["lrna"]["contrasts"])
