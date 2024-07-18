@@ -1,4 +1,4 @@
-container: "docker://maxfieldkelsey/pipelinerteseq:v0.4"
+container: "docker://maxfieldkelsey/pipelinerteseq:v0.5"
 import os
 import pandas as pd
 import csv
@@ -447,6 +447,8 @@ rule repeatmasker:
 if [[ {params.species} == mouse ]]
 then
 species="Mus musculus"
+else
+species={params.species}
 fi
 mkdir -p $(dirname {output})
 RepeatMasker -species "$species" -pa {resources.cpus_per_task} -gff {input.fasta} -dir $(dirname {output})
@@ -914,7 +916,7 @@ rule create_blast_db:
     input:
         ref = "aref/{sample_or_ref}.fa",
     output:
-        blast_njs = "aref/{sample_or_ref}.njs"
+        outfile = "aref/{sample_or_ref}.blastdb_outfile"
     benchmark:
         "aref/benchmarks/create_blast_db/{sample_or_ref}.tsv"
     conda:
@@ -922,6 +924,7 @@ rule create_blast_db:
     shell:
         """
 makeblastdb -in {input.ref} -dbtype nucl -out aref/{wildcards.sample_or_ref}
+touch {output.outfile}
         """
 
 rule transduction_mapping:
@@ -931,7 +934,7 @@ rule transduction_mapping:
         r_annotation_fragmentsjoined = "aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
         r_repeatmasker_annotation = "aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_annotation.csv",
         ref = "aref/{sample_or_ref}.fa",
-        blast_njs = "aref/{sample_or_ref}.njs",
+        blast_njs = "aref/{sample_or_ref}.blastdb_outfile",
         element_analysis = "aref/{sample_or_ref}_Analysis/l1element_analysis.rds"
     params:
         sample_or_ref = lambda w: w.sample_or_ref
