@@ -76,6 +76,24 @@ def getTelescopeStrandParam():
         strandParam = "didn't run infer library type yet"
     return strandParam
 
+def getFpkmCountStrandParam():
+    libraryType = inferLibraryType()
+    if libraryType == "forward":
+        if config["library_type"] == "PE":
+            strandParam = "1++,1--,2+-,2-+"
+        elif config["library_type"] == "SE":
+            strandParam = "++,--"
+    elif libraryType == "reverse":
+        if config["library_type"] == "PE":
+            strandParam = "1+-,1-+,2++,2--"
+        elif config["library_type"] == "SE":
+            strandParam = "+-,-+"
+    elif libraryType == "unstranded":
+        strandParam = "None"
+    else:
+        strandParam = "didn't run infer library type yet"
+    return strandParam
+
 # def enforce_symlink(wildcards):
 #     if config["symlink_aref"]["response"] == "yes":
 #         return "aref.symlinked.outfile"
@@ -428,7 +446,7 @@ rule telescope:
         libtype = "srna/qc/library_type.txt",
     params:
         strandparam = getTelescopeStrandParam(),
-        gff = lambda wildcards: "aref/%s_annotations/%s_repeatmasker.gff2"%(wildcards.sample, wildcards.sample) if config["per_sample_ref"] == "yes" else "aref/A.REF_annotations/A.REF_repeatmasker.gff2"
+        bed = lambda wildcards: "aref/%s_annotations/%s_repeatmasker.complete.bed"%(wildcards.sample, wildcards.sample) if config["per_sample_ref"] == "yes" else "aref/A.REF_annotations/A.REF_repeatmasker.complete.bed"
     retries: 3
     output:
         counts = "srna/outs/{sample}/telescope/telescope-run_stats.tsv"
@@ -730,3 +748,28 @@ rule bigwigplots:
 #   --outFileNameMatrix matrix2_multipleBW_l2r_twoGroups_scaled.tab \
 #   --outFileSortedRegions regions2_multipleBW_l2r_twoGroups_genes.bed
 #         """
+
+
+rule fpkm:
+    input:
+        sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.primary.bam"
+    params:
+        bed = "aref/A.REF_annotations/A.REF_repeatmasker.complete.bed",
+        FpkmCountStrandParam = getFpkmCountStrandParam()
+    output:
+        values = "srna/outs/{sample}/star_output/{sample}.fpkm"
+    benchmark:
+        "srna/benchmarks/fpkm/{sample}.tsv"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 10000,
+        runtime = 60
+    conda:
+        "rseqc"
+    shell:
+        """
+output_path={output.values}
+FPKM_count.py -i {input.sortedbam} -o ${{output_path%.*}} -r {params.bed} -d {params.FpkmCountStrandParam} -q 1
+        """
+
+# --scaleFactor {params.sample_size_factor}
