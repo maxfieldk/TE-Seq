@@ -1,7 +1,15 @@
-conf <- configr::read.config(file = "conf/config.yaml")[[snakemake@params$module_name]]
+if (interactive()) {
+    module_name <- "srna"
+} else {
+    module_name <- snakemake@params$module_name
+}
+conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
 source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 source("conf/sample_table_source.R")
+sample_table <- sample_table %>%
+    mutate(condition = factor(condition, levels = conf$levels)) %>%
+    arrange(condition)
 set.seed(123)
 
 library(magrittr)
@@ -51,15 +59,13 @@ library(patchwork)
             ), env = globalenv())
             assign("inputs", list(
                 resultsdf = paste0("srna/results/agg/deseq/resultsdf.tsv")
-
             ), env = globalenv())
             assign("outputs", list(
                 "environment" = "srna/results/agg/enrichment_analysis_repeats/telescope_multi/enrichment_analysis_repeats_environment.RData",
-                "results_table" = "srna/results/agg/enrichment_analysis_repeats/telescope_multi/results_table.tsv"), env = globalenv())
+                "results_table" = "srna/results/agg/enrichment_analysis_repeats/telescope_multi/results_table.tsv"
+            ), env = globalenv())
         }
     )
-
-
 }
 
 counttype <- params$counttype
@@ -74,13 +80,14 @@ resultsdf <- resultsdf1 %>%
     left_join(r_repeatmasker_annotation)
 
 
+# resultsdf %>% filter(grepl("L1HS", gene_id))
 
 
 ### ONTOLOGY DEFINITION
 {
     annot_colnames <- colnames(r_repeatmasker_annotation)
     annot_colnames_good <- annot_colnames[!(annot_colnames %in% c("gene_id", "family"))]
-    ontologies <- annot_colnames_good[str_detect(annot_colnames_good, "family")]
+    ontologies <- annot_colnames_good[str_detect(annot_colnames_good, "_.*family")]
     small_ontologies <- ontologies[grepl("subfamily", ontologies)]
 
     big_ontologies <- ontologies[!grepl("subfamily", ontologies)]
@@ -101,7 +108,6 @@ resultsdf <- resultsdf1 %>%
 
 
 
-EARTEplots <- list()
 rm(gse_df)
 for (contrast in params[["contrasts"]]) {
     contrast_of_interest <- contrast
@@ -119,12 +125,12 @@ for (contrast in params[["contrasts"]]) {
     condition_vec <- sample_table %>% filter(sample_name %in% contrast_samples) %$% condition
 
     res <- resultsdf %>%
-        filter(counttype == counttype) %>%
+        filter(counttype == !!counttype) %>%
         arrange(-!!sym(contrast_stat)) %>%
         filter(gene_or_te == "repeat")
     ordered_by_stat <- setNames(res %>% pull(!!sym(contrast_stat)), res$gene_id) %>% na.omit()
 
-    for (ontology in ontologies) {
+    for (ontology in small_ontologies) {
         print(ontology)
         ontology_groups <- r_repeatmasker_annotation %>%
             pull(!!sym(ontology)) %>%
@@ -153,15 +159,27 @@ for (contrast in params[["contrasts"]]) {
                         genesets <- resultsdf %>%
                             filter(!!sym(ontology) != "Other") %>%
                             filter(str_detect(!!sym(filter_var), "Intact|FL$|^LTR")) %>%
-                            select(!!sym(filter_var), gene_id)
+                            select(!!sym(ontology), gene_id)
                     } else {
                         genesets <- resultsdf %>%
                             select(!!sym(ontology), gene_id) %>%
                             filter(!!sym(ontology) != "Other")
                     }
 
-                    gse <- GSEA(ordered_by_stat, TERM2GENE = genesets, maxGSSize = 10000, minGSSize = 1)
-                    df <- gse@result %>% tibble()
+
+                    # res %>% mutate(nrow = row_number()) %>% filter(grepl("L1HS", gene_id)) %>% filter(rte_length_req == "FL") %>% dplyr::select(gene_id, nrow) %>% print(n = 800
+                    # )
+
+                    gsestd <- GSEA(ordered_by_stat, TERM2GENE = genesets, maxGSSize = 10000, minGSSize = 1, pvalueCutoff = 0.05, seed = TRUE, scoreType = "std")
+                    gsepos <- GSEA(ordered_by_stat, TERM2GENE = genesets, maxGSSize = 10000, minGSSize = 1, pvalueCutoff = 0.05, seed = TRUE, scoreType = "pos")
+                    gseneg <- GSEA(ordered_by_stat, TERM2GENE = genesets, maxGSSize = 10000, minGSSize = 1, pvalueCutoff = 0.05, seed = TRUE, scoreType = "neg")
+                    dfstd <- gsestd@result %>% tibble()
+                    dfstd$test_type <- "std"
+                    dfpos <- gsepos@result %>% tibble()
+                    dfpos$test_type <- "pos"
+                    dfneg <- gseneg@result %>% tibble()
+                    dfneg$test_type <- "neg"
+                    df <- bind_rows(bind_rows(dfstd, dfpos), dfneg)
                     df$collection <- ontology
                     df$contrast <- contrast
                     df$filter_var <- filter_var
@@ -210,26 +228,40 @@ for (contrast in params[["contrasts"]]) {
     }
 }
 
-contrast_label_map <- tibble(contrast = params[["contrasts"]], label = gsub("constrast_", "", params[["contrasts"]]))
+contrast_label_map <- tibble(contrast = params[["contrasts"]], label = gsub("condition_", "", params[["contrasts"]]))
 gres <- gse_df %>% tibble()
-for (ontology in ontologies) {
-    for (filter_var in gres %$% filter_var %>% unique()) {
-        grestemp <- gres %>% filter(collection == ontology) %>% filter(filter_var == !!filter_var) %>% left_join(contrast_label_map) %>% filter(grepl(paste0(conf$levels[1], "$"), label))
-        sigIDs <- grestemp %>% mutate(direction = ifelse(NES > 0, "UP", "DOWN")) %>% group_by(contrast, direction) %>% arrange(p.adjust) %>% slice_head(n = 5) %$% ID %>% unique()
-        p <- grestemp %>% dplyr::filter(ID %in% sigIDs) %>% mutate(sig = ifelse(p.adjust < 0.05, "*", "")) %>%
-            mutate(ID = str_wrap(as.character(ID) %>% gsub("_", " ", .), width = 40)) %>%
-            mutate(contrast = str_wrap(as.character(contrast) %>% gsub("condition_", "", .) %>% gsub("_vs_.*", "", .), width = 40)) %>%
-            mutate(contrast = factor(contrast, levels = conf$levels)) %>%
-            ggplot(aes(x = contrast, y = ID)) + 
-            geom_tile(aes(fill = NES), color = "black") + 
-            theme(legend.position = "none") + 
-            scale_fill_gradient2(high = "red", mid = "white", low = "blue") +
-            mtclosed + 
-            theme(axis.text.x = element_text(colour = "black"), axis.text.y = element_text(colour = "black", hjust = 1)) +
-            labs(x = "", y = "", title = paste0(ontology, " ", filter_var)) +
-            theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-            coord_equal()
-        mysaveandstore(sprintf("%s/gsea_top_rtes_%s_%s.pdf", params[["outputdir"]], ontology, filter_var), w = 3+.3*(length(conf$levels) - 1), h = 3 + .3*length(sigIDs))
+for (test_type in c("std", "pos", "neg")) {
+    for (ontology in small_ontologies) {
+        for (filter_var in gres %$% filter_var %>% unique()) {
+            grestemp <- gres %>%
+                filter(test_type == !!test_type) %>%
+                filter(collection == ontology) %>%
+                filter(filter_var == !!filter_var) %>%
+                left_join(contrast_label_map) %>%
+                filter(grepl(paste0(conf$levels[1], "$"), label))
+            sigIDs <- grestemp %>%
+                mutate(direction = ifelse(NES > 0, "UP", "DOWN")) %>%
+                group_by(contrast, direction) %>%
+                arrange(p.adjust) %>%
+                slice_head(n = 5) %$% ID %>%
+                unique()
+            p <- grestemp %>%
+                dplyr::filter(ID %in% sigIDs) %>%
+                mutate(sig = ifelse(p.adjust < 0.05, "*", "")) %>%
+                mutate(ID = str_wrap(as.character(ID) %>% gsub("_", " ", .), width = 40)) %>%
+                mutate(contrast = str_wrap(as.character(contrast) %>% gsub("condition_", "", .) %>% gsub("_vs_.*", "", .), width = 40)) %>%
+                mutate(contrast = factor(contrast, levels = conf$levels)) %>%
+                ggplot(aes(x = contrast, y = ID)) +
+                geom_tile(aes(fill = NES), color = "black") +
+                theme(legend.position = "none") +
+                scale_fill_gradient2(high = "red", mid = "white", low = "blue") +
+                mtclosed +
+                theme(axis.text.x = element_text(colour = "black"), axis.text.y = element_text(colour = "black", hjust = 1)) +
+                labs(x = "", y = "", title = paste0(ontology, " ", filter_var, " ", subtitle = test_type)) +
+                theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+                coord_equal()
+            mysaveandstore(sprintf("%s/%s/gsea_top_rtes_%s_%s.pdf", params[["outputdir"]], test_type, ontology, filter_var), w = 3 + .3 * (length(conf$levels) - 1), h = 3 + .3 * length(sigIDs))
+        }
     }
 }
 
@@ -238,7 +270,7 @@ gres %>% write_tsv(outputs$results_table)
 if (conf$store_env_as_rds == "yes") {
     save.image(file = outputs$environment)
 } else {
-    x = tibble(Env_file = "Opted not to store environment. If this is not desired, change 'store_plots_as_rds' to 'yes' in the relevant config file and rerun this rule.")
+    x <- tibble(Env_file = "Opted not to store environment. If this is not desired, change 'store_plots_as_rds' to 'yes' in the relevant config file and rerun this rule.")
     write_tsv(x, file = outputs$environment)
 }
 
@@ -257,5 +289,3 @@ tryCatch(
 
     }
 )
-
-

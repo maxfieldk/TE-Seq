@@ -7,6 +7,10 @@ conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
 source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 source("conf/sample_table_source.R")
+sample_table <- sample_table %>%
+    mutate(condition = factor(condition, levels = conf$levels)) %>%
+    arrange(condition)
+
 set.seed(123)
 # whether or not to store plots in list for figure generation at script end
 store_var <- "yes"
@@ -107,12 +111,17 @@ transcripts <- c(coding_transcripts, noncoding_transcripts)
     annot_colnames <- colnames(r_repeatmasker_annotation)
     annot_colnames_good <- annot_colnames[!(annot_colnames %in% c("gene_id", "family"))]
     ontologies <- annot_colnames_good[str_detect(annot_colnames_good, "_.*family")]
+<<<<<<< HEAD
     if (is.null(conf$repeat_ontologies_to_scrutinize)) {
         ontologies <- ontologies
     } else {
         ontologies <- ontologies[ontologies %in% conf$repeat_ontologies_to_scrutinize]
     }
     # ontologies <- c("rte_subfamily_limited")
+=======
+    # ontologies <- ontologies[ontologies %in% conf$repeat_ontologies_to_scrutinize]
+    ontologies <- c("rte_subfamily_limited")
+>>>>>>> 312357266a8e32e0be18ac428169e1269070d0e9
 
 
     small_ontologies <- ontologies[grepl("subfamily", ontologies)]
@@ -675,7 +684,7 @@ myheatmap_allsamples <- function(df, facet_var = "ALL", filter_var = "ALL", DEva
 
 # groupframe <- resultsdf %>%
 #     filter(rte_subfamily == group) %>%
-#     filter(counttype == counttype)
+#     filter(counttype == !!counttype)
 # p <- myheatmap_allsamples(groupframe, facet_var = "genic_loc", filter_var = "rte_length_req", DEvar = "DE", scaled = "notscaled", contrast_samples = contrast_samples, condition_vec = condition_vec)
 # mysave("temp1.pdf", 8, 8)
 
@@ -824,7 +833,7 @@ for (rte_fam in rte_fams) {
     mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats_allsigannot.pdf", outputdir, counttype, rte_fam), width + 1, height)
 
     p <- pf %>%
-        filter(grepl("Yng", req_integrative)) %>% 
+        filter(grepl("Yng", req_integrative)) %>%
         mutate(req_integrative = factor(req_integrative, levels = c("Old Trnc", "Old FL", "Yng Trnc", "Yng FL", "Yng Intact"))) %>%
         arrange(req_integrative) %>%
         ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = c("req_integrative", "genic_loc"), add = c("mean_se", "dotplot"), scales = "free_y") +
@@ -834,7 +843,7 @@ for (rte_fam in rte_fams) {
         scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = FALSE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
-    mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats_allsigannot_yng.pdf", outputdir, counttype, rte_fam), width + 1, height -2.5)
+    mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats_allsigannot_yng.pdf", outputdir, counttype, rte_fam), width + 1, height - 2.5)
 
 
     p <- pf %>%
@@ -1122,7 +1131,7 @@ for (contrast in contrasts) {
                 groups_that_have_been_run <- c(groups_that_have_been_run, group)
                 groupframe <- resultsdf %>%
                     filter(!!sym(ontology) == group)
-if (length(rownames(groupframe > 2000))) {
+                if (length(rownames(groupframe > 2000))) {
                     next
                 }
                 eligible_modifiers <- c()
