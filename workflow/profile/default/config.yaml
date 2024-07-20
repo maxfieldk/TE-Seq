@@ -23,13 +23,15 @@ set-resources:
         mem_mb: attempt * 35000
         runtime: attempt * 140
     srna_repeatanalysis_plots:
-        mem_mb: attempt * 35000
+        mem_mb: attempt * 100000
     srna_enrichment_analysis_repeats:
         mem_mb: attempt * 35000
     srna_enrichment_analysis:
         mem_mb: attempt * 35000
     srna_deseq:
         mem_mb: attempt * 35000
+    srna_bigwigplots:
+        mem_mb: attempt * 65000
     srna_common_sortIndexBam:
         mem_mb: attempt * 35000
     srna_alignSTAR_PE:

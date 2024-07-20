@@ -37,7 +37,7 @@ ann <- r_annotation_fragmentsjoined %>%
 {
     annot_colnames <- colnames(r_repeatmasker_annotation)
     annot_colnames_good <- annot_colnames[!(annot_colnames %in% c("gene_id", "family"))]
-    ontologies <- annot_colnames_good[str_detect(annot_colnames_good, "family")]
+    ontologies <- annot_colnames_good[str_detect(annot_colnames_good, "_.*family")]
     small_ontologies <- ontologies[grepl("subfamily", ontologies)]
 
     big_ontologies <- ontologies[!grepl("subfamily", ontologies)]
@@ -105,24 +105,30 @@ for (ontology in ontologies) {
                             dplyr::select(seqnames, start, end, gene_id, pctdiv, strand) %>%
                             dplyr::rename(name = gene_id, score = pctdiv) %>%
                             GRanges()
-                        mcols(ranges)[mcols(ranges)$score %>% is.na(),"score"] <- 0
-                        tryCatch({
-                        export(ranges, paste0(outputdir, "/", group, "_", filter_var, "_", facet_value, ".bed"))
-                        }, error = function(e) {
-                            print(paste0("Error exporting ", group, "_", filter_var, "_", facet_value, ".bed"))
-                        })
+                        mcols(ranges)[mcols(ranges)$score %>% is.na(), "score"] <- 0
+                        tryCatch(
+                            {
+                                export(ranges, paste0(outputdir, "/", group, "_", filter_var, "_", facet_value, ".bed"))
+                            },
+                            error = function(e) {
+                                print(paste0("Error exporting ", group, "_", filter_var, "_", facet_value, ".bed"))
+                            }
+                        )
                     }
                 } else {
                     ranges <- groupframe %>%
                         dplyr::select(seqnames, start, end, gene_id, pctdiv, strand) %>%
                         dplyr::rename(name = gene_id, score = pctdiv) %>%
                         GRanges()
-                    mcols(ranges)[mcols(ranges)$score %>% is.na(),"score"] <- 0
-                    tryCatch({
-                    export(ranges, paste0(outputdir, "/", group, "_", filter_var, "_ALL.bed"))
-                    }, error = function(e) {
-                        print(paste0("Error exporting ", group, "_", filter_var, "_ALL.bed"))
-                    })
+                    mcols(ranges)[mcols(ranges)$score %>% is.na(), "score"] <- 0
+                    tryCatch(
+                        {
+                            export(ranges, paste0(outputdir, "/", group, "_", filter_var, "_ALL.bed"))
+                        },
+                        error = function(e) {
+                            print(paste0("Error exporting ", group, "_", filter_var, "_ALL.bed"))
+                        }
+                    )
                 }
             }
         }
