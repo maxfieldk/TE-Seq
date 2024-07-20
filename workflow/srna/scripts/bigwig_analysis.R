@@ -186,8 +186,8 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
                         nbin <- 100
                         smlF <- genomation::ScoreMatrixList(targets = paths_bwF, windows = windowsF, strand.aware = TRUE, bin.num = nbin)
                         smlR <- genomation::ScoreMatrixList(targets = paths_bwR, windows = windowsR, strand.aware = TRUE, bin.num = nbin)
-                        mF <- plotMeta(smlF, plot = FALSE) %>% t()
-                        mR <- plotMeta(smlR, plot = FALSE) %>% t()
+                        mF <- genomation::plotMeta(smlF, plot = FALSE) %>% t()
+                        mR <- genomation::plotMeta(smlR, plot = FALSE) %>% t()
                         m <- mF + mR
                         df <- m %>%
                             as.data.frame() %>%
@@ -351,6 +351,8 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
                         }
                         mysaveandstore(sprintf("srna/results/agg/bigwig_plots/rte/%s_profile_by_condition_stranded.pdf", signal_group), 6, 6)
                     }
+                }, error = function(e) {
+                    print(e)
                 })
             }
         }

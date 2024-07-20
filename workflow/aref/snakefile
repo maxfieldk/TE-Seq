@@ -680,7 +680,7 @@ rule merge_genes_and_repeats_gff:
         "aref/benchmarks/merge_genes_and_repeats_gff/{sample_or_ref}.tsv"
     resources:
         mem_mb = 128000,
-        runtime = 300
+        runtime = 600
     conda:
         "omics"
     shell:
@@ -725,7 +725,7 @@ rule merge_genes_and_repeats_gtf:
         "aref/benchmarks/merge_genes_and_repeats_gtf/{sample_or_ref}.tsv"
     resources:
         mem_mb = 128000,
-        runtime = 300
+        runtime = 600
     conda:
         "omics"
     shell:
@@ -940,7 +940,7 @@ rule transduction_mapping:
         sample_or_ref = lambda w: w.sample_or_ref
     output:
         plots = "aref/{sample_or_ref}_Analysis/tldr_plots/transduction_mapping.rds",
-        circlize_phylogeny = "aref/{sample_or_ref}_Analysis/tldr_plots/circlize_phylogeny.png",
+        # circlize_phylogeny = "aref/{sample_or_ref}_Analysis/tldr_plots/circlize_phylogeny.png",
         # circlize_transduction = "aref/{sample_or_ref}_Analysis/tldr_plots/circlize_transduction.png",
         # transduction_df = "aref/{sample_or_ref}_Analysis/transduction_df.csv"
     benchmark:
