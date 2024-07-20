@@ -7,6 +7,9 @@ conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
 source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 source("conf/sample_table_source.R")
+sample_table <- sample_table %>%
+    mutate(condition = factor(condition, levels = conf$levels)) %>%
+    arrange(condition)
 set.seed(123)
 
 library(magrittr)
@@ -127,7 +130,7 @@ for (contrast in params[["contrasts"]]) {
         filter(gene_or_te == "repeat")
     ordered_by_stat <- setNames(res %>% pull(!!sym(contrast_stat)), res$gene_id) %>% na.omit()
 
-    for (ontology in ontologies) {
+    for (ontology in small_ontologies) {
         print(ontology)
         ontology_groups <- r_repeatmasker_annotation %>%
             pull(!!sym(ontology)) %>%
@@ -171,11 +174,11 @@ for (contrast in params[["contrasts"]]) {
                     gsepos <- GSEA(ordered_by_stat, TERM2GENE = genesets, maxGSSize = 10000, minGSSize = 1, pvalueCutoff = 0.05, seed = TRUE, scoreType = "pos")
                     gseneg <- GSEA(ordered_by_stat, TERM2GENE = genesets, maxGSSize = 10000, minGSSize = 1, pvalueCutoff = 0.05, seed = TRUE, scoreType = "neg")
                     dfstd <- gsestd@result %>% tibble()
-                    df$test_type <- "std"
+                    dfstd$test_type <- "std"
                     dfpos <- gsepos@result %>% tibble()
-                    df$test_type <- "pos"
+                    dfpos$test_type <- "pos"
                     dfneg <- gseneg@result %>% tibble()
-                    df$test_type <- "neg"
+                    dfneg$test_type <- "neg"
                     df <- bind_rows(bind_rows(dfstd, dfpos), dfneg)
                     df$collection <- ontology
                     df$contrast <- contrast
@@ -225,10 +228,10 @@ for (contrast in params[["contrasts"]]) {
     }
 }
 
-contrast_label_map <- tibble(contrast = params[["contrasts"]], label = gsub("constrast_", "", params[["contrasts"]]))
+contrast_label_map <- tibble(contrast = params[["contrasts"]], label = gsub("condition_", "", params[["contrasts"]]))
 gres <- gse_df %>% tibble()
 for (test_type in c("std", "pos", "neg")) {
-    for (ontology in ontologies) {
+    for (ontology in small_ontologies) {
         for (filter_var in gres %$% filter_var %>% unique()) {
             grestemp <- gres %>%
                 filter(test_type == !!test_type) %>%
@@ -254,7 +257,7 @@ for (test_type in c("std", "pos", "neg")) {
                 scale_fill_gradient2(high = "red", mid = "white", low = "blue") +
                 mtclosed +
                 theme(axis.text.x = element_text(colour = "black"), axis.text.y = element_text(colour = "black", hjust = 1)) +
-                labs(x = "", y = "", title = paste0(ontology, " ", filter_var)) +
+                labs(x = "", y = "", title = paste0(ontology, " ", filter_var, " ", subtitle = test_type)) +
                 theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
                 coord_equal()
             mysaveandstore(sprintf("%s/%s/gsea_top_rtes_%s_%s.pdf", params[["outputdir"]], test_type, ontology, filter_var), w = 3 + .3 * (length(conf$levels) - 1), h = 3 + .3 * length(sigIDs))
@@ -262,7 +265,6 @@ for (test_type in c("std", "pos", "neg")) {
     }
 }
 
-gres %$% contrast
 gres %>% write_tsv(outputs$results_table)
 
 if (conf$store_env_as_rds == "yes") {

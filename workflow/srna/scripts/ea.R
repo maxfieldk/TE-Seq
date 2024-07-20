@@ -8,6 +8,9 @@ confALL <- configr::read.config(file = "conf/config.yaml")
 source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 source("conf/sample_table_source.R")
+sample_table <- sample_table %>%
+    mutate(condition = factor(condition, levels = conf$levels)) %>%
+    arrange(condition)
 set.seed(123)
 
 library(magrittr)
@@ -310,7 +313,7 @@ tryCatch(
             condition_vec <- sample_table %>% filter(sample_name %in% contrast_samples) %$% condition
             res <- res %>% arrange(-!!sym(contrast_stat))
 
-            for (collec in genecollections[1]) {
+            for (collec in genecollections) {
                 gse <- gse_df %>% filter(collection == collec)
                 df <- arrange(gse, -abs(NES)) %>%
                     group_by(sign(NES)) %>%
@@ -746,10 +749,10 @@ for (contrast in params[["contrasts"]]) {
                         pull(condition)
 
                     p <- pvp(tidydf %>% filter(gene_id %in% genestoplot), labels = "no", scale_log2 = "yes")
-                    mysaveandstore(sprintf("%s/%s/gsea/%s/all_genes/scatter_%s.pdf", params[["outputdir"]], contrast, collection, set_title), w = 5, h = 5, res = 300)
+                    mysaveandstore(sprintf("%s/%s/gsea/%s/all_genes/scatter_%s.pdf", params[["outputdir"]], contrast, collec, set_title), w = 5, h = 5, res = 300)
 
                     p <- pvp(tidydf %>% filter(gene_id %in% genestoplot), labels = "yes", scale_log2 = "yes")
-                    mysaveandstore(sprintf("%s/%s/gsea/%s/all_genes/scatter_labs_%s.pdf", params[["outputdir"]], contrast, collection, set_title), w = 5, h = 5, res = 300)
+                    mysaveandstore(sprintf("%s/%s/gsea/%s/all_genes/scatter_labs_%s.pdf", params[["outputdir"]], contrast, collec, set_title), w = 5, h = 5, res = 300)
 
                     heatmapprep <- res %>% filter(gene_id %in% genestoplot)
                     m <- as.matrix(heatmapprep %>% dplyr::select(sample_vec))
@@ -795,7 +798,7 @@ for (contrast in params[["contrasts"]]) {
                     lgd_sig <- Legend(pch = "*", type = "points", labels = "< 0.05")
                     # these two self-defined legends are added to the plot by `annotation_legend_list`
                     p <- wrap_elements(grid.grabExpr(draw(hm, annotation_legend_list = list(lgd_pvalue_adj, lgd_sig), heatmap_legend_side = "bottom", annotation_legend_side = "bottom")))
-                    mysaveandstore(sprintf("%s/%s/gsea/%s/core_enrichments/heatmap_%s.pdf", params[["outputdir"]], contrast, collection, set_title), w = min(dim(scaledm)[2], 12), h = min(dim(scaledm)[1], 12), res = 300)
+                    mysaveandstore(sprintf("%s/%s/gsea/%s/core_enrichments/heatmap_%s.pdf", params[["outputdir"]], contrast, collec, set_title), w = min(dim(scaledm)[2], 12), h = min(dim(scaledm)[1], 12), res = 300)
                 },
                 error = function(e) {
                     print("")

@@ -4,6 +4,10 @@ conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
 source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 source("conf/sample_table_source.R")
+sample_table <- sample_table %>%
+    mutate(condition = factor(condition, levels = conf$levels)) %>%
+    arrange(condition)
+
 set.seed(123)
 # whether or not to store plots in list for figure generation at script end
 store_var <- "yes"
@@ -82,7 +86,6 @@ tryCatch(
 
 outputdir <- params$outputdir
 contrasts <- conf$contrasts
-sample_table <- read.csv(conf$sample_table)
 counttype <- params$counttype
 
 ## Load Data and add annotations
