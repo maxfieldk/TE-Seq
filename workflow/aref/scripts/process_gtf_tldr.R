@@ -98,9 +98,10 @@ cytobands <- cytobandsdf %>%
 overlaps <- findOverlaps(gr_for_overlap_analysis, cytobands, select = "first")
 gr_for_overlap_analysis$cytobands <- mcols(cytobands[overlaps])$X4
 
-new_id_mapping <- gr_for_overlap_analysis %>%
+new_id_mapping_ref <- gr_for_overlap_analysis %>%
     as.data.frame() %>%
     tibble() %>%
+    filter(refstatus == "Ref") %>% 
     mutate(element_basename = str_split(family, "/") %>% map_chr(tail, 1)) %>%
     mutate(cytobands_good = paste0(str_replace(seqnames, "chr", ""), cytobands)) %>%
     group_by(element_basename, cytobands_good) %>%
@@ -108,12 +109,20 @@ new_id_mapping <- gr_for_overlap_analysis %>%
     ungroup() %>%
     relocate(gene_id, new_id)
 
+new_id_mapping_nonref <- gr_for_overlap_analysis %>%
+    as.data.frame() %>%
+    tibble() %>%
+    filter(refstatus == "NonRef") %>% 
+    mutate(element_basename = str_split(family, "/") %>% map_chr(tail, 1)) %>%
+    mutate(cytobands_good = paste0(str_replace(seqnames, "chr", ""), cytobands)) %>%
+    group_by(element_basename, cytobands_good) %>%
+    mutate(new_id = paste0(element_basename, "_","NI_", cytobands_good, "_", row_number()), n = n()) %>%
+    ungroup() %>%
+    relocate(gene_id, new_id)
 
-new_id_mapping <- new_id_mapping %>%
+new_id_mapping <- bind_rows(new_id_mapping_ref, new_id_mapping_nonref) %>%
     dplyr::select(gene_id, new_id) %>%
     dplyr::rename(GiesmaID = new_id)
-
-
 
 rmgr <- GRanges(rm %>% full_join(new_id_mapping) %>% relocate(GiesmaID, .after = gene_id) %>% dplyr::rename(nonref_insert_id = gene_id) %>% dplyr::rename(gene_id = GiesmaID) %>% dplyr::relocate(-nonref_insert_id))
 # write_csv(rm3 %>% full_join(new_id_mapping) %>% relocate(GiesmaID, .after = gene_id) %>% dplyr::select(-gene_id) %>% dplyr::rename(gene_id = GiesmaID), outputs$r_annotation)

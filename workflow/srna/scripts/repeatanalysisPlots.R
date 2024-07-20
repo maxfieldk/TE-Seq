@@ -1,5 +1,8 @@
-# module_name <- "srna"
+if (interactive()) {
+module_name <- "srna"
+} else {
 module_name <- snakemake@params$module_name
+}
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
 source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
@@ -82,7 +85,6 @@ tryCatch(
 
 outputdir <- params$outputdir
 contrasts <- conf$contrasts
-sample_table <- read.csv(conf$sample_table)
 counttype <- params$counttype
 
 ## Load Data and add annotations
@@ -100,18 +102,17 @@ coding_transcripts <- refseq[(mcols(refseq)$type == "transcript" & grepl("^NM", 
 noncoding_transcripts <- refseq[(mcols(refseq)$type == "transcript" & grepl("^NR", mcols(refseq)$transcript_id))]
 transcripts <- c(coding_transcripts, noncoding_transcripts)
 
-r_annotation_fragmentsjoined %$% refstatus %>% table()
-
-resultsdfwithgenes
-resultsdf
-resultsdf %$% counttype %>% table()
 ### ONTOLOGY DEFINITION
 {
     annot_colnames <- colnames(r_repeatmasker_annotation)
     annot_colnames_good <- annot_colnames[!(annot_colnames %in% c("gene_id", "family"))]
-    ontologies <- annot_colnames_good[str_detect(annot_colnames_good, "family")]
-    # ontologies <- ontologies[ontologies %in% conf$repeat_ontologies_to_scrutinize]
-    ontologies <- c("rte_subfamily_limited")
+    ontologies <- annot_colnames_good[str_detect(annot_colnames_good, "_.*family")]
+    if (is.null(conf$repeat_ontologies_to_scrutinize)) {
+        ontologies <- ontologies
+    } else {
+        ontologies <- ontologies[ontologies %in% conf$repeat_ontologies_to_scrutinize]
+    }
+    # ontologies <- c("rte_subfamily_limited")
 
 
     small_ontologies <- ontologies[grepl("subfamily", ontologies)]
@@ -725,24 +726,23 @@ for (group_var in c("repeat_superfamily", "rte_subfamily", "rte_family", "l1_sub
         mutate(base_level_mean = dplyr::first(pan_condition_sum)) %>%
         ungroup() %>%
         mutate(l2fc = log2(pan_subfamily_sum / base_level_mean)) %>%
+        mutate(condition_l2fc = log2(pan_condition_sum / base_level_mean)) %>%
         drop_na() %>%
         filter(l2fc != Inf) %>%
         filter(l2fc != -Inf)
-    stat_frame %>%
-        arrange(-base_level_mean) %>%
-        print(n = 100)
-    p <- stat_frame %>% ggbarplot(x = group_var, y = "l2fc", fill = "condition", add = c("mean_se"), position = position_dodge(), ) +
+    stat_frame_condition_av <- stat_frame %>% group_by(condition, !!sym(group_var)) %>% summarize(l2fc = dplyr::first(condition_l2fc)) %>% ungroup()
+    p <- stat_frame_condition_av %>% ggbarplot(x = group_var, y = "l2fc", fill = "condition", add = c("mean_se"), position = position_dodge(), ) +
         labs(x = "", y = "log2FC", subtitle = counttype_label, title = ontology_to_title(group_var)) +
         mtclosedgridh +
         scale_conditions +
         anchorbar +
-        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-        geom_pwc(
-            aes(group = condition),
-            tip.length = 0,
-            method = "t_test", label = "p.adj.format",
-            p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1]
-        )
+        theme(axis.text.x = element_text(angle = 45, hjust = 1))
+        # geom_pwc(
+        #     aes(group = condition),
+        #     tip.length = 0,
+        #     method = "t_test", label = "p.adj.format",
+        #     p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1]
+        # )
     # stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1])
     mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar.pdf", outputdir, counttype, group_var), length(stat_frame %$% condition %>% unique()) * length(stat_frame %>% pull(!!sym(group_var)) %>% unique()) * 0.2 + 1.5, 4)
 
@@ -770,6 +770,7 @@ for (group_var in c("repeat_superfamily", "rte_subfamily", "rte_family", "l1_sub
 
     p <- wrap_elements(grid.grabExpr(draw(hm, heatmap_legend_side = "right", annotation_legend_side = "right")))
     mysaveandstore(sprintf("%s/%s/pan_contrast/%s_heatmap.pdf", outputdir, counttype, group_var), 0.5 + length(colnames(m)) * 0.35, 1.75 + length(rownames(m)) * 0.25)
+
 }
 
 
@@ -933,7 +934,6 @@ for (rte_subfam in rte_subfams) {
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = FALSE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
     mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats_allsigannot.pdf", outputdir, counttype, rte_subfam), width, height)
 
-
     pf <- df %>%
         group_by(sample, req_integrative, condition, refstatus) %>%
         summarise(sample_sum = sum(counts), condition = dplyr::first(condition)) %>%
@@ -1009,6 +1009,11 @@ for (contrast in contrasts) {
     groups_that_have_been_run <- c()
     groups_not_to_run <- c()
     for (ontology in ontologies) {
+        ontologyframe <- tidydf %>% dplyr::filter(!!sym(ontology) != "Other")
+
+
+
+
         ontology_groups <- r_repeatmasker_annotation %>%
             pull(!!sym(ontology)) %>%
             unique()

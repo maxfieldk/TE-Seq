@@ -76,9 +76,9 @@ transcripts <- c(coding_transcripts, noncoding_transcripts)
 table(mcols(coding_transcripts)$tag)
 
 tryCatch({
-    norm_by_aligned_reads <- read_delim("srna/qc/multiqc/multiqc_data/samtools-stats-dp.txt") %>% filter(Sample %in% sample_table$sample_name) %>% mutate(meanmandp = mean(`Mapped &amp; paired`)) %>% mutate(scale_factor = `Mapped &amp; paired`/meanmandp) %>% dplyr::select(Sample, scale_factor, `Mapped &amp; paired`, meanmandp) %>% dplyr::rename(sample_name = Sample)
+    norm_by_aligned_reads <<- read_delim("srna/qc/multiqc/multiqc_data/samtools-stats-dp.txt") %>% filter(Sample %in% sample_table$sample_name) %>% mutate(meanmandp = mean(`Mapped &amp; paired`)) %>% mutate(scale_factor = `Mapped &amp; paired`/meanmandp) %>% dplyr::select(Sample, scale_factor, `Mapped &amp; paired`, meanmandp) %>% dplyr::rename(sample_name = Sample)
 },    error = function(e) {
-    norm_by_aligned_reads <- read_delim("srna/qc/multiqc/multiqc_data/multiqc_samtools_stats.txt") %>% filter(Sample %in% sample_table$sample_name) %>% mutate(meanmandp = mean(reads_mapped_and_paired)) %>% mutate(scale_factor = reads_mapped_and_paired/meanmandp) %>% dplyr::select(Sample, scale_factor, reads_mapped_and_paired, meanmandp) %>% dplyr::rename(sample_name = Sample)
+    norm_by_aligned_reads <<- read_delim("srna/qc/multiqc/multiqc_data/multiqc_samtools_stats.txt") %>% filter(Sample %in% sample_table$sample_name) %>% mutate(meanmandp = mean(reads_mapped_and_paired)) %>% mutate(scale_factor = reads_mapped_and_paired/meanmandp) %>% dplyr::select(Sample, scale_factor, reads_mapped_and_paired, meanmandp) %>% dplyr::rename(sample_name = Sample)
 
 })
 
@@ -349,17 +349,18 @@ grs_list <- list()
 for (sample in sample_table$sample_name) {
     bwF <- import(grep(sprintf("/%s/", sample), paths_bwF, value = TRUE))
     strand(bwF) <- "+"
-
     bwR <- import(grep(sprintf("/%s/", sample), inputs$bwR, value = TRUE))
     strand(bwR) <- "-"
     grstemp <- c(bwF, bwR)
+    grstemp <- grstemp[!grepl("^NI", seqnames(grstemp))]
+    seqlevels(grstemp, pruning.mode = "coarse") <- seqlevelsInUse(grstemp)
     mcols(grstemp)$sample_name <- sample
     mcols(grstemp)$score <- mcols(grstemp)$score / norm_by_aligned_reads$scale_factor[norm_by_aligned_reads$sample_name == sample]
-    grs_list[[sample]] <- grstemp
+    grs_list[[sample]] <- grstemp    
 }
 grs <- Reduce(c, grs_list)
-
 txdb <- loadDb(params$txdbrefseq)
+rmgrs <- rmann %>% GRanges()
 introns <- intronsByTranscript(txdb, use.names = TRUE)
 # introns <- introns[grepl("^NM", names(introns))]
 introns <- introns[names(introns) %in% mcols(refseq_select)$transcript_id]
@@ -388,12 +389,24 @@ exonic_annot <- getannotation(grs, exons, "exonic", "Exonic", "NonExonic") %>%
 intron_annot <- getannotation(grs, introns, "intronic", "Intronic", "NonIntronic") %>%
     as.data.frame() %>%
     tibble()
-
 region_annot <- left_join(exonic_annot, intron_annot)
-
+rm(rmgrs)
+rm(exonic_annot)
+rm(intron_annot)
+rm_annot <- getannotation(grs, rmgrs, "repetitive", "Repetitive", "NonRepetitive") %>%
+    as.data.frame() %>%
+    tibble()
+rm(grs)
 region_annot1 <- region_annot %>% mutate(loc_integrative = case_when(
     exonic == "Exonic" ~ "Exonic",
     intronic == "Intronic" ~ "Intronic",
+    TRUE ~ "Intergenic"
+))
+region_annot_rm <- left_join(region_annot, rm_annot) 
+region_annot_rm <- region_annot_rm %>% mutate(loc_integrative = case_when(
+    exonic == "Exonic" ~ "Exonic",
+    intronic == "Intronic" ~ "Intronic",
+    repetitive == "Repetitive" ~ "Repetitive",
     TRUE ~ "Intergenic"
 ))
 
@@ -428,7 +441,77 @@ p <- pf %>%
     ) + scale_conditions + mtclosed + anchorbar + labs(x = "", y = "Normalized Read Count")
 
 mysaveandstore(sprintf("srna/results/agg/bigwig_plots/genomic_context/gene_oriented_signal_faceted.pdf"), 8, 3.8)
-library(scales)
+
+pf <- region_annot_rm %>%
+    group_by(sample_name, loc_integrative) %>%
+    summarise(score_sum = sum(score)) %>%
+    left_join(sample_table) %>%
+    ungroup()
+
+barframe <- pf %>%
+    group_by(condition, loc_integrative) %>%
+    summarise(score_condition_mean = mean(score_sum))
+
+p <- pf %>%
+    mutate(condition = factor(condition, levels = conf$levels)) %>%
+    ggbarplot(x = "loc_integrative", y = "score_sum", fill = "condition", scales = "free_y", add = c("mean_se"), position = position_dodge()) +
+    stat_pwc(
+        aes(group = condition),
+        method = "t_test", label = "p.adj.format", ref.group = conf$levels[1],
+        p.adjust.method = "fdr", hide.ns = TRUE
+    ) + scale_conditions + mtclosed + anchorbar + labs(x = "", y = "Normalized Read Count")
+
+mysaveandstore(sprintf("srna/results/agg/bigwig_plots/genomic_context/gene_oriented_signal_rm.pdf"), 6, 3.8)
+
+p <- pf %>%
+    mutate(condition = factor(condition, levels = conf$levels)) %>%
+    ggbarplot(x = "condition", y = "score_sum", facet.by = "loc_integrative", fill = "condition", scales = "free_y", add = c("mean_se", "dotplot")) +
+    geom_pwc(
+        method = "t_test", label = "p.adj.signif",
+        ref.group = conf$levels[1],
+        p.adjust.method = "fdr", hide.ns = TRUE
+    ) + scale_conditions + mtclosed + anchorbar + labs(x = "", y = "Normalized Read Count")
+
+mysaveandstore(sprintf("srna/results/agg/bigwig_plots/genomic_context/gene_oriented_signal_faceted_rm.pdf"), 8, 3.8)
+
+region_annot_rm_rmpriority <- region_annot_rm %>% mutate(loc_integrative = case_when(
+    exonic == "Exonic" ~ "Exonic",
+    repetitive == "Repetitive" ~ "Repetitive",
+    intronic == "Intronic" ~ "Intronic",
+    TRUE ~ "Intergenic"
+))
+
+pf <- region_annot_rm_rmpriority %>%
+    group_by(sample_name, loc_integrative) %>%
+    summarise(score_sum = sum(score)) %>%
+    left_join(sample_table) %>%
+    ungroup()
+
+barframe <- pf %>%
+    group_by(condition, loc_integrative) %>%
+    summarise(score_condition_mean = mean(score_sum))
+
+p <- pf %>%
+    mutate(condition = factor(condition, levels = conf$levels)) %>%
+    ggbarplot(x = "loc_integrative", y = "score_sum", fill = "condition", scales = "free_y", add = c("mean_se"), position = position_dodge()) +
+    stat_pwc(
+        aes(group = condition),
+        method = "t_test", label = "p.adj.format", ref.group = conf$levels[1],
+        p.adjust.method = "fdr", hide.ns = TRUE
+    ) + scale_conditions + mtclosed + anchorbar + labs(x = "", y = "Normalized Read Count")
+
+mysaveandstore(sprintf("srna/results/agg/bigwig_plots/genomic_context/gene_oriented_signal_rmpriority.pdf"), 6, 3.8)
+
+p <- pf %>%
+    mutate(condition = factor(condition, levels = conf$levels)) %>%
+    ggbarplot(x = "condition", y = "score_sum", facet.by = "loc_integrative", fill = "condition", scales = "free_y", add = c("mean_se", "dotplot")) +
+    geom_pwc(
+        method = "t_test", label = "p.adj.signif",
+        ref.group = conf$levels[1],
+        p.adjust.method = "fdr", hide.ns = TRUE
+    ) + scale_conditions + mtclosed + anchorbar + labs(x = "", y = "Normalized Read Count")
+
+mysaveandstore(sprintf("srna/results/agg/bigwig_plots/genomic_context/gene_oriented_signal_faceted_rmpriority.pdf"), 8, 3.8)
 
 if (conf$store_env_as_rds == "yes") {
     save.image(file = outputs$environment)
