@@ -249,7 +249,7 @@ RM <- GRanges(rmann)
 {
     annot_colnames <- colnames(r_repeatmasker_annotation)
     annot_colnames_good <- annot_colnames[!(annot_colnames %in% c("gene_id", "family"))]
-    ontologies <- annot_colnames_good[str_detect(annot_colnames_good, "family")]
+    ontologies <- annot_colnames_good[str_detect(annot_colnames_good, "_.*family")]
     small_ontologies <- ontologies[grepl("subfamily", ontologies)]
 
     big_ontologies <- ontologies[!grepl("subfamily", ontologies)]
