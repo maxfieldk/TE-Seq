@@ -93,8 +93,8 @@ counttype <- params$counttype
 
 ## Load Data and add annotations
 resultsdf1 <- read_delim(inputs$resultsdf, delim = "\t") %>% filter(counttype == !!counttype)
-r_annotation_fragmentsjoined <- read_csv(inputs$r_annotation_fragmentsjoined)
-r_repeatmasker_annotation <- read_csv(inputs$r_repeatmasker_annotation) %>%
+r_annotation_fragmentsjoined <- read_csv(params$r_annotation_fragmentsjoined)
+r_repeatmasker_annotation <- read_csv(params$r_repeatmasker_annotation) %>%
     mutate(req_integrative = factor(req_integrative, levels = c("Old Trnc", "Old FL", "Yng Trnc", "Yng FL", "Yng Intact"))) %>%
     mutate(ltr_viral_status = factor(ltr_viral_status, levels = c("Int (Has 5LTR)", "Int (No 5'LTR)", "5'LTR (FL Int)", "3'LTR (FL Int)", "5'LTR (Trnc Int)", "3'LTR (Trnc Int)", "LTR (Solo)", "Other")))
 resultsdfwithgenes <- resultsdf1 %>%
