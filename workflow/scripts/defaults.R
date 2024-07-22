@@ -28,31 +28,48 @@ mysave <- function(fn = "ztmp.pdf", w = 5, h = 5, res = 600, pl = p, store = sto
     dir.create(dn, showWarnings = FALSE, recursive = TRUE)
 
     if (raster == TRUE) {
-            tryCatch({
-            png(gsub(".pdf", ".png", fn), width = w, height = h, units = "in", res = res)
-            print(pl)
-            dev.off()
-            print(paste(getwd(),gsub(".pdf", ".png", fn), sep = "/"))
-            }
-            , error = function(e) {
+        tryCatch(
+            {
+                png(gsub(".pdf", ".png", fn), width = w, height = h, units = "in", res = res)
+                print(pl)
+                dev.off()
+                print(paste(getwd(), gsub(".pdf", ".png", fn), sep = "/"))
+            },
+            error = function(e) {
                 print("plot not saved")
                 print(e)
+                tryCatch(
+                    {
+                        dev.off()
+                    },
+                    error = function(e) {
+                        print(e)
+                    }
+                )
             }
-            )
+        )
     } else {
-    tryCatch(
-        {
-            cairo_pdf(fn, width = w, height = h, family = "Helvetica")
-            print(pl)
-            dev.off()
-            print(paste(getwd(),fn, sep = "/"))
-        },
-        error = function(e) {
-            print("plot not saved")
-            print(e)
-        }
-    )
-}
+        tryCatch(
+            {
+                cairo_pdf(fn, width = w, height = h, family = "Helvetica")
+                print(pl)
+                dev.off()
+                print(paste(getwd(), fn, sep = "/"))
+            },
+            error = function(e) {
+                print("plot not saved")
+                print(e)
+                tryCatch(
+                    {
+                        dev.off()
+                    },
+                    error = function(e) {
+                        print(e)
+                    }
+                )
+            }
+        )
+    }
 }
 store_var <- "yes"
 mysaveandstore <- function(fn = "ztmp.pdf", w = 5, h = 5, res = 600, pl = p, store = store_var, raster = FALSE, sf = NULL) {
@@ -60,44 +77,60 @@ mysaveandstore <- function(fn = "ztmp.pdf", w = 5, h = 5, res = 600, pl = p, sto
     dir.create(dn, showWarnings = FALSE, recursive = TRUE)
 
     if (raster == TRUE) {
-            tryCatch({
-            png(gsub(".pdf", ".png", fn), width = w, height = h, units = "in", res = res)
-            print(pl)
-            dev.off()
-            print(paste(getwd(),gsub(".pdf", ".png", fn), sep = "/"))
-            }
-            , error = function(e) {
+        tryCatch(
+            {
+                png(gsub(".pdf", ".png", fn), width = w, height = h, units = "in", res = res)
+                print(pl)
+                dev.off()
+                print(paste(getwd(), gsub(".pdf", ".png", fn), sep = "/"))
+            },
+            error = function(e) {
                 print("plot not saved")
                 print(e)
+                tryCatch(
+                    {
+                        dev.off()
+                    },
+                    error = function(e) {
+                        print(e)
+                    }
+                )
             }
-            )
+        )
     } else {
-    tryCatch(
-        {
-            cairo_pdf(fn, width = w, height = h, family = "Helvetica")
-            print(pl)
-            dev.off()
-            print(paste(getwd(),fn, sep = "/"))
-        },
-        error = function(e) {
-            print("plot not saved")
-            print(e)
-        }
-    )
+        tryCatch(
+            {
+                cairo_pdf(fn, width = w, height = h, family = "Helvetica")
+                print(pl)
+                dev.off()
+                print(paste(getwd(), fn, sep = "/"))
+            },
+            error = function(e) {
+                print("plot not saved")
+                print(e)
+                tryCatch(
+                    {
+                        dev.off()
+                    },
+                    error = function(e) {
+                        print(e)
+                    }
+                )
+            }
+        )
 
-    if (!exists("mysaveandstoreplots")) {
-        mysaveandstoreplots <<- list()
-    }
-    if (store == "yes") {
-        mysaveandstoreplots[[fn]] <<- pl
-        print("plot_stored!")
+        if (!exists("mysaveandstoreplots")) {
+            mysaveandstoreplots <<- list()
+        }
+        if (store == "yes") {
+            mysaveandstoreplots[[fn]] <<- pl
+            print("plot_stored!")
         }
     }
     if (!is.null(sf)) {
         write_delim(sf, gsub(".pdf", "_stats.tsv", fn), delim = "\t", col_names = TRUE)
-        print(paste(getwd(),gsub(".pdf", "_stats.tsv", fn), sep = "/"))
+        print(paste(getwd(), gsub(".pdf", "_stats.tsv", fn), sep = "/"))
     }
-
 }
 
 
@@ -118,22 +151,22 @@ mtopengridh <- theme_cowplot(font_family = "helvetica") + background_grid(major 
 mtopengridv <- theme_cowplot(font_family = "helvetica") + background_grid(major = "x", minor = "none")
 
 mtclosed <- theme_cowplot(font_family = "helvetica") +
-    panel_border(color= "black") +
+    panel_border(color = "black") +
     theme(axis.line = element_blank()) +
     theme(strip.background = element_blank(), strip.text = element_text(size = 12)) +
     theme(panel.spacing = unit(4, "mm"))
 mtclosedgrid <- theme_cowplot(font_family = "helvetica") +
-    panel_border(color= "black") +
+    panel_border(color = "black") +
     theme(axis.line = element_blank()) +
     theme(strip.background = element_blank(), strip.text = element_text(size = 12)) +
     theme(panel.spacing = unit(4, "mm")) + background_grid(minor = "none")
 mtclosedgridh <- theme_cowplot(font_family = "helvetica") +
-    panel_border(color= "black") +
+    panel_border(color = "black") +
     theme(axis.line = element_blank()) +
     theme(strip.background = element_blank(), strip.text = element_text(size = 12)) +
     theme(panel.spacing = unit(4, "mm")) + background_grid(major = "y", minor = "none")
 mtclosedgridv <- theme_cowplot(font_family = "helvetica") +
-    panel_border(color= "black") +
+    panel_border(color = "black") +
     theme(axis.line = element_blank()) +
     theme(strip.background = element_blank(), strip.text = element_text(size = 12)) +
     theme(panel.spacing = unit(4, "mm")) + background_grid(major = "x", minor = "none")
@@ -204,4 +237,3 @@ anchorb <- list(
 #     scale_fill_manual(values = my_palette[c(2, 1, 9)]),
 #     theme(panel.border = element_rect(color = "black", fill = NA, size = 1))
 # )
-
