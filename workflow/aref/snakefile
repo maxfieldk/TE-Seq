@@ -71,8 +71,9 @@ def aref_complete_input(wildcards):
 paths = [
     "aref/benchmarks",
     ]
-for path in paths:
-    os.makedirs(path, exist_ok = True)
+if config["symlink_aref"]["response"] == "no":
+    for path in paths:
+        os.makedirs(path, exist_ok = True)
 
 rule all:
     input: ancient("aref.done.outfile")
@@ -83,6 +84,7 @@ rule aref_complete:
 rule sym_link:
     input:
         aref_dir = config["symlink_aref"]["aref_symlinkdir"]
+    priority: 100
     output:
         "aref.done.outfile"
     shell:
