@@ -164,8 +164,7 @@ fastp -i {input.r1} -o {output.r1} --json {output.json} --html {output.html} --t
 
 rule mycoplasmaCheck:
     input:
-        r1 = "srna/outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz",
-        r2 = "srna/outs/{sample}/trimmedReads/{sample}_2.trimmed.fastq.gz"
+        r1 = "srna/outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz"
     output:
         sam = "srna/qc/mycoplasma/mycoplasma{sample}.sam"
     benchmark:
@@ -178,7 +177,7 @@ rule mycoplasmaCheck:
     shell:
         """
 mkdir -p $(dirname {output.sam})
-bowtie2 --threads 10 -x resources/genomes/mycoplasma/mycoplasma_index -1 {input.r1} -2 {input.r2} -S {output.sam}
+bowtie2 --threads 10 -x resources/genomes/mycoplasma/mycoplasma_index -1 {input.r1} -S {output.sam}
 samtools stats {output.sam} > {output.sam}.stats.txt
         """
 
@@ -446,7 +445,7 @@ rule telescope:
         libtype = "srna/qc/library_type.txt",
     params:
         strandparam = getTelescopeStrandParam(),
-        bed = lambda wildcards: "aref/%s_annotations/%s_repeatmasker.complete.bed"%(wildcards.sample, wildcards.sample) if config["per_sample_ref"] == "yes" else "aref/A.REF_annotations/A.REF_repeatmasker.complete.bed"
+        gff = lambda wildcards: "aref/%s_annotations/%s_repeatmasker.gff2"%(wildcards.sample, wildcards.sample) if config["per_sample_ref"] == "yes" else "aref/A.REF_annotations/A.REF_repeatmasker.gff2"
     retries: 3
     output:
         counts = "srna/outs/{sample}/telescope/telescope-run_stats.tsv"
@@ -588,14 +587,14 @@ rule enrichment_analysis_repeats:
 
 rule repeatanalysis_plots:
     input:
-        resultsdf = "srna/results/agg/deseq/resultsdf.tsv",
-        r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
-        r_repeatmasker_annotation = config["r_repeatmasker_annotation"]
+        resultsdf = "srna/results/agg/deseq/resultsdf.tsv"
     params:
         counttype = lambda w: w.counttype,
         contrasts = config["contrasts"],
         inputdir = lambda w, input: os.path.dirname(input.resultsdf),
         outputdir = lambda w, output: os.path.dirname(os.path.dirname(output.environment)),
+        r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
+        r_repeatmasker_annotation = config["r_repeatmasker_annotation"],
         module_name = "srna"
     benchmark:
         "srna/benchmarks/repeatanalysis_plots/{counttype}.tsv"

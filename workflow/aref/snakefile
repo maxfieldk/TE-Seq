@@ -71,8 +71,9 @@ def aref_complete_input(wildcards):
 paths = [
     "aref/benchmarks",
     ]
-for path in paths:
-    os.makedirs(path, exist_ok = True)
+if config["symlink_aref"]["response"] == "no":
+    for path in paths:
+        os.makedirs(path, exist_ok = True)
 
 rule all:
     input: ancient("aref.done.outfile")
@@ -83,8 +84,9 @@ rule aref_complete:
 rule sym_link:
     input:
         aref_dir = config["symlink_aref"]["aref_symlinkdir"]
+    priority: 100
     output:
-        ancient("aref.done.outfile")
+        "aref.done.outfile"
     shell:
         """
 ln -s {input.aref_dir} aref
@@ -236,9 +238,9 @@ mkdir -p $(dirname {output.subsampled})
 
 samtools view -b {input.bam} chr10 > {output.subsampled}
         """
-
-if config["update_ref_with_tldr"]["per_sample"] == "no":
-    ruleorder: merge_bams_when_per_sample_is_no_for_ldna_variants > sortBam 
+if config["update_ref_with_tldr"]["response"] == "yes":
+    if config["update_ref_with_tldr"]["per_sample"] == "no":
+        ruleorder: merge_bams_when_per_sample_is_no_for_ldna_variants > sortBam 
 rule merge_bams_when_per_sample_is_no_for_ldna_variants:
     input:
         sorted_bams = expand("aref/intermediates/{sample}/alignments/{{rate}}/{sample}.{{type}}.{{modifications_string}}.sorted.bam", sample = config["samples"])
@@ -670,8 +672,8 @@ agat_convert_sp_gff2bed.pl --gff {input.complete_gff3} -o {output.bed12}.temp
 awk '!/#/ {{print}}' {output.bed12}.temp | awk '{{FS="\t";OFS="\t"}} $4 < 900000000000 {{print}}' | sort -k1,1V -k2,2n -k3,3n > {output.bed12}
 rm {output.bed12}.temp
         """
-
-ruleorder: merge_genes_and_repeats_gff > complete_gff3 
+if config["symlink_aref"]["response"] == "no":
+    ruleorder: merge_genes_and_repeats_gff > complete_gff3 
 rule merge_genes_and_repeats_gff:
     input:
         complete_repeat_gff3 = "aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker.complete.gff3",
@@ -715,7 +717,8 @@ cat {output.merged_gff3}.temp | sort -k1,1V -k4,4n -k5,5n > {output.merged_gff3}
 rm {output.merged_gff3}.temp
         """
 
-ruleorder: merge_genes_and_repeats_gtf > gff_to_gtf 
+if config["symlink_aref"]["response"] == "no":
+    ruleorder: merge_genes_and_repeats_gtf > gff_to_gtf 
 
 rule merge_genes_and_repeats_gtf:
     input:
