@@ -331,9 +331,6 @@ write_delim(perelementdf, "ldna/Rintermediates/perelementdf.tsv", col_names = TR
 # annotate whether full length elements promoters overlap DMRs
 flelement <- rmann %>% filter(rte_length_req == "FL")
 rmann %$% rte_length_req %>% table()
-flLINE %>%
-    filter(rte_subfamily == "L1HS") %>%
-    arrange(length)
 
 flSINE <- flelement %>% filter(rte_superfamily == "SINE")
 flLINE <- flelement %>% filter(rte_superfamily == "LINE")

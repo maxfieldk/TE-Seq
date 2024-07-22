@@ -1238,7 +1238,7 @@ rule extractmods:
         region = lambda wildcards: "aref/%s_annotations/%s_rte_beds/outfile.txt"%(wildcards.sample, wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF_annotations/A.REF_rte_beds/outfile.txt"
     resources:
         cpus_per_task = 8,
-        mem_mb = 80000
+        mem_mb = 160000
     conda:
         "omics"
     shell: 
@@ -1258,8 +1258,6 @@ mkdir -p $(dirname {output})
 
 rule bedmethylanalysis:
     input:
-        dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
-        dmls = "ldna/results/tables/dmls.CG_m.tsv",
         bedmethylpaths = expand("lrna/intermediates/{sample}/methylation/{sample}_m6a_bedMethyl.bed", sample = samples),
         read_mods = expand('lrna/intermediates/{sample}/methylation/{sample}_readmods_{context}_{region}.tsv', sample = samples, region = config["lrna"]["rte_subfamily_read_level_analysis"], context = ["NoContext"])
     output:
