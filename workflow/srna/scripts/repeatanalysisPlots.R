@@ -1,7 +1,7 @@
 if (interactive()) {
-module_name <- "srna"
+    module_name <- "srna"
 } else {
-module_name <- snakemake@params$module_name
+    module_name <- snakemake@params$module_name
 }
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
 source("workflow/scripts/defaults.R")
@@ -93,8 +93,8 @@ counttype <- params$counttype
 
 ## Load Data and add annotations
 resultsdf1 <- read_delim(inputs$resultsdf, delim = "\t") %>% filter(counttype == !!counttype)
-r_annotation_fragmentsjoined <- read_csv(inputs$r_annotation_fragmentsjoined)
-r_repeatmasker_annotation <- read_csv(inputs$r_repeatmasker_annotation) %>%
+r_annotation_fragmentsjoined <- read_csv(params$r_annotation_fragmentsjoined)
+r_repeatmasker_annotation <- read_csv(params$r_repeatmasker_annotation) %>%
     mutate(req_integrative = factor(req_integrative, levels = c("Old Trnc", "Old FL", "Yng Trnc", "Yng FL", "Yng Intact"))) %>%
     mutate(ltr_viral_status = factor(ltr_viral_status, levels = c("Int (Has 5LTR)", "Int (No 5'LTR)", "5'LTR (FL Int)", "3'LTR (FL Int)", "5'LTR (Trnc Int)", "3'LTR (Trnc Int)", "LTR (Solo)", "Other")))
 resultsdfwithgenes <- resultsdf1 %>%
@@ -111,17 +111,12 @@ transcripts <- c(coding_transcripts, noncoding_transcripts)
     annot_colnames <- colnames(r_repeatmasker_annotation)
     annot_colnames_good <- annot_colnames[!(annot_colnames %in% c("gene_id", "family"))]
     ontologies <- annot_colnames_good[str_detect(annot_colnames_good, "_.*family")]
-<<<<<<< HEAD
-    if (is.null(conf$repeat_ontologies_to_scrutinize)) {
+    if (is.null(conf$repeat_ontologies_to_scrutinize) | conf$repeat_ontologies_to_scrutinize == "") {
         ontologies <- ontologies
     } else {
         ontologies <- ontologies[ontologies %in% conf$repeat_ontologies_to_scrutinize]
     }
     # ontologies <- c("rte_subfamily_limited")
-=======
-    # ontologies <- ontologies[ontologies %in% conf$repeat_ontologies_to_scrutinize]
-    ontologies <- c("rte_subfamily_limited")
->>>>>>> 312357266a8e32e0be18ac428169e1269070d0e9
 
 
     small_ontologies <- ontologies[grepl("subfamily", ontologies)]
@@ -705,7 +700,7 @@ tidydf <- resultsdf %>%
     select(all_of(colnames(resultsdf)[(colnames(resultsdf) %in% sample_table$sample_name) | (colnames(resultsdf) %in% colsToKeep)])) %>%
     pivot_longer(cols = -colsToKeep) %>%
     dplyr::rename(sample = name, counts = value) %>%
-    mutate(condition = map_chr(sample, ~ map[[.]]))
+    mutate(condition = map_chr(sample, ~ as.character(map[[.]])))
 tidydf$condition <- factor(tidydf$condition, levels = conf$levels)
 
 tidydf %>%
@@ -739,19 +734,22 @@ for (group_var in c("repeat_superfamily", "rte_subfamily", "rte_family", "l1_sub
         drop_na() %>%
         filter(l2fc != Inf) %>%
         filter(l2fc != -Inf)
-    stat_frame_condition_av <- stat_frame %>% group_by(condition, !!sym(group_var)) %>% summarize(l2fc = dplyr::first(condition_l2fc)) %>% ungroup()
+    stat_frame_condition_av <- stat_frame %>%
+        group_by(condition, !!sym(group_var)) %>%
+        summarize(l2fc = dplyr::first(condition_l2fc)) %>%
+        ungroup()
     p <- stat_frame_condition_av %>% ggbarplot(x = group_var, y = "l2fc", fill = "condition", add = c("mean_se"), position = position_dodge(), ) +
         labs(x = "", y = "log2FC", subtitle = counttype_label, title = ontology_to_title(group_var)) +
         mtclosedgridh +
         scale_conditions +
         anchorbar +
         theme(axis.text.x = element_text(angle = 45, hjust = 1))
-        # geom_pwc(
-        #     aes(group = condition),
-        #     tip.length = 0,
-        #     method = "t_test", label = "p.adj.format",
-        #     p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1]
-        # )
+    # geom_pwc(
+    #     aes(group = condition),
+    #     tip.length = 0,
+    #     method = "t_test", label = "p.adj.format",
+    #     p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1]
+    # )
     # stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1])
     mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar.pdf", outputdir, counttype, group_var), length(stat_frame %$% condition %>% unique()) * length(stat_frame %>% pull(!!sym(group_var)) %>% unique()) * 0.2 + 1.5, 4)
 
@@ -779,7 +777,6 @@ for (group_var in c("repeat_superfamily", "rte_subfamily", "rte_family", "l1_sub
 
     p <- wrap_elements(grid.grabExpr(draw(hm, heatmap_legend_side = "right", annotation_legend_side = "right")))
     mysaveandstore(sprintf("%s/%s/pan_contrast/%s_heatmap.pdf", outputdir, counttype, group_var), 0.5 + length(colnames(m)) * 0.35, 1.75 + length(rownames(m)) * 0.25)
-
 }
 
 
@@ -819,6 +816,17 @@ for (rte_fam in rte_fams) {
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
     mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats.pdf", outputdir, counttype, rte_fam), width, height)
+    p <- pf %>%
+        mutate(req_integrative = factor(req_integrative, levels = c("Old Trnc", "Old FL", "Yng Trnc", "Yng FL", "Yng Intact"))) %>%
+        arrange(req_integrative) %>%
+        ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = c("req_integrative", "genic_loc"), add = c("mean_se", "dotplot"), scales = "free_y") +
+        labs(x = "", y = "Sum Normalized Counts", subtitle = counttype_label, title = rte_fam) +
+        mtclosedgridh +
+        scale_conditions +
+        scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, bracket.nudge.y = -0.1, step.increase = .1)
+    mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats_allcomps.pdf", outputdir, counttype, rte_fam), width, height)
 
     p <- pf %>%
         mutate(req_integrative = factor(req_integrative, levels = c("Old Trnc", "Old FL", "Yng Trnc", "Yng FL", "Yng Intact"))) %>%
@@ -831,6 +839,17 @@ for (rte_fam in rte_fams) {
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = FALSE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
     mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats_allsigannot.pdf", outputdir, counttype, rte_fam), width + 1, height)
+    p <- pf %>%
+        mutate(req_integrative = factor(req_integrative, levels = c("Old Trnc", "Old FL", "Yng Trnc", "Yng FL", "Yng Intact"))) %>%
+        arrange(req_integrative) %>%
+        ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = c("req_integrative", "genic_loc"), add = c("mean_se", "dotplot"), scales = "free_y") +
+        labs(x = "", y = "Sum Normalized Counts", subtitle = counttype_label, title = rte_fam) +
+        mtclosedgridh +
+        scale_conditions +
+        scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, bracket.nudge.y = -0.1, step.increase = .1)
+    mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats_allsigannot_allcomps.pdf", outputdir, counttype, rte_fam), width + 1, height)
 
     p <- pf %>%
         filter(grepl("Yng", req_integrative)) %>%
@@ -844,6 +863,18 @@ for (rte_fam in rte_fams) {
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = FALSE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
     mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats_allsigannot_yng.pdf", outputdir, counttype, rte_fam), width + 1, height - 2.5)
+    p <- pf %>%
+        filter(grepl("Yng", req_integrative)) %>%
+        mutate(req_integrative = factor(req_integrative, levels = c("Old Trnc", "Old FL", "Yng Trnc", "Yng FL", "Yng Intact"))) %>%
+        arrange(req_integrative) %>%
+        ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = c("req_integrative", "genic_loc"), add = c("mean_se", "dotplot"), scales = "free_y") +
+        labs(x = "", y = "Sum Normalized Counts", subtitle = counttype_label, title = rte_fam) +
+        mtclosedgridh +
+        scale_conditions +
+        scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, bracket.nudge.y = -0.1, step.increase = .1)
+    mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats_allsigannot_allcomps_yng.pdf", outputdir, counttype, rte_fam), width + 1, height - 2.5)
 
 
     p <- pf %>%
@@ -856,6 +887,8 @@ for (rte_fam in rte_fams) {
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
     mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_reqintegrative_stats.pdf", outputdir, counttype, rte_fam), 5, 5)
+    p <- p + stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, bracket.nudge.y = -0.1, step.increase = .1)
+    mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_reqintegrative_stats_all_comps.pdf", outputdir, counttype, rte_fam), 5, 5)
 
     if (df %$% rte_superfamily %>% unique() == "LTR") {
         pf <- df %>%
@@ -883,6 +916,16 @@ for (rte_fam in rte_fams) {
             theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
             stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
         mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_ltr_viral_status_stats.pdf", outputdir, counttype, rte_fam), width, height + 4)
+        p <- pf %>%
+            arrange(ltr_viral_status) %>%
+            ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = c("ltr_viral_status", "genic_loc"), add = c("mean_se", "dotplot"), scales = "free_y") +
+            labs(x = "", y = "Sum Normalized Counts", subtitle = counttype_label, title = rte_fam) +
+            mtclosedgridh +
+            scale_conditions +
+            scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
+            theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+            stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, bracket.nudge.y = -0.1, step.increase = .1)
+        mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_ltr_viral_status_stats_allcomps.pdf", outputdir, counttype, rte_fam), width, height + 4)
 
         p <- pf %>%
             arrange(ltr_viral_status) %>%
@@ -894,6 +937,16 @@ for (rte_fam in rte_fams) {
             theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
             stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = FALSE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
         mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_ltr_viral_status_stats_allsigannot.pdf", outputdir, counttype, rte_fam), width, height + 4)
+        p <- pf %>%
+            arrange(ltr_viral_status) %>%
+            ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = c("ltr_viral_status", "genic_loc"), add = c("mean_se", "dotplot"), scales = "free_y") +
+            labs(x = "", y = "Sum Normalized Counts", subtitle = counttype_label, title = rte_fam) +
+            mtclosedgridh +
+            scale_conditions +
+            scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
+            theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+            stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, bracket.nudge.y = -0.1, step.increase = .1)
+        mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_ltr_viral_status_stats_allsigannot_allcomps.pdf", outputdir, counttype, rte_fam), width, height + 4)
     }
 }
 
@@ -931,6 +984,16 @@ for (rte_subfam in rte_subfams) {
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
     mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats.pdf", outputdir, counttype, rte_subfam), width, height)
+    p <- pf %>%
+        arrange(req_integrative) %>%
+        ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = c("req_integrative", "genic_loc"), add = c("mean_se", "dotplot"), scales = "free_y") +
+        labs(x = "", y = "Sum Normalized Counts", subtitle = counttype_label, title = rte_subfam) +
+        mtclosedgridh +
+        scale_conditions +
+        scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, bracket.nudge.y = -0.1, step.increase = .1)
+    mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats_allcomps.pdf", outputdir, counttype, rte_subfam), width, height)
 
     p <- pf %>%
         arrange(req_integrative) %>%
@@ -942,6 +1005,16 @@ for (rte_subfam in rte_subfams) {
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = FALSE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
     mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats_allsigannot.pdf", outputdir, counttype, rte_subfam), width, height)
+    p <- pf %>%
+        arrange(req_integrative) %>%
+        ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = c("req_integrative", "genic_loc"), add = c("mean_se", "dotplot"), scales = "free_y") +
+        labs(x = "", y = "Sum Normalized Counts", subtitle = counttype_label, title = rte_subfam) +
+        mtclosedgridh +
+        scale_conditions +
+        scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, bracket.nudge.y = -0.1, step.increase = .1)
+    mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats_allsigannot_allcomps.pdf", outputdir, counttype, rte_subfam), width, height)
 
     pf <- df %>%
         group_by(sample, req_integrative, condition, refstatus) %>%
@@ -958,6 +1031,17 @@ for (rte_subfam in rte_subfams) {
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
     mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_nonref_stats.pdf", outputdir, counttype, rte_subfam), 4.5, 5)
+    p <- pf %>%
+        arrange(req_integrative) %>%
+        filter(refstatus == "NonRef") %>%
+        ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = c("req_integrative"), add = c("mean_se")) +
+        labs(x = "", y = "Sum Normalized Counts", subtitle = counttype_label, title = paste0("NonRef ", rte_subfam)) +
+        mtclosedgridh +
+        scale_conditions +
+        anchorbar +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, bracket.nudge.y = -0.1, step.increase = .1)
+    mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_nonref_stats_allcomps.pdf", outputdir, counttype, rte_subfam), 4.5, 5)
 
     if (df %$% rte_superfamily %>% unique() == "LTR") {
         pf <- df %>%
@@ -985,6 +1069,16 @@ for (rte_subfam in rte_subfams) {
             theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
             stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
         mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_ltr_viral_status_stats.pdf", outputdir, counttype, rte_subfam), width, height)
+        p <- pf %>%
+            arrange(ltr_viral_status) %>%
+            ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = c("ltr_viral_status", "genic_loc"), add = c("mean_se", "dotplot"), scales = "free_y") +
+            labs(x = "", y = "Sum Normalized Counts", subtitle = counttype_label, title = rte_subfam) +
+            mtclosedgridh +
+            scale_conditions +
+            anchorbar +
+            theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+            stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, bracket.nudge.y = -0.1, step.increase = .1)
+        mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_ltr_viral_status_stats_allcomps.pdf", outputdir, counttype, rte_subfam), width, height)
 
         p <- pf %>%
             arrange(ltr_viral_status) %>%
@@ -996,6 +1090,16 @@ for (rte_subfam in rte_subfams) {
             theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
             stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = FALSE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
         mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_ltr_viral_status_stats_allsigannot.pdf", outputdir, counttype, rte_subfam), width, height)
+        p <- pf %>%
+            arrange(ltr_viral_status) %>%
+            ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = c("ltr_viral_status", "genic_loc"), add = c("mean_se", "dotplot"), scales = "free_y") +
+            labs(x = "", y = "Sum Normalized Counts", subtitle = counttype_label, title = rte_subfam) +
+            mtclosedgridh +
+            scale_conditions +
+            anchorbar +
+            theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+            stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, bracket.nudge.y = -0.1, step.increase = .1)
+        mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_ltr_viral_status_stats_allsigannot_allcomps.pdf", outputdir, counttype, rte_subfam), width, height)
     }
 }
 
@@ -1081,6 +1185,12 @@ for (contrast in contrasts) {
                                     mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s.pdf", outputdir, counttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height)
                                     p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, stats = "yes") + ggtitle(plot_title)
                                     mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_stats.pdf", outputdir, counttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height + 0.5)
+                                    p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, stats = "no") + ggtitle(plot_title) +
+                                        geom_pwc(
+                                            method = "t_test", label = "p.adj.format",
+                                            p.adjust.method = "fdr", hide.ns = TRUE
+                                        )
+                                    mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_stats_allcomps.pdf", outputdir, counttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height + 1)
                                 }
                             },
                             error = function(e) {
