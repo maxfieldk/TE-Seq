@@ -88,7 +88,7 @@ for pipeline in config["pipelines_to_deploy"]:
         if config["srna"]["library_type"] == "PE":
                 use rule * from srna exclude fastp_SE,alignSTAR_SE,featurecounts_genes_SE,featurecounts_genesandrtes_SE as srna_*
         else:
-                use rule * from srna exclude fastp_PEalignSTAR_PE,featurecounts_genes_PE,featurecounts_genesandrtes_PE as srna_*
+                use rule * from srna exclude fastp_PE,alignSTAR_PE,featurecounts_genes_PE,featurecounts_genesandrtes_PE as srna_*
 
         if config["srna"]["downsample_for_test"]["response"] == "yes":
             use rule fastp_PE from srna as srna_fastp_PE with:
