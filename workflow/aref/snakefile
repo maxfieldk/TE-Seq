@@ -74,10 +74,11 @@ paths = [
 for path in paths:
     os.makedirs(path, exist_ok = True)
 
-
+rule all:
+    input: ancient("aref.done.outfile")
 rule aref_complete:
     input: aref_complete_input
-    output: ancient("aref.done.outfile")
+    output: "aref.done.outfile"
     shell: "touch {output}"
 rule sym_link:
     input:
@@ -236,7 +237,8 @@ mkdir -p $(dirname {output.subsampled})
 samtools view -b {input.bam} chr10 > {output.subsampled}
         """
 
-ruleorder: merge_bams_when_per_sample_is_no_for_ldna_variants > sortBam 
+if config["update_ref_with_tldr"]["per_sample"] == "no":
+    ruleorder: merge_bams_when_per_sample_is_no_for_ldna_variants > sortBam 
 rule merge_bams_when_per_sample_is_no_for_ldna_variants:
     input:
         sorted_bams = expand("aref/intermediates/{sample}/alignments/{{rate}}/{sample}.{{type}}.{{modifications_string}}.sorted.bam", sample = config["samples"])
