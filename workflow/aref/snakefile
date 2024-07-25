@@ -483,7 +483,8 @@ rule process_gtf:
     input:
         gtf = "aref/A.REF_repeatmasker/A.REF_repeatmasker_raw.gtf",
         ref_cytobands = "aref/A.REF_annotations/cytobands.bed",
-        ref = "aref/A.REF.fa"
+        ref = "aref/A.REF.fa",
+        reffai = "aref/A.REF.fa.fai"
     output:
         repmask_gff2 = "aref/A.REF_annotations/A.REF_repeatmasker.gff2",
         repmask_gff3 = "aref/A.REF_annotations/A.REF_repeatmasker.gff3",
