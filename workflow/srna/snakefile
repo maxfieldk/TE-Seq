@@ -177,7 +177,7 @@ rule mycoplasmaCheck:
     shell:
         """
 mkdir -p $(dirname {output.sam})
-bowtie2 --threads 10 -x resources/genomes/mycoplasma/mycoplasma_index -1 {input.r1} -S {output.sam}
+bowtie2 --threads 10 -x resources/genomes/mycoplasma/mycoplasma_index -U {input.r1} -S {output.sam}
 samtools stats {output.sam} > {output.sam}.stats.txt
         """
 
