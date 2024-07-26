@@ -789,11 +789,11 @@ rule callmodbamtobedandextractmods:
 
 #tag Methylation plots
 
-rule init_wgbstools:
+rule init_wgbstools_default_ref:
     input:
         ref = "aref/A.REF.fa"
     output:
-        outfile = "aref/A.REF.wgbs.init.out"
+        outfile = "aref/A.REF.analysis_default.wgbs.init.out"
     resources:
         runtime = 1000,
         mem_mb = 128000,
@@ -802,13 +802,29 @@ rule init_wgbstools:
     shell:
         """
 mkdir -p $(dirname {output})
-/users/mkelsey/data/tools/wgbs_tools/wgbstools init_genome --fasta_path /users/mkelsey/data/Nanopore/alz/RTE/aref/A.REF.fa hs1
+/users/mkelsey/data/tools/wgbs_tools/wgbstools init_genome --fasta_path /users/mkelsey/data/Nanopore/alz/RTE/aref/A.REF.fa analysis_default
 touch {output.outfile}
         """
 
+rule init_wgbstools_hg38:
+    input:
+        ref = "/oscar/data/jsedivy/mkelsey/ref/genomes/hg38/hg38.p13.sorted.fa"
+    output:
+        outfile = "aref/A.REF.hg38.wgbs.init.out"
+    resources:
+        runtime = 1000,
+        mem_mb = 128000,
+        cpus_per_task = 10
+    conda: "omics"
+    shell:
+        """
+mkdir -p $(dirname {output})
+/users/mkelsey/data/tools/wgbs_tools/wgbstools init_genome --fasta_path /users/mkelsey/data/Nanopore/alz/RTE/aref/A.REF.fa analysis_default
+touch {output.outfile}
+        """
 rule wgbs_bam2pat:
     input:
-        outfile = "aref/A.REF.wgbs.init.out",
+        outfile = "aref/A.REF.{ref_genome}.wgbs.init.out",
         bam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
     output:
         pat = expand("ldna/results/wgbs/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
@@ -820,7 +836,7 @@ rule wgbs_bam2pat:
     shell:
         """
 mkdir -p $(dirname {output})
-/users/mkelsey/data/tools/wgbs_tools/wgbstools bam2pat --genome hs1 -@ 26 --nanopore {input.bam} --out_dir $(dirname {output.pat})
+/users/mkelsey/data/tools/wgbs_tools/wgbstools bam2pat --genome {wildcards.analysis_default} -@ 26 --nanopore {input.bam} --out_dir $(dirname {output.pat})
         """
 
 rule get_hg38_pat:
