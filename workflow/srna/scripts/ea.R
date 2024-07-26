@@ -24,7 +24,6 @@ library(pathview)
 library(ggplot2)
 library(tibble)
 library(readr)
-library(dplyr)
 library(tidyr)
 library(ggbeeswarm)
 library(paletteer)
@@ -37,6 +36,7 @@ library(msigdbr)
 library(ggpubr)
 library(patchwork)
 library(ggrepel)
+library(dplyr)
 
 
 
@@ -76,20 +76,19 @@ resultsdf1 <- read_delim(inputs$resultsdf, delim = "\t")
 resultsdf1 <- resultsdf1[resultsdf1$gene_id != "__no_feature", ]
 res <- resultsdf1 %>% filter(counttype == counttype[1])
 res <- res %>% filter(gene_or_te == "gene")
-res %>%
-    filter(str_detect(gene_id, "CDKN1A")) %>%
-    select(conf$samples)
 #### GETTING TIDY DATA
-map <- setNames(sample_table$condition, sample_table$sample_name)
+map <- sample_table %>%
+    dplyr::select(sample_name, condition) %>%
+    dplyr::rename(sample = sample_name)
 pvals <- colnames(res)[str_detect(colnames(res), "padj_condition")]
 l2fc <- colnames(res)[str_detect(colnames(res), "log2FoldChange_condition")]
 colsToKeep <- c("gene_id", pvals, l2fc)
 
 tidydf <- res %>%
-    select(all_of(colnames(res)[(colnames(res) %in% sample_table$sample_name) | (colnames(res) %in% colsToKeep)])) %>%
+    dplyr::select(all_of(colnames(res)[(colnames(res) %in% sample_table$sample_name) | (colnames(res) %in% colsToKeep)])) %>%
     pivot_longer(cols = -colsToKeep) %>%
     dplyr::rename(sample = name, counts = value) %>%
-    mutate(condition = map_chr(sample, ~ map[[.]]))
+    left_join(map)
 tidydf$condition <- factor(tidydf$condition, levels = conf$levels)
 
 contrast_label_map <- tibble(contrast = params[["contrasts"]], label = gsub("_", " ", gsub("condition_", "", params[["contrasts"]])))
@@ -813,8 +812,8 @@ gres %>% write_delim(outputs$results_table_unbiased, delim = "\t")
 for (collec in gse_df %$% collection %>% unique()) {
     grestemp <- gres %>%
         filter(collection == collec) %>%
-        left_join(contrast_label_map) %>%
-        filter(grepl(paste0(conf$levels[1], "$"), label))
+        filter(grepl(paste0(conf$levels[1], "$"), contrast)) %>%
+        left_join(contrast_label_map)
     sigIDs <- grestemp %>%
         mutate(direction = ifelse(NES > 0, "UP", "DOWN")) %>%
         group_by(contrast, direction) %>%
@@ -840,6 +839,36 @@ for (collec in gse_df %$% collection %>% unique()) {
     mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/unbiased/gsea_top_%s_grid_1.pdf", collec), 6, 0.5 * length(sigIDs))
     mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/unbiased/gsea_top_%s_grid_2.pdf", collec), 6, 0.75 * length(sigIDs))
     mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/unbiased/gsea_top_%s_grid_3.pdf", collec), 6, 1 * length(sigIDs))
+
+    grestemp <- gres %>%
+        filter(collection == collec) %>%
+        filter(grepl(paste0(conf$levels[1], "$"), contrast)) %>%
+        left_join(contrast_label_map)
+    sigIDs <- grestemp %>%
+        mutate(direction = ifelse(NES > 0, "UP", "DOWN")) %>%
+        group_by(contrast, direction) %>%
+        arrange(p.adjust) %>%
+        slice_head(n = 10) %$% ID %>%
+        unique()
+    p <- grestemp %>%
+        dplyr::filter(ID %in% sigIDs) %>%
+        mutate(sig = ifelse(p.adjust < 0.05, "*", "")) %>%
+        mutate(ID = str_wrap(as.character(ID) %>% gsub("_", " ", .), width = 40)) %>%
+        mutate(label = str_wrap(as.character(contrast) %>% gsub("condition_", "", .) %>% gsub("_vs_.*", "", .), width = 40)) %>%
+        mutate(label = factor(label, levels = conf$levels)) %>%
+        mutate(ID = fct_reorder(ID, NES)) %>%
+        ggplot(aes(x = label, y = ID)) +
+        geom_tile(aes(fill = NES), color = "black") +
+        theme(legend.position = "none") +
+        scale_fill_gradient2(high = "red", mid = "white", low = "blue") +
+        mtclosed +
+        theme(axis.text.x = element_text(colour = "black"), axis.text.y = element_text(colour = "black", hjust = 1)) +
+        labs(x = "", y = "", title = collec) +
+        theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+        coord_equal()
+    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/unbiased/gsea_top_%s_grid_1_2.pdf", collec), 6, 0.5 * length(sigIDs))
+    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/unbiased/gsea_top_%s_grid_2_2.pdf", collec), 6, 0.75 * length(sigIDs))
+    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/unbiased/gsea_top_%s_grid_3_2.pdf", collec), 6, 1 * length(sigIDs))
 }
 
 if (conf$store_env_as_rds == "yes") {

@@ -24,6 +24,7 @@ set-resources:
         runtime: attempt * 140
     srna_repeatanalysis_plots:
         mem_mb: attempt * 125000
+        runtime: attempt * 400
     srna_enrichment_analysis_repeats:
         mem_mb: attempt * 35000
     srna_enrichment_analysis:
