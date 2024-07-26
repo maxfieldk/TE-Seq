@@ -57,10 +57,10 @@ set-resources:
         mem_mb: attempt * 60000
     aref_gff_to_gtf:
         mem_mb: attempt * 85000
-        runtime: attempt * 140
+        runtime: attempt * 200
     aref_gff_to_bed12:
         mem_mb: attempt * 85000
-        runtime: attempt * 140
+        runtime: attempt * 200
     aref_getRTEbeds:
         mem_mb: attempt * 35000
     aref_complete_gff3:

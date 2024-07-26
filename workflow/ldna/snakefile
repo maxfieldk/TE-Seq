@@ -551,7 +551,7 @@ rule dss:
         "dss2"
     resources:
         cpus_per_task = 10,
-        mem_mb = lambda w, attempt: 60000 * attempt
+        mem_mb = lambda w, attempt: 120000 * attempt
     retries: 3
     script:
         "scripts/dss.R"
@@ -664,7 +664,7 @@ rule genomewide_meth:
     script:
         "scripts/bedmethylanalysis.R"
 
-rule bedmethylanalysis:
+rule bedmethylanalysis_process:
     input:
         dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
         dmls = "ldna/results/tables/dmls.CG_m.tsv",
