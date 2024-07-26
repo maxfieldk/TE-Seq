@@ -239,3 +239,9 @@ Several additional changes will need to be made.
 Optionally
 3. In the aref/scripts/annotate_rtes.R script:
 Ctlr F "conf$species". You will find two blocks of code which provide species specific annotations for repeat families which are extensively examined in downstream scripts. add an else {} block, and supply your own regex for whatever repeat groupings you are interested in. If you do not do this, the script will automatically select the least diverged LTR, SINE, and LINE families for downstream scrutiny.
+
+## Common Issues
+r$> conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+Error in configr::read.config(file = "conf/config.yaml")[[module_name]] : 
+  subscript out of bounds
+This error likely indicates that your config.yaml file is invalid (perhaps a dupliate key). You can copy the contents of your yaml to an online yaml checker to determine whether this is the cause, e.g. https://yamlchecker.com

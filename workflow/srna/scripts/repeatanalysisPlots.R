@@ -57,12 +57,12 @@ tryCatch(
             assign("params", list(
                 "inputdir" = "srna/results/agg/deseq",
                 "outputdir" = "srna/results/agg/repeatanalysis",
-                "counttype" = "telescope_multi"
-            ), env = globalenv())
-            assign("inputs", list(
-                "resultsdf" = "srna/results/agg/deseq/resultsdf.tsv",
+                "counttype" = "telescope_multi",
                 "r_annotation_fragmentsjoined" = conf$r_annotation_fragmentsjoined,
                 "r_repeatmasker_annotation" = conf$r_repeatmasker_annotation
+            ), env = globalenv())
+            assign("inputs", list(
+                "resultsdf" = "srna/results/agg/deseq/resultsdf.tsv"
             ), env = globalenv())
             assign("outputs", list(
                 "environment" = "srna/results/agg/repeatanalysis/telescope_multi/repeatanalysisplots_environment.RData"
@@ -71,12 +71,12 @@ tryCatch(
             assign("params", list(
                 "inputdir" = "lrna/results/agg/deseq",
                 "outputdir" = "lrna/results/agg/repeatanalysis/relaxed",
-                "counttype" = "relaxed"
-            ), env = globalenv())
-            assign("inputs", list(
-                "resultsdf" = "lrna/results/agg/deseq/resultsdf.tsv",
+                "counttype" = "relaxed",
                 "r_annotation_fragmentsjoined" = conf$r_annotation_fragmentsjoined,
                 "r_repeatmasker_annotation" = conf$r_repeatmasker_annotation
+            ), env = globalenv())
+            assign("inputs", list(
+                "resultsdf" = "lrna/results/agg/deseq/resultsdf.tsv"
             ), env = globalenv())
             assign("outputs", list(
                 "environment" = "lrna/results/agg/repeatanalysis/relaxed/repeatanalysisplots_environment.RData"
@@ -90,6 +90,7 @@ tryCatch(
 outputdir <- params$outputdir
 contrasts <- conf$contrasts
 counttype <- params$counttype
+
 
 ## Load Data and add annotations
 resultsdf1 <- read_delim(inputs$resultsdf, delim = "\t") %>% filter(counttype == !!counttype)
@@ -1103,6 +1104,42 @@ for (rte_subfam in rte_subfams) {
     }
 }
 
+for (contrast in contrasts) {
+    contrast_of_interest <- contrast
+    contrast_level_2 <- contrast_of_interest %>%
+        gsub("condition_", "", .) %>%
+        gsub("_vs_.*", "", .)
+    contrast_level_1 <- contrast_of_interest %>%
+        gsub(".*_vs_", "", .)
+    contrast_stat <- paste0("stat_", contrast_of_interest)
+    contrast_padj <- paste0("padj_", contrast_of_interest)
+    contrast_log2FoldChange <- paste0("log2FoldChange_", contrast_of_interest)
+    contrast_samples <- sample_table %>%
+        filter(condition %in% c(contrast_level_1, contrast_level_2)) %>%
+        pull(sample_name)
+    condition_vec <- sample_table %>% filter(sample_name %in% contrast_samples) %$% condition
+    for (ontology in ontologies) {
+        ontologyframe <- tidydf %>% dplyr::filter(!!sym(ontology) != "Other")
+        tempframe <- ontologyframe %>%
+            group_by(gene_id) %>%
+            filter(row_number() == 1) %>%
+            ungroup() %>%
+            mutate(signif = ifelse(!!sym(contrast_padj) < 0.05, "Sig", "NS"))
+        alpha_vec <- c("Sig" = 0.9, "NS" = 0.15)
+        p <- tempframe %>%
+            mutate(log10padj = -log10(!!sym(contrast_padj) + 10**-10)) %>%
+            ggplot(aes(x = !!sym(contrast_log2FoldChange), y = log10padj)) +
+            geom_point(aes(color = req_integrative, alpha = signif)) +
+            geom_vline(xintercept = 0, color = "grey") +
+            geom_hline(yintercept = -log10(0.05), color = "grey") +
+            scale_alpha_manual(values = alpha_vec) +
+            facet_wrap(~rte_family, scales = "free") +
+            scale_palette +
+            mtclosed
+        mysaveandstore(sprintf("%s/%s/%s/%s/%s.pdf", outputdir, counttype, contrast, "volcano", ontology), 12, 8)
+    }
+}
+
 
 #### PLOTTING
 for (contrast in contrasts) {
@@ -1122,11 +1159,6 @@ for (contrast in contrasts) {
     groups_that_have_been_run <- c()
     groups_not_to_run <- c()
     for (ontology in ontologies) {
-        ontologyframe <- tidydf %>% dplyr::filter(!!sym(ontology) != "Other")
-
-
-
-
         ontology_groups <- r_repeatmasker_annotation %>%
             pull(!!sym(ontology)) %>%
             unique()
