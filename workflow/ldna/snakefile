@@ -92,24 +92,68 @@ mkdir -p $(dirname {output.sam})
 minimap2 -a -x map-ont -t 14 -y {params.ref} {input.fastq} > {output.sam}
         """
 
+
 rule telometer_prep:
     input:
-        fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq",
         aref = "aref.done.outfile"
     params:
-        ref = lambda wildcards: "aref/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF.fa"
+        ref = "aref/A.REF.fa",
+        stong_subtelo_fa = "/oscar/data/jsedivy/mkelsey/ref/sequences/stong_subtels.fa"
     output:
-        sam = temp(expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]))
+        ref_telometer = "aref/A.REF_telometer.fa"
+    conda: "omics"
     resources:
-        cpus_per_task =20,
+        cpus_per_task =1,
+        runtime = 30,
+        mem_mb = 30000
+    shell:
+        """
+cat {params.ref} {params.stong_subtelo_fa} > {output.ref_telometer}
+samtools faidx {output.ref_telometer}
+        """
+
+rule telometer_align:
+    input:
+        fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq",
+        ref_telometer = "aref/A.REF_telometer.fa"
+    output:
+        sam = temp(expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sam",ref_genome = "telometer", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]))
+    resources:
+        cpus_per_task =32,
         runtime = 1200,
         mem_mb = 128000
     conda: "minimap2"
     shell:
         """
 mkdir -p $(dirname {output.sam})
-minimap2 -a -x map-ont -t 14 -y {params.ref} {input.fastq} > {output.sam}
+minimap2 -a -x map-ont -t 30 -y {input.ref_telometer} {input.fastq} > {output.sam}
         """
+
+rule telometer:
+    input:
+        sortedbam = temp(expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.bam",ref_genome = "telometer", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]))
+    output:
+        out = "ldna/results/tables/telometer/{sample}_telometer_{minimum_read_length}.tsv"
+    params:
+        chemistry = "r10",
+    resources:
+        cpus_per_task =20,
+        runtime = 1200,
+        mem_mb = 128000
+    conda: "telometer"
+    shell:
+        """
+mkdir -p $(dirname {output.out})
+telometer -b {input.sortedbam} -o {output.out} -m {wildcards.minimum_read_length} -c {params.chemistry}
+        """
+
+rule call_telometer:
+    input:
+        telometer_outs = expand("ldna/results/tables/telometer/{sample}_telometer_{minimum_read_length}.tsv", sample = samples, minimum_read_length = [1000, 4000, 10000])
+    output:
+        "telometer.done"
+    shell:
+        "touch {output}"
 
 rule samToBam:
     input:
