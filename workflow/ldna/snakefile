@@ -73,6 +73,25 @@ mkdir -p $(dirname {output.sam})
 minimap2 -a -x map-ont -t 14 -y {params.ref} {input.fastq} > {output.sam}
         """
 
+rule telometer_prep:
+    input:
+        fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq",
+        aref = "aref.done.outfile"
+    params:
+        ref = lambda wildcards: "aref/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF.fa"
+    output:
+        sam = temp(expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]))
+    resources:
+        cpus_per_task =20,
+        runtime = 1200,
+        mem_mb = 128000
+    conda: "minimap2"
+    shell:
+        """
+mkdir -p $(dirname {output.sam})
+minimap2 -a -x map-ont -t 14 -y {params.ref} {input.fastq} > {output.sam}
+        """
+
 rule samToBam:
     input:
         sam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
