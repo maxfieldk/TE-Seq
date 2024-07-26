@@ -131,7 +131,7 @@ minimap2 -a -x map-ont -t 30 -y {input.ref_telometer} {input.fastq} > {output.sa
 
 rule telometer:
     input:
-        sortedbam = temp(expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.bam",ref_genome = "telometer", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]))
+        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.bam",ref_genome = "telometer", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
     output:
         out = "ldna/results/tables/telometer/{sample}_telometer_{minimum_read_length}.tsv"
     params:
@@ -139,7 +139,7 @@ rule telometer:
     resources:
         cpus_per_task =20,
         runtime = 1200,
-        mem_mb = 128000
+        mem_mb = 240000
     conda: "telometer"
     shell:
         """
@@ -791,6 +791,8 @@ rule callmodbamtobedandextractmods:
 
 rule init_wgbstools_default_ref:
     input:
+        aref = "aref.done.outfile"
+    params:
         ref = "aref/A.REF.fa"
     output:
         outfile = "aref/A.REF.analysis_default.wgbs.init.out"
@@ -802,12 +804,14 @@ rule init_wgbstools_default_ref:
     shell:
         """
 mkdir -p $(dirname {output})
-/users/mkelsey/data/tools/wgbs_tools/wgbstools init_genome --fasta_path /users/mkelsey/data/Nanopore/alz/RTE/aref/A.REF.fa analysis_default
+/users/mkelsey/data/tools/wgbs_tools/wgbstools init_genome --fasta_path {params.ref} analysis_default
 touch {output.outfile}
         """
 
 rule init_wgbstools_hg38:
     input:
+        aref = "aref.done.outfile"
+    params:
         ref = "/oscar/data/jsedivy/mkelsey/ref/genomes/hg38/hg38.p13.sorted.fa"
     output:
         outfile = "aref/A.REF.hg38.wgbs.init.out"
@@ -819,7 +823,7 @@ rule init_wgbstools_hg38:
     shell:
         """
 mkdir -p $(dirname {output})
-/users/mkelsey/data/tools/wgbs_tools/wgbstools init_genome --fasta_path /users/mkelsey/data/Nanopore/alz/RTE/aref/A.REF.fa analysis_default
+/users/mkelsey/data/tools/wgbs_tools/wgbstools init_genome --fasta_path {params.ref} hg38
 touch {output.outfile}
         """
 rule wgbs_bam2pat:
@@ -836,12 +840,26 @@ rule wgbs_bam2pat:
     shell:
         """
 mkdir -p $(dirname {output})
-/users/mkelsey/data/tools/wgbs_tools/wgbstools bam2pat --genome {wildcards.analysis_default} -@ 26 --nanopore {input.bam} --out_dir $(dirname {output.pat})
+/users/mkelsey/data/tools/wgbs_tools/wgbstools bam2pat --genome {wildcards.ref_genome} -@ 26 --nanopore {input.bam} --out_dir $(dirname {output.pat})
         """
 
 rule get_hg38_pat:
     input:
         pat = expand("ldna/results/wgbs/hg38/{sample}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample= samples),
+
+rule uxm_deconv:
+    input:
+        pat = expand("ldna/results/wgbs/hg38/{sample}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
+    params:
+        atlas = "/users/mkelsey/data/Nanopore/alz/Atlas.U25.l4.hg38.tsv"
+    output:
+        csv = "ldna/results/wgbs/hg38/tables/deconv.csv"
+    shell:
+        """
+mkdir -p $(dirname {output.csv})
+uxm deconv --atlas {params.atlas} --output {output.csv} --verbose {input.pat}
+        """
+
 
 
 rule get_merged_pat:
