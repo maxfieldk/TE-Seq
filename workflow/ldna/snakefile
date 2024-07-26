@@ -131,7 +131,7 @@ minimap2 -a -x map-ont -t 30 -y {input.ref_telometer} {input.fastq} > {output.sa
 
 rule telometer:
     input:
-        sortedbam = temp(expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.bam",ref_genome = "telometer", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]))
+        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.bam",ref_genome = "telometer", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
     output:
         out = "ldna/results/tables/telometer/{sample}_telometer_{minimum_read_length}.tsv"
     params:
@@ -139,7 +139,7 @@ rule telometer:
     resources:
         cpus_per_task =20,
         runtime = 1200,
-        mem_mb = 128000
+        mem_mb = 240000
     conda: "telometer"
     shell:
         """
@@ -842,6 +842,20 @@ mkdir -p $(dirname {output})
 rule get_hg38_pat:
     input:
         pat = expand("ldna/results/wgbs/hg38/{sample}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample= samples),
+
+rule uxm_deconv:
+    input:
+        pat = expand("ldna/results/wgbs/hg38/{sample}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
+    params:
+        atlas = "/users/mkelsey/data/Nanopore/alz/Atlas.U25.l4.hg38.tsv"
+    output:
+        csv = "ldna/results/wgbs/hg38/tables/deconv.csv"
+    shell:
+        """
+mkdir -p $(dirname {output.outfile})
+uxm deconv --atlas {params.atlas} --output {output.csv} --verbose {input.pat}
+        """
+
 
 
 rule get_merged_pat:
