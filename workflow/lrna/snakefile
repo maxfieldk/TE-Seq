@@ -743,14 +743,14 @@ rule enrichment_analysis_repeats:
 rule repeatanalysis_plots:
     input:
         resultsdf = "lrna/results/agg/deseq/resultsdf.tsv",
-        r_annotation_fragmentsjoined = config["lrna"]["r_annotation_fragmentsjoined"],
-        r_repeatmasker_annotation = config["lrna"]["r_repeatmasker_annotation"]
     params:
         counttype = lambda w: w.counttype,
         contrasts = config["lrna"]["contrasts"],
         inputdir = lambda w, input: os.path.dirname(input.resultsdf),
         outputdir = lambda w, output: os.path.dirname(output.environment),
-        module_name = "lrna"
+        module_name = "lrna",
+        r_annotation_fragmentsjoined = config["lrna"]["r_annotation_fragmentsjoined"],
+        r_repeatmasker_annotation = config["lrna"]["r_repeatmasker_annotation"]
     conda:
         "repeatanalysis"
     resources:
