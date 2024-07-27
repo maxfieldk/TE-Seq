@@ -237,8 +237,8 @@ for (test_type in c("std", "pos", "neg")) {
                 filter(test_type == !!test_type) %>%
                 filter(collection == ontology) %>%
                 filter(filter_var == !!filter_var) %>%
-                left_join(contrast_label_map) %>%
-                filter(grepl(paste0(conf$levels[1], "$"), label))
+                filter(grepl(paste0(conf$levels[1], "$"), contrast)) %>%
+                left_join(contrast_label_map)
             sigIDs <- grestemp %>%
                 mutate(direction = ifelse(NES > 0, "UP", "DOWN")) %>%
                 group_by(contrast, direction) %>%

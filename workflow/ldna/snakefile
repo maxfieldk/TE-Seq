@@ -791,6 +791,8 @@ rule callmodbamtobedandextractmods:
 
 rule init_wgbstools_default_ref:
     input:
+        aref = "aref.done.outfile"
+    params:
         ref = "aref/A.REF.fa"
     output:
         outfile = "aref/A.REF.analysis_default.wgbs.init.out"
@@ -802,12 +804,14 @@ rule init_wgbstools_default_ref:
     shell:
         """
 mkdir -p $(dirname {output})
-/users/mkelsey/data/tools/wgbs_tools/wgbstools init_genome --fasta_path /users/mkelsey/data/Nanopore/alz/RTE/aref/A.REF.fa analysis_default
+/users/mkelsey/data/tools/wgbs_tools/wgbstools init_genome --fasta_path {params.ref} analysis_default
 touch {output.outfile}
         """
 
 rule init_wgbstools_hg38:
     input:
+        aref = "aref.done.outfile"
+    params:
         ref = "/oscar/data/jsedivy/mkelsey/ref/genomes/hg38/hg38.p13.sorted.fa"
     output:
         outfile = "aref/A.REF.hg38.wgbs.init.out"
@@ -819,7 +823,7 @@ rule init_wgbstools_hg38:
     shell:
         """
 mkdir -p $(dirname {output})
-/users/mkelsey/data/tools/wgbs_tools/wgbstools init_genome --fasta_path /users/mkelsey/data/Nanopore/alz/RTE/aref/A.REF.fa analysis_default
+/users/mkelsey/data/tools/wgbs_tools/wgbstools init_genome --fasta_path {params.ref} hg38
 touch {output.outfile}
         """
 rule wgbs_bam2pat:
@@ -836,7 +840,7 @@ rule wgbs_bam2pat:
     shell:
         """
 mkdir -p $(dirname {output})
-/users/mkelsey/data/tools/wgbs_tools/wgbstools bam2pat --genome {wildcards.analysis_default} -@ 26 --nanopore {input.bam} --out_dir $(dirname {output.pat})
+/users/mkelsey/data/tools/wgbs_tools/wgbstools bam2pat --genome {wildcards.ref_genome} -@ 26 --nanopore {input.bam} --out_dir $(dirname {output.pat})
         """
 
 rule get_hg38_pat:
@@ -852,7 +856,7 @@ rule uxm_deconv:
         csv = "ldna/results/wgbs/hg38/tables/deconv.csv"
     shell:
         """
-mkdir -p $(dirname {output.outfile})
+mkdir -p $(dirname {output.csv})
 uxm deconv --atlas {params.atlas} --output {output.csv} --verbose {input.pat}
         """
 
