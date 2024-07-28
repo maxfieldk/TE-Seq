@@ -37,7 +37,7 @@ condition2samples <- sample_table[sample_table$condition == conditions[2], ]$sam
 {
     genome_lengths <- fasta.seqlengths(conf$reference)
     chromosomesAll <- names(genome_lengths)
-    nonrefchromosomes <- grep("nonref", chromosomesAll, value = TRUE)
+    nonrefchromosomes <- grep("^NI", chromosomesAll, value = TRUE)
     refchromosomes <- grep("^chr", chromosomesAll, value = TRUE)
     autosomes <- grep("^chr[1-9]", refchromosomes, value = TRUE)
     chrX <- c("chrX")

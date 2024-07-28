@@ -219,6 +219,26 @@ mkdir -p $(dirname {output})
 pycoQC --summary_file {input.seqsummary} --bam_file {input.sortedbam} --html_outfile {output.html} --json_outfile {output.json} --min_pass_qual 10
         """
 
+rule pycoQC:
+    input:
+        seqsummary = "aref/qc/{sample}/{sample}.doradosummary.txt",
+        sortedbam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
+    output:
+        mqc = "aref/qc/multiqc_report.html",
+    benchmark:
+        "aref/benchmarks/multiqc/multiqc.tsv"
+    resources:
+        mem_mb = 100000,
+    conda:
+        "omics"
+    shell:
+        """
+mkdir -p $(dirname {output.mqc})
+multqc ./aref -o $(dirname {output.mqc})
+        """
+
+
+
 #tag ALIGNMENT_UTILITIES
 rule subsample_bam:
     input:

@@ -37,12 +37,11 @@ condition2samples <- sample_table[sample_table$condition == conditions[2], ]$sam
 {
     genome_lengths <- fasta.seqlengths(conf$reference)
     chromosomesAll <- names(genome_lengths)
-    nonrefchromosomes <- grep("nonref", chromosomesAll, value = TRUE)
-    refchromosomes <- grep("^chr", chromosomesAll, value = TRUE)
-    autosomes <- grep("^chr[1-9]", refchromosomes, value = TRUE)
+    nonrefchromosomes <- grep("^NI", chromosomesAll, value = TRUE) %>% str_sort(numeric = TRUE)
+    refchromosomes <- grep("^chr", chromosomesAll, value = TRUE) %>% str_sort(numeric = TRUE)
+    autosomes <- grep("^chr[1-9]", refchromosomes, value = TRUE) %>% str_sort(numeric = TRUE)
     chrX <- c("chrX")
     chrY <- c("chrY")
-
     MINIMUMCOVERAGE <- conf$MINIMUM_COVERAGE_FOR_METHYLATION_ANALYSIS
     if ("chrY" %in% conf$SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS) {
         if ("chrX" %in% conf$SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS) {

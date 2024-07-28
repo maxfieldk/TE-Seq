@@ -136,11 +136,12 @@ rule telometer:
         out = "ldna/results/tables/telometer/{sample}_telometer_{minimum_read_length}.tsv"
     params:
         chemistry = "r10",
+    retries: 3
     resources:
-        cpus_per_task =20,
+        cpus_per_task =10,
         runtime = 1200,
         mem_mb = 240000
-    conda: "telometer"
+    conda: "telometer2"
     shell:
         """
 mkdir -p $(dirname {output.out})
@@ -149,7 +150,7 @@ telometer -b {input.sortedbam} -o {output.out} -m {wildcards.minimum_read_length
 
 rule call_telometer:
     input:
-        telometer_outs = expand("ldna/results/tables/telometer/{sample}_telometer_{minimum_read_length}.tsv", sample = samples, minimum_read_length = [1000, 4000, 10000])
+        telometer_outs = expand("ldna/results/tables/telometer/{sample}_telometer_{minimum_read_length}.tsv", sample = samples, minimum_read_length = [4000])
     output:
         "telometer.done"
     shell:
@@ -854,10 +855,13 @@ rule uxm_deconv:
         atlas = "/users/mkelsey/data/Nanopore/alz/Atlas.U25.l4.hg38.tsv"
     output:
         csv = "ldna/results/wgbs/hg38/tables/deconv.csv"
+    conda: "omics"
     shell:
         """
 mkdir -p $(dirname {output.csv})
 uxm deconv --atlas {params.atlas} --output {output.csv} --verbose {input.pat}
+uxm deconv --include Neuron Oligodend --atlas {params.atlas} --output ${{{output.csv}%.*}}.brainsubset.csv --verbose {input.pat}
+
         """
 
 
