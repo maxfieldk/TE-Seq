@@ -251,9 +251,6 @@ ldna:
   rte_subfamily_read_level_analysis:
     - "L1HS_intactness_req_ALL"
 
-  rte_subfamily_read_level_analysis:
-    - "L1HS_intactness_req_ALL"
-
   genesets_for_great:
     msigdbH: /users/mkelsey/data/ref/genesets/human/msigdb/h.all.v2023.2.Hs.symbols.gmt
     msigdbC2_CPG: /users/mkelsey/data/ref/genesets/human/msigdb/c2.cgp.v2023.2.Hs.symbols.gmt
