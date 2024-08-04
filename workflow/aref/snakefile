@@ -408,17 +408,18 @@ rule update_reference:
         "scripts/create_reference.R"
 
 
-checkpoint move_starting_reference_and_index:
+checkpoint copy_starting_reference_and_index:
     params:
         ref = config["starting_ref"]
     conda:
         "omics"
+    priority: 100
     output:
         ref = "aref/A.REF.fa"
     shell:
         """
 cp {params.ref} {output.ref}
-samtools faidx {input.reference}
+samtools faidx {output.ref}
         """
 
 rule get_repeatmasker_raw:
@@ -502,6 +503,8 @@ RepeatMasker -species "$species" -pa {resources.cpus_per_task} -gff {input.split
         """
 
 def merge_outs_wholegenome_input(wildcards):
+    #call checkpoint output just to register rule merge_rm_out_wholegenome as dependent on the move_staring_reference rule
+    checkpoint_output = checkpoints.copy_starting_reference_and_index.get().output[0]
     if os.path.exists("aref/A.REF.fa.fai"):
         return expand("aref/A.REF_repeatmasker/wholegenome/A.REF_{chromosome}.fa.out", chromosome = pd.read_table("aref/A.REF.fa.fai", header = None)[0].tolist())
     else:
@@ -513,6 +516,7 @@ rule merge_rm_out_wholegenome:
         "aref/benchmarks/merge_rm_out_wholegenome/merge_rm_out_wholegenome.tsv"
     output:
         out = "aref/A.REF_repeatmasker/A.REF.repeatmasker_raw.out"
+    priority: 99
     conda:
         "evo2"
     shell:
@@ -593,7 +597,7 @@ rule process_gtf:
     conda:
         "evo2"
     script:
-        "scripts/process_gtf.R"
+        "scripts/process_gtf_tldr.R"
 
 rule process_gtf_tldr:
     input:

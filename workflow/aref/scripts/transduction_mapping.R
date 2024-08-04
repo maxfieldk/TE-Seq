@@ -109,7 +109,7 @@ bres_hits <- bres1 %>%
     filter(gapopen == min(gapopen)) %>%
     filter(length == max(length)) %>% filter(nrow(.) == 1) %>% ungroup()
 
-join_df <- rmann %>% filter(refstatus == "NonRef") %>% dplyr::select(gene_id, nonref_insert_id) %>% mutate(Chrom = gsub(".*chr", "chr", nonref_insert_id) %>% gsub("_.*", "", .)) %>% mutate(Start = gsub(".*chr", "chr", nonref_insert_id) %>% str_split_i("_", 2) %>% as.numeric()) %>% dplyr::select(-nonref_insert_id)
+join_df <- rmann %>% filter(refstatus == "NonRef") %>% dplyr::select(gene_id, old_id) %>% mutate(Chrom = gsub(".*chr", "chr", old_id) %>% gsub("_.*", "", .)) %>% mutate(Start = gsub(".*chr", "chr", old_id) %>% str_split_i("_", 2) %>% as.numeric()) %>% dplyr::select(-old_id)
 bres_hits1 <- bres_hits %>% left_join(join_df)
 relevant_subfamilies <- bres_hits1 %$% Subfamily %>% unique()
 l1grs <- GRanges(rmann %>% filter(grepl(paste(relevant_subfamilies, sep = "|", colapse = TRUE), rte_subfamily)))
@@ -129,12 +129,12 @@ trsd_adjacent_l1 <- mergeByOverlaps(bresgrs, l1grs) %>% as.data.frame() %>% tibb
 from_df <- trsd_adjacent_l1 %>% dplyr::select(gene_id = from_gene_id) %>% left_join(rmann) %>% dplyr::select(gene_id, seqnames, start, end)
 to_df <- trsd_adjacent_l1 %>%
     dplyr::select(gene_id = to_gene_id) %>%
-    left_join(rmann ) %>% dplyr::select(gene_id, nonref_insert_id) %>%
-        mutate(seqnames = gsub(".*chr", "chr", nonref_insert_id) %>%
+    left_join(rmann ) %>% dplyr::select(gene_id, old_id) %>%
+        mutate(seqnames = gsub(".*chr", "chr", old_id) %>%
             gsub("_.*", "", .)) %>%
-        mutate(start = gsub(".*chr", "chr", nonref_insert_id) %>%
+        mutate(start = gsub(".*chr", "chr", old_id) %>%
             str_split_i("_", 2) %>% as.numeric()) %>% 
-        mutate(end = gsub(".*chr", "chr", nonref_insert_id) %>% 
+        mutate(end = gsub(".*chr", "chr", old_id) %>% 
             str_split_i("_", 3) %>% as.numeric()) %>%
         dplyr::select(gene_id, seqnames, start, end)
 
