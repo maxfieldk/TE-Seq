@@ -1070,3 +1070,93 @@ cd $(dirname {output.outfile})
 update_blastdb.pl --decompress pdbaa
 touch outfile.out
         """
+
+
+rule extract_putative_translocation_supporting_reads:
+    input:
+        sortedbam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
+    output:
+        alndata = "aref/intermediates/{sample}/translocation_analysis/putative_trans_reads.tsv",
+    conda:
+        "omics"
+    shell:
+        """
+mkdir -p $(dirname {output.alndata})
+#exclude all secondary and supplementary alignments
+samtools view -F 0x800 -F 0x100 {input.sortedbam} | bioawk -c sam '
+{{
+    count = 0
+    #matching SA tag which denotes a read which has supplementary alignments
+    match($0, /SA:Z[^ ]*/)
+    if (RSTART != 0) {{
+        savl = substr($0, RSTART, RLENGTH)
+        count = gsub(/;/, "&", savl)
+    }}
+    #only keeping SAs which have only one supplementary portion
+    if (count == 1) {{
+        # Extract the relevant part of the string (the part after "SA:Z:")
+        split(savl, b, ",")
+
+        # Extract the CIGAR string (b[4])
+        sacigar = b[4]
+
+        # Initialize running sum
+        running_sum = 0
+
+        # Split the CIGAR string into components
+        while (match(sacigar, /([0-9]+)M/)) {{
+            num = substr(sacigar, RSTART, RLENGTH - 1)
+            running_sum += num + 0
+            sacigar = substr(sacigar, RSTART + RLENGTH)
+        }}
+
+        # only keep reads with supplementary portion with at least 500bp aligned
+        if (running_sum > 500) {{
+            print $qname, $flag, $rname, $pos, $mapq, $cigar, savl
+        }}
+    }}
+}}
+' > {output.alndata}
+        """
+
+rule get_all_read_clipping_lengths:
+    input:
+        sortedbam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
+    output:
+        alndata = "aref/intermediates/{sample}/translocation_analysis/read_clipping_lengths.tsv",
+    conda:
+        "omics"
+    shell:
+        """
+mkdir -p $(dirname {output.alndata})
+#exclude all secondary and supplementary alignments
+samtools view -F 0x800 -F 0x100 {input.sortedbam} | bioawk -c sam '
+{{
+    # Initialize clipping lengths
+    start_clipping = 0
+    end_clipping = 0
+
+    # Check for clipping at the start
+    if ($6 ~ /^([0-9]+[SH])/) {{
+        split($6, a, /[SH]/)
+        start_clipping = a[1]
+    }}
+
+    # Check for clipping at the end
+    if ($6 ~ /([0-9]+[SH])$/) {{
+        split($6, a, /[MIDSH]/)
+        end_clipping = a[length(a)-1]
+    }}
+
+    {{
+        print start_clipping, end_clipping
+    }}
+}}
+' > {output.alndata}
+        """
+
+rule call_read_extractions:
+    input:
+        alndata = expand("aref/intermediates/{sample}/translocation_analysis/read_clipping_lengths.tsv", sample = config["samples"]),
+        alndata1 = expand("aref/intermediates/{sample}/translocation_analysis/putative_trans_reads.tsv", sample = config["samples"])
+    
