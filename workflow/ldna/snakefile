@@ -129,19 +129,36 @@ mkdir -p $(dirname {output.sam})
 minimap2 -a -x map-ont -t 30 -y {input.ref_telometer} {input.fastq} > {output.sam}
         """
 
+rule telometer_split_bam:
+    input:
+        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.bam",ref_genome = "telometer", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        sortedbambai = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.bam.bai",ref_genome = "telometer", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+    output:
+        sortedbam1 = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.1.sorted.bam",ref_genome = "telometer", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        sortedbam2 = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.2.sorted.bam",ref_genome = "telometer", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        sortedbam3 = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.3.sorted.bam",ref_genome = "telometer", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+    conda:
+        "omics"
+    shell:
+        """
+samtools view -b {input.sortedbam} chr1 chr2 chr3 chr4 chr5 > {output.sortedbam1}
+samtools view -b {input.sortedbam} chr6 chr7 chr8 chr9 chr10 chr11 chr12  > {output.sortedbam2}
+samtools view -b {input.sortedbam} chr13 chr14 chr15 chr16 chr17 chr18 chr19 chr20 chr21 chr22 chrX chrY alt1_p_0 alt2_p_0 alt3_p_0 alt4_p_0 alt5_p_0 alt6_p_0 alt7_p_0 alt8_p_0 alt9_p_0 alt10_p_0 alt11_p_0 alt12_p_0 alt13_p_0 alt14_p_0 alt15_p_0 alt16_p_0 alt17_p_0 alt18_p_0 alt19_p_0 alt20_p_0 alt21_p_0 alt22_p_0 altX_p_0 altY_p_0 alt1_q_0 alt2_q_0 alt3_q_0 alt4_q_0 alt5_q_0 alt6_q_0 alt7_q_0 alt8_q_0 alt9_q_0 alt10_q_0 alt11_q_0 alt12_q_0 alt13_q_0 alt14_q_0 alt15_q_0 alt16_q_0 alt17_q_0 alt18_q_0 alt19_q_0 alt20_q_0 alt21_q_0 alt22_q_0 altX_q_0 altY_q_0 > {output.sortedbam3}
+        """
+        
 rule telometer:
     input:
-        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.bam",ref_genome = "telometer", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.{{split_num}}.sorted.bam",ref_genome = "telometer", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
     output:
-        out = "ldna/results/tables/telometer/{sample}_telometer_{minimum_read_length}.tsv"
+        out = "ldna/results/tables/telometer/{sample}_{split_num}_telometer_{minimum_read_length}.tsv"
     params:
         chemistry = "r10",
-    retries: 3
+    retries: 2
     resources:
         cpus_per_task =10,
         runtime = 1200,
-        mem_mb = 240000
-    conda: "telometer2"
+        mem_mb = 200000
+    conda: "telometer3"
     shell:
         """
 mkdir -p $(dirname {output.out})
@@ -150,7 +167,7 @@ telometer -b {input.sortedbam} -o {output.out} -m {wildcards.minimum_read_length
 
 rule call_telometer:
     input:
-        telometer_outs = expand("ldna/results/tables/telometer/{sample}_telometer_{minimum_read_length}.tsv", sample = samples, minimum_read_length = [4000])
+        telometer_outs = expand("ldna/results/tables/telometer/{sample}_{split_num}_telometer_{minimum_read_length}.tsv", sample = ["AD1", "AD2", "AD3", "AD4", "AD6", "CTRL4"], split_num = [1,2,3], minimum_read_length = [4000])
     output:
         "telometer.done"
     shell:
@@ -341,8 +358,11 @@ rule filterbam:
         mem_mb = 40000
     conda:
         "omics"
-    shell: "samtools view -b -F 0x100 -q 10 {input.bam} > {output.bam}"
-
+    shell: 
+        """
+#keeps on only primary and supplementary alignments
+samtools view -b -F 0x100 -q 10 {input.bam} > {output.bam}"
+        """
 #tag PHASING
 
 rule whatshap:
@@ -431,21 +451,23 @@ samtools index -@ 6 {output.haplotaggedbam}
 
 rule modbamtobed:
     input:
-        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
     params:
-        ref = lambda wildcards: "aref/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF.fa"
+        ref = lambda wildcards: "/oscar/data/jsedivy/mkelsey/ref/genomes/hg38/hg38.p13.sorted.fa" if wildcards.ref_genome == "hg38" else "aref/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF.fa"
     resources:
         cpus_per_task = 36,
         mem_mb = 128000
     output:
-        bed = "ldna/intermediates/{sample}/methylation/{sample}_CG_bedMethyl.bed",
-        dssInput_m = "ldna/intermediates/{sample}/methylation/{sample}_CG_m_dss.tsv",
-        dssInput_h = "ldna/intermediates/{sample}/methylation/{sample}_CG_h_dss.tsv"
+        bed = "ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_bedMethyl.bed",
+        dssInput_m = "ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_m_dss.tsv",
+        dssInput_h = "ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_h_dss.tsv"
     conda:
         "omics"
     shell: 
         """
+echo "reference path is"
+echo {params.ref}
 mkdir -p $(dirname {output})
 /oscar/data/jsedivy/mkelsey/tools/modkit pileup {input.sortedbam} {output.bed} \
 --ref {params.ref} \
@@ -462,12 +484,12 @@ awk -v s=1 '$4=="h" {{OFS = "\t"; print $1, $2+s, $10, $12}}' {output.bed} >> {o
 
 # rule methbigwig:
 #     input:
-#         bed = "ldna/intermediates/{sample}/methylation/{sample}_CG_bedMethyl.bed"
+#         bed = "ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_bedMethyl.bed"
 #     output:
-#         meth_bed = "ldna/intermediates/{sample}/methylation/{sample}_CG_m.bed",
-#         hmeth_bed = "ldna/intermediates/{sample}/methylation/{sample}_CG_h.bed",
-#         meth_bw = "ldna/intermediates/{sample}/methylation/{sample}_CG_m_50bp.bw",
-#         hmeth_bw = "ldna/intermediates/{sample}/methylation/{sample}_CG_h_50bp.bw",
+#         meth_bed = "ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_m.bed",
+#         hmeth_bed = "ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_h.bed",
+#         meth_bw = "ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_m_50bp.bw",
+#         hmeth_bw = "ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_h_50bp.bw",
 #     conda:
 #         "omics"
 #     shell:
@@ -493,10 +515,10 @@ rule modbamtobed_region:
         cpus_per_task = 36,
         mem_mb = 128000
     output:
-        bed = "ldna/intermediates/{sample}/methylation/{sample}_{element}_nocontext_bedMethyl.bed",
-        dssInput_m = "ldna/intermediates/{sample}/methylation/{sample}_{element}_nocontext.m_dss.tsv",
-        dssInput_h = "ldna/intermediates/{sample}/methylation/{sample}_{element}_nocontext.h_dss.tsv",
-        dssInput_a = "ldna/intermediates/{sample}/methylation/{sample}_{element}_nocontext.a_dss.tsv"
+        bed = "ldna/intermediates/{sample}/methylation/analysis_default/{sample}_{element}_nocontext_bedMethyl.bed",
+        dssInput_m = "ldna/intermediates/{sample}/methylation/analysis_default/{sample}_{element}_nocontext.m_dss.tsv",
+        dssInput_h = "ldna/intermediates/{sample}/methylation/analysis_default/{sample}_{element}_nocontext.h_dss.tsv",
+        dssInput_a = "ldna/intermediates/{sample}/methylation/analysis_default/{sample}_{element}_nocontext.a_dss.tsv"
     conda:
         "omics"
     shell: 
@@ -540,7 +562,7 @@ awk -v s=1 '$4=="a" {{OFS = "\t"; print $1, $2+s, $10, $12}}' {output.bed} >> {o
 
 rule dss:
     input:
-        data = expand("ldna/intermediates/{sample}/methylation/{sample}_{{type}}_dss.tsv", sample = samples),
+        data = expand("ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_{{type}}_dss.tsv", sample = samples, ref_genome = "analysis_default"),
     params:
         chromosome = lambda w: w.chr
     output:
@@ -598,7 +620,7 @@ rule extractmods:
         sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
         sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
     output:
-        read_mods = 'ldna/intermediates/{sample}/methylation/{sample}_readmods_NoContext_{region}.tsv'
+        read_mods = 'ldna/intermediates/{sample}/methylation/analysis_default/{sample}_readmods_NoContext_{region}.tsv'
     params:
         ref = config["ldna"]["reference"],
         ref_annotation_dir = config["ldna"]["reference_annotation_dir"],
@@ -626,7 +648,7 @@ rule extractmods_cg_context:
         sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
         sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
     output:
-        read_mods = 'ldna/intermediates/{sample}/methylation/{sample}_readmods_CpG_{region}.tsv'
+        read_mods = 'ldna/intermediates/{sample}/methylation/analysis_default/{sample}_readmods_CpG_{region}.tsv'
     params:
         ref = config["ldna"]["reference"],
         ref_annotation_dir = config["ldna"]["reference_annotation_dir"],
@@ -653,7 +675,7 @@ mkdir -p $(dirname {output})
 
 rule genomewide_meth:
     input:
-        dss = expand("ldna/intermediates/{sample}/methylation/{sample}_CG_m_dss.tsv", sample = samples)
+        dss = expand("ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_m_dss.tsv", sample = samples, ref_genome = "analysis_default")
     output:
         plots = "ldna/results/plots/genomewide/genomewide_meth_plots.rds"
     resources:
@@ -669,8 +691,8 @@ rule bedmethylanalysis_process:
     input:
         dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
         dmls = "ldna/results/tables/dmls.CG_m.tsv",
-        bedmethylpaths = expand("ldna/intermediates/{sample}/methylation/{sample}_CG_bedMethyl.bed", sample = samples),
-        read_mods = expand('ldna/intermediates/{sample}/methylation/{sample}_readmods_{context}_{region}.tsv', sample = samples, region = config["ldna"]["rte_subfamily_read_level_analysis"], context = ["CpG", "NoContext"])
+        bedmethylpaths = expand("ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_bedMethyl.bed", sample = samples, ref_genome = "analysis_default"),
+        read_mods = expand('ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_readmods_{context}_{region}.tsv', sample = samples, ref_genome = "analysis_default", region = config["ldna"]["rte_subfamily_read_level_analysis"], context = ["CpG", "NoContext"])
     output:
         grsdf = "ldna/Rintermediates/grsdf.tsv"
     resources:
@@ -687,7 +709,7 @@ rule bedmethylanalysis_plot:
         dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
         dmls = "ldna/results/tables/dmls.CG_m.tsv",
         grsdf = "ldna/Rintermediates/grsdf.tsv"
-        # read_mods = expand('ldna/intermediates/{sample}/methylation/{sample}_readmods_{context}_{region}.tsv', sample = samples, region = config["ldna"]["rte_subfamily_read_level_analysis"], context = ["CpG", "NoContext"])
+        # read_mods = expand('ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_readmods_{context}_{region}.tsv', sample = samples, region = config["ldna"]["rte_subfamily_read_level_analysis"], context = ["CpG", "NoContext"])
     output:
         plots = "ldna/results/plots/bedmethylanalysis.rds",
         promoters_bed = "ldna/Rintermediates/promoters.bed",
@@ -704,8 +726,8 @@ rule bedmethylanalysis_plot:
 
 rule bedmethylanalysis_single_sample:
     input:
-        bedmethylpaths = expand("ldna/intermediates/{sample}/methylation/{sample}_CG_bedMethyl.bed", sample = samples),
-        read_mods = expand('ldna/intermediates/{sample}/methylation/{sample}_readmods_{context}_{region}.tsv', sample = samples, region = config["ldna"]["rte_subfamily_read_level_analysis"], context = ["CpG", "NoContext"])
+        bedmethylpaths = expand("ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_bedMethyl.bed", sample = samples, ref_genome = "analysis_default"),
+        read_mods = expand('ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_readmods_{context}_{region}.tsv', sample = samples, ref_genome = "analysis_default", region = config["ldna"]["rte_subfamily_read_level_analysis"], context = ["CpG", "NoContext"])
     output:
         outfile = "ldna/outfiles/bedmethylanalysis_single_sample.txt",
         promoters_bed = "ldna/Rintermediates/promoters.bed"
@@ -784,8 +806,8 @@ touch {output.outfile}
 
 rule callmodbamtobedandextractmods:
     input:
-        [expand("ldna/intermediates/{sample}/methylation/{sample}_{context}_bedMethyl.bed", sample = samples, context = ["CG", "C", "A"]),
-        expand("ldna/intermediates/{sample}/methylation/{sample}_mods.tsv", sample = samples)]
+        [expand("ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_{context}_bedMethyl.bed", sample = samples, ref_genome = "analysis_default", context = ["CG", "C", "A"]),
+        expand("ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_mods.tsv", sample = samples, ref_genome = "analysis_default")]
 
 
 #tag Methylation plots
@@ -860,7 +882,8 @@ rule uxm_deconv:
         """
 mkdir -p $(dirname {output.csv})
 uxm deconv --atlas {params.atlas} --output {output.csv} --verbose {input.pat}
-uxm deconv --include Neuron Oligodend --atlas {params.atlas} --output ${{{output.csv}%.*}}.brainsubset.csv --verbose {input.pat}
+outputcsv={output.csv}
+uxm deconv --include Neuron Oligodend --atlas {params.atlas} --output ${{outputcsv%.*}}.brainsubset.csv --verbose {input.pat}
 
         """
 
@@ -1683,3 +1706,61 @@ rule pass_vcf:
 bcftools view -f 'PASS' {input.vcf_sml} > {output.vcf_sml}
 bcftools view -f 'PASS' {input.vcf_sv} > {output.vcf_sv}
         """
+
+
+
+rule bedmethyl_to_illumina450k_probe_id:
+    input:
+        bedmethylpaths = expand("ldna/intermediates/{sample}/methylation/hg38/{sample}_CG_bedMethyl.bed", sample = samples)
+    conda: 
+        "ds"
+    output:
+        csv = "ldna/intermediates/agg/cpg_formatted_methylation_filtered.csv"
+    resources:
+        runtime = 100,
+        mem_mb = 128000,
+        cpus_per_task = 4
+    script:
+        "scripts/bedmeth_to_illumina450k.R"
+
+rule pyaging_clock:
+    input:
+        csv = "ldna/intermediates/agg/cpg_formatted_methylation_filtered.csv"
+    conda: 
+        "pyaging"
+    output:
+        csv = "ldna/results/tables/clocks/pyaging_clock_results.csv"
+    resources:
+        runtime = 100,
+        mem_mb = 50000,
+        cpus_per_task = 4
+    script:
+        "scripts/pyaging_clock.py"
+
+rule pyaging_clock_analysis:
+    input:
+        csv = "ldna/results/tables/clocks/pyaging_clock_results.csv"
+    conda: 
+        "repeatanalysis"
+    output:
+        csv = "ldna/results/plots/clocks/pyaging_clock_plots.outfile"
+    resources:
+        runtime = 30,
+        mem_mb = 50000,
+        cpus_per_task = 4
+    script:
+        "scripts/pyaging_clock_analysis.R"
+
+rule deconv:
+    input:
+        deconv = "ldna/results/wgbs/hg38/tables/deconv.csv"
+    conda: 
+        "repeatanalysis"
+    output:
+        outfile = "ldna/results/plots/deconvolve/deconv.outfile"
+    resources:
+        runtime = 30,
+        mem_mb = 50000,
+        cpus_per_task = 4
+    script:
+        "scripts/deconv.R"

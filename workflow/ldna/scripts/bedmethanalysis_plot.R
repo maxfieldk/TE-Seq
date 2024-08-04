@@ -2,6 +2,7 @@ module_name <- "ldna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
 source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
+source("conf/sample_table_source.R")
 
 library(rtracklayer)
 library(Biostrings)
@@ -24,10 +25,8 @@ library(Biostrings)
 library(ggpubr)
 
 
-samples <- conf$samples
-sample_table <- read_csv(sprintf("conf/sample_table_%s.csv", conf$prefix))
-sample_table <- sample_table[match(samples, sample_table$sample_name), ]
 
+sample_table <- sample_table[match(samples, sample_table$sample_name), ]
 conditions <- conf$levels
 condition1 <- conditions[1]
 condition2 <- conditions[2]
@@ -61,8 +60,6 @@ condition2samples <- sample_table[sample_table$condition == conditions[2], ]$sam
 }
 #################### functions and themes
 
-BMAtables <- list()
-
 tryCatch(
     {
         params <- snakemake@params
@@ -71,7 +68,7 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            bedmethlpaths = sprintf("ldna/intermediates/%s/methylation/%s_CG_bedMethyl.bed", samples, samples),
+            bedmethlpaths = sprintf("ldna/intermediates/%s/methylation/%s_CG_bedMethyl.bed", sample_table$sample_name, sample_table$sample_name),
             data = sprintf("ldna/intermediates/%s/methylation/%s_CG_m_dss.tsv", sample_table$sample_name, sample_table$sample_name),
             dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
             dmls = "ldna/results/tables/dmls.CG_m.tsv"
@@ -91,6 +88,9 @@ dmrspath <- inputs$dmrs
 ref_annotation_dir <- conf$reference_annotation_dir
 rte_subfamily_read_level_analysis <- conf$rte_subfamily_read_level_analysis
 
+r_annotation_fragmentsjoined <- read_csv(conf$r_annotation_fragmentsjoined)
+r_repeatmasker_annotation <- read_csv(conf$r_repeatmasker_annotation)
+rmann <- left_join(r_annotation_fragmentsjoined, r_repeatmasker_annotation)
 
 grsdf <- read_delim("ldna/Rintermediates/grsdf.tsv", col_names = TRUE)
 grsdf %$% sample %>% unique()
@@ -402,9 +402,10 @@ mysaveandstore(sprintf("ldna/results/plots/rte/dmfl%s_promoter.pdf", "all"), 12,
 
 pf <- perelementdf_promoters
 p <- pf %>%
+    group_by(rte_subfamily) %>% mutate(n = n()) %>% mutate(rte_subfamily_n = paste0(rte_subfamily, "\nn=", n)) %>% ungroup() %>%
     ggplot() +
-    geom_quasirandom(aes(x = rte_subfamily, y = mean_meth, color = condition), dodge.width = 0.75) +
-    geom_boxplot(aes(x = rte_subfamily, y = mean_meth, color = condition), alpha = 0.5, outlier.shape = NA) +
+    geom_quasirandom(aes(x = rte_subfamily_n, y = mean_meth, color = condition), dodge.width = 0.75) +
+    geom_boxplot(aes(x = rte_subfamily_n, y = mean_meth, color = condition), alpha = 0.5, outlier.shape = NA) +
     xlab("") +
     ylab("Average CpG Methylation Per Element") +
     ggtitle("RTE CpG Methylation") +
@@ -415,8 +416,164 @@ stats <- pf %>%
     summarise(mean_meth = mean(mean_meth)) %>%
     ungroup() %>%
     compare_means(mean_meth ~ condition, data = ., group.by = "rte_subfamily", p.adjust.method = "fdr")
+stats <- pf %>%
+    compare_means(mean_meth ~ condition, data = ., group.by = "rte_subfamily", p.adjust.method = "fdr")
 mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters.pdf", 14, 6, sf = stats)
 mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters.pdf", raster = TRUE, 14, 6)
+
+p <- pf %>%
+    filter(!grepl("HERVL", rte_subfamily)) %>%
+    group_by(rte_subfamily) %>% mutate(n = n()) %>% mutate(rte_subfamily_n = paste0(rte_subfamily, "\nn=", n)) %>% ungroup() %>%
+    ggplot() +
+    geom_quasirandom(aes(x = rte_subfamily_n, y = mean_meth, color = condition), dodge.width = 0.75) +
+    geom_boxplot(aes(x = rte_subfamily_n, y = mean_meth, color = condition), alpha = 0.5, outlier.shape = NA) +
+    xlab("") +
+    ylab("Average CpG Methylation Per Element") +
+    ggtitle("RTE CpG Methylation") +
+    mtopen +
+    scale_conditions
+stats <- pf %>%
+    group_by(sample, condition, rte_subfamily) %>%
+    summarise(mean_meth = mean(mean_meth)) %>%
+    ungroup() %>%
+    compare_means(mean_meth ~ condition, data = ., group.by = "rte_subfamily", p.adjust.method = "fdr")
+stats <- pf %>%
+    compare_means(mean_meth ~ condition, data = ., group.by = "rte_subfamily", p.adjust.method = "fdr")
+mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters_1.pdf", 14, 6, sf = stats)
+mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters_1.pdf", raster = TRUE, 14, 6)
+
+p <- pf %>%
+    filter(grepl("^L1", rte_subfamily)) %>%
+    group_by(rte_subfamily) %>% mutate(n = n()) %>% mutate(rte_subfamily_n = paste0(rte_subfamily, "\nn=", n)) %>% ungroup() %>%
+    ggplot(aes(x = rte_subfamily_n, y = mean_meth, color = condition)) +
+    geom_quasirandom(dodge.width = 0.75) +
+    geom_boxplot(alpha = 0.5, outlier.shape = NA) +
+    geom_pwc(aes(group = condition)) +
+    xlab("") +
+    ylab("Average CpG Methylation Per Element") +
+    ggtitle("RTE CpG Methylation") +
+    mtopen +
+    scale_conditions
+stats <- pf %>%
+    group_by(sample, condition, rte_subfamily) %>%
+    summarise(mean_meth = mean(mean_meth)) %>%
+    ungroup() %>%
+    compare_means(mean_meth ~ condition, data = ., group.by = "rte_subfamily", p.adjust.method = "fdr")
+stats <- pf %>%
+    compare_means(mean_meth ~ condition, data = ., group.by = "rte_subfamily", p.adjust.method = "fdr")
+mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters_L1s.pdf", 14, 6, sf = stats)
+mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters_L1s.pdf", raster = TRUE, 12, 4)
+
+
+
+p <- pf %>%
+    filter(grepl("^L1HS", rte_subfamily)) %>%
+    group_by(rte_subfamily) %>% mutate(n = n()) %>% mutate(rte_subfamily_n = paste0(rte_subfamily, "\nn=", n)) %>% ungroup() %>%
+    ggplot(aes(x = sample, y = mean_meth, color = condition)) +
+    geom_quasirandom(dodge.width = 0.75) +
+    geom_boxplot(alpha = 0.5, outlier.shape = NA) +
+    xlab("") +
+    ylab("Average CpG Methylation Per Element") +
+    ggtitle("RTE CpG Methylation") +
+    mtopen +
+    scale_conditions
+
+stats <- pf %>%
+    compare_means(mean_meth ~ condition, data = ., group.by = "rte_subfamily", p.adjust.method = "fdr")
+mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters_by_sample_L1s.pdf", 10, 6, sf = stats)
+mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters_by_sample_L1s.pdf", raster = TRUE, 12, 4)
+
+
+p <- pf %>%
+    filter(grepl("^L1HS", rte_subfamily)) %>%
+    filter(intactness_req == "Intact") %>%
+    group_by(rte_subfamily) %>% mutate(n = n()) %>% mutate(rte_subfamily_n = paste0(rte_subfamily, "\nn=", n)) %>% ungroup() %>%
+    ggplot(aes(x = sample, y = mean_meth, color = condition)) +
+    geom_quasirandom(dodge.width = 0.75) +
+    geom_boxplot(alpha = 0.5, outlier.shape = NA) +
+    xlab("") +
+    ylab("Average CpG Methylation Per Element") +
+    ggtitle("RTE CpG Methylation") +
+    mtopen +
+    scale_conditions
+
+stats <- pf %>%
+    compare_means(mean_meth ~ condition, data = ., group.by = "rte_subfamily", p.adjust.method = "fdr")
+mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters_by_sample_intactL1s.pdf", 10, 6, sf = stats)
+mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters_by_sample_L1s.pdf", raster = TRUE, 12, 4)
+
+p <- pf %>%
+    filter(grepl("^L1HS", rte_subfamily)) %>%
+    left_join(sample_table %>% dplyr::rename(sample = sample_name)) %>%
+    filter(intactness_req == "Intact") %>%
+    group_by(rte_subfamily) %>% mutate(n = n()) %>% mutate(rte_subfamily_n = paste0(rte_subfamily, "\nn=", n)) %>% ungroup() %>%
+    ggplot(aes(x = braak, y = mean_meth, color = sample)) +
+    geom_quasirandom(dodge.width = 0.75) +
+    geom_boxplot(alpha = 0.5, outlier.shape = NA) +
+    xlab("") +
+    ylab("Average CpG Methylation Per Element") +
+    ggtitle("RTE CpG Methylation") +
+    mtopen +
+    scale_conditions
+
+stats <- pf %>%
+    compare_means(mean_meth ~ condition, data = ., group.by = "rte_subfamily", p.adjust.method = "fdr")
+mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters_by_sample_braak_intactL1s.pdf", 10, 6, sf = stats)
+mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters_by_sample_braak_intactL1s.pdf", raster = TRUE, 12, 4)
+
+
+p <- pf %>%
+    filter(grepl("^L1HS", rte_subfamily)) %>%
+    left_join(sample_table %>% dplyr::rename(sample = sample_name)) %>%
+    group_by(rte_subfamily) %>% mutate(n = n()) %>% mutate(rte_subfamily_n = paste0(rte_subfamily, "\nn=", n)) %>% ungroup() %>%
+    ggplot(aes(x = sample, y = mean_meth, color = braak)) +
+    geom_quasirandom(dodge.width = 0.75) +
+    geom_boxplot(alpha = 0.5, outlier.shape = NA) +
+    xlab("") +
+    ylab("Average CpG Methylation Per Element") +
+    ggtitle("RTE CpG Methylation") +
+    scale_palette_alt +
+    mtopen
+pf %>%
+    filter(grepl("^L1HS", rte_subfamily)) %>% group_by(sample) %>% summarize(median = median(mean_meth)) %>% left_join(sample_table %>% dplyr::rename(sample = sample_name)) %>% ungroup() %>% group_by(condition) %>% summarize(mean_of_median = mean(median))
+stats <- pf %>%
+    compare_means(mean_meth ~ condition, data = ., group.by = "rte_subfamily", p.adjust.method = "fdr")
+mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters_by_sample_braak_L1s.pdf", 10, 6, sf = stats)
+mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters_by_sample_braak_L1s.pdf", raster = TRUE, 12, 4)
+
+
+
+pfl1 <- pf %>% filter(grepl("^L1", rte_subfamily)) 
+p <- pfl1 %>% group_by(gene_id, rte_subfamily, condition) %>% summarize(mean_meth = mean(mean_meth)) %>% pivot_wider(names_from = condition, values_from =mean_meth) %>% 
+    ungroup() %>%
+    mutate(dif = CTRL - AD) %>% mutate(abs_dif = abs(dif)) %>% arrange(-abs_dif) %>%
+    group_by(rte_subfamily) %>% mutate(rank_change = row_number()) %>% 
+    mutate(top_change = ifelse(rank_change <= 10, "Top", "NotTop")) %>%
+    arrange(abs_dif) %>%
+    ungroup() %>%
+    ggpaired(cond1 = "CTRL", cond2 = "AD", line.color = "top_change", alpha = "top_change", facet.by = "rte_subfamily") +
+    scale_alpha_manual(values = c(1,0.5)) +
+    scale_color_manual(values = c("Top" = "red", "NotTop" = "grey")) +
+    mtclosedgridh
+mysaveandstore(fn = "ldna/results/plots/rte/repmasker_paired_promoters_L1s.pdf", 14, 6,raster = TRUE)
+
+top_l1hs_movers <- pfl1 %>% group_by(gene_id, rte_subfamily, condition) %>% summarize(mean_meth = mean(mean_meth)) %>% pivot_wider(names_from = condition, values_from =mean_meth) %>% 
+    ungroup() %>%
+    mutate(dif = CTRL - AD) %>% mutate(abs_dif = abs(dif)) %>% arrange(-abs_dif) %>%
+    group_by(rte_subfamily) %>% mutate(rank_change = row_number()) %>% 
+    mutate(top_change = ifelse(rank_change <= 10, "Top", "NotTop")) %>%
+    ungroup() %>% filter(rte_subfamily == "L1HS") %$% gene_id %>% head(n = 10)
+
+top_l1hs_movers_intact <- pfl1 %>% 
+    filter(intactness_req == "Intact") %>%
+    group_by(gene_id, rte_subfamily, condition) %>% summarize(mean_meth = mean(mean_meth)) %>% pivot_wider(names_from = condition, values_from =mean_meth) %>% 
+    ungroup() %>%
+    mutate(dif = CTRL - AD) %>% mutate(abs_dif = abs(dif)) %>% arrange(-abs_dif) %>%
+    group_by(rte_subfamily) %>% mutate(rank_change = row_number()) %>% 
+    mutate(top_change = ifelse(rank_change <= 10, "Top", "NotTop")) %>%
+    ungroup() %>% filter(rte_subfamily == "L1HS") %$% gene_id %>% head(n = 10)
+
+
 
 # split_frame <- pf %>% group_by(sample, condition, rte_subfamily) %>%
 #     summarise(mean_meth = mean(mean_meth)) %>%
@@ -490,11 +647,23 @@ p <- pf %>%
     ) +
     mtopen +
     scale_conditions
+p <- pf %>%
+    ggplot(aes(x = intactness_req, y = mean_meth, color = condition)) +
+    geom_quasirandom(dodge.width = 0.75) +
+    geom_boxplot(alpha = 0.5, outlier.shape = NA) +
+    xlab("") +
+    ylab("Average CpG Methylation Per Element") +
+    ggtitle("RTE CpG Methylation") +
+    geom_pwc(aes(group = condition), tip.length = 0,
+        method = "t.test", label = "{p.adj.format}",
+        p.adjust.method = "fdr", p.adjust.by = "panel",
+        hide.ns = FALSE
+    ) +
+    mtopen +
+    scale_conditions
 tryCatch(
     {
         stats <- pf %>%
-            group_by(sample, condition, intactness_req) %>%
-            summarize(mean_meth = median(mean_meth)) %>%
             compare_means(mean_meth ~ condition, group.by = "intactness_req", data = ., method = "t.test", p.adjust.method = "fdr")
         mysaveandstore(fn = "ldna/results/plots/rte/l1hs_boxplot_promoters.pdf", 5, 4, sf = stats)
     },
@@ -594,16 +763,46 @@ dm_intact_l1hs_elements <- flRTEpromoter %>%
 dm_fl_l1hs_elements <- flRTEpromoter %>%
     filter(rte_subfamily == "L1HS") %>%
     filter(direction == "Hypo")
-element_sets_of_interst <- list("FL_L1HS" = dm_fl_l1hs_elements, "Intact_L1HS" = dm_intact_l1hs_elements)
+topmovers_l1hs_elements <- flRTEpromoter %>%
+    filter(gene_id %in% top_l1hs_movers_intact)
+element_sets_of_interst <- list("dm_fl_l1hs" = dm_fl_l1hs_elements, "dm_intact_l1hs" = dm_intact_l1hs_elements, "Top_Movers" = topmovers_l1hs_elements)
 
 library(ggnewscale)
 library(patchwork)
+l1hsflmethgr <- rtedf %>%
+    filter(rte_subfamily == "L1HS")
+l1hsflmethgr <- l1hsflmethgr %>%
+    mutate(rel_start = start - rte_start) %>%
+    mutate(rel_end = end - rte_start)
+write_delim(l1hsflmethgr, "ldna/Rintermediates/l1hsfldf.tsv", col_names = TRUE)
+
+library(zoo)
+pf_pos <- l1hsflmethgr %>%
+    filter(rte_strand == "+") %>%
+    as.data.frame() %>%
+    tibble() %>%
+    filter(cov > MINIMUMCOVERAGE) %>%
+    group_by(gene_id, condition) %>%
+    mutate(rM = rollmean(pctM, 15, na.pad = TRUE, align = "center")) %>%
+    filter(!is.na(rM)) %>%
+    ungroup()
+pf_neg <- l1hsflmethgr %>%
+    filter(rte_strand == "-") %>%
+    as.data.frame() %>%
+    tibble() %>%
+    filter(cov > MINIMUMCOVERAGE) %>%
+    group_by(gene_id, condition) %>%
+    mutate(rM = rollmean(pctM, 15, na.pad = TRUE, align = "center")) %>%
+    filter(!is.na(rM)) %>%
+    ungroup()
+
 for (element_type in names(element_sets_of_interst)) {
     df <- element_sets_of_interst[[element_type]]
-    write_delim(df %>% dplyr::select(gene_id), sprintf("ldna/Rintermediates/dm_%s_gene_id.tsv", element_type), col_names = FALSE)
-    write_delim(df %>% dplyr::select(seqnames, start, end, strand, gene_id), sprintf("ldna/Rintermediates/dm_%s_promoters.bed", element_type), col_names = FALSE, delim = "\t")
-    write_delim(RMdf[match(df %$% gene_id, RMdf$gene_id), ] %>% dplyr::select(seqnames, start, end, strand, gene_id), sprintf("ldna/Rintermediates/dm_%s_full_elements.bed", element_type), col_names = FALSE, delim = "\t")
-    write_delim(RMdf[match(df %$% gene_id, RMdf$gene_id), ], sprintf("ldna/Rintermediates/dm_%s_full_elements.tsv", element_type), col_names = TRUE, delim = "\t")
+    dir.create("ldna/Rintermediates/l1hs/", recursive = TRUE)
+    write_delim(df %>% dplyr::select(gene_id), sprintf("ldna/Rintermediates/l1hs/%s_gene_id.tsv", element_type), col_names = FALSE)
+    write_delim(df %>% dplyr::select(seqnames, start, end, strand, gene_id), sprintf("ldna/Rintermediates/l1hs/%s_promoters.bed", element_type), col_names = FALSE, delim = "\t")
+    write_delim(RMdf[match(df %$% gene_id, RMdf$gene_id), ] %>% dplyr::select(seqnames, start, end, strand, gene_id), sprintf("ldna/Rintermediates/l1hs/%s_full_elements.bed", element_type), col_names = FALSE, delim = "\t")
+    write_delim(RMdf[match(df %$% gene_id, RMdf$gene_id), ], sprintf("ldna/Rintermediates/l1hs/%s_full_elements.tsv", element_type), col_names = TRUE, delim = "\t")
 
     for (element in df$gene_id) {
         y_lim_lower <- 50
@@ -670,10 +869,10 @@ for (element_type in names(element_sets_of_interst)) {
 
         p <- p2 / p1 + plot_layout(heights = c(0.2, 1))
 
-        mysaveandstore(sprintf("ldna/results/plots/rte/%s_methylation.pdf", element), 5, 5)
+        mysaveandstore(sprintf("ldna/results/plots/rte/%s/%s_methylation.pdf", element_type, element), 5, 5)
     }
 
-    for (element in elements_of_interest$gene_id) {
+    for (element in df$gene_id) {
         y_lim_lower <- 50
         y_lim_upper <- 100
         y_valmin <- y_lim_lower
@@ -742,7 +941,7 @@ for (element_type in names(element_sets_of_interst)) {
 
         p <- p2 / p1 + plot_layout(heights = c(0.2, 1))
 
-        mysaveandstore(sprintf("ldna/results/plots/rte/%s_methylation_conditionaveraged.pdf", element), 5, 5)
+        mysaveandstore(sprintf("ldna/results/plots/rte/%s/%s_methylation_conditionaveraged.pdf", element_type, element), 5, 5)
     }
 }
 
