@@ -408,27 +408,32 @@ rule update_reference:
         "scripts/create_reference.R"
 
 
-rule move_starting_reference:
+checkpoint move_starting_reference_and_index:
     params:
         ref = config["starting_ref"]
+    conda:
+        "omics"
     output:
         ref = "aref/A.REF.fa"
     shell:
         """
 cp {params.ref} {output.ref}
+samtools faidx {input.reference}
         """
 
 rule get_repeatmasker_raw:
-    params:
-        repeatmasker = config["starting_ref_repeatmasker"]
+    input:
+        out = "aref/A.REF_repeatmasker/A.REF.repeatmasker_raw.out"
     output:
         repeatmasker = "aref/{sample_or_ref}_repeatmasker/A.REF_repeatmasker_raw.gtf"
     benchmark:
         "aref/benchmarks/get_repeatmasker_raw/{sample_or_ref}.tsv"
     shell:
         """
-cp {params.repeatmasker} {output.repeatmasker}
-workflow/aref/scripts/outToGtf.sh {params.repeatmasker} {output.repeatmasker}
+cp {input.out} {output.repeatmasker}
+workflow/aref/scripts/outToGtf.sh {input.out} {output.repeatmasker}.unsorted
+sort -k1,1V -k4,4n -k5,5n {output.repeatmasker}.unsorted > {output.repeatmasker}
+rm {output.repeatmasker}.unsorted
         """
 
 rule index_reference:
@@ -445,7 +450,81 @@ rule index_reference:
 samtools faidx {input.reference}
         """
 
+#### to repeat mask or not to repeatmask, that is the question
+rule get_repeatmasker_raw_out:
+    params:
+        rmref = config["run_repeatmasker"]["starting_ref_repeatmasker"]
+    output:
+        out = "aref/A.REF_repeatmasker/A.REF.repeatmasker_raw.out"
+    shell:
+        """
+cp {params.rmref} {output.out}
+        """
+rule split_genome_fa_into_chr:
+    input: 
+        fasta = "aref/A.REF.fa",
+        fai = "aref/A.REF.fa.fai"
+    output:
+        split = "aref/A.REF_split/A.REF_{chromosome}.fa"
+    benchmark:
+        "aref/benchmarks/split_genome_fa_into_chr/split_genome_fa_into_chr.{chromosome}.tsv"
+    conda: "omics"
+    shell:
+        """
+echo {wildcards.chromosome} > {output.split}.names.txt
+seqtk subseq {input.fasta} {output.split}.names.txt > {output.split}
+        """
 
+rule repeatmasker_whole_genome:
+    input: 
+        split = "aref/A.REF_split/A.REF_{chromosome}.fa"
+    params:
+        species = config["species"]
+    benchmark:
+        "aref/benchmarks/repeatmasker_whole_genome/repeatmasker_whole_genome.{chromosome}.tsv"
+    output:
+        rmout = "aref/A.REF_repeatmasker/wholegenome/A.REF_{chromosome}.fa.out"
+    resources:
+        cpus_per_task =20,
+        runtime = 1000,
+        mem_mb = 30000
+    container: "docker://dfam/tetools:latest"
+    shell:
+        """
+if [[ {params.species} == mouse ]]
+then
+species="Mus musculus"
+else
+species={params.species}
+fi
+mkdir -p $(dirname {output})
+RepeatMasker -species "$species" -pa {resources.cpus_per_task} -gff {input.split} -dir $(dirname {output})
+        """
+
+def merge_outs_wholegenome_input(wildcards):
+    if os.path.exists("aref/A.REF.fa.fai"):
+        return expand("aref/A.REF_repeatmasker/wholegenome/A.REF_{chromosome}.fa.out", chromosome = pd.read_table("aref/A.REF.fa.fai", header = None)[0].tolist())
+    else:
+        return "TEMP"
+rule merge_rm_out_wholegenome:
+    input:
+        outs = merge_outs_wholegenome_input
+    benchmark:
+        "aref/benchmarks/merge_rm_out_wholegenome/merge_rm_out_wholegenome.tsv"
+    output:
+        out = "aref/A.REF_repeatmasker/A.REF.repeatmasker_raw.out"
+    conda:
+        "evo2"
+    shell:
+        """
+awk '{{ if (NR > 3) exit }} \
+    NR < 4' {input.outs} > {output.out}
+awk 'FNR > 3' {input.outs} >> {output.out}
+        """
+
+
+#######
+#non ref contig buisness
 def repeatmasker_input(wildcards):
     if config["update_ref_with_tldr"]["response"] == "yes":
         return expand("aref/{sample_or_ref}-pre-ins-filtering_nonrefcontigs.fa", sample_or_ref = wildcards.sample_or_ref)
@@ -481,8 +560,8 @@ RepeatMasker -species "$species" -pa {resources.cpus_per_task} -gff {input.fasta
 rule getGtfs:
     input:
         rmout = "aref/A.REF_repeatmasker/{sample_or_ref}-pre-ins-filtering_nonrefcontigs.fa.out",
+        rmref = "aref/A.REF_repeatmasker/A.REF.repeatmasker_raw.out"
     params:
-        rmref = config["starting_ref_repeatmasker"],
         module_prefix = config["prefix"]
     benchmark:
         "aref/benchmarks/getGtfs/{sample_or_ref}.tsv"
@@ -495,7 +574,7 @@ rule getGtfs:
     shell:
         """
 workflow/{params.module_prefix}/scripts/outToGtf.sh {input.rmout} {output.nonref}
-workflow/{params.module_prefix}/scripts/outToGtf.sh {params.rmref} {output.ref}
+workflow/{params.module_prefix}/scripts/outToGtf.sh {input.rmref} {output.ref}
 cat {output.ref} {output.nonref} > {output.merged}
         """
 
