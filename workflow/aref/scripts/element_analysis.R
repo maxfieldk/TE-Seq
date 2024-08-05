@@ -184,6 +184,7 @@ intact_fams <- rmann %>%
     unique()
 grs <- GRanges(rmann %>% filter(rte_subfamily %in% intact_fams))
 grs_df <- as.data.frame(grs) %>% tibble()
+if length(rownames(grs_df) != 0) {
 
 
 gene_ids <- grs_df$gene_id
@@ -193,6 +194,7 @@ names(grs_ss) <- mcols(grs)$gene_id
 grs_fl_ss <- grs_ss[mcols(grs_ss)$rte_length_req == "FL"]
 
 grs_intact_ss <- grs_fl_ss[grepl("^Intact", mcols(grs_fl_ss)$intactness_req)]
+
 
 # ORF1 AND ORF2 SEQUENCE ANALYSES
 # cannonical locations of RT and EN in ORF2 protein
@@ -347,4 +349,8 @@ if (conf$store_env_as_rds == "yes") {
 } else {
     x <- tibble(Env_file = "Opted not to store environment. If this is not desired, change 'store_plots_as_rds' to 'yes' in the relevant config file and rerun this rule.")
     write_tsv(x, file = outputs$plots)
+}
+
+
+
 }
