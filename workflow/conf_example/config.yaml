@@ -28,7 +28,9 @@ aref:
   #USER PROVIDED ANNOTATIONS - CHANGE PATHS AS NEEDED
   #Be sure to follow ucsc naming conventions, e.g. chr1, chr2, ...
   starting_ref: ../genome_files/reference.ucsc.fa
-  starting_ref_repeatmasker: ../genome_files/repeatmasker.ucsc.out
+  run_repeatmasker: #controls whether to run repeatmasker from scratch or to use the "starting_ref_repeatmasker" repeatmasker.out file 
+    response: "no"
+    starting_ref_repeatmasker: ../genome_files/repeatmasker.ucsc.out
   ref_refseq_gtf: ../genome_files/refseq.sorted.ucsc.gtf
   ref_refseq_gff3: ../genome_files/refseq.sorted.ucsc.gff3
 
@@ -153,6 +155,10 @@ srna:
   annotation_genes: "aref/A.REF_annotations/refseq.gtf"
   annotation_genes_bed12: "aref/A.REF_annotations/refseq.bed"
 
+  gtf_id_mapping: #in the event that gene_id in annotation genes is not symbol, you can pass a df with gene_id and gene_name cols, and gene_id will be swapped for gene_name in during enrichment analysis 
+    response: "no"
+    path: "/users/mkelsey/data/elif3/TE-Seq/aref/A.REF_annotations/refseq_id_mapping.tsv"
+    
   r_annotation_fragmentsjoined: "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv"
   r_repeatmasker_annotation: "aref/A.REF_annotations/A.REF_repeatmasker_annotation.csv"
 
