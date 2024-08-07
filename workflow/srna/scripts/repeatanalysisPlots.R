@@ -105,6 +105,10 @@ resultsdf <- resultsdfwithgenes %>% filter(gene_or_te != "gene")
 refseq <- import(conf$annotation_genes)
 coding_transcripts <- refseq[(mcols(refseq)$type == "transcript" & grepl("^NM", mcols(refseq)$transcript_id))]
 noncoding_transcripts <- refseq[(mcols(refseq)$type == "transcript" & grepl("^NR", mcols(refseq)$transcript_id))]
+if (length(coding_transcripts) == 0) { # incase ensemble annotation is used against guidance..
+    coding_transcripts <<- refseq[(mcols(refseq)$type == "transcript" & grepl("protein_coding", mcols(refseq)$gene_biotype))]
+    noncoding_transcripts <<- refseq[(mcols(refseq)$type == "transcript" & !grepl("protein_coding", mcols(refseq)$gene_biotype))]
+}
 transcripts <- c(coding_transcripts, noncoding_transcripts)
 
 ### ONTOLOGY DEFINITION
@@ -146,6 +150,7 @@ for (ontology in c("rte_subfamily_limited", "l1_subfamily_limited", "rte_family"
         filter(!!sym(ontology) != "Other") %>%
         filter(!is.na(!!sym(ontology)))
     query <- subset %>% GRanges()
+    length(coding_transcripts)
     subject <- coding_transcripts
     hits <- GenomicRanges::nearest(query, subject)
 
