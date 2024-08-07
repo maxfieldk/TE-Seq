@@ -18,6 +18,9 @@ library(ggpubr)
 samples <- conf$samples
 source("conf/sample_table_source.R")
 
+conditions <- conf$levels
+condition1 <- conditions[1]
+condition2 <- conditions[2]
 
 tryCatch(
     {
@@ -75,7 +78,7 @@ dflist <- list()
 for (sample_name in samples) {
     tryCatch(
         {
-            df <- read_delim(
+            df.1 <- read_delim(
                 grep(sprintf("/%s", sample_name),
                     inputs$telometer_out,
                     value = TRUE
@@ -95,7 +98,7 @@ dfsplitlist <- list()
 for (sample_name in samples) {
     tryCatch(
         {
-            df <- read_delim(
+            df.1 <- read_delim(
                 grep(sprintf("/%s", sample_name),
                     inputs$telometer_out_split1,
                     value = TRUE
@@ -105,7 +108,7 @@ for (sample_name in samples) {
             df$condition <- sample_table %>% filter(sample_name == !!sample_name) %$% condition
             dfsplitlist[[paste0(sample_name, "1")]] <- df
 
-            df <- read_delim(
+            df.1 <- read_delim(
                 grep(sprintf("/%s", sample_name),
                     inputs$telometer_out_split2,
                     value = TRUE
@@ -115,7 +118,7 @@ for (sample_name in samples) {
             df$condition <- sample_table %>% filter(sample_name == !!sample_name) %$% condition
             dfsplitlist[[paste0(sample_name, "2")]] <- df
 
-            df <- read_delim(
+            df.1 <- read_delim(
                 grep(sprintf("/%s", sample_name),
                     inputs$telometer_out_split3,
                     value = TRUE
@@ -131,7 +134,7 @@ for (sample_name in samples) {
     )
 }
 
-df <- Reduce(rbind, dflist)
+df.1 <- Reduce(rbind, dflist)
 dfsplitlist <- Reduce(rbind, dfsplitlist)
 
 df2 <- rbind(df, dfsplitlist)
@@ -144,146 +147,147 @@ df3 <- df2 %>%
     ungroup()
 
 
-df %$% sample_name
-df1 <- df3 %>%
-    mutate(chr_arm = paste0(chromosome, arm)) %>%
+df.1 %$% sample_name
+df <- df3 %>%
     filter(!grepl("^NI", chromosome)) %>%
+    filter(mapping_quality > 50) %>%
     mutate(merged_chr = paste0("chr", gsub("_.*", "", gsub("^alt", "", gsub("^chr", "", chromosome))))) %>%
-    mutate(merged_chr = factor(merged_chr, levels = refchromosomes, ordered = TRUE))
-df1 %>% print(width = Inf)
+    filter(!(grepl("chrX|chrY", merged_chr))) %>%
+    mutate(merged_chr = factor(merged_chr, levels = refchromosomes, ordered = TRUE)) %>%
+    mutate(chr_arm = paste0(merged_chr, arm))
+
+df %>% print(width = Inf)
+df %$% read_length %>% median()
 
 
-stat_frame <- df1 %>%
-    group_by(merged_chr, sample_name, condition) %>%
-    summarize(telomere_length = mean(telomere_length)) %>%
-    ungroup()
-p <- df1 %>%
-    ggboxplot(x = "merged_chr", y = "telomere_length", fill = "condition") +
-    geom_pwc(data = stat_frame, aes(group = condition)) +
-    labs(x = "", y = "Telomere Length (bp)") +
-    scale_conditions +
-    mtclosedgridh
-mysaveandstore(fn = sprintf("ldna/results/plots/telometer/all_chr.pdf"), pl = p, w = 30, h = 4)
+read_length_filter <- c(4000, 7000, 9000, 11000)
+for (filter in read_length_filter) {
+    dftemp <- df %>% filter(read_length >= filter)
+    stat_frame <- dftemp %>%
+        group_by(merged_chr, sample_name, condition) %>%
+        summarize(telomere_length = mean(telomere_length)) %>%
+        ungroup()
+    p <- dftemp %>%
+        ggboxplot(x = "merged_chr", y = "telomere_length", fill = "condition") +
+        geom_pwc(data = stat_frame, aes(group = condition)) +
+        labs(x = "", y = "Telomere Length (bp)") +
+        scale_conditions +
+        mtclosedgridh
+    mysaveandstore(fn = sprintf("ldna/results/plots/telometer/read_filter_%s/all_chr.pdf", filter), pl = p, w = 30, h = 4)
 
-p <- df1 %>%
-    ggboxplot(x = "condition", y = "telomere_length", fill = "condition") +
-    labs(x = "", y = "Telomere Length (bp)") +
-    stat_compare_means() +
-    scale_conditions +
-    mtclosedgridh
-mysaveandstore(fn = sprintf("ldna/results/plots/telometer/all.pdf"), pl = p, w = 4, h = 4)
+    p <- dftemp %>%
+        ggboxplot(x = "condition", y = "telomere_length", fill = "condition") +
+        labs(x = "", y = "Telomere Length (bp)") +
+        stat_compare_means() +
+        scale_conditions +
+        mtclosedgridh
+    mysaveandstore(fn = sprintf("ldna/results/plots/telometer/read_filter_%s/all.pdf", filter), pl = p, w = 4, h = 4)
 
-stat_frame2 <- stat_frame %>%
-    group_by(merged_chr) %>%
-    mutate(chr_mean = mean(telomere_length)) %>%
-    ungroup() %>%
-    mutate(telomere_length_chrnormed = telomere_length - chr_mean) %>%
-    group_by(sample_name, condition) %>%
-    summarize(sample_adjusted_mean_telo = mean(telomere_length_chrnormed)) %>%
-    left_join(sample_table)
-summary(lm(sample_adjusted_mean_telo ~ braak, stat_frame2))
+    stat_frame2 <- stat_frame %>%
+        group_by(merged_chr) %>%
+        mutate(chr_mean = mean(telomere_length)) %>%
+        ungroup() %>%
+        mutate(telomere_length_chrnormed = telomere_length - chr_mean) %>%
+        group_by(sample_name, condition) %>%
+        summarize(sample_adjusted_mean_telo = mean(telomere_length_chrnormed)) %>%
+        left_join(sample_table)
+    summary(lm(sample_adjusted_mean_telo ~ braak, stat_frame2))
 
-p <- df1 %>%
-    group_by(sample_name) %>%
-    summarise(ml = mean(telomere_length)) %>%
-    arrange(-ml) %>%
-    left_join(mqc) %>%
-    ggscatter(x = "median_read_length", y = "ml", color = "sample_name") +
-    scale_samples_unique
-mysaveandstore(fn = sprintf("ldna/results/plots/telometer/telo_vs_medianreadlength.pdf"), pl = p, w = 4, h = 4)
+    p <- dftemp %>%
+        group_by(sample_name) %>%
+        summarise(ml = mean(telomere_length)) %>%
+        arrange(-ml) %>%
+        left_join(mqc) %>%
+        ggscatter(x = "median_read_length", y = "ml", color = "sample_name") +
+        scale_samples_unique
+    mysaveandstore(fn = sprintf("ldna/results/plots/telometer/read_filter_%s/telo_vs_medianreadlength.pdf", filter), pl = p, w = 4, h = 4)
 
+    dftemp %$% chr_arm %>% table()
 
+    df4 <- dftemp %>%
+        group_by(chr_arm) %>%
+        mutate(n = n()) %>%
+        filter(n > max(length(sample_table$sample_name), 10)) %>%
+        mutate(chr_arm_n = paste0(chr_arm, "\nn=", n())) %>%
+        ungroup() %>%
+        mutate(chr_arm_n = fct_reorder(chr_arm_n, .x = telomere_length, .fun = median))
 
+    p <- df4 %>%
+        ggviolin(x = "chr_arm_n", y = "telomere_length", fill = "condition", draw_quantiles = c(.50)) +
+        geom_pwc(aes(group = condition)) +
+        labs(x = "", y = "Telomere Length (bp)") +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        scale_conditions +
+        mtclosedgridh
+    mysaveandstore(fn = sprintf("ldna/results/plots/telometer/read_filter_%s/all_chr_arm_violin.pdf", filter), pl = p, w = 30, h = 4)
 
-
-####### Deconv
-dc <- read_csv("ldna/results/wgbs/hg38/tables/deconv.csv")
-dc1 <- dc %>%
-    pivot_longer(cols = -CellType) %>%
-    dplyr::rename(sample_name = name) %>%
-    mutate(sample_name = gsub("\\..*", "", sample_name)) %>%
-    left_join(sample_table)
-p <- dc1 %>% ggbarplot(x = "CellType", y = "value", fill = "sample_name", color = "sample_name", position = position_dodge()) +
-    scale_samples_unique +
-    coord_flip() +
-    mtclosedgridv
-mysaveandstore(fn = sprintf("ldna/results/plots/deconvolve/all_nofitler.pdf"), pl = p, w = 5, h = 10)
-
-
-dc1 <- dc %>%
-    pivot_longer(cols = -CellType) %>%
-    dplyr::rename(sample_name = name) %>%
-    mutate(sample_name = gsub("\\..*", "", sample_name)) %>%
-    filter(value > 0.05) %>%
-    left_join(sample_table)
-p <- dc1 %>% ggbarplot(x = "CellType", y = "value", fill = "sample_name", position = position_dodge()) +
-    scale_samples_unique +
-    mtclosedgridh
-mysaveandstore(fn = sprintf("ldna/results/plots/deconvolve/all_5pct.pdf"), pl = p, w = 12, h = 4)
-p <- dc1 %>% ggbarplot(x = "CellType", y = "value", fill = "condition", position = position_dodge(), add = c("mean_se")) +
-    geom_pwc(aes(group = condition)) +
-    scale_conditions +
-    mtclosedgridh
-mysaveandstore(fn = sprintf("ldna/results/plots/deconvolve/all_condition_5pct.pdf"), pl = p, w = 4, h = 4)
-p <- dc1 %>%
-    filter(CellType == "Neuron") %>%
-    ggbarplot(x = "condition", y = "value", fill = "condition", add = c("mean_se", "dotplot")) +
-    stat_compare_means() +
-    scale_conditions +
-    mtclosedgridh
-mysaveandstore(fn = sprintf("ldna/results/plots/deconvolve/all_5pct.pdf"), pl = p, w = 4, h = 4)
+    p <- df4 %>%
+        ggstripchart(x = "chr_arm_n", y = "telomere_length", color = "condition", add = c("median"), add.params = list(color = "black", group = "condition"), position = position_jitterdodge(dodge.width = 1), alpha = 0.85) +
+        labs(x = "", y = "Telomere Length (bp)") +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        lims(y = c(0, 15000)) +
+        geom_pwc(aes(group = condition)) +
+        scale_conditions +
+        mtclosedgridh
+    mysaveandstore(fn = sprintf("ldna/results/plots/telometer/read_filter_%s/all_chr_arm_strip.pdf", filter), pl = p, w = 30, h = 4)
 
 
-dc1 <- dc %>%
-    pivot_longer(cols = -CellType) %>%
-    dplyr::rename(sample_name = name) %>%
-    mutate(sample_name = gsub("\\..*", "", sample_name)) %>%
-    filter(value > 0.10) %>%
-    left_join(sample_table)
-p <- dc1 %>% ggbarplot(x = "CellType", y = "value", fill = "sample_name", position = position_dodge()) +
-    scale_samples_unique +
-    mtclosedgridh
-mysaveandstore(fn = sprintf("ldna/results/plots/deconvolve/all.pdf"), pl = p, w = 12, h = 4)
-p <- dc1 %>% ggbarplot(x = "CellType", y = "value", fill = "condition", position = position_dodge(), add = c("mean_se")) +
-    geom_pwc(aes(group = condition)) +
-    scale_conditions +
-    mtclosedgridh
-mysaveandstore(fn = sprintf("ldna/results/plots/deconvolve/all_condition.pdf"), pl = p, w = 4, h = 4)
-p <- dc1 %>%
-    filter(CellType == "Neuron") %>%
-    ggbarplot(x = "condition", y = "value", fill = "condition", add = c("mean_se", "dotplot")) +
-    stat_compare_means() +
-    scale_conditions +
-    mtclosedgridh
-mysaveandstore(fn = sprintf("ldna/results/plots/deconvolve/all.pdf"), pl = p, w = 4, h = 4)
-
-
-dc <- read_csv("ldna/results/wgbs/hg38/tables/deconv.brainsubset.csv")
-
-dc1 <- dc %>%
-    pivot_longer(cols = -CellType) %>%
-    dplyr::rename(sample_name = name) %>%
-    mutate(sample_name = gsub("\\..*", "", sample_name)) %>%
-    filter(value > 0.10) %>%
-    left_join(sample_table)
-
-p <- dc1 %>% ggbarplot(x = "CellType", y = "value", fill = "sample_name", position = position_dodge()) +
-    scale_samples_unique +
-    mtclosedgridh
-mysaveandstore(fn = sprintf("ldna/results/plots/deconvolve/brain_sample.pdf"), pl = p, w = 12, h = 4)
-
-p <- dc1 %>% ggbarplot(x = "CellType", y = "value", fill = "condition", position = position_dodge(), add = c("mean_se")) +
-    geom_pwc(aes(group = condition)) +
-    scale_conditions +
-    mtclosedgridh
-mysaveandstore(fn = sprintf("ldna/results/plots/deconvolve/brain_condition.pdf"), pl = p, w = 4, h = 4)
+    p1 <- df4 %>%
+        ggstripchart(x = "chr_arm_n", y = "telomere_length", color = "condition", add = c("median"), add.params = list(color = "black", group = "condition"), position = position_jitterdodge(dodge.width = 1), alpha = 0.85) +
+        labs(x = "", y = "Telomere Length (bp)") +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        geom_pwc(aes(group = condition)) +
+        scale_conditions +
+        mtclosedgridh
+    pf <- df4 %>%
+        group_by(chr_arm_n, condition) %>%
+        summarise(mv = mean(telomere_length)) %>%
+        pivot_wider(names_from = condition, values_from = mv) %>%
+        mutate(dif = !!sym(condition2) - !!sym(condition1))
+    p2 <- ggplot(pf) +
+        geom_col(aes(x = chr_arm_n, y = dif, fill = ifelse(dif > 0, TRUE, FALSE)), color = "black") +
+        mtclosedgridh
+    library(patchwork)
+    p <- (p1 / p2) + plot_layout(axes = "collect")
+    mysaveandstore(fn = sprintf("ldna/results/plots/telometer/read_filter_%s/all_chr_arm_strip_stats.pdf", filter), pl = p, w = 30, h = 8)
 
 
 
-p <- dc1 %>%
-    filter(CellType == "Neuron") %>%
-    ggbarplot(x = "condition", y = "value", fill = "condition", add = c("mean_se", "dotplot")) +
-    stat_compare_means() +
-    scale_conditions +
-    mtclosedgridh
-mysaveandstore(fn = sprintf("ldna/results/plots/deconvolve/brain1.pdf"), pl = p, w = 4, h = 4)
+    df5 <- df4 %>%
+        group_by(chr_arm) %>%
+        mutate(chr_arm_mean = mean(telomere_length)) %>%
+        ungroup() %>%
+        mutate(normed_telolength = telomere_length - chr_arm_mean)
+
+    p <- df5 %>%
+        ggstripchart(x = "condition", y = "normed_telolength", color = "condition", add = c("median"), add.params = list(color = "black", group = "condition"), position = position_jitterdodge(dodge.width = 1), alpha = 0.85) +
+        labs(x = "", y = "Relative Telomere Length (bp)") +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        geom_pwc(aes(group = condition)) +
+        scale_conditions +
+        mtclosedgridh
+    mysaveandstore(fn = sprintf("ldna/results/plots/telometer/read_filter_%s/all_strip_stats.pdf", filter), pl = p, w = 4, h = 4)
+
+    p <- df5 %>%
+        ggboxplot(x = "condition", y = "normed_telolength", color = "condition") +
+        labs(x = "", y = "Relative Telomere Length (bp)") +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        geom_pwc(aes(group = condition)) +
+        scale_conditions +
+        mtclosedgridh
+    mysaveandstore(fn = sprintf("ldna/results/plots/telometer/read_filter_%s/all_boxplot_stats.pdf", filter), pl = p, w = 4, h = 4)
+
+    p <- df5 %>%
+        group_by(sample_name, condition) %>%
+        summarise(mean_relative_telo = mean(normed_telolength)) %>%
+        ggboxplot(x = "condition", y = "mean_relative_telo", color = "condition") +
+        labs(x = "", y = "Relative Telomere Length (bp)") +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        geom_pwc(aes(group = condition)) +
+        scale_conditions +
+        mtclosedgridh
+    mysaveandstore(fn = sprintf("ldna/results/plots/telometer/read_filter_%s/all_boxplot_sample_stats.pdf", filter), pl = p, w = 4, h = 4)
+    df5
+}
+
+df5 %$% telomere_length %>% quantile()

@@ -1737,6 +1737,20 @@ rule pyaging_clock:
     script:
         "scripts/pyaging_clock.py"
 
+rule R_clock:
+    input:
+        csv = "ldna/intermediates/agg/cpg_formatted_methylation_filtered.csv"
+    conda: 
+        "repeatanalysis"
+    output:
+        csv = "ldna/results/tables/clocks/R_clock_results.csv"
+    resources:
+        runtime = 100,
+        mem_mb = 50000,
+        cpus_per_task = 4
+    script:
+        "scripts/R_clock.py"
+
 rule pyaging_clock_analysis:
     input:
         csv = "ldna/results/tables/clocks/pyaging_clock_results.csv"

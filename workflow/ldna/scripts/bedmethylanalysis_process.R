@@ -461,3 +461,24 @@ for (region in conf$rte_subfamily_read_level_analysis) {
 readscg <- Reduce(rbind, readslistcg)
 write_delim(readscg, "ldna/Rintermediates/reads_context_cpg.tsv", col_names = TRUE)
 # readscg <- read_delim("ldna/Rintermediates/reads_context_cpg.tsv", col_names = TRUE)
+
+
+
+# Genes
+
+refseq_gr <- import(conf$refseq_unaltered)
+genes_gr <- refseq_gr[mcols(refseq_gr)[, "type"] == "gene", ]
+genes_gr <- genes_gr[seqnames(genes_gr) %in% CHROMOSOMESINCLUDEDINANALYSIS, ]
+genes_gr <- genes_gr[mcols(genes_gr)[, "source"] %in% c("BestRefSeq", "Curated Genomic", "Gnomon"), ]
+mcols(genes_gr)$gene_id <- mcols(genes_gr)$Name
+mcols(genes_gr) %>% colnames()
+mcols(genes_gr) <- mcols(genes_gr)[, c("gene_id", "ID", "gene_biotype", "source")]
+promoters <- promoters(genes_gr, upstream = 5000, downstream = 1000)
+mbo <- mergeByOverlaps(grs, promoters)
+promoter_methdf <- mbo$grs %>%
+    as.data.frame() %>%
+    tibble()
+promoter_methdf$gene_id <- mbo$promoters %>%
+    as.data.frame() %>%
+    tibble() %$% gene_id
+write_delim(promoter_methdf, "ldna/Rintermediates/refseq_gene_promoter_methylation.tsv", col_names = TRUE)

@@ -87,7 +87,8 @@ sample_sequencing_data
 dffilt <- dfall %>%
     separate_wider_delim(EmptyReads, delim = "|", names = c("bamname", "emptyreadsnum")) %>%
     mutate(fraction_reads_count = UsedReads / (UsedReads + as.numeric(emptyreadsnum))) %>%
-    filter(fraction_reads_count < 0.2) %>%
+    filter(fraction_reads_count < 0.1) %>%
+    filter(MedianMapQ >= 60) %>%
     filter(UsedReads < 5)
 
 for (sample in unique(dffilt$sample_name)) {
@@ -126,6 +127,7 @@ for (sample in unique(dffilt$sample_name)) {
         filter(UsedReads == 1) %>%
         filter(SpanReads == 1) %>%
         filter(Filter == "PASS") %>%
+        filter(MedianMapQ >= 60) %>%
         ggplot(aes(x = Family, fill = Filter == "PASS")) +
         geom_bar() +
         labs(x = "Supporting Read Count", title = "RTE Somatic Insertions") +
@@ -138,12 +140,14 @@ for (sample in unique(dffilt$sample_name)) {
         filter(UsedReads == 1) %>%
         filter(SpanReads == 1) %>%
         filter(Filter == "PASS") %>%
+        filter(MedianMapQ >= 60) %>%
         write_delim(sprintf("%s/single_read_pass.tsv", tempoutputdir), delim = "\t")
 
     p <- dffiltsample %>%
         filter(UsedReads == 1) %>%
         filter(SpanReads == 1) %>%
         filter(Filter == "PASS") %>%
+        filter(MedianMapQ >= 60) %>%
         ggplot(aes(x = Family, fill = is.na(TSD))) +
         geom_bar() +
         labs(x = "Supporting Read Count", title = "RTE Somatic Insertions") +
@@ -156,6 +160,7 @@ for (sample in unique(dffilt$sample_name)) {
         filter(UsedReads == 1) %>%
         filter(SpanReads == 1) %>%
         filter(Filter == "PASS") %>%
+        filter(MedianMapQ >= 60) %>%
         ggplot(aes(x = LengthIns)) +
         geom_histogram() +
         labs(x = "Insertion Length", y = "Count", title = "RTE Somatic Insertions") +
@@ -187,12 +192,14 @@ dffilt %>%
     filter(UsedReads == 1) %>%
     filter(SpanReads == 1) %>%
     filter(Filter == "PASS") %>%
+    filter(MedianMapQ >= 60) %>%
     write_delim(sprintf("%s/single_read_pass.tsv", outputdir), delim = "\t")
 
 p <- dffilt %>%
     filter(UsedReads == 1) %>%
     filter(SpanReads == 1) %>%
     filter(Filter == "PASS") %>%
+    filter(MedianMapQ >= 60) %>%
     ggplot(aes(x = sample_name, fill = condition)) +
     geom_bar() +
     facet_wrap(~Family) +
@@ -207,6 +214,7 @@ p <- dffilt %>%
     filter(UsedReads == 1) %>%
     filter(SpanReads == 1) %>%
     filter(Filter == "PASS") %>%
+    filter(MedianMapQ >= 60) %>%
     group_by(sample_name, Subfamily, condition) %>%
     summarise(nins = n()) %>%
     ungroup() %>%
@@ -226,6 +234,7 @@ dffilt %>%
     filter(UsedReads == 1) %>%
     filter(SpanReads == 1) %>%
     filter(Filter == "PASS") %>%
+    filter(MedianMapQ >= 60) %>%
     filter(Subfamily %in% c("AluY")) %>%
     filter(sample_name == "AD1") %>%
     filter(UUID == "a72cba1d-f8c4-4dd4-8054-ee7c97a6c704") %>%
@@ -235,11 +244,12 @@ p <- dffilt %>%
     filter(UsedReads == 1) %>%
     filter(SpanReads == 1) %>%
     filter(Filter == "PASS") %>%
+    filter(MedianMapQ >= 60) %>%
     filter(Subfamily %in% c("L1HS", "AluY")) %>%
     ggplot(aes(x = TEMatch, fill = condition)) +
     geom_histogram() +
     facet_grid2(rows = vars(sample_name), cols = vars(Subfamily), scale = "free_x", axes = "all", remove_labels = "y") +
-    labs(x = "Insertion Length", title = "RTE Somatic Insertions", subtitle = "Single Read Supported") +
+    labs(x = "TE Match", title = "RTE Somatic Insertions", subtitle = "Single Read Supported") +
     mtclosed +
     anchorbar +
     scale_conditions +
@@ -249,8 +259,8 @@ mysaveandstore(sprintf("%s/single_read_pass_histogram.pdf", outputdir), 5, 20)
 p <- dffilt %>%
     filter(UsedReads == 1) %>%
     filter(SpanReads == 1) %>%
-    filter(LengthIns * UnmapCover > 250) %>%
     filter(Filter == "PASS") %>%
+    filter(MedianMapQ >= 60) %>%
     filter(Subfamily %in% c("AluY")) %>%
     ggplot(aes(x = sample_name, fill = condition)) +
     geom_bar() +
@@ -267,16 +277,25 @@ p <- dffilt %>%
     filter(UsedReads == 1) %>%
     filter(SpanReads == 1) %>%
     filter(Filter == "PASS") %>%
+    filter(MedianMapQ >= 60) %>%
     ggplot(aes(x = LengthIns)) +
     geom_histogram() +
     labs(x = "Insertion Length", y = "Count", title = "RTE Somatic Insertions", subtitle = "Single Read Supported") +
-    facet_wrap(sample_name ~ Family) +
+    facet_grid(rows = vars(sample_name), cols = vars(Family), scales = "free") +
     mtclosed +
     anchorbar +
     scale_palette +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
 mysaveandstore(sprintf("%s/single_read_pass_insertion_length.pdf", outputdir), 10, 10)
 
+dffilt %>%
+    filter(UsedReads == 1) %>%
+    filter(SpanReads == 1) %>%
+    filter(Filter == "PASS") %>%
+    filter(MedianMapQ >= 60) %>%
+    filter(LengthIns > 5000) %>%
+    filter(Subfamily == "L1HS") %>%
+    print(width = Inf)
 
 tryCatch(
     {
@@ -296,6 +315,8 @@ tryCatch(
             filter(Filter == "PASS") %>%
             filter(UsedReads == 1) %>%
             filter(SpanReads == 1) %>%
+            filter(MedianMapQ >= 60) %>%
+            filter(fraction_reads_count < 0.1) %>%
             group_by(across(grouping_vars)) %>%
             summarise(nins = n()) %>%
             ungroup() %>%
@@ -363,6 +384,8 @@ tryCatch(
             filter(Filter == "PASS") %>%
             filter(UsedReads == 1) %>%
             filter(SpanReads == 1) %>%
+            filter(MedianMapQ >= 60) %>%
+            filter(fraction_reads_count < 0.1) %>%
             group_by(across(c(grouping_vars, Subfamily))) %>%
             summarise(nins = n()) %>%
             ungroup() %>%
