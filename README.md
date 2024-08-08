@@ -177,7 +177,7 @@ This pipeline expects chromosome names to be in UCSC format ie. "chr1, chr2, ...
 ***
 ***
   I recommend you store these downloaded annotations in a directory one level above your project directory (place genomes_files/ adjacent to the TE-Seq/ directory). Don't store any large files in resources/ seeing as it is under git control (git does not like large files). Just ensure that the paths are nested within a singularity bound directory if using the containerized workflow (read on to the segment on "workflow/profile/default/config.yaml" below for more details).  
-  
+
 Create, in your project directory, the srna/rawdata directory structure, and move your fastqs there. Make sure the naming is consistent with the naming scheme set forth in the conf/project_config_srna.yaml, which uses sample_name from the conf/sample_table_srna.csv i.e.:  
   ```
   source1: "srna/rawdata/{sample_name}_R1.fastq.gz" source2: "srna/rawdata/{sample_name}_R2.fastq.gz"
