@@ -112,7 +112,6 @@ wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/009/914/755/GCF_009914755.1_T2
 #Refseq gff3 file
 wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/009/914/755/GCF_009914755.1_T2T-CHM13v2.0/GCF_009914755.1_T2T-CHM13v2.0_genomic.gff.gz
 ```
-- If using using nanopore reads to update your reference, you will also need to provide a path to the repeatmasker executable on your system (download at https://www.repeatmasker.org/RepeatMasker/)
 - These files will need to be decompressed
 ```
 gunzip hs1.fa.gz; mv hs1.fa reference.ucsc.fa
@@ -152,7 +151,6 @@ wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/635/GCF_000001635.27_G
 #Refseq gff3 file
 wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/635/GCF_000001635.27_GRCm39/GCF_000001635.27_GRCm39_genomic.gff.gz
 ```
-- If using using nanopore reads to update your reference, you will also need to provide a path to the repeatmasker executable on your system (download at https://www.repeatmasker.org/RepeatMasker/)
 - These files will need to be decompressed
 ```
 gunzip mm39.fa.gz; mv mm39.fa reference.ucsc.fa
