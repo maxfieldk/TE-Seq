@@ -150,7 +150,7 @@ telometer -b {input.sortedbam} -o {output.out} -m {wildcards.minimum_read_length
 
 rule call_telometer:
     input:
-        telometer_outs = expand("ldna/results/tables/telometer/{sample}_telometer_{minimum_read_length}.tsv", sample = samples, minimum_read_length = [4000])
+        telometer_outs = expand("ldna/results/tables/telometer/{sample}_telometer_{minimum_read_length}.tsv", sample = samples, minimum_read_length = [1000, 4000, 10000])
     output:
         "telometer.done"
     shell:

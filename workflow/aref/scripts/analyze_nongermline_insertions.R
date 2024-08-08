@@ -183,11 +183,21 @@ mysaveandstore(sprintf("%s/single_read_bar.pdf", outputdir), 8, 5)
 # p <- dffilt %>% filter(UsedReads == 1) %>% filter(Filter == "PASS") %>% ggplot(aes(x = sample_name, fill = Filter == "PASS")) + geom_bar()+ facet_wrap(~Family) + labs(x = "Supporting Read Count", title = "RTE Somatic Insertions", subtitle = "Single Read Supported") + mtopen + anchorbar + scale_palette+ theme(axis.text.x = element_text(angle = 45, hjust = 1))
 # mysaveandstore(sprintf("%s/single_read_pass_bar.pdf", outputdir), 8, 5)
 
-dffilt %>%
-    filter(UsedReads == 1) %>%
-    filter(SpanReads == 1) %>%
-    filter(Filter == "PASS") %>%
-    write_delim(sprintf("%s/single_read_pass.tsv", outputdir), delim = "\t")
+# tt <- dffilt %>%
+#     filter(UsedReads == 1) %>%
+#     filter(SpanReads == 1) %>%
+#     filter(Filter == "PASS") %>%
+#     write_delim(sprintf("%s/single_read_pass.tsv", outputdir), delim = "\t")
+
+
+# tt %>%
+#     filter(Subfamily == "AluY") %>%
+#     filter(UnmapCover > .90) %$% sample_name
+# tt %>%
+#     filter(Subfamily == "AluY") %>%
+#     filter(!is.na(TSD)) %$% sample_name
+
+
 
 p <- dffilt %>%
     filter(UsedReads == 1) %>%
