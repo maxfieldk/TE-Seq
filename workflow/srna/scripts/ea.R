@@ -76,6 +76,14 @@ resultsdf1 <- read_delim(inputs$resultsdf, delim = "\t")
 resultsdf1 <- resultsdf1[resultsdf1$gene_id != "__no_feature", ]
 res <- resultsdf1 %>% filter(counttype == counttype[1])
 res <- res %>% filter(gene_or_te == "gene")
+
+if (conf$gtf_id_mapping$response == "yes") {
+    mapping <- read_delim(conf$gtf_id_mapping$path)
+    res <- res %>%
+        left_join(mapping) %>%
+        mutate(gene_id = gene_name)
+}
+
 #### GETTING TIDY DATA
 map <- sample_table %>%
     dplyr::select(sample_name, condition) %>%
@@ -493,6 +501,7 @@ for (geneset in names(params[["genesets_for_heatmaps"]])) {
         mutate(condition = factor(condition, levels = conf$levels))
 
 
+
     p <- barplotpf %>% ggbarplot(
         x = "condition", y = "counts", fill = "condition", add = c("mean_se", "dotplot"),
         facet.by = "gene_id", scales = "free", ncol = 4
@@ -604,7 +613,14 @@ for (geneset in names(params[["genesets_for_heatmaps"]])) {
 
 
 # GSEA untargeted
-gene_sets <- msigdbr(species = confALL$aref$species)
+tryCatch(
+    {
+        gene_sets <- msigdbr(species = confALL$aref$species)
+    },
+    error = function(e) {
+        gene_sets <<- msigdbr(species = "human")
+    }
+)
 rm(gse_df)
 for (contrast in params[["contrasts"]]) {
     # PREP RESULTS FOR GSEA
@@ -887,7 +903,7 @@ tryCatch(
 
         ptch <- wrap_plots(mysaveandstoreplots[names(mysaveandstoreplots) %>%
             grep("targetted", ., value = TRUE) %>%
-            grep("gsea_top_.*grid", ., value = TRUE) %>%
+            grep("gsea_top_.*grid_1", ., value = TRUE) %>%
             sort()]) +
             plot_layout(nrow = 1, guides = "collect")
         mysave(pl = ptch, fn = "srna/results/agg/enrichment_analysis/targetted/gsea_top_all.pdf", w = 10 * length(ptch), h = 10)
@@ -895,7 +911,7 @@ tryCatch(
 
         ptch <- wrap_plots(mysaveandstoreplots[names(mysaveandstoreplots) %>%
             grep("unbiased", ., value = TRUE) %>%
-            grep("gsea_top_.*grid", ., value = TRUE) %>%
+            grep("gsea_top_.*grid_1.pdf", ., value = TRUE) %>%
             sort()])
         mysave(pl = ptch, fn = "srna/results/agg/enrichment_analysis/unbiased/gsea_top_all.pdf", w = 30, h = 30)
 

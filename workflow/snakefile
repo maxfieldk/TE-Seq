@@ -18,14 +18,23 @@ for pipeline in config["pipelines_to_deploy"]:
             final_input.append("aref.done.outfile")
         else:
             final_input.append("aref.done.outfile")
-            if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
-                if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
-                    use rule * from aref exclude sym_link,tldr_aggregate_multiple_samples,merge_bams_when_per_sample_is_no_for_ldna_variants as aref_*
-                else: 
-                    use rule * from aref exclude sym_link,move_starting_reference,tldr_per_sample,get_repeatmasker_raw,process_gtf as aref_*
+            if config["aref"]["run_repeatmasker"]["response"] == "no":
+                if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
+                    if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
+                        use rule * from aref exclude sym_link,merge_rm_out_wholegenome,tldr_aggregate_multiple_samples,merge_bams_when_per_sample_is_no_for_ldna_variants as aref_*
+                    else: 
+                        use rule * from aref exclude sym_link,merge_rm_out_wholegenome,move_starting_reference,tldr_per_sample,get_repeatmasker_raw,process_gtf as aref_*
+                else:
+                    use rule * from aref exclude sym_link,merge_rm_out_wholegenome,dorado,dorado_seqsummary,pycoQC,process_gtf_tldr,cleanup_updated_ref,repeatmasker,getGtfs as aref_*
             else:
-                use rule * from aref exclude sym_link,dorado,dorado_seqsummary,pycoQC,process_gtf_tldr,cleanup_updated_ref,repeatmasker,getGtfs as aref_*
-
+                if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
+                    if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
+                        use rule * from aref exclude sym_link,get_repeatmasker_raw_out,tldr_aggregate_multiple_samples,merge_bams_when_per_sample_is_no_for_ldna_variants as aref_*
+                    else: 
+                        use rule * from aref exclude sym_link,get_repeatmasker_raw_out,move_starting_reference,tldr_per_sample,get_repeatmasker_raw,process_gtf as aref_*
+                else:
+                    use rule * from aref exclude sym_link,get_repeatmasker_raw_out,dorado,dorado_seqsummary,pycoQC,process_gtf_tldr,cleanup_updated_ref,repeatmasker,getGtfs as aref_*
+    
     if pipeline == "ldna":
         module ldna:
             snakefile: "ldna/snakefile"

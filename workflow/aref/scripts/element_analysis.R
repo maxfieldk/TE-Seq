@@ -185,6 +185,8 @@ intact_fams <- rmann %>%
 grs <- GRanges(rmann %>% filter(rte_subfamily %in% intact_fams))
 grs_df <- as.data.frame(grs) %>% tibble()
 
+if length(rownames(grs_df) != 0) {
+
 
 gene_ids <- grs_df$gene_id
 grs_ss <- Rsamtools::getSeq(fa, grs)
@@ -193,6 +195,7 @@ names(grs_ss) <- mcols(grs)$gene_id
 grs_fl_ss <- grs_ss[mcols(grs_ss)$rte_length_req == "FL"]
 
 grs_intact_ss <- grs_fl_ss[grepl("^Intact", mcols(grs_fl_ss)$intactness_req)]
+
 
 # ORF1 AND ORF2 SEQUENCE ANALYSES
 # cannonical locations of RT and EN in ORF2 protein
@@ -338,6 +341,8 @@ for (subfam in mcols(grs_intact_ss)$rte_subfamily %>% unique()) {
         geom_hline(yintercept = 0.95, col = "red", lty = 2) +
         mtopen
     mysaveandstore(sprintf("%s/%s_intact_alnWconensus_similarity_ONTdRNAerror.pdf", outputdir, subfam), w = 10, h = 5)
+}
+
 }
 
 ####

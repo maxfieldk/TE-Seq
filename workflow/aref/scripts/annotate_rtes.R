@@ -359,9 +359,18 @@ divergence_ann <- rmfragments %>%
         family_av_pctdiv < 15, "Yng", "Old"
     ))
 
-req_annot <- left_join(length_ann, divergence_ann) %>%
-    left_join(intactness_ann) %>%
-    mutate(intactness_req = replace_na(intactness_req, "Other"))
+tryCatch(
+    {
+        req_annot <<- left_join(length_ann, divergence_ann) %>%
+            left_join(intactness_ann) %>%
+            mutate(intactness_req = replace_na(intactness_req, "Other"))
+    },
+    error = function(e) {
+        req_annot <<- left_join(length_ann, divergence_ann) %>%
+            mutate(intactness_req = "Other")
+    }
+)
+
 req_annot <- req_annot %>%
     mutate(req_integrative = case_when(
         (intactness_req == "Intact") & (divergence_age == "Yng") ~ "Yng Intact",
@@ -453,8 +462,8 @@ ltr_viral_status <- rmfragments %>%
 ltr_viral_status$ltr_viral_status %>% table()
 
 # ltr status of potentially active, >75% covered ltrs
-group_frame <- tibble()
-group_frame_any_ltr <- tibble()
+group_frame <- tibble(gene_id = character(), ltr_proviral_group_id = character())
+group_frame_any_ltr <- tibble(gene_id = character(), ltr_proviral_group_id = character())
 element_types_to_scrutinize <- rmfamilies %>%
     filter(rte_subfamily != "Other") %>%
     filter(rte_superfamily == "LTR") %$% rte_subfamily %>%
@@ -508,14 +517,19 @@ for (int in element_types_to_scrutinize) {
     }
 }
 
-ltr_proviral_groups <- group_frame
-ltr_proviral_groups <- ltr_proviral_groups[!(ltr_proviral_groups %$% gene_id %>% duplicated()), ] # for ltrs which overlap 2 ints, in order not to duplicate the feature I remove them from their second proviral group affiliation
+if (length(rownames(ltr_proviral_groups)) == 0) {
+    ltr_proviral_groups <<- group_frame
+} else {
+    ltr_proviral_groups <<- group_frame
+    ltr_proviral_groups <<- ltr_proviral_groups %>% distinct(gene_id) # for ltrs which overlap 2 ints, in order not to duplicate the feature I remove them from their second proviral group affiliation
+}
+
 
 
 
 # for annotation purposes, I will have to have the location of nonreference inserts be their insertion site
-rmfragments_ref <- rmfragments %>% filter(!str_detect(seqnames, "nonref"))
-rmfragments_nonref <- rmfragments %>% filter(str_detect(seqnames, "nonref"))
+rmfragments_ref <- rmfragments %>% filter(!str_detect(seqnames, "^NI"))
+rmfragments_nonref <- rmfragments %>% filter(str_detect(seqnames, "^NI"))
 seqnamesNonref <- rmfragments_nonref %$% seqnames
 insert_seqnames <- c()
 insert_start <- c()
@@ -549,6 +563,10 @@ library(genomation)
 refseq <- import(conf$ref_refseq_gtf)
 coding_transcripts <- refseq[(mcols(refseq)$type == "transcript" & grepl("^NM", mcols(refseq)$transcript_id))]
 noncoding_transcripts <- refseq[(mcols(refseq)$type == "transcript" & grepl("^NR", mcols(refseq)$transcript_id))]
+if (length(coding_transcripts) == 0) { # incase ensemble annotation is used against guidance..
+    coding_transcripts <<- refseq[(mcols(refseq)$type == "transcript" & grepl("protein_coding", mcols(refseq)$gene_biotype))]
+    noncoding_transcripts <<- refseq[(mcols(refseq)$type == "transcript" & !grepl("protein_coding", mcols(refseq)$gene_biotype))]
+}
 transcripts <- c(coding_transcripts, noncoding_transcripts)
 
 coding_transcript_upstream <- coding_transcripts %>% flank(10000)
@@ -647,8 +665,8 @@ region_annot <- region_annot %>%
         utr5 == "5utr" ~ "5utr",
         utr3 == "3utr" ~ "3utr",
         intronic == "Intronic" ~ "Intronic",
-        noncoding_tx == "NoncodingTx" ~ "NoncodingTx",
         coding_tx == "CodingTx" ~ "CodingTxOther",
+        noncoding_tx == "NoncodingTx" ~ "NoncodingTx",
         coding_tx_adjacent == "CodingTxAdjacent" ~ "CodingTxAdjacent",
         noncoding_tx_adjacent == "NoncodingTxAdjacent" ~ "NoncodingTxAdjacent",
         centromeric == "Centromeric" ~ "Centromeric",
