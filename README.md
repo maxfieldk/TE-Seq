@@ -105,7 +105,7 @@ mkdir genome_files
 cd genome_files
 #reference genome
 wget https://hgdownload.soe.ucsc.edu/goldenPath/hs1/bigZips/hs1.fa.gz
-#repeatmasker.out file
+#repeatmasker.out file (technically optional if you want the pipeline to repeatmask for you: change the "run_repeatmasker" "response" to "yes"; but beware! this is a computationally expensive step)
 wget https://hgdownload.soe.ucsc.edu/goldenPath/hs1/bigZips/hs1.repeatMasker.out.gz
 #Refseq gtf file
 wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/009/914/755/GCF_009914755.1_T2T-CHM13v2.0/GCF_009914755.1_T2T-CHM13v2.0_genomic.gtf.gz
@@ -144,7 +144,7 @@ mkdir genome_files
 cd genome_files
 #reference genome
 wget https://hgdownload.soe.ucsc.edu/goldenPath/mm39/bigZips/mm39.fa.gz
-#repeatmasker.out file
+#repeatmasker.out file (technically optional if you want the pipeline to repeatmask for you: change the "run_repeatmasker" "response" to "yes"; but beware! this is a computationally expensive step)
 wget https://hgdownload.soe.ucsc.edu/goldenPath/mm39/bigZips/mm39.fa.out.gz
 #Refseq gtf file
 wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/635/GCF_000001635.27_GRCm39/GCF_000001635.27_GRCm39_genomic.gtf.gz
@@ -222,7 +222,7 @@ Create, in your project directory, the srna/rawdata directory structure, and mov
   ```
   snakemake --profile workflow/profile/default
   ```
-  I highly recommend familiarizing yourself with the basics of snakemake before embarking on a complex analysis with this pipelin. For help with snakemake, consult its highly usable and detailed docs at https://snakemake.readthedocs.io/en/stable/index.html  
+  I highly recommend familiarizing yourself with the basics of snakemake before embarking on a complex analysis with this pipeline. For help with snakemake, consult its highly usable and detailed docs at https://snakemake.readthedocs.io/en/stable/index.html  
   For help with git, consult https://git-scm.com/docs/gittutorial  
   If you encounter problems, please create a new issue on the github page.  
 ## Attribution
@@ -232,10 +232,11 @@ Create, in your project directory, the srna/rawdata directory structure, and mov
 
 ## A note on extending this pipeline to non-human/mouse species.
 Several additional changes will need to be made.
-1. Change the aref species key's value in conf/config.yaml to a valid NCBI Taxonomy Database species name which is also contained in the RepeatMasker repeat database.
-2. If using long DNA reads to call novel insertions, add a key:value pair in the aref tldr_te_ref section of conf/config.yaml . The value should be a file path to a fasta file containing consensus sequences for all TEs which will be probed for novel insertions by the TLDR program. The naming convention for each fasta element should be akin to that found in the mouse/human files, i.e. "famlily:element" e.g. "L1:L1HS" where these values correspond to repeatmasker names.
+1. Change the aref species key's value in conf/config.yaml to a valid NCBI Taxonomy Database species name which is also contained in the RepeatMasker repeat database. If a repeatmasker.out file is not availible for your species, you can have the pipeline run repeatmasker and generate this file for you. Merely change the value of the "run_repeatmasker" "response" to "yes" (at which point the starting_ref_repeatmasker path is ignored). Note that genome-wide repeat masking is a computationally expensive step.
+2. In the event that your gene annotation gtf's gene_id column does not contain symbol identifiers, you can provide a mapping from whatever identifier you currently have to symbol (which will be essential for the enrichment analysis by GSEA to work). Change the "gtf_id_mapping" "response" to "yes" and provide a "path" to a tsv file with two columns named "gene_id" and "gene_name" - gene_id will be swapped for gene_name in during enrichment analysis. 
+3. If using long DNA reads to call novel insertions, add a key:value pair in the aref tldr_te_ref section of conf/config.yaml . The value should be a file path to a fasta file containing consensus sequences for all TEs which will be probed for novel insertions by the TLDR program. The naming convention for each fasta element should be akin to that found in the mouse/human files, i.e. "famlily:element" e.g. "L1:L1HS" where these values correspond to repeatmasker names.
 Optionally
-3. In the aref/scripts/annotate_rtes.R script:
+4. In the aref/scripts/annotate_rtes.R script:
 Ctlr F "conf$species". You will find two blocks of code which provide species specific annotations for repeat families which are extensively examined in downstream scripts. add an else {} block, and supply your own regex for whatever repeat groupings you are interested in. If you do not do this, the script will automatically select the least diverged LTR, SINE, and LINE families for downstream scrutiny.
 
 ## Common Issues
