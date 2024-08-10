@@ -258,11 +258,11 @@ pgdf_tidy <- left_join(pergenedf_tidy, srna_gene_expression_tidy) %>% left_join(
 
 library(ggpubr)
 
-rnadf <- pgdf_tidy %>%
+rnadf_genes <- pgdf_tidy %>%
     dplyr::select(-pctM) %>%
     drop_na()
-cor(rnadf$srna_expression, rnadf$lrna_expression)
-p <- ggscatter(rnadf, x = "srna_expression", y = "lrna_expression", rug = TRUE) +
+cor(rnadf_genes$srna_expression, rnadf_genes$lrna_expression)
+p <- ggscatter(rnadf_genes, x = "srna_expression", y = "lrna_expression", alpha = 0.25, ) +
     mtclosed
 mysaveandstore(sprintf("%s/lrna_vs_srna.pdf", outputdir), w = 6, h = 6)
 
@@ -273,14 +273,15 @@ srnapctMdf <- pgdf_tidy %>%
     drop_na()
 cor(srnapctMdf$pctM, log10(srnapctMdf$srna_expressionlog10))
 p <- ggscatter(srnapctMdf,
-    x = "pctM", y = "srna_expressionlog10", add = "reg.line",
+    x = "pctM", y = "srna_expressionlog10", add = "reg.line", alpha = 0.25,
     add.params = list(color = "blue", fill = "lightgray"), # Customize reg. line
     conf.int = TRUE, # Add confidence interval
     cor.coef = TRUE, # Add correlation coefficient. see ?stat_cor
-    cor.coeff.args = list(method = "pearson", label.x = 3, label.sep = "\n")
+    cor.coeff.args = list(method = "pearson", label.x = 3, label.sep = "\n", color = "red")
 ) +
     mtclosed
 mysaveandstore(sprintf("%s/srna_vs_pctM.pdf", outputdir), w = 6, h = 6)
+mysaveandstore(sprintf("%s/srna_vs_pctM.pdf", outputdir), raster = TRUE, w = 6, h = 6)
 
 lrnapctMdf <- pgdf_tidy %>%
     dplyr::select(-srna_expression) %>%
@@ -290,14 +291,15 @@ lrnapctMdf <- pgdf_tidy %>%
 
 stats::cor(lrnapctMdf$pctM, lrnapctMdf$lrna_expressionlog10, use = "pairwise.complete.obs", )
 p <- ggscatter(lrnapctMdf,
-    x = "pctM", y = "lrna_expressionlog10", add = "reg.line",
+    x = "pctM", y = "lrna_expressionlog10", add = "reg.line", alpha = 0.25,
     add.params = list(color = "blue", fill = "lightgray"), # Customize reg. line
     conf.int = TRUE, # Add confidence interval
     cor.coef = TRUE, # Add correlation coefficient. see ?stat_cor
-    cor.coeff.args = list(method = "pearson", label.x = 3, label.sep = "\n")
+    cor.coeff.args = list(method = "pearson", label.x = 3, label.sep = "\n", color = "red")
 ) +
     mtclosed
 mysaveandstore(sprintf("%s/lrna_vs_pctM.pdf", outputdir), w = 6, h = 6)
+mysaveandstore(sprintf("%s/lrna_vs_pctM.pdf", outputdir), raster = TRUE, w = 6, h = 6)
 
 # REPEATS
 rteprommeth <- read_delim(inputs$rteprommeth)
@@ -327,7 +329,7 @@ prdf_tidy <- left_join(
 
 
 
-rnadf <- prdf_tidy %>%
+rnadf_repeats <- prdf_tidy %>%
     dplyr::select(-pctM) %>%
     drop_na() %>%
     left_join(RMdf)
@@ -348,34 +350,45 @@ lrnapctMdf <- prdf_tidy %>%
     left_join(RMdf)
 
 
-for (group in rnadf %$% rte_subfamily %>% unique()) {
-    p <- ggscatter(rnadf %>% filter(rte_subfamily == group), x = "srna_expression", y = "lrna_expression", add = c("reg.line")) +
+for (group in rnadf_repeats %$% rte_subfamily %>% unique()) {
+    p <- ggscatter(rnadf_repeats %>% filter(rte_subfamily == group), x = "srna_expression", y = "lrna_expression", alpha = 0.25, add = c("reg.line")) +
         mtclosed
     mysaveandstore(sprintf("%s/lrna_vs_srna_%s.pdf", outputdir, group), w = 6, h = 6)
 
     p <- ggscatter(srnapctMdf %>% filter(rte_subfamily == group),
-        x = "pctM", y = "srna_expression", add = "reg.line",
+        x = "pctM", y = "srna_expression", add = "reg.line", alpha = 0.25,
         add.params = list(color = "blue", fill = "lightgray"), # Customize reg. line
         conf.int = TRUE, # Add confidence interval
         cor.coef = TRUE, # Add correlation coefficient. see ?stat_cor
         cor.coeff.args = list(method = "pearson", label.x = 3, label.sep = "\n")
     ) +
         mtclosed
-    mysaveandstore(sprintf("%s/srna_vs_pctM.pdf", outputdir), w = 6, h = 6)
+    mysaveandstore(sprintf("%s/srna_vs_pctM_%s.pdf", outputdir, group), w = 6, h = 6)
+
+    p <- ggscatter(srnapctMdf %>% filter(rte_subfamily == group) %>% filter(pctM > 50),
+        x = "pctM", y = "srna_expression", add = "reg.line", alpha = 0.25,
+        add.params = list(color = "blue", fill = "lightgray"), # Customize reg. line
+        conf.int = TRUE, # Add confidence interval
+        cor.coef = TRUE, # Add correlation coefficient. see ?stat_cor
+        cor.coeff.args = list(method = "pearson", label.x = 3, label.sep = "\n")
+    ) +
+        mtclosed
+    mysaveandstore(sprintf("%s/srna_vs_pctM_pctmfiltered_%s.pdf", outputdir, group), w = 6, h = 6)
 
 
     p <- ggscatter(lrnapctMdf %>% filter(rte_subfamily == group),
-        x = "pctM", y = "lrna_expression", add = "reg.line",
+        x = "pctM", y = "lrna_expression", add = "reg.line", alpha = 0.25,
         add.params = list(color = "blue", fill = "lightgray"), # Customize reg. line
         conf.int = TRUE, # Add confidence interval
         cor.coef = TRUE, # Add correlation coefficient. see ?stat_cor
         cor.coeff.args = list(method = "pearson", label.x = 3, label.sep = "\n")
     ) +
         mtclosed
-    mysaveandstore(sprintf("%s/lrna_vs_pctM.pdf", outputdir), w = 6, h = 6)
+    mysaveandstore(sprintf("%s/lrna_vs_pctM_%s.pdf", outputdir, group), w = 6, h = 6)
 
 
     p <- ggscatter(srnapctMdf %>% filter(rte_subfamily == group),
+        alpha = 0.25,
         x = "pctM", y = "srna_expressionlog10", add = "reg.line",
         add.params = list(color = "blue", fill = "lightgray"), # Customize reg. line
         conf.int = TRUE, # Add confidence interval
@@ -383,17 +396,17 @@ for (group in rnadf %$% rte_subfamily %>% unique()) {
         cor.coeff.args = list(method = "pearson", label.x = 3, label.sep = "\n")
     ) +
         mtclosed
-    mysaveandstore(sprintf("%s/srnalog10_vs_pctM.pdf", outputdir), w = 6, h = 6)
+    mysaveandstore(sprintf("%s/srnalog10_vs_pctM_%s.pdf", outputdir, group), w = 6, h = 6)
 
 
     p <- ggscatter(lrnapctMdf %>% filter(rte_subfamily == group),
-        x = "pctM", y = "lrna_expressionlog10", add = "reg.line", add.params = list(color = "blue", fill = "lightgray"), # Customize reg. line
+        x = "pctM", y = "lrna_expressionlog10", add = "reg.line", add.params = list(color = "blue", fill = "lightgray"), alpha = 0.25, # Customize reg. line
         conf.int = TRUE, # Add confidence interval
         cor.coef = TRUE, # Add correlation coefficient. see ?stat_cor
         cor.coeff.args = list(method = "pearson", label.x = 3, label.sep = "\n")
     ) +
         mtclosed
-    mysaveandstore(sprintf("%s/lrnalog10_vs_pctM.pdf", outputdir), w = 6, h = 6)
+    mysaveandstore(sprintf("%s/lrnalog10_vs_pctM_%s.pdf", outputdir, group), w = 6, h = 6)
 }
 
 

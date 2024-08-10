@@ -1,7 +1,7 @@
 if (interactive()) {
-    module_name <- "srna"
+    module_name <<- "srna"
 } else {
-    module_name <- snakemake@params$module_name
+    module_name <<- snakemake@params$module_name
 }
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
 confALL <- configr::read.config(file = "conf/config.yaml")
