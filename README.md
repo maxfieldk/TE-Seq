@@ -222,6 +222,11 @@ Create, in your project directory, the srna/rawdata directory structure, and mov
   ```
   snakemake --profile workflow/profile/default
   ```
+  If all rules are executed successfully, you will not recieve an error message. At this point you can run the following command to generate a report which consolidates some of the most insightful visualizations. Note that not every plot is included in this report, seeing as the resulting html file would be too large for practical use.
+  ```
+  snakemake --profile workflow/profile/default --report report.html
+  ```
+  In the event that a rule fails, all hope is not lost!
   I highly recommend familiarizing yourself with the basics of snakemake before embarking on a complex analysis with this pipeline. For help with snakemake, consult its highly usable and detailed docs at https://snakemake.readthedocs.io/en/stable/index.html  
   For help with git, consult https://git-scm.com/docs/gittutorial  
   If you encounter problems, please create a new issue on the github page.  
@@ -244,3 +249,6 @@ r$> conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
 Error in configr::read.config(file = "conf/config.yaml")[[module_name]] : 
   subscript out of bounds
 This error likely indicates that your config.yaml file is invalid (perhaps a dupliate key). You can copy the contents of your yaml to an online yaml checker to determine whether this is the cause, e.g. https://yamlchecker.com
+
+ERROR: Failed to open file: "PATH"
+An error of this type, assuming the path indeed exists and you have requisite permissions, could be due to a failure of having bound paths correctly in containerized rules. If the path you are specifying is to for instance, rawdata, ensure that the workflow/profile/default/config.yaml  "singularity-args" key specifies a bind path via which this path is accessible (i.e. has at least one path to a directory in which is nested the path of interest). If it does not, you can append a path to the directory which contains the path of interest. 
