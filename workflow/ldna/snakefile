@@ -237,27 +237,29 @@ touch {output.outfile}
 
 #tag QC
 
-# rule mycoplasmaCheck:
-#     input:
-#         fq = "intermediates/{sample}/fastqs/dorado/{sample}.fq.gz"
-#     params:
-#         reference = config["ldna"]["mycoplasma"]
-#     output:
-#         bam = "qc/mycoplasma/mycoplasma{sample}.bam"
-#     resources:
-#         cpus_per_task =20,
-#         runtime = 900,
-#         mem_mb = 80000
-#     conda:
-#         "minimap2"
-#     shell:
-#         """
-# minimap2 -a -x map-ont -t 12 {params.reference} {input.fq} | \
-# samtools sort -@4 -T {wildcards.sample} -O bam -o {output.bam}
-# samtools index -@8 {output.bam}
-# samtools stats {output.bam} > {output.bam}.stats.txt        
-#         """
-
+rule mycoplasmaCheck:
+    input:
+        fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq",
+        aref = "aref.done.outfile"
+    params:
+        reference = "resources/genomes/mycoplasma/mycoplasma_index"
+    output:
+        bam = "ldna/qc/mycoplasma/mycoplasma{sample}.bam"
+    resources:
+        cpus_per_task =20,
+        runtime = 900,
+        mem_mb = 80000
+    conda:
+        "minimap2"
+    shell:
+        """
+mkdir -p $(dirname {output.bam})
+minimap2 -a -x map-ont -t 12 {params.reference} {input.fastq} | \
+samtools sort -@4 -T {wildcards.sample} -O bam -o {output.bam}
+samtools index -@8 {output.bam}
+samtools stats {output.bam} > {output.bam}.stats.txt 
+samtools idxstat -@6 {output.bam} 
+        """
 
 rule dorado_seqsummary:
     input:
@@ -288,17 +290,17 @@ mkdir -p $(dirname {output})
 pycoQC --summary_file {input.seqsummary} --bam_file {input.sortedbam} --html_outfile {output} --min_pass_qual 10
         """
 
-# rule multiqc:
-#     input:
-#         counts_normed = expand("results/agg/deseq/{alignmenttype}/{counttype}/counttablesizenormed.csv", alignmenttype = config["ldna"]["alignmenttypes"], counttype = config["ldna"]["counttypes"])     
-#     conda:
-#         "omics"
-#     output:
-#         report = "qc/multiqc_report.html",
-#     shell:
-#         """
-# multiqc --force --filename {output.report} --export --ignore "*guppy_basecaller_log*" .
-#         """
+rule multiqc:
+    input:
+        mycoplasma = expand("ldna/qc/mycoplasma/mycoplasma{sample}.bam", sample = samples)
+    conda:
+        "omics"
+    output:
+        report = "ldna/qc/multiqc_report.html"
+    shell:
+        """
+multiqc --force --filename {output.report} --export ./ldna
+        """
 
 # tag ALIGNMENT_UTILITIES
 rule sortBam:

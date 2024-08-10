@@ -306,6 +306,9 @@ lrna:
     SEN: "#F39B7FFF"
     PRO: "#3C5488FF"
 
+  repeat_ontologies_to_scrutinize: #leave empty for all ontologies to be included
+    - ""
+
   collections_for_gsea:
     msigdbH: resources/genesets/human/msigdb/h.all.v2023.2.Hs.symbols.gmt
     msigdbC2_CPG: resources/genesets/human/msigdb/c2.cgp.v2023.2.Hs.symbols.gmt
@@ -343,6 +346,10 @@ lrna:
   annotation_rtes: "aref/A.REF_annotations/A.REF_repeatmasker.gff2"
   annotation_genesandrtes_fasta: "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.fa"
 
+  gtf_id_mapping: #in the event that gene_id in annotation genes is not symbol, you can pass a df with gene_id and gene_name cols, and gene_id will be swapped for gene_name in during enrichment analysis 
+    response: "no"
+    path: "/users/mkelsey/data/elif3/TE-Seq/aref/A.REF_annotations/refseq_id_mapping.tsv"
+    
   r_annotation_fragmentsjoined: "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv"
   r_repeatmasker_annotation: "aref/A.REF_annotations/A.REF_repeatmasker_annotation.csv"
   txdb: "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.sqlite"

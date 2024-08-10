@@ -1,4 +1,3 @@
-################### NEW SNAKE
 import os
 import pandas as pd
 import csv
@@ -23,17 +22,17 @@ for pipeline in config["pipelines_to_deploy"]:
                     if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
                         use rule * from aref exclude sym_link,merge_rm_out_wholegenome,tldr_aggregate_multiple_samples,merge_bams_when_per_sample_is_no_for_ldna_variants as aref_*
                     else: 
-                        use rule * from aref exclude sym_link,merge_rm_out_wholegenome,move_starting_reference,tldr_per_sample,get_repeatmasker_raw,process_gtf as aref_*
+                        use rule * from aref exclude sym_link,copy_starting_reference,merge_rm_out_wholegenome,move_starting_reference,tldr_per_sample,get_repeatmasker_raw,process_gtf as aref_*
                 else:
-                    use rule * from aref exclude sym_link,merge_rm_out_wholegenome,dorado,dorado_seqsummary,pycoQC,process_gtf_tldr,cleanup_updated_ref,repeatmasker,getGtfs as aref_*
+                    use rule * from aref exclude sym_link,multiqc,merge_rm_out_wholegenome,dorado,dorado_seqsummary,pycoQC,process_gtf_tldr,cleanup_updated_ref,repeatmasker,getGtfs as aref_*
             else:
                 if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
                     if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
                         use rule * from aref exclude sym_link,get_repeatmasker_raw_out,tldr_aggregate_multiple_samples,merge_bams_when_per_sample_is_no_for_ldna_variants as aref_*
                     else: 
-                        use rule * from aref exclude sym_link,get_repeatmasker_raw_out,move_starting_reference,tldr_per_sample,get_repeatmasker_raw,process_gtf as aref_*
+                        use rule * from aref exclude sym_link,copy_starting_reference,get_repeatmasker_raw_out,move_starting_reference,tldr_per_sample,get_repeatmasker_raw,process_gtf as aref_*
                 else:
-                    use rule * from aref exclude sym_link,get_repeatmasker_raw_out,dorado,dorado_seqsummary,pycoQC,process_gtf_tldr,cleanup_updated_ref,repeatmasker,getGtfs as aref_*
+                    use rule * from aref exclude sym_link,multiqc,get_repeatmasker_raw_out,dorado,dorado_seqsummary,pycoQC,process_gtf_tldr,cleanup_updated_ref,repeatmasker,getGtfs as aref_*
     
     if pipeline == "ldna":
         module ldna:
@@ -46,6 +45,8 @@ for pipeline in config["pipelines_to_deploy"]:
             tldr_analysis_per_sample = expand("ldna/tldr/{sample}.table.txt", sample = config["ldna"]["samples"])
             pycoQC = expand("ldna/qc/{sample}/{sample}pycoQC.html", sample = config["ldna"]["samples"])
             final_input.append(list(flatten([tldr_analysis_per_sample, pycoQC])))
+        mycoplasma = expand("ldna/qc/mycoplasma/mycoplasma{sample}.bam", sample = config["ldna"]["samples"])
+        multiqc = "ldna/qc/multiqc_report.html"
         dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
         haplotaggedbam = expand("ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.haplotagged.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = config["ldna"]["samples"])
         bedmethanalysis = "ldna/results/plots/bedmethylanalysis.rds"
@@ -58,6 +59,8 @@ for pipeline in config["pipelines_to_deploy"]:
         pepper_aref = expand("ldna/intermediates/{sample}/pepper/out.outfile", sample = config["ldna"]["samples"])
         variants_aref = expand("ldna/intermediates/{sample_or_ref}/snpeff/snpeff_sml.pass.vcf", sample_or_ref = "A.REF")
         variants_per_sample = expand("ldna/intermediates/{sample_or_ref}/snpeff/snpeff_sml.pass.vcf", sample_or_ref = config["ldna"]["samples"])
+        for e in list(flatten([mycoplasma, multiqc])):
+            final_input.append(e)
         if config["ldna"]["single_condition"] == "yes":
             for e in list(flatten([bedmethanalysis_single_sample, methylartist])):
                 final_input.append(e)
@@ -117,24 +120,15 @@ for pipeline in config["pipelines_to_deploy"]:
             enrichment_analysis_repeats = expand("srna/results/agg/enrichment_analysis_repeats/{counttype}/enrichment_analysis_repeats_environment.RData", counttype = config["srna"]["counttypes"])
             repeatanalysisplots = expand("srna/results/agg/repeatanalysis/{counttype}/repeatanalysisplots_environment.RData", counttype = config["srna"]["counttypes"])
             bigwigs = "srna/results/agg/bigwig_plots/bigwigplots_environment.RData"
-            qc = [expand("srna/qc/mycoplasma/mycoplasma{sample}.sam", sample = config["srna"]["samples"]), "srna/qc/multiqc/multiqc_report.html"]
+            qc = [expand("srna/qc/mycoplasma/mycoplasma{sample}.sorted.bam", sample = config["srna"]["samples"]), "srna/qc/multiqc/multiqc_report.html"]
             return list(flatten([bigwigs, deseq, enrichment_analysis, enrichment_analysis_repeats, repeatanalysisplots, qc]))
        
         for e in srna_rally():
             final_input.append(e)
 
-# module ldna:
-#     snakefile:
-#         github("maxfieldk/pipeline", path="workflow/ldna/snakefile", tag="v0.1.0")
-#     config:
-#         config["ldna"]
-
-
 rule all:
     input:
-        [
-            # expand("ldna/qc/{sample}/{sample}pycoQC.html", sample = config["ldna"]["samples"])
-            
+        [            
             final_input            
             ]
     default_target: True
