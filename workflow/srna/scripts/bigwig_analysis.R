@@ -407,7 +407,6 @@ intron_annot <- getannotation(grs, introns, "intronic", "Intronic", "NonIntronic
     as.data.frame() %>%
     tibble()
 region_annot <- left_join(exonic_annot, intron_annot)
-rm(rmgrs)
 rm(exonic_annot)
 rm(intron_annot)
 rm_annot <- getannotation(grs, rmgrs, "repetitive", "Repetitive", "NonRepetitive") %>%

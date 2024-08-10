@@ -29,6 +29,7 @@ def aref_complete_input(wildcards):
 
     if config["update_ref_with_tldr"]["response"] == "yes":
         paths.append(expand("aref/qc/{sample_or_ref}/{sample_or_ref}pycoQC.html", sample_or_ref = config["samples"]))
+        paths.append("aref/qc/multiqc_report.html")
         paths.append("aref/results/insertions/analyze_nongermline_insertions.rds")
 
         if config["update_ref_with_tldr"]["per_sample"] == "yes":
@@ -219,10 +220,10 @@ mkdir -p $(dirname {output})
 pycoQC --summary_file {input.seqsummary} --bam_file {input.sortedbam} --html_outfile {output.html} --json_outfile {output.json} --min_pass_qual 10
         """
 
-rule pycoQC:
+rule multiqc:
     input:
-        seqsummary = "aref/qc/{sample}/{sample}.doradosummary.txt",
-        sortedbam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
+        seqsummary = expand("aref/qc/{sample}/{sample}.doradosummary.txt", sample = config["samples"]),
+        sortedbam = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam", sample = config["samples"], rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
     output:
         mqc = "aref/qc/multiqc_report.html",
     benchmark:
@@ -234,7 +235,7 @@ rule pycoQC:
     shell:
         """
 mkdir -p $(dirname {output.mqc})
-multqc ./aref -o $(dirname {output.mqc})
+multiqc -f -o $(dirname {output.mqc}) --export ./aref
         """
 
 
@@ -408,7 +409,7 @@ rule update_reference:
         "scripts/create_reference.R"
 
 
-checkpoint copy_starting_reference_and_index:
+rule copy_starting_reference:
     params:
         ref = config["starting_ref"]
     conda:
@@ -437,7 +438,7 @@ sort -k1,1V -k4,4n -k5,5n {output.repeatmasker}.unsorted > {output.repeatmasker}
 rm {output.repeatmasker}.unsorted
         """
 
-rule index_reference:
+checkpoint index_reference:
     input:
         reference = "aref/{sample_or_ref}.fa"
     output:
@@ -504,7 +505,7 @@ RepeatMasker -species "$species" -pa {resources.cpus_per_task} -gff {input.split
 
 def merge_outs_wholegenome_input(wildcards):
     #call checkpoint output just to register rule merge_rm_out_wholegenome as dependent on the move_staring_reference rule
-    checkpoint_output = checkpoints.copy_starting_reference_and_index.get().output[0]
+    checkpoint_output = checkpoints.index_reference.get().output[0]
     if os.path.exists("aref/A.REF.fa.fai"):
         return expand("aref/A.REF_repeatmasker/wholegenome/A.REF_{chromosome}.fa.out", chromosome = pd.read_table("aref/A.REF.fa.fai", header = None)[0].tolist())
     else:
@@ -661,7 +662,6 @@ rule cleanup_updated_ref:
     shell:
         """
 seqkit grep --by-name -f {input.contigs_to_keep} {input.updated_reference} > {output.filtered_ref}
-samtools faidx {output.filtered_ref}
         """
 
 rule cleanup_updated_sample_ref:
