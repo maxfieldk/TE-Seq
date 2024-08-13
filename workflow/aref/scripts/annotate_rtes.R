@@ -659,6 +659,7 @@ region_annot <- full_join(genic_annot, coding_tx_annot) %>%
     full_join(utr5_annot) %>%
     full_join(utr3_annot)
 
+
 region_annot <- region_annot %>%
     mutate(loc_integrative = case_when(
         exonic == "Exonic" ~ "Exonic",
@@ -716,7 +717,7 @@ annots <- rmfamilies %>%
     full_join(req_annot) %>%
     full_join(ltr_viral_status) %>%
     full_join(ltr_proviral_groups) %>%
-    full_join(region_annot %>% rename_at(vars(-gene_id, -loc_integrative), ~ paste0(., "_loc"))) %>%
+    full_join(region_annot %>% rename_at(vars(-gene_id, -loc_integrative, -loc_lowres_integrative), ~ paste0(., "_loc"))) %>%
     full_join(dist_to_nearest_txs_df)
 
 

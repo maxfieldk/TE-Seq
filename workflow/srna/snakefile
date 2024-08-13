@@ -169,7 +169,7 @@ rule mycoplasmaCheck:
         "srna/benchmarks/mycoplasmaCheck/{sample}.tsv"
     threads: 20
     resources:
-        mem_mb  = 30000
+        mem_mb  = 60000
     conda:
         "omics"
     shell:
@@ -620,7 +620,7 @@ rule getBigWigF:
     resources:
         cpus_per_task =10,
         mem_mb = 10000,
-        runtime = 60
+        runtime = 300
     conda:
         "deeptools"
     shell: "bamCoverage -b {input.sortedbam} -o {output.bwF} --numberOfProcessors max  --samFlagExclude 256 --filterRNAstrand {params.rna_strand_param} --binSize 50"
@@ -647,7 +647,7 @@ rule getBigWigR:
     resources:
         cpus_per_task =10,
         mem_mb = 10000,
-        runtime = 60
+        runtime = 300
     conda:
         "deeptools"
     shell: "bamCoverage -b {input.sortedbam} -o {output.bwR} --numberOfProcessors max  --samFlagExclude 256 --filterRNAstrand {params.rna_strand_param} --binSize 50"
