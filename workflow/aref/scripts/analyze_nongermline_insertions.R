@@ -44,9 +44,8 @@ outputdir <- dirname(outputs$plots)
 dir.create(outputdir, recursive = TRUE, showWarnings = FALSE)
 
 
-# rmfragments <- read_csv(inputs$r_annotation_fragmentsjoined, col_names = TRUE)
-# rmfamilies <- read_csv(inputs$r_repeatmasker_annotation, col_names = TRUE)
-# rmann <- left_join(rmfragments, rmfamilies)
+
+
 dflist <- list()
 rm(sample_sequencing_data)
 for (sample in sample_table$sample_name) {
@@ -89,7 +88,55 @@ dffilt <- dfall %>%
     mutate(fraction_reads_count = UsedReads / (UsedReads + as.numeric(emptyreadsnum))) %>%
     filter(fraction_reads_count < 0.1) %>%
     filter(MedianMapQ >= 60) %>%
-    filter(UsedReads < 5)
+    filter(UsedReads == 1) %>%
+    filter(SpanReads == 1) %>%
+    filter(Filter == "PASS") %>%
+    filter(!is.na(TSD))
+
+
+rmfragments <- read_csv(conf$r_annotation_fragmentsjoined, col_names = TRUE)
+rmfamilies <- read_csv(conf$r_repeatmasker_annotation, col_names = TRUE)
+rmann <- left_join(rmfragments, rmfamilies)
+
+for (element_type in dffilt %$% Subfamily %>% unique()) {
+    dftemp <- dffilt %>% filter(Subfamily == element_type)
+    p <- dftemp %>%
+        gghistogram(x = "LengthIns") +
+        mtopen +
+        labs(title = element_type)
+    mysaveandstore(sprintf("%s/%s/length_distribution.pdf", outputdir, element_type))
+    dftemp %$% LengthIns %>% quantile()
+    p <- dftemp %>%
+        mutate(tsdlen = nchar(TSD)) %>%
+        gghistogram(x = "tsdlen", fill = "blue") +
+        labs(title = element_type)
+    mtopen
+    mysaveandstore(sprintf("%s/%s/tsd_length_distribution.pdf", outputdir, element_type))
+
+    p <- dftemp %>%
+        mutate(trsd5 = nchar(Transduction_5p)) %>%
+        gghistogram(x = "trsd5", fill = "blue") +
+        labs(title = element_type)
+    mtopen
+    mysaveandstore(sprintf("%s/%s/trsd5_length_distribution.pdf", outputdir, element_type))
+
+    p <- dftemp %>%
+        mutate(trsd3 = nchar(Transduction_3p)) %>%
+        gghistogram(x = "trsd3", fill = "blue") +
+        labs(title = element_type)
+    mtopen
+    mysaveandstore(sprintf("%s/%s/trsd3_length_distribution.pdf", outputdir, element_type))
+
+    p <- dftemp %>%
+        arrange(-EndTE) %>%
+        mutate(nrow = row_number()) %>%
+        ggplot() +
+        geom_segment(aes(x = StartTE, xend = EndTE, y = nrow, yend = nrow)) +
+        mtclosed +
+        labs(title = element_type)
+    mysaveandstore(sprintf("%s/%s/te_body_distribution.pdf", outputdir, element_type))
+}
+
 
 for (sample in unique(dffilt$sample_name)) {
     tempoutputdir <- sprintf("aref/%s_Analysis/tldr_plots/nongermline", sample)

@@ -63,6 +63,13 @@ p <- df %>% ggscatter(x = "altumage", y = "age", color = "condition") +
     scale_conditions
 mysaveandstore(sprintf("%s/altum_scatter.pdf", outputdir))
 
+p <- df %>% ggscatter(x = "altumage", y = "age", color = "condition") +
+    lims(x = c(0, 100), y = c(0, 100)) +
+    geom_abline(slope = 1, intercept = 0) +
+    mtopen +
+    scale_conditions
+mysaveandstore(sprintf("%s/altum_scatter_lims_set.pdf", outputdir), 4, 4)
+
 
 
 
