@@ -1,7 +1,7 @@
 if (interactive()) {
-    module_name <- "srna"
+    module_name <<- "srna"
 } else {
-    module_name <- snakemake@params$module_name
+    module_name <<- snakemake@params$module_name
 }
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
 source("workflow/scripts/defaults.R")
@@ -979,6 +979,17 @@ for (rte_subfam in rte_subfams) {
         scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1))
     mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar.pdf", outputdir, counttype, rte_subfam), width, height)
+
+    # p <- pf %>%
+    #     left_join(sample_table %>% dplyr::rename(sample = sample_name)) %>%
+    #     arrange(req_integrative) %>%
+    #     ggbarplot(x = "braak", y = "sample_sum", fill = "braak", facet.by = c("req_integrative", "genic_loc"), add = c("mean_se", "dotplot"), scales = "free_y") +
+    #     labs(x = "", y = "Sum Normalized Counts", subtitle = counttype_label, title = rte_subfam) +
+    #     mtclosedgridh +
+    #     scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
+    #     theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    # mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_braak.pdf", outputdir, counttype, rte_subfam), width + 3, height)
+
 
     p <- pf %>%
         arrange(req_integrative) %>%

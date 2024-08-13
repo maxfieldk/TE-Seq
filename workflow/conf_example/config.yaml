@@ -306,8 +306,13 @@ lrna:
     SEN: "#F39B7FFF"
     PRO: "#3C5488FF"
 
+<<<<<<< HEAD
+  repeat_ontologies_to_scrutinize: #leave empty for all ontologies to be included; options: "repeat_superfamily"     "rte_superfamily"        "rte_family"             "rte_subfamily"          "rte_subfamily_limited"  "l1_subfamily_limited"   "l1_subfamily"           "herv_subfamily_limited"
+    - "rte_subfamily_limited"
+=======
   repeat_ontologies_to_scrutinize: #leave empty for all ontologies to be included
     - ""
+>>>>>>> 970ea94df6e9beeb04b113bea9d59bf9dee0fd12
 
   collections_for_gsea:
     msigdbH: resources/genesets/human/msigdb/h.all.v2023.2.Hs.symbols.gmt
