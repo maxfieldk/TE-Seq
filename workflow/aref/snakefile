@@ -29,7 +29,7 @@ def aref_complete_input(wildcards):
 
     if config["update_ref_with_tldr"]["response"] == "yes":
         paths.append(expand("aref/qc/{sample_or_ref}/{sample_or_ref}pycoQC.html", sample_or_ref = config["samples"]))
-        paths.append("aref/qc/multiqc_report.html")
+        paths.append("aref/qc/multiqc.out")
         paths.append("aref/results/insertions/analyze_nongermline_insertions.rds")
 
         if config["update_ref_with_tldr"]["per_sample"] == "yes":
@@ -225,7 +225,7 @@ rule multiqc:
         seqsummary = expand("aref/qc/{sample}/{sample}.doradosummary.txt", sample = config["samples"]),
         sortedbam = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam", sample = config["samples"], rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
     output:
-        mqc = "aref/qc/multiqc_report.html",
+        mqc = "aref/qc/multiqc.out",
     benchmark:
         "aref/benchmarks/multiqc/multiqc.tsv"
     resources:
@@ -236,6 +236,7 @@ rule multiqc:
         """
 mkdir -p $(dirname {output.mqc})
 multiqc -f -o $(dirname {output.mqc}) --export ./aref
+touch {output.mqc}
         """
 
 
@@ -490,7 +491,7 @@ rule repeatmasker_whole_genome:
         cpus_per_task =20,
         runtime = 1000,
         mem_mb = 30000
-    container: "docker://dfam/tetools:latest"
+    container: "docker://dfam/tetools:1.88.5"
     shell:
         """
 if [[ {params.species} == mouse ]]
@@ -549,7 +550,7 @@ rule repeatmasker:
         cpus_per_task =20,
         runtime = 1200,
         mem_mb = 50000
-    container: "docker://dfam/tetools:latest"
+    container: "docker://dfam/tetools:1.88.5"
     shell:
         """
 if [[ {params.species} == mouse ]]
@@ -920,6 +921,7 @@ rule annotate_rtes:
     input:
         r_annotation_fragmentsjoined = "aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
         ref = "aref/{sample_or_ref}.fa",
+        fai = "aref/{sample_or_ref}.fa.fai",
         txdbrefseq = "aref/A.REF_annotations/refseq.sqlite",
     output:
         r_repeatmasker_annotation = "aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_annotation.csv",
