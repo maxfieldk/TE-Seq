@@ -1,7 +1,7 @@
 if (interactive()) {
-    module_name <<- "srna"
+    module_name <- "srna"
 } else {
-    module_name <<- snakemake@params$module_name
+    module_name <- snakemake@params$module_name
 }
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
 confALL <- configr::read.config(file = "conf/config.yaml")
@@ -243,17 +243,17 @@ for (contrast in params[["contrasts"]]) {
                     }
                 )
 
-                tryCatch(
-                    {
-                        for (genesetid in conf$genesets_for_gseaplot) {
+                for (genesetid in conf$genesets_for_gseaplot) {
+                    tryCatch(
+                        {
                             p <- gseaplot2(gse, geneSetID = genesetid, pvalue_table = TRUE, subplots = 1:2, ES_geom = "line")
+                            mysaveandstore(sprintf("%s/%s/gsea/%s_gsea.pdf", params[["outputdir"]], contrast, genesetid), w = 7, h = 3, res = 300)
+                        },
+                        error = function(e) {
+                            print("")
                         }
-                        mysaveandstore(sprintf("%s/%s/gsea/%s_gsea.pdf", params[["outputdir"]], contrast, genesetid), w = 7, h = 3, res = 300)
-                    },
-                    error = function(e) {
-                        print("")
-                    }
-                )
+                    )
+                }
             },
             error = function(e) {
                 print("probably no enrichments in this collection")
@@ -329,7 +329,7 @@ tryCatch(
                 core_enrichments <- df$core_enrichment
                 core_enrichments <- str_split(core_enrichments, "/")
                 names(core_enrichments) <- ids
-                for (geneset in c(names(core_enrichments), conf$genesets_for_gseaplot)) {
+                for (geneset in unique(c(names(core_enrichments), conf$genesets_for_gseaplot))) {
                     all_genes_in_set <- read.gmt(params[["collections_for_gsea"]][[collec]]) %>% filter(term == geneset) %$% gene
                     if (length(all_genes_in_set) == 0) {
                         next
