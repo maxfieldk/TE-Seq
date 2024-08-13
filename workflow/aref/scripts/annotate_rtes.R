@@ -517,7 +517,7 @@ for (int in element_types_to_scrutinize) {
     }
 }
 
-if (length(rownames(ltr_proviral_groups)) == 0) {
+if (length(rownames(group_frame)) == 0) {
     ltr_proviral_groups <<- group_frame
 } else {
     ltr_proviral_groups <<- group_frame

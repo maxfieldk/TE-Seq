@@ -214,25 +214,27 @@ grss <- GRanges(grsdfs)
 write_delim(grsdfs, "ldna/Rintermediates/grsdfsmall.tsv", col_names = TRUE)
 
 
+if (conf$single_condition == "no") {
+    dmrs <- read_delim(inputs$dmrs, delim = "\t", col_names = TRUE)
+    dmls <- read_delim(inputs$dmls, delim = "\t", col_names = TRUE)
+    dmrsgr <- GRanges(dmrs)
+    dmlsgr <- GRanges(
+        seqnames = dmls$chr,
+        ranges = IRanges(start = dmls$pos, end = dmls$pos),
+        mu_c2 = dmls$mu_c2,
+        mu_c1 = dmls$mu_c1,
+        diff_c2_minus_c1 = dmls$diff_c2_minus_c1,
+        diff_c2_minus_c1.se = dmls$diff_c2_minus_c1.se,
+        stat = dmls$stat,
+        phi_c2 = dmls$phi_c2,
+        phi_c1 = dmls$phi_c1,
+        pval = dmls$pval,
+        fdr = dmls$fdr,
+        postprob.overThreshold = dmls$postprob.overThreshold,
+        direction = dmls$direction
+    )
+}
 
-dmrs <- read_delim(inputs$dmrs, delim = "\t", col_names = TRUE)
-dmls <- read_delim(inputs$dmls, delim = "\t", col_names = TRUE)
-dmrsgr <- GRanges(dmrs)
-dmlsgr <- GRanges(
-    seqnames = dmls$chr,
-    ranges = IRanges(start = dmls$pos, end = dmls$pos),
-    mu_c2 = dmls$mu_c2,
-    mu_c1 = dmls$mu_c1,
-    diff_c2_minus_c1 = dmls$diff_c2_minus_c1,
-    diff_c2_minus_c1.se = dmls$diff_c2_minus_c1.se,
-    stat = dmls$stat,
-    phi_c2 = dmls$phi_c2,
-    phi_c1 = dmls$phi_c1,
-    pval = dmls$pval,
-    fdr = dmls$fdr,
-    postprob.overThreshold = dmls$postprob.overThreshold,
-    direction = dmls$direction
-)
 
 
 ####################
@@ -242,7 +244,6 @@ dir.create("ldna/results/plots/rte", showWarnings = FALSE)
 ## Load Data and add annotations
 r_annotation_fragmentsjoined <- read_csv(conf$r_annotation_fragmentsjoined)
 r_repeatmasker_annotation <- read_csv(conf$r_repeatmasker_annotation)
-r_repeatmasker_annotation %$% ltr_viral_status %>% unique()
 rmann <- left_join(r_annotation_fragmentsjoined, r_repeatmasker_annotation)
 RM <- GRanges(rmann)
 ### ONTOLOGY DEFINITION
@@ -268,32 +269,37 @@ RM <- GRanges(rmann)
 
 # FULL ELEMENTS
 # annotate whether repeats overlap DMRs
-mbo <- mergeByOverlaps(RM, dmrsgr)
-mergeddf <- tibble(as.data.frame(mbo))
-mm <- mergeddf %>%
-    group_by(gene_id) %>%
-    mutate(max_val = max(dmrsgr.diff_c2_minus_c1), min_val = min(dmrsgr.diff_c2_minus_c1))
-dups <- mm$gene_id %>% duplicated()
-mm <- mm[!dups, ]
-mm[(mm$max_val > 0 & mm$min_val < 0), "concordance"] <- "discordant"
-mm[!(mm$max_val > 0 & mm$min_val < 0), "concordance"] <- "concordant"
-mm <- mm %>%
-    ungroup() %>%
-    dplyr::rename(seqnames = RM.seqnames, start = RM.start, end = RM.end, strand = RM.strand)
-# drop columns that start with RM.
-mm <- mm %>% dplyr::select((!starts_with("RM.")))
-merged <- GRanges(mm)
 
-sboinvert <- subsetByOverlaps(RM, dmrsgr, invert = TRUE)
-sboinvert$max_val <- NaN
-sboinvert$min_val <- NaN
-sboinvert$concordance <- NA_character_
+if (conf$single_condition == "no") {
+    mbo <- mergeByOverlaps(RM, dmrsgr)
+    mergeddf <- tibble(as.data.frame(mbo))
+    mm <- mergeddf %>%
+        group_by(gene_id) %>%
+        mutate(max_val = max(dmrsgr.diff_c2_minus_c1), min_val = min(dmrsgr.diff_c2_minus_c1))
+    dups <- mm$gene_id %>% duplicated()
+    mm <- mm[!dups, ]
+    mm[(mm$max_val > 0 & mm$min_val < 0), "concordance"] <- "discordant"
+    mm[!(mm$max_val > 0 & mm$min_val < 0), "concordance"] <- "concordant"
+    mm <- mm %>%
+        ungroup() %>%
+        dplyr::rename(seqnames = RM.seqnames, start = RM.start, end = RM.end, strand = RM.strand)
+    # drop columns that start with RM.
+    mm <- mm %>% dplyr::select((!starts_with("RM.")))
+    merged <- GRanges(mm)
 
-RMfinal <- c(merged, sboinvert)
-rmannfinal <- tibble(as.data.frame(RMfinal))
-rmannGOOD <- rmannfinal %>%
-    mutate(direction = ifelse(is.na(concordance), NA_character_, ifelse(concordance == "discordant", "discordant", ifelse(max_val > 0, paste0(condition2, " Hyper"), paste0(condition2, " Hypo")))))
-RMdf <- rmannGOOD %>% filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS)
+    sboinvert <- subsetByOverlaps(RM, dmrsgr, invert = TRUE)
+    sboinvert$max_val <- NaN
+    sboinvert$min_val <- NaN
+    sboinvert$concordance <- NA_character_
+
+    RMfinal <- c(merged, sboinvert)
+    rmannfinal <- tibble(as.data.frame(RMfinal))
+    rmannGOOD <- rmannfinal %>%
+        mutate(direction = ifelse(is.na(concordance), NA_character_, ifelse(concordance == "discordant", "discordant", ifelse(max_val > 0, paste0(condition2, " Hyper"), paste0(condition2, " Hypo")))))
+    RMdf <- rmannGOOD %>% filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS)
+} else {
+    RMdf <- rmann %>% filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS)
+}
 write_delim(RMdf, "ldna/Rintermediates/RMdf.tsv", col_names = TRUE)
 # RMdf <- read_delim("ldna/Rintermediates/RMdf.tsv", col_names = TRUE)
 
@@ -340,31 +346,37 @@ flLINE5UTRgrs <- GRanges(flLINE) %>% resize(909)
 flFl_Provirus_5LTRgrs <- GRanges(flFl_Provirus_5LTR)
 flRTEpromotergrs <- c(c(flSINEgrs, flLINE5UTRgrs), flFl_Provirus_5LTRgrs)
 
-mbo <- mergeByOverlaps(flRTEpromotergrs, dmrsgr)
-mergeddf <- tibble(as.data.frame(mbo))
-mm <- mergeddf %>%
-    group_by(gene_id) %>%
-    mutate(max_val = max(dmrsgr.diff_c2_minus_c1), min_val = min(dmrsgr.diff_c2_minus_c1))
-dups <- mm$gene_id %>% duplicated()
-mm <- mm[!dups, ]
-mm[(mm$max_val > 0 & mm$min_val < 0), "concordance"] <- "discordant"
-mm[!(mm$max_val > 0 & mm$min_val < 0), "concordance"] <- "concordant"
-mm <- mm %>%
-    ungroup() %>%
-    dplyr::rename(seqnames = flRTEpromotergrs.seqnames, start = flRTEpromotergrs.start, end = flRTEpromotergrs.end, strand = flRTEpromotergrs.strand)
-# drop columns that start with RM.
-mm <- mm %>% dplyr::select((!starts_with("flRTEpromotergrs.")))
-merged <- GRanges(mm)
+if (conf$single_condition == "no") {
+    mbo <- mergeByOverlaps(flRTEpromotergrs, dmrsgr)
+    mergeddf <- tibble(as.data.frame(mbo))
+    mm <- mergeddf %>%
+        group_by(gene_id) %>%
+        mutate(max_val = max(dmrsgr.diff_c2_minus_c1), min_val = min(dmrsgr.diff_c2_minus_c1))
+    dups <- mm$gene_id %>% duplicated()
+    mm <- mm[!dups, ]
+    mm[(mm$max_val > 0 & mm$min_val < 0), "concordance"] <- "discordant"
+    mm[!(mm$max_val > 0 & mm$min_val < 0), "concordance"] <- "concordant"
+    mm <- mm %>%
+        ungroup() %>%
+        dplyr::rename(seqnames = flRTEpromotergrs.seqnames, start = flRTEpromotergrs.start, end = flRTEpromotergrs.end, strand = flRTEpromotergrs.strand)
+    # drop columns that start with RM.
+    mm <- mm %>% dplyr::select((!starts_with("flRTEpromotergrs.")))
+    merged <- GRanges(mm)
 
-sboinvert <- subsetByOverlaps(flRTEpromotergrs, dmrsgr, invert = TRUE)
-sboinvert$max_val <- NaN
-sboinvert$min_val <- NaN
-sboinvert$concordance <- NA_character_
+    sboinvert <- subsetByOverlaps(flRTEpromotergrs, dmrsgr, invert = TRUE)
+    sboinvert$max_val <- NaN
+    sboinvert$min_val <- NaN
+    sboinvert$concordance <- NA_character_
 
-flRTEpromotergrsfinal <- c(merged, sboinvert)
-flRTEpromoterdfinal <- tibble(as.data.frame(flRTEpromotergrsfinal))
-flRTEpromoterdfGOOD <- flRTEpromoterdfinal %>%
-    mutate(direction = ifelse(is.na(concordance), NA_character_, ifelse(concordance == "discordant", "discordant", ifelse(max_val > 0, "Hyper", "Hypo"))))
+    flRTEpromotergrsfinal <- c(merged, sboinvert)
+    flRTEpromoterdfinal <- tibble(as.data.frame(flRTEpromotergrsfinal))
+    flRTEpromoterdfGOOD <- flRTEpromoterdfinal %>%
+        mutate(direction = ifelse(is.na(concordance), NA_character_, ifelse(concordance == "discordant", "discordant", ifelse(max_val > 0, "Hyper", "Hypo"))))
+} else {
+    flRTEpromoterdfGOOD <- tibble(as.data.frame(flRTEpromotergrs))
+}
+
+
 flRTEpromoter <- flRTEpromoterdfGOOD %>% filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS)
 write_delim(flRTEpromoter, "ldna/Rintermediates/flRTEpromoter.tsv", col_names = TRUE)
 # flRTEpromoter <- read_delim("ldna/Rintermediates/flRTEpromoter.tsv", col_names = TRUE)
@@ -394,7 +406,27 @@ write_delim(perelementdf_promoters, "ldna/Rintermediates/perelementdf_promoters.
 # perelementdf_promoters <- read_delim("ldna/Rintermediates/perelementdf_promoters.tsv", col_names = TRUE)
 
 
+# Genes
+refseq_gr <- import(conf$refseq_unaltered)
+genes_gr <- refseq_gr[mcols(refseq_gr)[, "type"] == "gene", ]
+genes_gr <- genes_gr[seqnames(genes_gr) %in% CHROMOSOMESINCLUDEDINANALYSIS, ]
+genes_gr <- genes_gr[mcols(genes_gr)[, "source"] %in% c("BestRefSeq", "Curated Genomic", "Gnomon"), ]
+mcols(genes_gr)$gene_id <- mcols(genes_gr)$Name
+mcols(genes_gr) %>% colnames()
+mcols(genes_gr) <- mcols(genes_gr)[, c("gene_id", "ID", "gene_biotype", "source")]
+promoters <- promoters(genes_gr, upstream = 5000, downstream = 1000)
+mbo <- mergeByOverlaps(grs, promoters)
+promoter_methdf <- mbo$grs %>%
+    as.data.frame() %>%
+    tibble()
+promoter_methdf$gene_id <- mbo$promoters %>%
+    as.data.frame() %>%
+    tibble() %$% gene_id
+write_delim(promoter_methdf, "ldna/Rintermediates/refseq_gene_promoter_methylation.tsv", col_names = TRUE)
+
+
 ############## Read density
+## NOTE GOT UP TO HERE IN MAKING THIS WORK FOR SINGLE SAMPLE
 rm(grs)
 mem_used()
 
@@ -461,24 +493,3 @@ for (region in conf$rte_subfamily_read_level_analysis) {
 readscg <- Reduce(rbind, readslistcg)
 write_delim(readscg, "ldna/Rintermediates/reads_context_cpg.tsv", col_names = TRUE)
 # readscg <- read_delim("ldna/Rintermediates/reads_context_cpg.tsv", col_names = TRUE)
-
-
-
-# Genes
-
-refseq_gr <- import(conf$refseq_unaltered)
-genes_gr <- refseq_gr[mcols(refseq_gr)[, "type"] == "gene", ]
-genes_gr <- genes_gr[seqnames(genes_gr) %in% CHROMOSOMESINCLUDEDINANALYSIS, ]
-genes_gr <- genes_gr[mcols(genes_gr)[, "source"] %in% c("BestRefSeq", "Curated Genomic", "Gnomon"), ]
-mcols(genes_gr)$gene_id <- mcols(genes_gr)$Name
-mcols(genes_gr) %>% colnames()
-mcols(genes_gr) <- mcols(genes_gr)[, c("gene_id", "ID", "gene_biotype", "source")]
-promoters <- promoters(genes_gr, upstream = 5000, downstream = 1000)
-mbo <- mergeByOverlaps(grs, promoters)
-promoter_methdf <- mbo$grs %>%
-    as.data.frame() %>%
-    tibble()
-promoter_methdf$gene_id <- mbo$promoters %>%
-    as.data.frame() %>%
-    tibble() %$% gene_id
-write_delim(promoter_methdf, "ldna/Rintermediates/refseq_gene_promoter_methylation.tsv", col_names = TRUE)
