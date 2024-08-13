@@ -44,9 +44,8 @@ outputdir <- dirname(outputs$plots)
 dir.create(outputdir, recursive = TRUE, showWarnings = FALSE)
 
 
-# rmfragments <- read_csv(inputs$r_annotation_fragmentsjoined, col_names = TRUE)
-# rmfamilies <- read_csv(inputs$r_repeatmasker_annotation, col_names = TRUE)
-# rmann <- left_join(rmfragments, rmfamilies)
+
+
 dflist <- list()
 rm(sample_sequencing_data)
 for (sample in sample_table$sample_name) {
@@ -89,7 +88,41 @@ dffilt <- dfall %>%
     mutate(fraction_reads_count = UsedReads / (UsedReads + as.numeric(emptyreadsnum))) %>%
     filter(fraction_reads_count < 0.1) %>%
     filter(MedianMapQ >= 60) %>%
-    filter(UsedReads < 5)
+    filter(UsedReads == 1) %>%
+    filter(SpanReads == 1) %>%
+    filter(Filter == "PASS") %>%
+    filter(!is.na(TSD))
+
+
+# rmfragments <- read_csv(conf$r_annotation_fragmentsjoined, col_names = TRUE)
+# rmfamilies <- read_csv(conf$r_repeatmasker_annotation, col_names = TRUE)
+# rmann <- left_join(rmfragments, rmfamilies)
+# p <- rmann %>%
+#     filter(rte_subfamily == "L1HS") %>%
+#     arrange(-element_end) %>%
+#     mutate(nrow = row_number()) %>%
+#     ggplot() +
+#     geom_segment(aes(x = element_start, xend = element_end, y = nrow, yend = nrow)) +
+#     mtclosed
+# mysaveandstore(sprintf("%s/l1hs_genomic_body_distribution.pdf", outputdir), h = 15)
+
+dftemp <- dffilt %>% filter(Subfamily == "L1HS")
+p <- dftemp %>%
+    filter(Subfamily == "L1HS") %>%
+    gghistogram(x = "LengthIns") +
+    mtopen
+mysaveandstore(sprintf("%s/length_distribution.pdf", outputdir))
+dftemp %$% LengthIns %>% quantile()
+
+
+
+p <- dftemp %>%
+    arrange(-EndTE) %>%
+    mutate(nrow = row_number()) %>%
+    ggplot() +
+    geom_segment(aes(x = StartTE, xend = EndTE, y = nrow, yend = nrow, color = condition)) +
+    mtclosed
+mysaveandstore(sprintf("%s/te_body_distribution.pdf", outputdir))
 
 for (sample in unique(dffilt$sample_name)) {
     tempoutputdir <- sprintf("aref/%s_Analysis/tldr_plots/nongermline", sample)

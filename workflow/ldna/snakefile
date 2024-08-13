@@ -242,7 +242,7 @@ rule mycoplasmaCheck:
         fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq",
         aref = "aref.done.outfile"
     params:
-        reference = "resources/genomes/mycoplasma/mycoplasma_index"
+        reference = "resources/genomes/mycoplasma/mycoplasma.fa"
     output:
         bam = "ldna/qc/mycoplasma/mycoplasma{sample}.bam"
     resources:
@@ -258,9 +258,11 @@ minimap2 -a -x map-ont -t 12 {params.reference} {input.fastq} | \
 samtools sort -@4 -T {wildcards.sample} -O bam -o {output.bam}
 samtools index -@8 {output.bam}
 samtools stats {output.bam} > {output.bam}.stats.txt 
-samtools idxstat -@6 {output.bam} 
+samtools idxstat -@6 {output.bam} > {output.bam}.idxstats.txt 
         """
-
+rule call_mycoplasmaCheck:
+    input:
+        expand("ldna/qc/mycoplasma/mycoplasma{sample}.bam", sample = samples)
 rule dorado_seqsummary:
     input:
         sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
