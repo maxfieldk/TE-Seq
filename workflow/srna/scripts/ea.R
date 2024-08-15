@@ -242,18 +242,17 @@ for (contrast in params[["contrasts"]]) {
                         print("")
                     }
                 )
-
-                tryCatch(
-                    {
-                        for (genesetid in conf$genesets_for_gseaplot) {
+                for (genesetid in conf$genesets_for_gseaplot) {
+                    tryCatch(
+                        {
                             p <- gseaplot2(gse, geneSetID = genesetid, pvalue_table = TRUE, subplots = 1:2, ES_geom = "line")
+                            mysaveandstore(sprintf("%s/%s/gsea/%s_gsea.pdf", params[["outputdir"]], contrast, genesetid), w = 7, h = 3, res = 300)
+                        },
+                        error = function(e) {
+                            print("")
                         }
-                        mysaveandstore(sprintf("%s/%s/gsea/%s_gsea.pdf", params[["outputdir"]], contrast, genesetid), w = 7, h = 3, res = 300)
-                    },
-                    error = function(e) {
-                        print("")
-                    }
-                )
+                    )
+                }
             },
             error = function(e) {
                 print("probably no enrichments in this collection")
@@ -700,17 +699,18 @@ for (contrast in params[["contrasts"]]) {
                     }
                 )
 
-                tryCatch(
-                    {
-                        for (genesetid in conf$genesets_for_gseaplot) {
+                for (genesetid in conf$genesets_for_gseaplot) {
+                    tryCatch(
+                        {
                             p <- gseaplot2(gse, geneSetID = genesetid, pvalue_table = TRUE, subplots = 1:2, ES_geom = "line")
+
+                            mysaveandstore(sprintf("%s/%s/gsea/%s_gsea.pdf", params[["outputdir"]], contrast, genesetid), w = 8, h = 3, res = 300)
+                        },
+                        error = function(e) {
+                            print("")
                         }
-                        mysaveandstore(sprintf("%s/%s/gsea/%s_gsea.pdf", params[["outputdir"]], contrast, genesetid), w = 8, h = 3, res = 300)
-                    },
-                    error = function(e) {
-                        print("")
-                    }
-                )
+                    )
+                }
             },
             error = function(e) {
                 print("probably no enrichments in this collection")
@@ -965,3 +965,6 @@ tryCatch(
 # str(mysaveandstoreplots[[100]])
 # print(mysaveandstoreplots[[100]])
 # mysave(pl = mysaveandstoreplots[[100]])
+
+
+# res %>% filter(grepl("^CDKN", gene_id))
