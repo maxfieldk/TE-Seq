@@ -141,7 +141,6 @@ fastp -i {input.r1} -I {input.r2} -o {output.r1} -O {output.r2} --json {output.j
 rule fastp_SE:
     input:
         r1=lambda wildcards: peptable.loc[peptable["sample_name"] == wildcards.sample, "file_path_R1"].iloc[0],
-        # r2=lambda wildcards: peptable.loc[peptable["sample_name"] == wildcards.sample, "R2"].iloc[0]
     priority: 100
     threads: 6
     retries: 3
@@ -149,7 +148,6 @@ rule fastp_SE:
         "srna/benchmarks/fastp_SE/{sample}.tsv"
     output:
         r1 = "srna/outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz",
-        # r2 = "outs/{sample}/trimmedReads/{sample}_2.trimmed.fastq.gz",
         json = "srna/outs/{sample}/trimmedReads/fastp.json",
         html = "srna/outs/{sample}/trimmedReads/fastp.html"
     conda:
@@ -166,19 +164,23 @@ rule mycoplasmaCheck:
     input:
         r1 = "srna/outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz"
     output:
-        sam = "srna/qc/mycoplasma/mycoplasma{sample}.sam"
+        bam = "srna/qc/mycoplasma/mycoplasma{sample}.sorted.bam"
     benchmark:
         "srna/benchmarks/mycoplasmaCheck/{sample}.tsv"
-    threads: 12
+    threads: 20
     resources:
-        mem_mb  = 30000
+        mem_mb  = 60000
     conda:
         "omics"
     shell:
         """
-mkdir -p $(dirname {output.sam})
-bowtie2 --threads 10 -x resources/genomes/mycoplasma/mycoplasma_index -U {input.r1} -S {output.sam}
-samtools stats {output.sam} > {output.sam}.stats.txt
+mkdir -p $(dirname {output.bam})
+bowtie2 --threads 10 -x resources/genomes/mycoplasma/mycoplasma_index -U {input.r1} | samtools view -@8 -bS - > {output.bam}.temp
+samtools sort -@8 -m4g {output.bam}.temp > {output.bam}
+rm {output.bam}.temp
+samtools index  -@6 {output.bam} 
+samtools idxstat -@6 {output.bam} 
+samtools stats {output.bam} > {output.bam}.stats.txt
         """
 
 
@@ -213,7 +215,7 @@ rule multiqc:
     shell:
         """
 mkdir -p $(dirname {output})
-multiqc -f -o $(dirname {output}) --export ./
+multiqc -f -o $(dirname {output}) --export ./srna/
         """
 
 #tag ALIGNMENT
@@ -262,24 +264,8 @@ featureCounts -p -s {params.featureCountsstrandparam} -O -M -T {threads} -t exon
 cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
         """
 
-# rule filtertogetbamofnofeaturealignments:
-#     input:
-#         readassignment = "outs/agg/featurecounts_genes/{sample}.sorted.primary.bam.featureCounts",
-#         sortedBam = "outs/{sample}/star_output/{sample}.sorted.bam"
-#     output:
-#         nofeaturefilteredbam = "outs/agg/featurecounts_genes/{sample}.sorted.nofeaturefiltered.bam"
-#     conda:
-#         "omics"
-#     shell:
-#         """
-# awk '$2 ~ /Unassigned_NoFeatures/ {{print $1}}' {input.readassignment} > {input.readassignment}.nofeatureIDs.txt
-# samtools view -b -N {input.readassignment}.nofeatureIDs.txt -o {output.nofeaturefilteredbam} {input.sortedBam}
-# samtools stats {output.nofeaturefilteredbam} > {output.nofeaturefilteredbam}.stats
-#         """
-
-
 rule featurecounts_genesandrtes_PE:
-#for non-telocal based counts for RTEs
+#for non-telescope based counts for RTEs
     input:
         sortedSTARbams = expand("srna/outs/{sample}/star_output/{sample}.sorted.primary.bam", sample = samples),
         libtype = "srna/qc/library_type.txt"
@@ -355,7 +341,7 @@ featureCounts -T {threads} -B -O -a {params.gtf} -o {output.metafeaturecounts} {
 
 
 rule featurecounts_genesandrtes_SE:
-#for non-telocal based counts for RTEs
+#for non-telescope based counts for RTEs
     input:
         sortedSTARbams = expand("srna/outs/{sample}/star_output/{sample}.sorted.primary.bam", sample = samples),
         libtype = "srna/qc/library_type.txt"
@@ -381,7 +367,7 @@ cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
         """
 
 #tag ALIGNMENT UTILITIES
-rule common_sortIndexBam:
+rule sortIndexBam:
     input:
         sam = "srna/outs/{sample}/star_output/Aligned.out.sam"
     output:
@@ -389,7 +375,7 @@ rule common_sortIndexBam:
         stats =  "srna/outs/{sample}/star_output/{sample}.sorted.bam.stats.txt",
         index = "srna/outs/{sample}/star_output/{sample}.sorted.bam.bai"
     benchmark:
-        "srna/benchmarks/common_sortIndexBam/{sample}.tsv"
+        "srna/benchmarks/sortIndexBam/{sample}.tsv"
     resources:
         cpus_per_task =10,
         mem_mb = 64000
@@ -497,7 +483,7 @@ rule deseq:
         environment = "srna/results/agg/deseq/{counttype}/deseq_environment.RData",
         report = report(
             directory("srna/results/agg/deseq/{counttype}"),
-            patterns=["{gene_or_te}/{name}.png"],
+            patterns=["{gene_or_te}/{name}.pdf"],
             category="Differential Expression {counttype}",
             subcategory="{gene_or_te}")
     script:
@@ -550,7 +536,7 @@ rule enrichment_analysis:
         environment = "srna/results/agg/enrichment_analysis/enrichment_analysis_environment.RData",
         report = report(
             directory("srna/results/agg/enrichment_analysis"),
-            patterns=["gsea_top_{name}_grid.png", "{leading_path}heatmap_{trailingpath}.png"],
+            patterns=["gsea_top_{name}_grid_1.pdf", "{leading_path}heatmap_{trailingpath}.pdf"],
             category="Gene Enrichment")
     script:
         "scripts/ea.R"
@@ -580,7 +566,7 @@ rule enrichment_analysis_repeats:
         environment = "srna/results/agg/enrichment_analysis_repeats/{counttype}/enrichment_analysis_repeats_environment.RData",
         report = report(
             directory("srna/results/agg/enrichment_analysis_repeats/{counttype}"),
-            patterns=["{counttype}/gsea_top_{name}.png"],
+            patterns=["std/gsea_top_{name}.pdf"],
             category="RTE Enrichment")
     script:
         "scripts/ea_repeats.R"
@@ -608,37 +594,10 @@ rule repeatanalysis_plots:
         environment = "srna/results/agg/repeatanalysis/{counttype}/repeatanalysisplots_environment.RData", 
         report = report(
             directory("srna/results/agg/repeatanalysis/{counttype}"),
-            patterns=["pan_contrast/{rte}_{restofstring}.png", "{contrast}/{rte}_{restofstring}rte_length_req_genic_loc.png"],
+            patterns=["pan_contrast/{rte}_{restofstring}.pdf", "{contrast}/{rte}_{restofstring}rte_length_req_genic_loc.pdf"],
             category="Repeat Analysis {counttype}")
     script:
         "scripts/repeatanalysisPlots.R"
-    
-
-
-# rule figures:
-#     input:
-#         repeatanalysis_plots <- "srna/results/agg/repeatanalysis/repeatanalysisplots_plots.RData",
-#         enrichment_analysis_repeats_plots = "srna/results/agg/enrichment_analysis_repeats/{counttype}/enrichment_analysis_repeats_plots.RData",
-#         deseq_plots = "srna/results/agg/deseq/{counttype}/deseq_plots.RData",
-#         enrichment_analysis_plots = "srna/results/agg/enrichment_analysis/enrichment_analysis_plots.RData"
-
-
-
-# rule repeatVariance:
-#     input: 
-#         resultsdf = "results/agg/repeatanalysis/resultsdf.tsv"
-#     params:
-#         repeatanalysis = config["repeatanalysis"],
-#         contrasts = config["contrasts"],
-#         counttypes = config["counttypes"],
-#         lengthreq = config["lengthreq"],
-#         peptable = "conf/private/peptable.csv"
-#     output:
-#         corrplot1 = "results/agg/repeatanalysis/variance/{telocaltype}/{contrast}/corrplot1.pdf",
-#         corrplot2 = "results/agg/repeatanalysis/variance/{telocaltype}/{contrast}/corrplot2.pdf",
-#         corrplotcontrast = "results/agg/repeatanalysis/variance/{telocaltype}/{contrast}/corrplot{contrast}.pdf"
-#     notebook:
-#         "scripts/rteVariance.ipynb"
 
 def bigwig_sizefactor_input(wildcards):
     sizefactor_path = "srna/results/agg/deseq/%s/sizefactors.csv"%(config["counttypes"][0])
@@ -652,7 +611,8 @@ rule getBigWigF:
         sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.primary.bam",
         sizefactors = expand("srna/results/agg/deseq/{counttype}/sizefactors.csv", counttype = config["counttypes"][0])
     params:
-        sample_size_factor = bigwig_sizefactor_input
+        sample_size_factor = bigwig_sizefactor_input,
+        rna_strand_param = lambda w: "reverse" if inferLibraryType() == "forward" else "forward"
     output:
         bwF = "srna/outs/{sample}/star_output/{sample}.F.bw"
     benchmark:
@@ -660,10 +620,10 @@ rule getBigWigF:
     resources:
         cpus_per_task =10,
         mem_mb = 10000,
-        runtime = 60
+        runtime = 300
     conda:
         "deeptools"
-    shell: "bamCoverage -b {input.sortedbam} -o {output.bwF} --numberOfProcessors max  --samFlagExclude 256 --filterRNAstrand forward --binSize 50"
+    shell: "bamCoverage -b {input.sortedbam} -o {output.bwF} --numberOfProcessors max  --samFlagExclude 256 --filterRNAstrand {params.rna_strand_param} --binSize 50"
 # --scaleFactor {params.sample_size_factor}
 #The --filterRNAstrand option assumes the sequencing library generated from ILLUMINA
 # dUTP/NSR/NNSR methods, which are the most commonly used method for library preparation, 
@@ -678,7 +638,8 @@ rule getBigWigR:
         sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.primary.bam",
         sizefactors = expand("srna/results/agg/deseq/{counttype}/sizefactors.csv",counttype = config["counttypes"][0])
     params:
-        sample_size_factor = bigwig_sizefactor_input
+        sample_size_factor = bigwig_sizefactor_input,
+        rna_strand_param = lambda w: "forward" if inferLibraryType() == "forward" else "reverse"
     output:
         bwR = "srna/outs/{sample}/star_output/{sample}.R.bw"
     benchmark:
@@ -686,10 +647,10 @@ rule getBigWigR:
     resources:
         cpus_per_task =10,
         mem_mb = 10000,
-        runtime = 60
+        runtime = 300
     conda:
         "deeptools"
-    shell: "bamCoverage -b {input.sortedbam} -o {output.bwR} --numberOfProcessors max  --samFlagExclude 256 --filterRNAstrand reverse --binSize 50"
+    shell: "bamCoverage -b {input.sortedbam} -o {output.bwR} --numberOfProcessors max  --samFlagExclude 256 --filterRNAstrand {params.rna_strand_param} --binSize 50"
 # --scaleFactor {params.sample_size_factor}
 
 #The --filterRNAstrand option assumes the sequencing library generated from ILLUMINA
@@ -715,7 +676,7 @@ rule bigwigplots:
         environment = "srna/results/agg/bigwig_plots/bigwigplots_environment.RData",
         report = report(
             directory("srna/results/agg/bigwig_plots"),
-            patterns=["{sub_grouping}/{name}.png"],
+            patterns=["{sub_grouping}/{name}.pdf"],
             category="BigWig Analysis",
             subcategory="{sub_grouping}")
     resources:

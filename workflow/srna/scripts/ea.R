@@ -242,6 +242,7 @@ for (contrast in params[["contrasts"]]) {
                         print("")
                     }
                 )
+
                 for (genesetid in conf$genesets_for_gseaplot) {
                     tryCatch(
                         {
@@ -328,7 +329,7 @@ tryCatch(
                 core_enrichments <- df$core_enrichment
                 core_enrichments <- str_split(core_enrichments, "/")
                 names(core_enrichments) <- ids
-                for (geneset in c(names(core_enrichments), conf$genesets_for_gseaplot)) {
+                for (geneset in unique(c(names(core_enrichments), conf$genesets_for_gseaplot))) {
                     all_genes_in_set <- read.gmt(params[["collections_for_gsea"]][[collec]]) %>% filter(term == geneset) %$% gene
                     if (length(all_genes_in_set) == 0) {
                         next

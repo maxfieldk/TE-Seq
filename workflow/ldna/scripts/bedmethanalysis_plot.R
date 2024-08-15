@@ -1327,7 +1327,7 @@ library(msigdbr)
     gs <- msigdbr("human")
     tablesMsigdb <- list()
     results <- list()
-    genecollections <- c("H")
+    genecollections <- gs$gs_cat %>% unique()
     for (collection in genecollections) {
         tryCatch({
             dir.create(paste(mydir, collection, sep = "/"))
@@ -1405,7 +1405,7 @@ library(msigdbr)
             }
         })
     }
-}
+ }
 
 
 

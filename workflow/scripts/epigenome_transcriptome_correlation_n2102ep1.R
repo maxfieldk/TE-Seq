@@ -64,9 +64,7 @@ RM <- GRanges(RMdf)
 
 
 
-srna_samples <- conf[["srna"]]$samples
-srna_conditions <- conf[["srna"]]$levels
-srna_contrasts <- conf[["srna"]]$contrasts
+
 srna_sample_table <- read_csv("conf/sample_table_srna.csv")
 srna_df <- read_delim(inputs$srna_results, delim = "\t") %>% filter(counttype == "telescope_multi")
 colnames(srna_df) <- paste0("srna_", colnames(srna_df)) %>% gsub("srna_gene_id", "gene_id", .)
@@ -74,9 +72,7 @@ srna_genes <- srna_df %>% filter(srna_gene_or_te == "gene")
 srna_repeats <- srna_df %>% filter(srna_gene_or_te == "repeat")
 
 
-lrna_samples <- conf[["lrna"]]$samples
-lrna_conditions <- conf[["lrna"]]$levels
-lrna_contrasts <- conf[["lrna"]]$contrasts
+
 lrna_sample_table <- read_csv("conf/sample_table_lrna.csv")
 lrna_df <- read_delim(inputs$lrna_results, delim = "\t") %>% filter(counttype == "relaxed")
 colnames(lrna_df) <- paste0("lrna_", colnames(lrna_df)) %>%
@@ -91,25 +87,24 @@ join1 <- full_join(RMdf, lrna_repeats, by = "gene_id")
 repeats <- full_join(join1, srna_repeats, by = "gene_id")
 genes <- full_join(srna_genes, lrna_genes, by = "gene_id")
 
-ldna_samples <- conf[["ldna"]]$samples
-ldna_conditions <- conf[["ldna"]]$levels
-ldna_contrasts <- conf[["ldna"]]$contrasts
+
 ldna_sample_table <- read_csv("conf/sample_table_ldna.csv")
 
 
 
-conditions_to_plot <- conf[["lrna"]]$levels
-condition1 <- conditions_to_plot[1]
-condition2 <- conditions_to_plot[2]
+if (conf$ldna$single_condition == "no") {
+    shared_conditions <- intersect(intersect(srna_conditions, lrna_conditions), ldna_conditions)
+    shared_contrasts <- intersect(intersect(srna_contrasts, lrna_contrasts), ldna_contrasts)
 
-
-
-shared_conditions <- intersect(intersect(srna_conditions, lrna_conditions), ldna_conditions)
-shared_contrasts <- intersect(intersect(srna_contrasts, lrna_contrasts), ldna_contrasts)
-
-srna_samples <- srna_sample_table %>% filter(condition %in% shared_conditions) %$% sample_name
-lrna_samples <- lrna_sample_table %>% filter(condition %in% shared_conditions) %$% sample_name
-ldna_samples <- ldna_sample_table %>% filter(condition %in% shared_conditions) %$% sample_name
+    srna_samples <- srna_sample_table %>% filter(condition %in% shared_conditions) %$% sample_name
+    lrna_samples <- lrna_sample_table %>% filter(condition %in% shared_conditions) %$% sample_name
+    ldna_samples <- ldna_sample_table %>% filter(condition %in% shared_conditions) %$% sample_name
+} else {
+    integrated_sample_table <- read_csv("conf/sample_table_integrated.csv")
+    srna_samples <- integrated_sample_table %$% srna
+    lrna_samples <- integrated_sample_table %$% lrna
+    ldna_samples <- integrated_sample_table %$% ldna
+}
 
 dir.create("results/plots/rte", showWarnings = FALSE)
 
@@ -143,97 +138,6 @@ dir.create(outputdir, showWarnings = FALSE, recursive = TRUE)
 
 
 
-
-# dna methylation
-
-
-
-
-# # Initialize bedmethanalysis data
-# {
-#     confglobal <- conf
-#     conf <- conf$ldna
-#     sample_table <- ldna_sample_table
-
-#     {
-#         genome_lengths <- fasta.seqlengths(conf$reference)
-#         chromosomesAll <- names(genome_lengths)
-#         nonrefchromosomes <- grep("^NI", chromosomesAll, value = TRUE)
-#         refchromosomes <- grep("^chr", chromosomesAll, value = TRUE)
-#         autosomes <- grep("^chr[1-9]", refchromosomes, value = TRUE)
-#         chrX <- c("chrX")
-#         chrY <- c("chrY")
-
-#         MINIMUMCOVERAGE <- conf$MINIMUM_COVERAGE_FOR_METHYLATION_ANALYSIS
-#         if ("chrY" %in% conf$SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS) {
-#             if ("chrX" %in% conf$SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS) {
-#                 CHROMOSOMESINCLUDEDINANALYSIS <- c(autosomes, grep("_chrX_|_chrY_", nonrefchromosomes, invert = TRUE, value = TRUE))
-#                 CHROMOSOMESINCLUDEDINANALYSIS_REF <- c(autosomes)
-#             } else {
-#                 CHROMOSOMESINCLUDEDINANALYSIS <- c(autosomes, chrX, grep("_chrY_", nonrefchromosomes, invert = TRUE, value = TRUE))
-#                 CHROMOSOMESINCLUDEDINANALYSIS_REF <- c(autosomes, chrX)
-#             }
-#         } else if ("chrX" %in% conf$SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS) {
-#             CHROMOSOMESINCLUDEDINANALYSIS <- c(autosomes, chrY, grep("_chrX_", nonrefchromosomes, invert = TRUE, value = TRUE))
-#             CHROMOSOMESINCLUDEDINANALYSIS_REF <- c(autosomes, chrY)
-#         } else {
-#             CHROMOSOMESINCLUDEDINANALYSIS <- c(autosomes, chrX, chrY, nonrefchromosomes)
-#             CHROMOSOMESINCLUDEDINANALYSIS_REF <- c(autosomes, chrX, chrY)
-#         }
-#     }
-
-#     conditions <- confglobal$ldna$levels
-#     condition1 <- conditions[1]
-#     condition2 <- conditions[2]
-#     condition1samples <- sample_table[sample_table$condition == condition1, ]$sample_name
-#     condition2samples <- sample_table[sample_table$condition == condition2, ]$sample_name
-
-#     grsdf <- read_delim("ldna/Rintermediates/grsdf.tsv", col_names = TRUE)
-#     grsdf$seqnames <- factor(grsdf$seqnames, levels = chromosomesAll)
-#     grs <- GRanges(grsdf)
-#     cpg_islands <- rtracklayer::import(conf$cpg_islands)
-#     cpgi_shores <- rtracklayer::import(conf$cpgi_shores)
-#     cpgi_shelves <- rtracklayer::import(conf$cpgi_shelves)
-#     cpgi_features <- c(cpg_islands, cpgi_shelves, cpgi_shores)
-#     grs_cpg_islands <- grs %>% subsetByOverlaps(cpg_islands)
-#     grs_cpg_islands$islandStatus <- "island"
-#     grs_cpgi_shelves <- grs %>% subsetByOverlaps(cpgi_shelves)
-#     grs_cpgi_shelves$islandStatus <- "shelf"
-#     grs_cpgi_shores <- grs %>% subsetByOverlaps(cpgi_shores)
-#     grs_cpgi_shores$islandStatus <- "shore"
-#     grs_cpg_opensea <- grs %>% subsetByOverlaps(cpgi_features, invert = TRUE)
-#     grs_cpg_opensea$islandStatus <- "opensea"
-#     # SETTING UP SOME SUBSETS FOR EXPLORATION
-#     set.seed(75)
-#     grsdfs <- grsdf %>%
-#         group_by(sample, seqnames, islandStatus) %>%
-#         slice_sample(n = 1000)
-#     grss <- GRanges(grsdfs)
-
-#     dmrs <- read_delim(inputs$dmrs, delim = "\t", col_names = TRUE)
-#     dmls <- read_delim(inputs$dmls, delim = "\t", col_names = TRUE)
-#     dmls <- dmls %>% filter(chr %in% CHROMOSOMESINCLUDEDINANALYSIS)
-#     dmrs <- dmrs %>% filter(chr %in% CHROMOSOMESINCLUDEDINANALYSIS)
-#     dmrs <- dmrs %>% mutate(direction = ifelse(diff_c2_minus_c1 > 0, paste0(condition2, " Hyper"), paste0(condition2, " Hypo")))
-#     dmrs$direction <- factor(dmrs$direction, levels = c(paste0(condition2, " Hypo"), paste0(condition2, " Hyper")))
-
-#     dmls <- dmls %>% mutate(direction = ifelse(diff_c2_minus_c1 > 0, paste0(condition2, " Hyper"), paste0(condition2, " Hypo")))
-#     dmls$direction <- factor(dmls$direction, levels = c(paste0(condition2, " Hypo"), paste0(condition2, " Hyper")))
-
-
-#     dmrsgr <- GRanges(dmrs)
-
-#     refseq_gr <- import(conf$refseq_unaltered)
-#     genes_gr <- refseq_gr[mcols(refseq_gr)[, "type"] == "gene", ]
-#     genes_gr <- genes_gr[seqnames(genes_gr) %in% CHROMOSOMESINCLUDEDINANALYSIS, ]
-#     genes_gr <- genes_gr[mcols(genes_gr)[, "source"] %in% c("BestRefSeq", "Curated Genomic", "Gnomon"), ]
-#     mcols(genes_gr)$gene_id <- mcols(genes_gr)$Name
-#     mcols(genes_gr) %>% colnames()
-#     mcols(genes_gr) <- mcols(genes_gr)[, c("gene_id", "ID", "gene_biotype", "source")]
-#     promoters <- promoters(genes_gr, upstream = 5000, downstream = 1000)
-#     conf <- confglobal
-# }
-
 # GENES
 promoter_methdf <- read_delim("ldna/Rintermediates/refseq_gene_promoter_methylation.tsv", col_names = TRUE)
 pergenedf <- promoter_methdf %>%
@@ -241,20 +145,34 @@ pergenedf <- promoter_methdf %>%
     summarise(meanmeth = mean(pctM)) %>%
     pivot_wider(names_from = sample, values_from = meanmeth) %>%
     ungroup()
-pergenedf_tidy <- pivot_longer(pergenedf, cols = -gene_id, names_to = "sample_name", values_to = "pctM") %>% mutate(sample_name = gsub("ldna_", "", sample_name))
+pergenedf_tidy <- pivot_longer(pergenedf, cols = -gene_id, names_to = "sample_name", values_to = "pctM") %>%
+    mutate(sample_name = gsub("ldna_", "", sample_name)) %>%
+    filter(sample_name %in% ldna_samples)
 colnames(pergenedf) <- paste0("ldna_", colnames(pergenedf)) %>% gsub("ldna_gene_id", "gene_id", .)
 
 srna_gene_expression_tidy <- genes %>%
     select(gene_id, paste0("srna_", srna_samples)) %>%
     pivot_longer(cols = -gene_id, names_to = "sample_name", values_to = "srna_expression") %>%
     mutate(sample_name = gsub("srna_", "", sample_name))
+if (conf$ldna$single_condition == "yes") {
+    srna_gene_expression_tidy <- srna_gene_expression_tidy %>%
+        left_join(integrated_sample_table %>% dplyr::select(ldna, srna) %>% dplyr::rename(sample_name = srna)) %>%
+        mutate(sample_name = ldna) %>%
+        dplyr::select(-ldna)
+}
+
 lrna_gene_expression_tidy <- genes %>%
     select(gene_id, paste0("lrna_", srna_samples)) %>%
     pivot_longer(cols = -gene_id, names_to = "sample_name", values_to = "lrna_expression") %>%
     mutate(sample_name = gsub("lrna_", "", sample_name))
+if (conf$ldna$single_condition == "yes") {
+    lrna_gene_expression_tidy <- lrna_gene_expression_tidy %>%
+        left_join(integrated_sample_table %>% dplyr::select(ldna, lrna) %>% dplyr::rename(sample_name = lrna)) %>%
+        mutate(sample_name = ldna) %>%
+        dplyr::select(-ldna)
+}
 
-pgdf <- left_join(pergenedf, genes, by = "gene_id")
-pgdf_tidy <- left_join(pergenedf_tidy, srna_gene_expression_tidy) %>% left_join(lrna_gene_expression_tidy)
+pgdf_tidy <- full_join(pergenedf_tidy, srna_gene_expression_tidy) %>% left_join(lrna_gene_expression_tidy)
 
 library(ggpubr)
 
@@ -315,11 +233,22 @@ srna_rte_expression_tidy <- repeats %>%
     select(gene_id, paste0("srna_", srna_samples)) %>%
     pivot_longer(cols = -gene_id, names_to = "sample_name", values_to = "srna_expression") %>%
     mutate(sample_name = gsub("srna_", "", sample_name))
+if (conf$ldna$single_condition == "yes") {
+    srna_rte_expression_tidy <- srna_rte_expression_tidy %>%
+        left_join(integrated_sample_table %>% dplyr::select(ldna, srna) %>% dplyr::rename(sample_name = srna)) %>%
+        mutate(sample_name = ldna) %>%
+        dplyr::select(-ldna)
+}
 lrna_rte_expression_tidy <- repeats %>%
     select(gene_id, paste0("lrna_", srna_samples)) %>%
     pivot_longer(cols = -gene_id, names_to = "sample_name", values_to = "lrna_expression") %>%
     mutate(sample_name = gsub("lrna_", "", sample_name))
-
+if (conf$ldna$single_condition == "yes") {
+    lrna_rte_expression_tidy <- lrna_rte_expression_tidy %>%
+        left_join(integrated_sample_table %>% dplyr::select(ldna, lrna) %>% dplyr::rename(sample_name = lrna)) %>%
+        mutate(sample_name = ldna) %>%
+        dplyr::select(-ldna)
+}
 prdf_tidy <- left_join(
     rteprommeth %>%
         dplyr::rename(sample_name = sample, pctM = mean_meth) %>%

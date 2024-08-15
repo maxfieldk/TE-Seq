@@ -122,7 +122,7 @@ p <- df %>%
 mysaveandstore(sprintf("%s/insertions_subfamily.pdf", outputdir), 5, 5)
 
 p <- df %>%
-    filter(Subfamily == "L1Ta") %>%
+    filter(Subfamily == "L1HS") %>%
     ggplot() +
     geom_histogram(aes(x = LengthIns)) +
     geom_vline(xintercept = 6000, color = "red", linetype = 2) +
@@ -163,7 +163,7 @@ p <- df_filtered %>%
 mysaveandstore(sprintf("%s/insertions_subfamily_in_updated_ref.pdf", outputdir), 6, 4)
 
 p <- df_filtered %>%
-    filter(Subfamily == "L1Ta") %>%
+    filter(Subfamily == "L1HS") %>%
     ggplot() +
     geom_histogram(aes(x = LengthIns)) +
     geom_vline(xintercept = 6000, color = "red", linetype = 2) +
@@ -177,7 +177,7 @@ mysaveandstore(sprintf("%s/l1hs_length_in_updated_ref.pdf", outputdir), 5, 5)
 ###############
 
 trsd <- df_filtered %>%
-    filter(Subfamily == "L1Ta") %>%
+    filter(Subfamily == "L1HS") %>%
     mutate(TransductionLen = nchar(Transduction_3p)) %>%
     filter(TransductionLen > 29)
 trsd %>% head(n = 4) %$% Transduction_3p
