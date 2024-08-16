@@ -823,16 +823,13 @@ myheatmap <- function(df, facet_var = "ALL", filter_var = "ALL", DEvar = "ALL", 
     if (filter_var != "ALL") {
         if (str_detect(filter_var, "length_req")) {
             df <- df %>% filter(str_detect(!!sym(filter_var), "FL$"))
-            set_title <- df %>%
-                pull(!!sym(filter_var)) %>%
-                unique()
         }
         if (str_detect(filter_var, "intact")) {
             df <- df %>% filter(str_detect(!!sym(filter_var), "Intact"))
         }
-        set_title <- df %>%
+        set_title <- paste0(group, " ", df %>%
             pull(!!sym(filter_var)) %>%
-            unique()
+            unique())
     }
     show_row_names <- FALSE
 
@@ -855,7 +852,17 @@ myheatmap <- function(df, facet_var = "ALL", filter_var = "ALL", DEvar = "ALL", 
     if (scaled == "scaled") {
         m <- t(scale(t(m))) %>% na.omit()
         group_res <- group_res %>% filter(gene_id %in% rownames(m))
+        my_col <- NULL
+        heatmap_legend_param <- list(title = "Normalized Count\nZscore")
+    } else {
+        color_breaks_quantile <- m %>%
+            quantile(probs = c(0, .25, .50, .90)) %>%
+            round()
+        color_breaks_log <- c(0, 10, 100, 1000)
+        my_col <- circlize::colorRamp2(color_breaks_quantile, c("white", "#0000ff", "#ff0000", "black"))
+        heatmap_legend_param <- list(title = "Normalized Counts", at = color_breaks_quantile, break_dist = 1)
     }
+
     group_res %$% gene_id %>% duplicated()
     split_annot <- group_res %>%
         filter(gene_id %in% rownames(m)) %>%
@@ -890,7 +897,9 @@ myheatmap <- function(df, facet_var = "ALL", filter_var = "ALL", DEvar = "ALL", 
                 top_annotation = topAnn,
                 right_annotation = row_ha,
                 column_title = set_title,
-                border_gp = gpar(col = "black")
+                border_gp = gpar(col = "black"),
+                col = my_col,
+                heatmap_legend_param = heatmap_legend_param
             )
     } else {
         row_ha <- rowAnnotation(DE = split_annot, col = list(DE = colors_for_de))
@@ -911,7 +920,9 @@ myheatmap <- function(df, facet_var = "ALL", filter_var = "ALL", DEvar = "ALL", 
                 top_annotation = topAnn,
                 right_annotation = row_ha,
                 column_title = set_title,
-                border_gp = gpar(col = "black")
+                border_gp = gpar(col = "black"),
+                col = my_col,
+                heatmap_legend_param = heatmap_legend_param
             )
     }
     p <- wrap_elements(grid.grabExpr(draw(hm, heatmap_legend_side = "right", annotation_legend_side = "right")))
@@ -926,16 +937,13 @@ myheatmap_allsamples <- function(df, facet_var = "ALL", filter_var = "ALL", DEva
     if (filter_var != "ALL") {
         if (str_detect(filter_var, "length_req")) {
             df <- df %>% filter(str_detect(!!sym(filter_var), "FL$"))
-            set_title <- df %>%
-                pull(!!sym(filter_var)) %>%
-                unique()
         }
         if (str_detect(filter_var, "intact")) {
             df <- df %>% filter(str_detect(!!sym(filter_var), "Intact"))
         }
-        set_title <- df %>%
+        set_title <- paste0(group, " ", df %>%
             pull(!!sym(filter_var)) %>%
-            unique()
+            unique())
     }
     show_row_names <- FALSE
 
@@ -958,7 +966,17 @@ myheatmap_allsamples <- function(df, facet_var = "ALL", filter_var = "ALL", DEva
     if (scaled == "scaled") {
         m <- t(scale(t(m))) %>% na.omit()
         group_res <- group_res %>% filter(gene_id %in% rownames(m))
+        my_col <- NULL
+        heatmap_legend_param <- list(title = "Normalized Count\nZscore")
+    } else {
+        color_breaks_quantile <- m %>%
+            quantile(probs = c(0, .25, .50, .90)) %>%
+            round()
+        color_breaks_log <- c(0, 10, 100, 1000)
+        my_col <- circlize::colorRamp2(color_breaks_quantile, c("white", "#0000ff", "#ff0000", "black"))
+        heatmap_legend_param <- list(title = "Normalized Counts", at = color_breaks_quantile, break_dist = 1)
     }
+
     group_res %$% counttype
     group_res %$% gene_id %>% duplicated()
     # split_annot <- group_res %>%
@@ -996,7 +1014,9 @@ myheatmap_allsamples <- function(df, facet_var = "ALL", filter_var = "ALL", DEva
                 cluster_row_slices = FALSE,
                 right_annotation = row_ha,
                 column_title = set_title,
-                border_gp = gpar(col = "black")
+                border_gp = gpar(col = "black"),
+                col = my_col,
+                heatmap_legend_param = heatmap_legend_param
             )
     } else {
         # row_ha <- rowAnnotation(DE = split_annot, col = list(DE = colors_for_de))
@@ -1015,7 +1035,9 @@ myheatmap_allsamples <- function(df, facet_var = "ALL", filter_var = "ALL", DEva
                 cluster_row_slices = FALSE,
                 top_annotation = topAnn,
                 column_title = set_title,
-                border_gp = gpar(col = "black")
+                border_gp = gpar(col = "black"),
+                col = my_col,
+                heatmap_legend_param = heatmap_legend_param
             )
     }
     p <- wrap_elements(grid.grabExpr(draw(hm, heatmap_legend_side = "right", annotation_legend_side = "right")))
@@ -1478,28 +1500,67 @@ for (contrast in contrasts) {
         filter(condition %in% c(contrast_level_1, contrast_level_2)) %>%
         pull(sample_name)
     condition_vec <- sample_table %>% filter(sample_name %in% contrast_samples) %$% condition
-    for (ontology in ontologies) {
+    for (ontology in c("rte_family", "rte_subfamily")) {
         ontologyframe <- tidydf %>% dplyr::filter(!!sym(ontology) != "Other")
         tempframe <- ontologyframe %>%
             group_by(gene_id) %>%
             filter(row_number() == 1) %>%
             ungroup() %>%
-            mutate(signif = ifelse(!!sym(contrast_padj) < 0.05, "Sig", "NS"))
-        alpha_vec <- c("Sig" = 0.9, "NS" = 0.15)
-        p <- tempframe %>%
-            mutate(log10padj = -log10(!!sym(contrast_padj) + 10**-10)) %>%
-            ggplot(aes(x = !!sym(contrast_log2FoldChange), y = log10padj)) +
-            geom_point(aes(color = req_integrative, alpha = signif)) +
-            geom_vline(xintercept = 0, color = "grey") +
-            geom_hline(yintercept = -log10(0.05), color = "grey") +
-            scale_alpha_manual(values = alpha_vec) +
-            facet_wrap(~rte_family, scales = "free") +
-            scale_palette +
-            mtclosed
-        mysaveandstore(sprintf("%s/%s/%s/%s/%s.pdf", outputdir, counttype, contrast, "volcano", ontology), 12, 8)
+            mutate(signif = ifelse(is.na(!!sym(contrast_padj)), "NS", ifelse(!!sym(contrast_padj) < 0.05, "Sig", "NS")))
+
+        alpha_vec <- c("Sig" = 0.5, "NS" = 0.075)
+        plots <- list()
+        for (group in tempframe %>%
+            pull(!!sym(ontology)) %>%
+            unique()) {
+            tframe <- tempframe %>% filter(!!sym(ontology) == group)
+            p <- tframe %>%
+                mutate(log10padj = -log10(!!sym(contrast_padj) + 10**-10)) %>%
+                ggplot(aes(x = !!sym(contrast_log2FoldChange), y = log10padj)) +
+                geom_point(aes(color = req_integrative, alpha = signif)) +
+                geom_vline(xintercept = 0, color = "grey") +
+                geom_hline(yintercept = -log10(0.05), color = "grey") +
+                scale_alpha_manual(values = alpha_vec) +
+                coord_cartesian(xlim = c(quantile(tframe[[contrast_log2FoldChange]], 0.001, na.rm = TRUE) - 4, quantile(tframe[[contrast_log2FoldChange]], 0.999, na.rm = TRUE) + 4)) +
+                scale_palette +
+                labs(title = group) +
+                mtclosed
+            mysaveandstore(sprintf("%s/%s/%s/%s/%s.pdf", outputdir, counttype, contrast, "volcano", group), 5, 4)
+            plots[[group]] <- p
+        }
+        p <- wrap_plots(plots, ncol = 2, guides = "collect")
+        mysaveandstore(sprintf("%s/%s/%s/%s/%s.pdf", outputdir, counttype, contrast, "volcano", ontology), 10, 8)
+
+        plots <- list()
+        for (group in ontologyframe %>%
+            pull(!!sym(ontology)) %>%
+            unique()) {
+            tempframe <- ontologyframe %>%
+                filter(!!sym(ontology) == group) %>%
+                group_by(gene_id, condition, req_integrative, !!sym(contrast_padj)) %>%
+                summarise(counts = mean(counts)) %>%
+                ungroup() %>%
+                pivot_wider(names_from = condition, values_from = counts) %>%
+                ungroup() %>%
+                mutate(signif = ifelse(is.na(!!sym(contrast_padj)), "NS", ifelse(!!sym(contrast_padj) < 0.05, "Sig", "NS")))
+            p <- tempframe %>%
+                mutate(log2x = log2(!!sym(contrast_level_1) + 1)) %>%
+                mutate(log2y = log2(!!sym(contrast_level_2) + 1)) %>%
+                ggplot(aes(x = log2x, y = log2y)) +
+                geom_point(aes(color = req_integrative, alpha = signif)) +
+                scale_alpha_manual(values = alpha_vec) +
+                scale_palette +
+                xlab(paste0("Log2 ", contrast_level_1)) +
+                ylab(paste0("Log2 ", contrast_level_2)) +
+                labs(title = group) +
+                mtclosed
+            mysaveandstore(sprintf("%s/%s/%s/%s/%s.pdf", outputdir, counttype, contrast, "log2scatter", group), 5, 4)
+            plots[[group]] <- p
+        }
+        p <- wrap_plots(plots, ncol = 2, guides = "collect")
+        mysaveandstore(sprintf("%s/%s/%s/%s/%s.pdf", outputdir, counttype, contrast, "log2scatter", ontology), 10, 8)
     }
 }
-
 
 #### PLOTTING
 for (contrast in contrasts) {
@@ -1518,7 +1579,7 @@ for (contrast in contrasts) {
     condition_vec <- sample_table %>% filter(sample_name %in% contrast_samples) %$% condition
     groups_that_have_been_run <- c()
     groups_not_to_run <- c()
-    for (ontology in ontologies) {
+    for (ontology in c("repeat_superfamily", "rte_superfamily", "rte_family", "rte_subfamily")) {
         ontology_groups <- r_repeatmasker_annotation %>%
             pull(!!sym(ontology)) %>%
             unique()
@@ -1622,7 +1683,7 @@ for (contrast in contrasts) {
     condition_vec <- sample_table %>% filter(sample_name %in% contrast_samples) %$% condition
     groups_that_have_been_run <- c()
     groups_not_to_run <- c("AluY")
-    for (ontology in small_ontologies) {
+    for (ontology in c("rte_subfamily")) {
         print(ontology)
         ontology_groups <- r_repeatmasker_annotation %>%
             pull(!!sym(ontology)) %>%
@@ -1633,26 +1694,29 @@ for (contrast in contrasts) {
                 groups_that_have_been_run <- c(groups_that_have_been_run, group)
                 groupframe <- resultsdf %>%
                     filter(!!sym(ontology) == group)
-                if (length(rownames(groupframe > 2000))) {
-                    next
-                }
-                eligible_modifiers <- c()
-                for (modifier in modifiers) {
-                    values_present <- groupframe %>%
-                        pull(!!sym(modifier)) %>%
-                        unique()
-                    if ((length(values_present) > 1) | !("Other" %in% values_present)) {
-                        eligible_modifiers <- c(eligible_modifiers, modifier)
+                for (DEvar in c("ALL", "DE")) {
+                    if (DEvar == "DE") {
+                        groupframe <- groupframe %>% filter(!!sym(contrast_padj) <= 0.05)
                     }
-                    eligible_filter_modifiers <- c(eligible_modifiers[grepl("_req$", eligible_modifiers)], "ALL")
-                    eligible_facet_modifiers <- c(eligible_modifiers[grepl("genic_loc$", eligible_modifiers)], "ALL")
-                    eligible_modifier_combinations <- expand.grid(filter_var = eligible_filter_modifiers, facet_var = eligible_facet_modifiers, stringsAsFactors = FALSE)
-                }
-                # first plots without any modifiers
-                plotting_functions <- c("myheatmap", "myheatmap_allsamples")
+                    if (length(rownames(groupframe)) > 2000) {
+                        next
+                    }
+                    eligible_modifiers <- c()
+                    for (modifier in modifiers) {
+                        values_present <- groupframe %>%
+                            pull(!!sym(modifier)) %>%
+                            unique()
+                        if ((length(values_present) > 1) | !("Other" %in% values_present)) {
+                            eligible_modifiers <- c(eligible_modifiers, modifier)
+                        }
+                        eligible_filter_modifiers <- c(eligible_modifiers[grepl("_req$", eligible_modifiers)], "ALL")
+                        eligible_facet_modifiers <- c(eligible_modifiers[grepl("genic_loc$", eligible_modifiers)], "ALL")
+                        eligible_modifier_combinations <- expand.grid(filter_var = eligible_filter_modifiers, facet_var = eligible_facet_modifiers, stringsAsFactors = FALSE)
+                    }
+                    # first plots without any modifiers
+                    plotting_functions <- c("myheatmap", "myheatmap_allsamples")
 
-                for (function_name in plotting_functions) {
-                    for (DEvar in c("ALL", "DE")) {
+                    for (function_name in plotting_functions) {
                         for (scaled in c("notscaled", "scaled")) {
                             for (i in seq(1, length(rownames(eligible_modifier_combinations)))) {
                                 filter_var <- eligible_modifier_combinations[i, ]$filter_var
@@ -1771,7 +1835,7 @@ tryCatch(
                                     ),
                                     encode_sets = FALSE,
                                     set_sizes = (
-                                        upset_set_size() + geom_text(aes(label = ..count..), hjust = 1.1, stat = "count"))
+                                        upset_set_size(position = "right") + geom_text(aes(label = ..count..), hjust = 1.1, stat = "count"))
                                 ) +
                                 labs(title = sprintf("DE %s", group), subtitle = counttype)
                             mysaveandstore(sprintf("%s/%s/pan_contrast/venn/upset_%s_nofill.pdf", outputdir, counttype, group), 9, 6)
