@@ -142,6 +142,350 @@ transcripts <- c(coding_transcripts, noncoding_transcripts)
     element_req_modifiers <- modifiers[str_detect(modifiers, "_req$")]
 }
 
+{ # new heatmaps
+    if ("L1HS" %in% (resultsdf %$% rte_subfamily %>% unique())) { # asking whether the species is human
+        mf <- resultsdf %>%
+            filter(rte_family == "L1") %>%
+            mutate(cfam = substr(gene_id, 1, 3)) %>%
+            group_by(cfam) %>%
+            mutate(n_whole_group = n()) %>%
+            ungroup() %>%
+            mutate(broad_significance = apply(select(., starts_with("padj")), 1, min, na.rm = TRUE)) %>%
+            filter(broad_significance < 0.05) %>%
+            group_by(cfam) %>%
+            mutate(n_de_group = n()) %>%
+            ungroup() %>%
+            filter(!grepl("X9_|MAR", cfam))
+
+
+        splitby <- mf %>%
+            mutate(cfamn = paste0(cfam, "\nn=", n_de_group, "\nOf ", n_whole_group)) %$% cfamn
+        splitby <- factor(splitby, levels = c(
+            grep("L1H", splitby %>% unique(), value = TRUE),
+            grep("L1P", splitby %>% unique(), value = TRUE),
+            grep("L1M", splitby %>% unique(), value = TRUE),
+            grep("HAL", splitby %>% unique(), value = TRUE)
+        ))
+        n <- splitby %>% table()
+        m <- mf %>%
+            dplyr::select(sample_table$sample_name) %>%
+            as.matrix()
+        rownames(m) <- mf %$% gene_id
+        ms <- t(scale(t(m))) %>% na.omit()
+        color_breaks_quantile <- m %>%
+            quantile(probs = c(0, .25, .50, .90)) %>%
+            round()
+        color_breaks_log <- c(0, 10, 100, 1000)
+
+        p <- Heatmap(
+            m,
+            col = circlize::colorRamp2(color_breaks_quantile, c("white", "#0000ff", "#ff0000", "black")),
+            cluster_rows = TRUE, cluster_columns = FALSE,
+            show_heatmap_legend = TRUE,
+            heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_quantile, break_dist = 1),
+            use_raster = TRUE,
+            cluster_row_slices = FALSE,
+            raster_resize = TRUE, raster_device = "png",
+            row_split = splitby,
+            column_title = "DE L1s",
+            show_row_names = FALSE
+        )
+        mysaveandstore(sprintf("%s/%s/%s/heatmap/l1s_de.pdf", outputdir, counttype, "pan_contrast"), 5, 10)
+        p <- Heatmap(
+            m,
+            col = circlize::colorRamp2(color_breaks_quantile, c("white", "#0000ff", "#ff0000", "black")),
+            cluster_rows = TRUE, cluster_columns = TRUE,
+            show_heatmap_legend = TRUE,
+            heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_quantile, break_dist = 1),
+            use_raster = TRUE,
+            cluster_row_slices = FALSE,
+            raster_resize = TRUE, raster_device = "png",
+            row_split = splitby,
+            column_title = "DE L1s",
+            show_row_names = FALSE
+        )
+        mysaveandstore(sprintf("%s/%s/%s/heatmap/l1s_de_col_clust.pdf", outputdir, counttype, "pan_contrast"), 5, 10)
+
+        p <- Heatmap(
+            m,
+            col = circlize::colorRamp2(color_breaks_log, c("white", "#0000ff", "#ff0000", "black")),
+            cluster_rows = TRUE, cluster_columns = FALSE,
+            show_heatmap_legend = TRUE,
+            heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_log, break_dist = 1),
+            use_raster = TRUE,
+            cluster_row_slices = FALSE,
+            raster_resize = TRUE, raster_device = "png",
+            row_split = splitby,
+            column_title = "DE L1s",
+            show_row_names = FALSE
+        )
+        mysaveandstore(sprintf("%s/%s/%s/heatmap/l1s_de_breaks2.pdf", outputdir, counttype, "pan_contrast"), 5, 10)
+        p <- Heatmap(
+            m,
+            col = circlize::colorRamp2(color_breaks_log, c("white", "#0000ff", "#ff0000", "black")),
+            cluster_rows = TRUE, cluster_columns = TRUE,
+            show_heatmap_legend = TRUE,
+            heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_log, break_dist = 1),
+            use_raster = TRUE,
+            cluster_row_slices = FALSE,
+            raster_resize = TRUE, raster_device = "png",
+            row_split = splitby,
+            column_title = "DE L1s",
+            show_row_names = FALSE
+        )
+        mysaveandstore(sprintf("%s/%s/%s/heatmap/l1s_de_col_clust_break2.pdf", outputdir, counttype, "pan_contrast"), 5, 10)
+    }
+
+    # split by rte_subfamily
+    for (rte_family_ in (resultsdf %$% rte_family %>% unique())) {
+        if (rte_family_ == "Other") {
+            next()
+        }
+        mf <- resultsdf %>%
+            filter(rte_family == rte_family_) %>%
+            group_by(rte_subfamily) %>%
+            mutate(n_whole_group = n()) %>%
+            ungroup() %>%
+            mutate(broad_significance = apply(select(., starts_with("padj")), 1, min, na.rm = TRUE)) %>%
+            filter(broad_significance < 0.05) %>%
+            group_by(rte_subfamily) %>%
+            mutate(n_de_group = n()) %>%
+            ungroup() %>%
+            filter(!grepl("X9_|MAR", rte_subfamily))
+
+        m <- mf %>%
+            dplyr::select(sample_table$sample_name) %>%
+            as.matrix()
+        rownames(m) <- mf %$% gene_id
+        ms <- t(scale(t(m))) %>% na.omit()
+        color_breaks_quantile <- m %>%
+            quantile(probs = c(0, .25, .50, .90)) %>%
+            round()
+        color_breaks_log <- c(0, 10, 100, 1000)
+
+
+        tryCatch(
+            {
+                p <- Heatmap(
+                    m,
+                    col = circlize::colorRamp2(color_breaks_quantile, c("white", "#0000ff", "#ff0000", "black")),
+                    cluster_rows = TRUE, cluster_columns = FALSE,
+                    show_heatmap_legend = TRUE,
+                    heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_quantile, break_dist = 1),
+                    use_raster = TRUE,
+                    cluster_row_slices = FALSE,
+                    raster_resize = TRUE, raster_device = "png",
+                    column_title = sprintf("DE %s", rte_family_),
+                    show_row_names = FALSE
+                )
+                tryCatch(
+                    {
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de.pdf", outputdir, counttype, "pan_contrast", rte_family_), 5, 10)
+                    },
+                    error = function(e) {
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de.pdf", outputdir, counttype, "pan_contrast", rte_family_), 10, 20)
+                    }
+                )
+                p <- Heatmap(
+                    m,
+                    col = circlize::colorRamp2(color_breaks_quantile, c("white", "#0000ff", "#ff0000", "black")),
+                    cluster_rows = TRUE, cluster_columns = TRUE,
+                    show_heatmap_legend = TRUE,
+                    heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_quantile, break_dist = 1),
+                    use_raster = TRUE,
+                    cluster_row_slices = FALSE,
+                    raster_resize = TRUE, raster_device = "png",
+                    column_title = sprintf("DE %s", rte_family_),
+                    show_row_names = FALSE
+                )
+                tryCatch(
+                    {
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_col_clust.pdf", outputdir, counttype, "pan_contrast", rte_family_), 5, 10)
+                    },
+                    error = function(e) {
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_col_clust.pdf", outputdir, counttype, "pan_contrast", rte_family_), 10, 20)
+                    }
+                )
+                p <- Heatmap(
+                    m,
+                    col = circlize::colorRamp2(color_breaks_log, c("white", "#0000ff", "#ff0000", "black")),
+                    cluster_rows = TRUE, cluster_columns = FALSE,
+                    show_heatmap_legend = TRUE,
+                    heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_log, break_dist = 1),
+                    use_raster = TRUE,
+                    cluster_row_slices = FALSE,
+                    raster_resize = TRUE, raster_device = "png",
+                    column_title = sprintf("DE %s", rte_family_),
+                    show_row_names = FALSE
+                )
+                tryCatch(
+                    {
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_breaks2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 5, 10)
+                    },
+                    error = function(e) {
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_breaks2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 10, 20)
+                    }
+                )
+                p <- Heatmap(
+                    m,
+                    col = circlize::colorRamp2(color_breaks_log, c("white", "#0000ff", "#ff0000", "black")),
+                    cluster_rows = TRUE, cluster_columns = TRUE,
+                    show_heatmap_legend = TRUE,
+                    heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_log, break_dist = 1),
+                    use_raster = TRUE,
+                    cluster_row_slices = FALSE,
+                    raster_resize = TRUE, raster_device = "png",
+                    column_title = sprintf("DE %s", rte_family_),
+                    show_row_names = FALSE
+                )
+                tryCatch(
+                    {
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_col_clust_break2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 5, 10)
+                    },
+                    error = function(e) {
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_col_clust_break2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 10, 20)
+                    }
+                )
+            },
+            error = function(e) {
+
+            }
+        )
+    }
+
+    # now split by req_integrative
+    for (rte_family_ in (resultsdf %$% rte_family %>% unique())) {
+        if (rte_family_ == "Other") {
+            next()
+        }
+        mf <- resultsdf %>%
+            filter(rte_family == rte_family_) %>%
+            group_by(req_integrative) %>%
+            mutate(n_whole_group = n()) %>%
+            ungroup() %>%
+            mutate(broad_significance = apply(select(., starts_with("padj")), 1, min, na.rm = TRUE)) %>%
+            filter(broad_significance < 0.05) %>%
+            group_by(req_integrative) %>%
+            mutate(n_de_group = n()) %>%
+            ungroup()
+        splitbydf <- mf %>%
+            mutate(req_integrativen = paste0(req_integrative, "\nn=", n_de_group, "\nOf ", n_whole_group))
+
+
+        splitby <- splitbydf %$% req_integrativen
+        split_by_values <- splitby %>% unique()
+        splitby <- factor(splitby, levels = c(
+            grep("Yng Intact", split_by_values, value = TRUE),
+            grep("Yng FL", split_by_values, value = TRUE),
+            grep("Yng Trnc", split_by_values, value = TRUE),
+            grep("Old FL", split_by_values, value = TRUE),
+            grep("Old Trnc", split_by_values, value = TRUE)
+        ))
+        n <- splitby %>% table()
+        m <- mf %>%
+            dplyr::select(sample_table$sample_name) %>%
+            as.matrix()
+        rownames(m) <- mf %$% gene_id
+        color_breaks_quantile <- m %>%
+            quantile(probs = c(0, .25, .50, .90)) %>%
+            round()
+        color_breaks_log <- c(0, 10, 100, 1000)
+
+
+        tryCatch(
+            {
+                p <- Heatmap(
+                    m,
+                    col = circlize::colorRamp2(color_breaks_quantile, c("white", "#0000ff", "#ff0000", "black")),
+                    cluster_rows = TRUE, cluster_columns = FALSE,
+                    show_heatmap_legend = TRUE,
+                    heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_quantile, break_dist = 1),
+                    use_raster = TRUE,
+                    cluster_row_slices = FALSE,
+                    raster_resize = TRUE, raster_device = "png",
+                    row_split = splitby,
+                    column_title = sprintf("DE %s", rte_family_),
+                    show_row_names = FALSE
+                )
+                tryCatch(
+                    {
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_split2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 5, 10)
+                    },
+                    error = function(e) {
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_split2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 10, 20)
+                    }
+                )
+                p <- Heatmap(
+                    m,
+                    col = circlize::colorRamp2(color_breaks_quantile, c("white", "#0000ff", "#ff0000", "black")),
+                    cluster_rows = TRUE, cluster_columns = TRUE,
+                    show_heatmap_legend = TRUE,
+                    heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_quantile, break_dist = 1),
+                    use_raster = TRUE,
+                    cluster_row_slices = FALSE,
+                    raster_resize = TRUE, raster_device = "png",
+                    row_split = splitby,
+                    column_title = sprintf("DE %s", rte_family_),
+                    show_row_names = FALSE
+                )
+                tryCatch(
+                    {
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_col_clust_split2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 5, 10)
+                    },
+                    error = function(e) {
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_col_clust_split2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 10, 20)
+                    }
+                )
+                p <- Heatmap(
+                    m,
+                    col = circlize::colorRamp2(color_breaks_log, c("white", "#0000ff", "#ff0000", "black")),
+                    cluster_rows = TRUE, cluster_columns = FALSE,
+                    show_heatmap_legend = TRUE,
+                    heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_log, break_dist = 1),
+                    use_raster = TRUE,
+                    cluster_row_slices = FALSE,
+                    raster_resize = TRUE, raster_device = "png",
+                    row_split = splitby,
+                    column_title = sprintf("DE %s", rte_family_),
+                    show_row_names = FALSE
+                )
+                tryCatch(
+                    {
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_breaks2_split2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 5, 10)
+                    },
+                    error = function(e) {
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_breaks2_split2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 10, 20)
+                    }
+                )
+                p <- Heatmap(
+                    m,
+                    col = circlize::colorRamp2(color_breaks_log, c("white", "#0000ff", "#ff0000", "black")),
+                    cluster_rows = TRUE, cluster_columns = TRUE,
+                    show_heatmap_legend = TRUE,
+                    heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_log, break_dist = 1),
+                    use_raster = TRUE,
+                    cluster_row_slices = FALSE,
+                    raster_resize = TRUE, raster_device = "png",
+                    row_split = splitby,
+                    column_title = sprintf("DE %s", rte_family_),
+                    show_row_names = FALSE
+                )
+                tryCatch(
+                    {
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_col_clust_break2_split2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 5, 10)
+                    },
+                    error = function(e) {
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_col_clust_break2_split2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 10, 20)
+                    }
+                )
+            },
+            error = function(e) {
+
+            }
+        )
+    }
+}
+
 # subset <- resultsdf %>% filter(grepl("*tact*", intactness_req))
 for (ontology in c("rte_subfamily_limited", "l1_subfamily_limited", "rte_family")) {
     print(ontology)
@@ -207,7 +551,7 @@ for (ontology in c("rte_subfamily_limited", "l1_subfamily_limited", "rte_family"
             mtclosed +
             theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
             labs(x = "", y = "")
-        mysaveandstore(sprintf("%s/%s/%s/rte_genic_cor_%s.pdf", outputdir, counttype, contrast, ontology), 6, 4)
+        mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_%s.pdf", outputdir, counttype, contrast, ontology), 6, 4)
 
         p <- pf %>%
             mutate(genicfacet = ifelse(loc_integrative == "Intergenic", "", "Genic")) %>%
@@ -219,7 +563,7 @@ for (ontology in c("rte_subfamily_limited", "l1_subfamily_limited", "rte_family"
             mtclosed +
             theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
             labs(x = "", y = "")
-        mysaveandstore(sprintf("%s/%s/%s/rte_genic_cor_pval_%s.pdf", outputdir, counttype, contrast, ontology), 10, 6)
+        mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_pval_%s.pdf", outputdir, counttype, contrast, ontology), 10, 6)
     }
 
     te_gene_matrix_all <- Reduce(bind_rows, te_gene_matrix_list)
@@ -243,7 +587,7 @@ for (ontology in c("rte_subfamily_limited", "l1_subfamily_limited", "rte_family"
         mtclosed +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         labs(x = "", y = "")
-    mysaveandstore(sprintf("%s/%s/%s/rte_genic_cor_%s.pdf", outputdir, counttype, "pan_contrast", ontology), 10, 6)
+    mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_%s.pdf", outputdir, counttype, "pan_contrast", ontology), 10, 6)
 
 
     p <- pf %>%
@@ -256,7 +600,7 @@ for (ontology in c("rte_subfamily_limited", "l1_subfamily_limited", "rte_family"
         mtclosed +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         labs(x = "", y = "")
-    mysaveandstore(sprintf("%s/%s/%s/rte_genic_cor_pval_%s.pdf", outputdir, counttype, "pan_contrast", ontology), 10, 6)
+    mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_pval_%s.pdf", outputdir, counttype, "pan_contrast", ontology), 10, 6)
 
     cor_df <- te_gene_matrix_all %>%
         group_by(!!sym(ontology), loc_integrative, rte_length_req) %>%
@@ -277,7 +621,7 @@ for (ontology in c("rte_subfamily_limited", "l1_subfamily_limited", "rte_family"
         mtclosed +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         labs(x = "", y = "")
-    mysaveandstore(sprintf("%s/%s/%s/rte_genic_cor_length_req_pval_%s.pdf", outputdir, counttype, "pan_contrast", ontology), 6.5, 5)
+    mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_length_req_pval_%s.pdf", outputdir, counttype, "pan_contrast", ontology), 6.5, 5)
 }
 
 
@@ -757,7 +1101,7 @@ for (group_var in c("repeat_superfamily", "rte_subfamily", "rte_family", "l1_sub
     #     p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1]
     # )
     # stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1])
-    mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar.pdf", outputdir, counttype, group_var), length(stat_frame %$% condition %>% unique()) * length(stat_frame %>% pull(!!sym(group_var)) %>% unique()) * 0.2 + 1.5, 4)
+    mysaveandstore(sprintf("%s/%s/pan_contrast/bar/%s_bar.pdf", outputdir, counttype, group_var), length(stat_frame %$% condition %>% unique()) * length(stat_frame %>% pull(!!sym(group_var)) %>% unique()) * 0.2 + 1.5, 4)
 
     m <- stat_frame %>%
         dplyr::select(sample, !!sym(group_var), l2fc) %>%
@@ -782,7 +1126,7 @@ for (group_var in c("repeat_superfamily", "rte_subfamily", "rte_family", "l1_sub
         )
 
     p <- wrap_elements(grid.grabExpr(draw(hm, heatmap_legend_side = "right", annotation_legend_side = "right")))
-    mysaveandstore(sprintf("%s/%s/pan_contrast/%s_heatmap.pdf", outputdir, counttype, group_var), 0.5 + length(colnames(m)) * 0.35, 1.75 + length(rownames(m)) * 0.25)
+    mysaveandstore(sprintf("%s/%s/pan_contrast/heatmap/%s_heatmap.pdf", outputdir, counttype, group_var), 0.5 + length(colnames(m)) * 0.35, 1.75 + length(rownames(m)) * 0.25)
 }
 
 
@@ -809,7 +1153,7 @@ for (rte_fam in rte_fams) {
         scale_conditions +
         scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1))
-    mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar.pdf", outputdir, counttype, rte_fam), width, height)
+    mysaveandstore(sprintf("%s/%s/pan_contrast/bar/%s_bar.pdf", outputdir, counttype, rte_fam), width, height)
 
     p <- pf %>%
         mutate(req_integrative = factor(req_integrative, levels = c("Old Trnc", "Old FL", "Yng Trnc", "Yng FL", "Yng Intact"))) %>%
@@ -821,7 +1165,7 @@ for (rte_fam in rte_fams) {
         scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
-    mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats.pdf", outputdir, counttype, rte_fam), width, height)
+    mysaveandstore(sprintf("%s/%s/pan_contrast/bar/%s_bar_stats.pdf", outputdir, counttype, rte_fam), width, height)
     p <- pf %>%
         mutate(req_integrative = factor(req_integrative, levels = c("Old Trnc", "Old FL", "Yng Trnc", "Yng FL", "Yng Intact"))) %>%
         arrange(req_integrative) %>%
@@ -832,7 +1176,7 @@ for (rte_fam in rte_fams) {
         scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, bracket.nudge.y = -0.1, step.increase = .1)
-    mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats_allcomps.pdf", outputdir, counttype, rte_fam), width, height)
+    mysaveandstore(sprintf("%s/%s/pan_contrast/bar/%s_bar_stats_allcomps.pdf", outputdir, counttype, rte_fam), width, height)
 
     p <- pf %>%
         mutate(req_integrative = factor(req_integrative, levels = c("Old Trnc", "Old FL", "Yng Trnc", "Yng FL", "Yng Intact"))) %>%
@@ -844,7 +1188,7 @@ for (rte_fam in rte_fams) {
         scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = FALSE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
-    mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats_allsigannot.pdf", outputdir, counttype, rte_fam), width + 1, height)
+    mysaveandstore(sprintf("%s/%s/pan_contrast/bar/%s_bar_stats_allsigannot.pdf", outputdir, counttype, rte_fam), width + 1, height)
     p <- pf %>%
         mutate(req_integrative = factor(req_integrative, levels = c("Old Trnc", "Old FL", "Yng Trnc", "Yng FL", "Yng Intact"))) %>%
         arrange(req_integrative) %>%
@@ -855,7 +1199,7 @@ for (rte_fam in rte_fams) {
         scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, bracket.nudge.y = -0.1, step.increase = .1)
-    mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats_allsigannot_allcomps.pdf", outputdir, counttype, rte_fam), width + 1, height)
+    mysaveandstore(sprintf("%s/%s/pan_contrast/bar/%s_bar_stats_allsigannot_allcomps.pdf", outputdir, counttype, rte_fam), width + 1, height)
 
     p <- pf %>%
         filter(grepl("Yng", req_integrative)) %>%
@@ -868,7 +1212,7 @@ for (rte_fam in rte_fams) {
         scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = FALSE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
-    mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats_allsigannot_yng.pdf", outputdir, counttype, rte_fam), width + 1, height - 2.5)
+    mysaveandstore(sprintf("%s/%s/pan_contrast/bar/%s_bar_stats_allsigannot_yng.pdf", outputdir, counttype, rte_fam), width + 1, height - 2.5)
     p <- pf %>%
         filter(grepl("Yng", req_integrative)) %>%
         mutate(req_integrative = factor(req_integrative, levels = c("Old Trnc", "Old FL", "Yng Trnc", "Yng FL", "Yng Intact"))) %>%
@@ -880,7 +1224,7 @@ for (rte_fam in rte_fams) {
         scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, bracket.nudge.y = -0.1, step.increase = .1)
-    mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats_allsigannot_allcomps_yng.pdf", outputdir, counttype, rte_fam), width + 1, height - 2.5)
+    mysaveandstore(sprintf("%s/%s/pan_contrast/bar/%s_bar_stats_allsigannot_allcomps_yng.pdf", outputdir, counttype, rte_fam), width + 1, height - 2.5)
 
 
     p <- pf %>%
@@ -892,9 +1236,9 @@ for (rte_fam in rte_fams) {
         scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
-    mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_reqintegrative_stats.pdf", outputdir, counttype, rte_fam), 5, 5)
+    mysaveandstore(sprintf("%s/%s/pan_contrast/bar/%s_bar_reqintegrative_stats.pdf", outputdir, counttype, rte_fam), 5, 5)
     p <- p + stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, bracket.nudge.y = -0.1, step.increase = .1)
-    mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_reqintegrative_stats_all_comps.pdf", outputdir, counttype, rte_fam), 5, 5)
+    mysaveandstore(sprintf("%s/%s/pan_contrast/bar/%s_bar_reqintegrative_stats_all_comps.pdf", outputdir, counttype, rte_fam), 5, 5)
 
     if (df %$% rte_superfamily %>% unique() == "LTR") {
         pf <- df %>%
@@ -910,7 +1254,7 @@ for (rte_fam in rte_fams) {
             scale_conditions +
             scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
             theme(axis.text.x = element_text(angle = 45, hjust = 1))
-        mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_ltr_viral_status_.pdf", outputdir, counttype, rte_fam), width, height + 4)
+        mysaveandstore(sprintf("%s/%s/pan_contrast/bar/%s_bar_ltr_viral_status_.pdf", outputdir, counttype, rte_fam), width, height + 4)
 
         p <- pf %>%
             arrange(ltr_viral_status) %>%
@@ -921,7 +1265,7 @@ for (rte_fam in rte_fams) {
             scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
             theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
             stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
-        mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_ltr_viral_status_stats.pdf", outputdir, counttype, rte_fam), width, height + 4)
+        mysaveandstore(sprintf("%s/%s/pan_contrast/bar/%s_bar_ltr_viral_status_stats.pdf", outputdir, counttype, rte_fam), width, height + 4)
         p <- pf %>%
             arrange(ltr_viral_status) %>%
             ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = c("ltr_viral_status", "genic_loc"), add = c("mean_se", "dotplot"), scales = "free_y") +
@@ -931,7 +1275,7 @@ for (rte_fam in rte_fams) {
             scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
             theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
             stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, bracket.nudge.y = -0.1, step.increase = .1)
-        mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_ltr_viral_status_stats_allcomps.pdf", outputdir, counttype, rte_fam), width, height + 4)
+        mysaveandstore(sprintf("%s/%s/pan_contrast/bar/%s_bar_ltr_viral_status_stats_allcomps.pdf", outputdir, counttype, rte_fam), width, height + 4)
 
         p <- pf %>%
             arrange(ltr_viral_status) %>%
@@ -942,7 +1286,7 @@ for (rte_fam in rte_fams) {
             scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
             theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
             stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = FALSE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
-        mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_ltr_viral_status_stats_allsigannot.pdf", outputdir, counttype, rte_fam), width, height + 4)
+        mysaveandstore(sprintf("%s/%s/pan_contrast/bar/%s_bar_ltr_viral_status_stats_allsigannot.pdf", outputdir, counttype, rte_fam), width, height + 4)
         p <- pf %>%
             arrange(ltr_viral_status) %>%
             ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = c("ltr_viral_status", "genic_loc"), add = c("mean_se", "dotplot"), scales = "free_y") +
@@ -952,7 +1296,7 @@ for (rte_fam in rte_fams) {
             scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
             theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
             stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, bracket.nudge.y = -0.1, step.increase = .1)
-        mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_ltr_viral_status_stats_allsigannot_allcomps.pdf", outputdir, counttype, rte_fam), width, height + 4)
+        mysaveandstore(sprintf("%s/%s/pan_contrast/bar/%s_bar_ltr_viral_status_stats_allsigannot_allcomps.pdf", outputdir, counttype, rte_fam), width, height + 4)
     }
 }
 
@@ -978,7 +1322,7 @@ for (rte_subfam in rte_subfams) {
         scale_conditions +
         scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1))
-    mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar.pdf", outputdir, counttype, rte_subfam), width, height)
+    mysaveandstore(sprintf("%s/%s/pan_contrast/bar/%s_bar.pdf", outputdir, counttype, rte_subfam), width, height)
 
     # p <- pf %>%
     #     left_join(sample_table %>% dplyr::rename(sample = sample_name)) %>%
@@ -988,7 +1332,7 @@ for (rte_subfam in rte_subfams) {
     #     mtclosedgridh +
     #     scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
     #     theme(axis.text.x = element_text(angle = 45, hjust = 1))
-    # mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_braak.pdf", outputdir, counttype, rte_subfam), width + 3, height)
+    # mysaveandstore(sprintf("%s/%s/pan_contrast/bar/%s_bar_braak.pdf", outputdir, counttype, rte_subfam), width + 3, height)
 
 
     p <- pf %>%
@@ -1000,7 +1344,7 @@ for (rte_subfam in rte_subfams) {
         scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
-    mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats.pdf", outputdir, counttype, rte_subfam), width, height)
+    mysaveandstore(sprintf("%s/%s/pan_contrast/bar/%s_bar_stats.pdf", outputdir, counttype, rte_subfam), width, height)
     p <- pf %>%
         arrange(req_integrative) %>%
         ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = c("req_integrative", "genic_loc"), add = c("mean_se", "dotplot"), scales = "free_y") +
@@ -1010,7 +1354,7 @@ for (rte_subfam in rte_subfams) {
         scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, bracket.nudge.y = -0.1, step.increase = .1)
-    mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats_allcomps.pdf", outputdir, counttype, rte_subfam), width, height)
+    mysaveandstore(sprintf("%s/%s/pan_contrast/bar/%s_bar_stats_allcomps.pdf", outputdir, counttype, rte_subfam), width, height)
 
     p <- pf %>%
         arrange(req_integrative) %>%
@@ -1021,7 +1365,7 @@ for (rte_subfam in rte_subfams) {
         scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = FALSE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
-    mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats_allsigannot.pdf", outputdir, counttype, rte_subfam), width, height)
+    mysaveandstore(sprintf("%s/%s/pan_contrast/bar/%s_bar_stats_allsigannot.pdf", outputdir, counttype, rte_subfam), width, height)
     p <- pf %>%
         arrange(req_integrative) %>%
         ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = c("req_integrative", "genic_loc"), add = c("mean_se", "dotplot"), scales = "free_y") +
@@ -1031,7 +1375,7 @@ for (rte_subfam in rte_subfams) {
         scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, bracket.nudge.y = -0.1, step.increase = .1)
-    mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_stats_allsigannot_allcomps.pdf", outputdir, counttype, rte_subfam), width, height)
+    mysaveandstore(sprintf("%s/%s/pan_contrast/bar/%s_bar_stats_allsigannot_allcomps.pdf", outputdir, counttype, rte_subfam), width, height)
 
     pf <- df %>%
         group_by(sample, req_integrative, condition, refstatus) %>%
@@ -1047,7 +1391,7 @@ for (rte_subfam in rte_subfams) {
         anchorbar +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
-    mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_nonref_stats.pdf", outputdir, counttype, rte_subfam), 4.5, 5)
+    mysaveandstore(sprintf("%s/%s/pan_contrast/bar/%s_bar_nonref_stats.pdf", outputdir, counttype, rte_subfam), 4.5, 5)
     p <- pf %>%
         arrange(req_integrative) %>%
         filter(refstatus == "NonRef") %>%
@@ -1058,7 +1402,7 @@ for (rte_subfam in rte_subfams) {
         anchorbar +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, bracket.nudge.y = -0.1, step.increase = .1)
-    mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_nonref_stats_allcomps.pdf", outputdir, counttype, rte_subfam), 4.5, 5)
+    mysaveandstore(sprintf("%s/%s/pan_contrast/bar/%s_bar_nonref_stats_allcomps.pdf", outputdir, counttype, rte_subfam), 4.5, 5)
 
     if (df %$% rte_superfamily %>% unique() == "LTR") {
         pf <- df %>%
@@ -1074,7 +1418,7 @@ for (rte_subfam in rte_subfams) {
             scale_conditions +
             anchorbar +
             theme(axis.text.x = element_text(angle = 45, hjust = 1))
-        mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_ltr_viral_status_.pdf", outputdir, counttype, rte_subfam), width, height)
+        mysaveandstore(sprintf("%s/%s/pan_contrast/bar/%s_bar_ltr_viral_status_.pdf", outputdir, counttype, rte_subfam), width, height)
 
         p <- pf %>%
             arrange(ltr_viral_status) %>%
@@ -1085,7 +1429,7 @@ for (rte_subfam in rte_subfams) {
             anchorbar +
             theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
             stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
-        mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_ltr_viral_status_stats.pdf", outputdir, counttype, rte_subfam), width, height)
+        mysaveandstore(sprintf("%s/%s/pan_contrast/bar/%s_bar_ltr_viral_status_stats.pdf", outputdir, counttype, rte_subfam), width, height)
         p <- pf %>%
             arrange(ltr_viral_status) %>%
             ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = c("ltr_viral_status", "genic_loc"), add = c("mean_se", "dotplot"), scales = "free_y") +
@@ -1095,7 +1439,7 @@ for (rte_subfam in rte_subfams) {
             anchorbar +
             theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
             stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, bracket.nudge.y = -0.1, step.increase = .1)
-        mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_ltr_viral_status_stats_allcomps.pdf", outputdir, counttype, rte_subfam), width, height)
+        mysaveandstore(sprintf("%s/%s/pan_contrast/bar/%s_bar_ltr_viral_status_stats_allcomps.pdf", outputdir, counttype, rte_subfam), width, height)
 
         p <- pf %>%
             arrange(ltr_viral_status) %>%
@@ -1106,7 +1450,7 @@ for (rte_subfam in rte_subfams) {
             anchorbar +
             theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
             stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = FALSE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
-        mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_ltr_viral_status_stats_allsigannot.pdf", outputdir, counttype, rte_subfam), width, height)
+        mysaveandstore(sprintf("%s/%s/pan_contrast/bar/%s_bar_ltr_viral_status_stats_allsigannot.pdf", outputdir, counttype, rte_subfam), width, height)
         p <- pf %>%
             arrange(ltr_viral_status) %>%
             ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = c("ltr_viral_status", "genic_loc"), add = c("mean_se", "dotplot"), scales = "free_y") +
@@ -1116,7 +1460,7 @@ for (rte_subfam in rte_subfams) {
             anchorbar +
             theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
             stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, bracket.nudge.y = -0.1, step.increase = .1)
-        mysaveandstore(sprintf("%s/%s/pan_contrast/%s_bar_ltr_viral_status_stats_allsigannot_allcomps.pdf", outputdir, counttype, rte_subfam), width, height)
+        mysaveandstore(sprintf("%s/%s/pan_contrast/bar/%s_bar_ltr_viral_status_stats_allsigannot_allcomps.pdf", outputdir, counttype, rte_subfam), width, height)
     }
 }
 
@@ -1470,7 +1814,7 @@ tryCatch(
             p1 <- mysaveandstoreplots[[sprintf("%s/results/agg/repeatanalysis/%s/%s/pan_contrast/repeat_superfamily_bar.pdf", module_name, counttype, counttype)]]
             p2 <- mysaveandstoreplots[[sprintf("%s/results/agg/repeatanalysis/%s/%s/pan_contrast/rte_family_bar.pdf", module_name, counttype, counttype)]]
             p3 <- mysaveandstoreplots[[sprintf("%s/results/agg/repeatanalysis/%s/%s/pan_contrast/rte_subfamily_heatmap.pdf", module_name, counttype, counttype)]] + theme_cowplot()
-            p4 <- mysaveandstoreplots[[sprintf("%s/results/agg/repeatanalysis/%s/%s/pan_contrast/%s_bar_stats.pdf", module_name, counttype, counttype, rte_family)]]
+            p4 <- mysaveandstoreplots[[sprintf("%s/results/agg/repeatanalysis/%s/%s/pan_contrast/bar/%s_bar_stats.pdf", module_name, counttype, counttype, rte_family)]]
             p6 <- mysaveandstoreplots[[sprintf("%s/results/agg/repeatanalysis/%s/%s/%s/pvp/%s_ALL_log2labels.pdf", module_name, counttype, counttype, contrast1, rte_subfamily_req)]]
             p7 <- mysaveandstoreplots[[sprintf("%s/results/agg/repeatanalysis/%s/%s/%s/pvp/%s_ALL_log2labels.pdf", module_name, counttype, counttype, contrast2, rte_subfamily_req)]]
             ptch <- ((p1 + p2 + plot_layout(nrow = 2, guides = "collect")) | p3 | (p4) | (p6 + p7 + plot_layout(nrow = 2, guides = "collect"))) + plot_layout(widths = c(1, 1.25, 1.5, 2)) + plot_annotation(tag_levels = "A")
@@ -1488,11 +1832,11 @@ tryCatch(
         p1 <- mysaveandstoreplots[[sprintf("%s/results/agg/repeatanalysis/%s/%s/pan_contrast/repeat_superfamily_bar.pdf", module_name, counttype, counttype)]]
         p2 <- mysaveandstoreplots[[sprintf("%s/results/agg/repeatanalysis/%s/%s/pan_contrast/rte_family_bar.pdf", module_name, counttype, counttype)]]
         p3 <- mysaveandstoreplots[[sprintf("%s/results/agg/repeatanalysis/%s/%s/pan_contrast/rte_subfamily_heatmap.pdf", module_name, counttype, counttype)]] + theme_cowplot()
-        p4 <- mysaveandstoreplots[[sprintf("%s/results/agg/repeatanalysis/%s/%s/pan_contrast/%s_bar_stats.pdf", module_name, counttype, counttype, rte_family)]]
+        p4 <- mysaveandstoreplots[[sprintf("%s/results/agg/repeatanalysis/%s/%s/pan_contrast/bar/%s_bar_stats.pdf", module_name, counttype, counttype, rte_family)]]
         p6 <- mysaveandstoreplots[[sprintf("%s/results/agg/repeatanalysis/%s/%s/%s/pvp/%s_ALL_log2labels.pdf", module_name, counttype, counttype, contrast1, rte_subfamily_req)]]
         p7 <- mysaveandstoreplots[[sprintf("%s/results/agg/repeatanalysis/%s/%s/%s/pvp/%s_ALL_log2labels.pdf", module_name, counttype, counttype, contrast2, rte_subfamily_req)]]
         p8 <- mysaveandstoreplots[[sprintf("%s/results/agg/repeatanalysis/%s/%s/pan_contrast/venn/upset_repeat.pdf", module_name, counttype, counttype)]]
-        p9 <- mysaveandstoreplots[[sprintf("%s/results/agg/repeatanalysis/%s/%s/pan_contrast/rte_genic_cor_length_req_pval_l1_subfamily_limited.pdf", module_name, counttype, counttype)]]
+        p9 <- mysaveandstoreplots[[sprintf("%s/results/agg/repeatanalysis/%s/%s/pan_contrast/rte_gene_cor/rte_genic_cor_length_req_pval_l1_subfamily_limited.pdf", module_name, counttype, counttype)]]
         p10 <- mysaveandstoreplots[[sprintf("%s/results/agg/repeatanalysis/%s/%s/pan_contrast/L1HS_bar_nonref_stats.pdf", module_name, counttype, counttype)]]
         ptch <- ((((p1 + p2 + plot_layout(nrow = 2, guides = "collect")) | p3 | (p4) | (p6 + p7 + plot_layout(nrow = 2, guides = "collect"))) + plot_layout(widths = c(1, 1.25, 1.5, 2))) / ((p8 | p9 | p10 | plot_spacer()) + plot_layout(widths = c(1, 0.75, 1, 1)))) + plot_layout(heights = c(2, 1))
         mysave(pl = ptch, fn = sprintf("%s/results/agg/repeatanalysis/%s/%s/figs/combined_focus_v2_%s.pdf", module_name, counttype, counttype, rte_subfamily_req), w = 25, h = 15)
