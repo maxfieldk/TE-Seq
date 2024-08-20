@@ -185,7 +185,7 @@ transcripts <- c(coding_transcripts, noncoding_transcripts)
             heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_quantile, break_dist = 1),
             use_raster = TRUE,
             cluster_row_slices = FALSE,
-            raster_resize = TRUE, raster_device = "png",
+            raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
             row_split = splitby,
             column_title = "DE L1s",
             show_row_names = FALSE
@@ -199,7 +199,7 @@ transcripts <- c(coding_transcripts, noncoding_transcripts)
             heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_quantile, break_dist = 1),
             use_raster = TRUE,
             cluster_row_slices = FALSE,
-            raster_resize = TRUE, raster_device = "png",
+            raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
             row_split = splitby,
             column_title = "DE L1s",
             show_row_names = FALSE
@@ -214,7 +214,7 @@ transcripts <- c(coding_transcripts, noncoding_transcripts)
             heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_log, break_dist = 1),
             use_raster = TRUE,
             cluster_row_slices = FALSE,
-            raster_resize = TRUE, raster_device = "png",
+            raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
             row_split = splitby,
             column_title = "DE L1s",
             show_row_names = FALSE
@@ -228,7 +228,7 @@ transcripts <- c(coding_transcripts, noncoding_transcripts)
             heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_log, break_dist = 1),
             use_raster = TRUE,
             cluster_row_slices = FALSE,
-            raster_resize = TRUE, raster_device = "png",
+            raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
             row_split = splitby,
             column_title = "DE L1s",
             show_row_names = FALSE
@@ -274,7 +274,7 @@ transcripts <- c(coding_transcripts, noncoding_transcripts)
                     heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_quantile, break_dist = 1),
                     use_raster = TRUE,
                     cluster_row_slices = FALSE,
-                    raster_resize = TRUE, raster_device = "png",
+                    raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
                     column_title = sprintf("DE %s", rte_family_),
                     show_row_names = FALSE
                 )
@@ -294,7 +294,7 @@ transcripts <- c(coding_transcripts, noncoding_transcripts)
                     heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_quantile, break_dist = 1),
                     use_raster = TRUE,
                     cluster_row_slices = FALSE,
-                    raster_resize = TRUE, raster_device = "png",
+                    raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
                     column_title = sprintf("DE %s", rte_family_),
                     show_row_names = FALSE
                 )
@@ -314,7 +314,7 @@ transcripts <- c(coding_transcripts, noncoding_transcripts)
                     heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_log, break_dist = 1),
                     use_raster = TRUE,
                     cluster_row_slices = FALSE,
-                    raster_resize = TRUE, raster_device = "png",
+                    raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
                     column_title = sprintf("DE %s", rte_family_),
                     show_row_names = FALSE
                 )
@@ -334,7 +334,7 @@ transcripts <- c(coding_transcripts, noncoding_transcripts)
                     heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_log, break_dist = 1),
                     use_raster = TRUE,
                     cluster_row_slices = FALSE,
-                    raster_resize = TRUE, raster_device = "png",
+                    raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
                     column_title = sprintf("DE %s", rte_family_),
                     show_row_names = FALSE
                 )
@@ -402,7 +402,7 @@ transcripts <- c(coding_transcripts, noncoding_transcripts)
                     heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_quantile, break_dist = 1),
                     use_raster = TRUE,
                     cluster_row_slices = FALSE,
-                    raster_resize = TRUE, raster_device = "png",
+                    raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
                     row_split = splitby,
                     column_title = sprintf("DE %s", rte_family_),
                     show_row_names = FALSE
@@ -423,7 +423,7 @@ transcripts <- c(coding_transcripts, noncoding_transcripts)
                     heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_quantile, break_dist = 1),
                     use_raster = TRUE,
                     cluster_row_slices = FALSE,
-                    raster_resize = TRUE, raster_device = "png",
+                    raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
                     row_split = splitby,
                     column_title = sprintf("DE %s", rte_family_),
                     show_row_names = FALSE
@@ -444,7 +444,7 @@ transcripts <- c(coding_transcripts, noncoding_transcripts)
                     heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_log, break_dist = 1),
                     use_raster = TRUE,
                     cluster_row_slices = FALSE,
-                    raster_resize = TRUE, raster_device = "png",
+                    raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
                     row_split = splitby,
                     column_title = sprintf("DE %s", rte_family_),
                     show_row_names = FALSE
@@ -465,7 +465,7 @@ transcripts <- c(coding_transcripts, noncoding_transcripts)
                     heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_log, break_dist = 1),
                     use_raster = TRUE,
                     cluster_row_slices = FALSE,
-                    raster_resize = TRUE, raster_device = "png",
+                    raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
                     row_split = splitby,
                     column_title = sprintf("DE %s", rte_family_),
                     show_row_names = FALSE

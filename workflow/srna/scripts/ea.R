@@ -209,7 +209,7 @@ for (contrast in params[["contrasts"]]) {
 
                 tryCatch(
                     {
-                        for (num in c(5, 10, 15)) {
+                        for (num in c(5, 10, 15, 500)) {
                             dftemp <- arrange(df, -abs(NES)) %>%
                                 group_by(sign(NES)) %>%
                                 slice(1:num) %>%
@@ -224,7 +224,7 @@ for (contrast in params[["contrasts"]]) {
                                 ylab(NULL) +
                                 labs(caption = contrast_label_map %>% filter(contrast == !!contrast) %$% label)
 
-                            mysaveandstore(sprintf("%s/%s/gsea/%s/nes%s.pdf", params[["outputdir"]], contrast, collection, num), w = 8, h = min(num, 7), res = 300)
+                            mysaveandstore(sprintf("%s/%s/gsea/%s/nesTOP%sEITHERDIRECTIONSHOWN.pdf", params[["outputdir"]], contrast, collection, num), w = 8, h = min(num, 12), res = 300)
 
                             p <- ggplot(dftemp, aes(`Gene Ratio`, fct_reorder(Description, `Gene Ratio`), fill = -log10(p.adjust) * `sign(NES)`)) +
                                 geom_col(orientation = "y") +
@@ -235,7 +235,7 @@ for (contrast in params[["contrasts"]]) {
                                 guides(fill = guide_legend(title = "Signed \n-log10(p.adjust)")) +
                                 labs(caption = contrast_label_map %>% filter(contrast == !!contrast) %$% label)
 
-                            mysaveandstore(sprintf("%s/%s/gsea/%s/dot%s.pdf", params[["outputdir"]], contrast, collection, num), w = 7.5, h = min(num, 10), res = 300)
+                            mysaveandstore(sprintf("%s/%s/gsea/%s/dot_TOP%sEITHERDIRECTIONSHOWN.pdf", params[["outputdir"]], contrast, collection, num), w = 7.5, h = min(num, 12), res = 300)
                         }
                     },
                     error = function(e) {
@@ -262,6 +262,7 @@ for (contrast in params[["contrasts"]]) {
     }
 }
 
+# PLOTS FOR USER SPECIFIED (TARGETTED) GENE SETS
 tryCatch(
     {
         gres <- gse_df %>% tibble()
@@ -295,9 +296,37 @@ tryCatch(
                         labs(x = "", y = "", title = collec) +
                         theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
                         coord_equal()
-                    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/targetted/gsea_top_%s_grid_1.pdf", collec), 6, 0.5 * length(sigIDs))
-                    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/targetted/gsea_top_%s_grid_2.pdf", collec), 6, 0.75 * length(sigIDs))
-                    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/targetted/gsea_top_%s_grid_3.pdf", collec), 6, 1 * length(sigIDs))
+                    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/targetted/gsea_top_%s_grid_1_TOP5EITHERDIRECTIONSHOWN.pdf", collec), 6, 0.5 * length(sigIDs))
+                    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/targetted/gsea_top_%s_grid_2_TOP5EITHERDIRECTIONSHOWN.pdf", collec), 6, 0.75 * length(sigIDs))
+                    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/targetted/gsea_top_%s_grid_3_TOP5EITHERDIRECTIONSHOWN.pdf", collec), 6, 1 * length(sigIDs))
+
+                    grestemp <- gres %>%
+                        filter(collection == collec) %>%
+                        left_join(contrast_label_map) %>%
+                        filter(grepl(paste0(conf$levels[1], "$"), label))
+                    sigIDs <- grestemp %>%
+                        mutate(direction = ifelse(NES > 0, "UP", "DOWN")) %>%
+                        group_by(contrast, direction) %>%
+                        arrange(p.adjust) %>%
+                        filter(p.adjust <= 0.05) %$% ID %>%
+                        unique()
+                    p <- grestemp %>%
+                        dplyr::filter(ID %in% sigIDs) %>%
+                        mutate(sig = ifelse(p.adjust < 0.05, "*", "")) %>%
+                        mutate(ID = str_wrap(as.character(ID) %>% gsub("_", " ", .), width = 40)) %>%
+                        mutate(label = str_wrap(as.character(contrast) %>% gsub("condition_", "", .) %>% gsub("_vs_.*", "", .), width = 40)) %>%
+                        mutate(label = factor(label, levels = conf$levels)) %>%
+                        mutate(ID = fct_reorder(ID, NES)) %>%
+                        ggplot(aes(x = label, y = ID)) +
+                        geom_tile(aes(fill = NES), color = "black") +
+                        theme(legend.position = "none") +
+                        scale_fill_gradient2(high = "red", mid = "white", low = "blue") +
+                        mtclosed +
+                        theme(axis.text.x = element_text(colour = "black"), axis.text.y = element_text(colour = "black", hjust = 1)) +
+                        labs(x = "", y = "", title = collec) +
+                        theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+                        coord_equal()
+                    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/targetted/gsea_top_%s_grid_ALLSIGSHOWN.pdf", collec), 3 + .3 * (length(conf$levels) - 1), 0.75 * length(sigIDs))
                 }
             },
             error = function(e) {}
