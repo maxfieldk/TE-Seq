@@ -8,8 +8,8 @@
 #uncomment pipelines to deploy
 pipelines_to_deploy:
   - aref
-  # - srna
-  - ldna
+  - srna
+  # - ldna
   # - lrna
 
 #PIPELINE SETTINGS - Ignore settings for pipelines not being deployed (i.e. not in pipelines_to_deploy)
@@ -24,8 +24,6 @@ aref:
 
   running_ldna:
     response: "no"
-  store_plots_as_rds: "yes" #yes or no
-  store_env_as_rds: "no" #yes or no
   
   #USER PROVIDED ANNOTATIONS - CHANGE PATHS AS NEEDED
   #Be sure to follow ucsc naming conventions, e.g. chr1, chr2, ...
@@ -62,7 +60,7 @@ aref:
     #if making one ref per sample (i.e. each sample has unique inserts), then "yes", else "no"
     per_sample: "no"
     #IF updating reference with tldr inserts; else NULL
-    tldr_input_bam_ref: /users/mkelsey/data/ref/pipeline_annotations/hs1/RTE/aref/A.REF.fa
+    tldr_input_bam_ref: ../genome_files/reference.ucsc.fa
     #ensure tldr_input_bams are a full path, not relative paths
     tldr_te_ref:
       human: resources/sequences/teref.ont.human.fa
@@ -135,9 +133,6 @@ srna:
     - "telescope_multi"
     - "telescope_unique"
 
-  store_plots_as_rds: "yes" #yes or no
-  store_env_as_rds: "no" #yes or no
-
   downsample_for_test:
     response: "no" #yes or no
 
@@ -173,8 +168,6 @@ ldna:
   default_palette: "ggsci::default_aaas" #paletteer palettes https://emilhvitfeldt.github.io/paletteer/
   use_aref_basecalls: "yes"
   single_condition: "no"
-  store_plots_as_rds: "yes" #yes or no
-  store_env_as_rds: "no" #yes or no
 
   samples:
     - "N2102EP1"
@@ -289,8 +282,6 @@ lrna:
   counttypes:
     - "relaxed"
     - "stringent"
-  store_plots_as_rds: "yes" #yes or no
-  store_env_as_rds: "no" #yes or no
 
   rate: "4khz"
   type: "sup"
