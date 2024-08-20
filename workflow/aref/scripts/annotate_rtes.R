@@ -742,3 +742,14 @@ rmann <- left_join(rmfragments, annots)
 write_csv(annots, outputs$r_repeatmasker_annotation)
 write_csv(rmann, outputs$rmann)
 write_csv(rmann %>% filter(refstatus == "NonRef"), outputs$rmann_nonref)
+
+rmann %>%
+    filter(refstatus != "NonCentral") %>%
+    group_by(repeat_superfamily, rte_superfamily, rte_family, rte_subfamily, req_integrative) %>%
+    summarise(n = n(), average_pct_divergence = mean(pctdiv, na.rm = TRUE), average_length = mean(length)) %>%
+    write_delim(gsub(".csv$", "_group_summary_stats.tsv", outputs$rmann), delim = "\t")
+rmann %>%
+    filter(refstatus != "NonCentral") %>%
+    group_by(repeat_superfamily, rte_superfamily, rte_family, rte_subfamily, req_integrative, refstatus, loc_integrative) %>%
+    summarise(n = n(), average_pct_divergence = mean(pctdiv, na.rm = TRUE), average_length = mean(length)) %>%
+    write_delim(gsub(".csv$", "_group_summary_stats_more_variables.tsv", outputs$rmann), delim = "\t")

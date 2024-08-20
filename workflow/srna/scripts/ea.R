@@ -1,7 +1,7 @@
 if (interactive()) {
-    module_name <<- "srna"
+    module_name <- "srna"
 } else {
-    module_name <<- snakemake@params$module_name
+    module_name <- snakemake@params$module_name
 }
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
 confALL <- configr::read.config(file = "conf/config.yaml")
@@ -107,13 +107,13 @@ pvp <- function(df, facet_var = "ALL", filter_var = "ALL", labels = "no", scale_
     }
     if (scale_log2 == "no") {
         pf <- df %>%
-            group_by(across(all_of(c(colsToKeep, "condition")))) %>%
+            group_by(across(all_of(c("gene_id", "condition")))) %>%
             summarise(mean(counts), padj = dplyr::first(!!sym(contrast_padj)), l2fc = dplyr::first(!!sym(contrast_l2fc))) %>%
             pivot_wider(names_from = condition, values_from = `mean(counts)`) %>%
             mutate(color_direction = ifelse(is.na(padj), "NS", ifelse(padj > 0.05, "NS", ifelse(l2fc > 0, "UP", "DOWN"))))
     } else {
         pf <- df %>%
-            group_by(across(all_of(c(colsToKeep, "condition")))) %>%
+            group_by(across(all_of(c("gene_id", "condition")))) %>%
             summarise(mean(counts), padj = dplyr::first(!!sym(contrast_padj)), l2fc = dplyr::first(!!sym(contrast_l2fc))) %>%
             pivot_wider(names_from = condition, values_from = `mean(counts)`) %>%
             mutate(across(conf$levels, ~ log2(.x + 1))) %>%
@@ -121,7 +121,7 @@ pvp <- function(df, facet_var = "ALL", filter_var = "ALL", labels = "no", scale_
     }
 
     top_sig <- pf %>%
-        filter(!!sym(contrast_padj) < 0.05) %>%
+        filter(padj < 0.05) %>%
         arrange(padj) %>%
         head(6) %>%
         pull(gene_id)
@@ -195,7 +195,7 @@ for (contrast in params[["contrasts"]]) {
         tryCatch(
             {
                 genesets <- read.gmt(params[["collections_for_gsea"]][[collection]])
-                gse <- GSEA(ordered_by_stat, TERM2GENE = genesets, maxGSSize = 100000, minGSSize = 1)
+                gse <- GSEA(ordered_by_stat, TERM2GENE = genesets, maxGSSize = 100000, minGSSize = 1, pvalueCutoff = 1)
                 df <- gse@result %>% tibble()
                 df$collection <- collection
                 df$contrast <- contrast
@@ -243,17 +243,17 @@ for (contrast in params[["contrasts"]]) {
                     }
                 )
 
-                tryCatch(
-                    {
-                        for (genesetid in conf$genesets_for_gseaplot) {
+                for (genesetid in conf$genesets_for_gseaplot) {
+                    tryCatch(
+                        {
                             p <- gseaplot2(gse, geneSetID = genesetid, pvalue_table = TRUE, subplots = 1:2, ES_geom = "line")
+                            mysaveandstore(sprintf("%s/%s/gsea/%s_gsea.pdf", params[["outputdir"]], contrast, genesetid), w = 7, h = 3, res = 300)
+                        },
+                        error = function(e) {
+                            print("")
                         }
-                        mysaveandstore(sprintf("%s/%s/gsea/%s_gsea.pdf", params[["outputdir"]], contrast, genesetid), w = 7, h = 3, res = 300)
-                    },
-                    error = function(e) {
-                        print("")
-                    }
-                )
+                    )
+                }
             },
             error = function(e) {
                 print("probably no enrichments in this collection")
@@ -266,39 +266,42 @@ tryCatch(
     {
         gres <- gse_df %>% tibble()
         gres %>% write_delim(outputs$results_table_targetted, delim = "\t")
-        for (collec in genecollections) {
-            grestemp <- gres %>%
-                filter(collection == collec) %>%
-                left_join(contrast_label_map) %>%
-                filter(grepl(paste0(conf$levels[1], "$"), label))
-            sigIDs <- grestemp %>%
-                mutate(direction = ifelse(NES > 0, "UP", "DOWN")) %>%
-                group_by(contrast, direction) %>%
-                arrange(p.adjust) %>%
-                slice_head(n = 5) %$% ID %>%
-                unique()
-            p <- grestemp %>%
-                dplyr::filter(ID %in% sigIDs) %>%
-                mutate(sig = ifelse(p.adjust < 0.05, "*", "")) %>%
-                mutate(ID = str_wrap(as.character(ID) %>% gsub("_", " ", .), width = 40)) %>%
-                mutate(label = str_wrap(as.character(contrast) %>% gsub("condition_", "", .) %>% gsub("_vs_.*", "", .), width = 40)) %>%
-                mutate(label = factor(label, levels = conf$levels)) %>%
-                mutate(ID = fct_reorder(ID, NES)) %>%
-                ggplot(aes(x = label, y = ID)) +
-                geom_tile(aes(fill = NES), color = "black") +
-                theme(legend.position = "none") +
-                scale_fill_gradient2(high = "red", mid = "white", low = "blue") +
-                mtclosed +
-                theme(axis.text.x = element_text(colour = "black"), axis.text.y = element_text(colour = "black", hjust = 1)) +
-                labs(x = "", y = "", title = collec) +
-                theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-                coord_equal()
-            mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/targetted/gsea_top_%s_grid_1.pdf", collec), 6, 0.5 * length(sigIDs))
-            mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/targetted/gsea_top_%s_grid_2.pdf", collec), 6, 0.75 * length(sigIDs))
-            mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/targetted/gsea_top_%s_grid_3.pdf", collec), 6, 1 * length(sigIDs))
-        }
-
-
+        tryCatch(
+            {
+                for (collec in genecollections) {
+                    grestemp <- gres %>%
+                        filter(collection == collec) %>%
+                        left_join(contrast_label_map) %>%
+                        filter(grepl(paste0(conf$levels[1], "$"), label))
+                    sigIDs <- grestemp %>%
+                        mutate(direction = ifelse(NES > 0, "UP", "DOWN")) %>%
+                        group_by(contrast, direction) %>%
+                        arrange(p.adjust) %>%
+                        slice_head(n = 5) %$% ID %>%
+                        unique()
+                    p <- grestemp %>%
+                        dplyr::filter(ID %in% sigIDs) %>%
+                        mutate(sig = ifelse(p.adjust < 0.05, "*", "")) %>%
+                        mutate(ID = str_wrap(as.character(ID) %>% gsub("_", " ", .), width = 40)) %>%
+                        mutate(label = str_wrap(as.character(contrast) %>% gsub("condition_", "", .) %>% gsub("_vs_.*", "", .), width = 40)) %>%
+                        mutate(label = factor(label, levels = conf$levels)) %>%
+                        mutate(ID = fct_reorder(ID, NES)) %>%
+                        ggplot(aes(x = label, y = ID)) +
+                        geom_tile(aes(fill = NES), color = "black") +
+                        theme(legend.position = "none") +
+                        scale_fill_gradient2(high = "red", mid = "white", low = "blue") +
+                        mtclosed +
+                        theme(axis.text.x = element_text(colour = "black"), axis.text.y = element_text(colour = "black", hjust = 1)) +
+                        labs(x = "", y = "", title = collec) +
+                        theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+                        coord_equal()
+                    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/targetted/gsea_top_%s_grid_1.pdf", collec), 6, 0.5 * length(sigIDs))
+                    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/targetted/gsea_top_%s_grid_2.pdf", collec), 6, 0.75 * length(sigIDs))
+                    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/targetted/gsea_top_%s_grid_3.pdf", collec), 6, 1 * length(sigIDs))
+                }
+            },
+            error = function(e) {}
+        )
 
         # plot core enrichments
 
@@ -329,7 +332,7 @@ tryCatch(
                 core_enrichments <- df$core_enrichment
                 core_enrichments <- str_split(core_enrichments, "/")
                 names(core_enrichments) <- ids
-                for (geneset in c(names(core_enrichments), conf$genesets_for_gseaplot)) {
+                for (geneset in unique(c(names(core_enrichments), conf$genesets_for_gseaplot))) {
                     all_genes_in_set <- read.gmt(params[["collections_for_gsea"]][[collec]]) %>% filter(term == geneset) %$% gene
                     if (length(all_genes_in_set) == 0) {
                         next
@@ -700,17 +703,18 @@ for (contrast in params[["contrasts"]]) {
                     }
                 )
 
-                tryCatch(
-                    {
-                        for (genesetid in conf$genesets_for_gseaplot) {
+                for (genesetid in conf$genesets_for_gseaplot) {
+                    tryCatch(
+                        {
                             p <- gseaplot2(gse, geneSetID = genesetid, pvalue_table = TRUE, subplots = 1:2, ES_geom = "line")
+
+                            mysaveandstore(sprintf("%s/%s/gsea/%s_gsea.pdf", params[["outputdir"]], contrast, genesetid), w = 8, h = 3, res = 300)
+                        },
+                        error = function(e) {
+                            print("")
                         }
-                        mysaveandstore(sprintf("%s/%s/gsea/%s_gsea.pdf", params[["outputdir"]], contrast, genesetid), w = 8, h = 3, res = 300)
-                    },
-                    error = function(e) {
-                        print("")
-                    }
-                )
+                    )
+                }
             },
             error = function(e) {
                 print("probably no enrichments in this collection")
@@ -965,3 +969,6 @@ tryCatch(
 # str(mysaveandstoreplots[[100]])
 # print(mysaveandstoreplots[[100]])
 # mysave(pl = mysaveandstoreplots[[100]])
+
+
+# res %>% filter(grepl("^CDKN", gene_id))
