@@ -18,8 +18,10 @@ aref:
   symlink_aref:
     response: "no"
     aref_symlinkdir: "/oscar/data/jsedivy/mkelsey/ref/pipeline_annotations/hs1/RTE/aref"
-  symlink_aref_contents:
+  symlink_aref_contents: #can ignore - this deals with certain niche cases where you wnat to use AND BUILD ON existing annotations.
     response: "no"
+    aref_symlinkdir: "/oscar/data/jsedivy/mkelsey/ref/pipeline_annotations/hs1/RTE/aref"
+
   running_ldna:
     response: "no"
   store_plots_as_rds: "yes" #yes or no
@@ -81,8 +83,9 @@ srna:
   prefix: "srna"
   sample_table: "conf/sample_table_srna.csv"
   peptable: "conf/peptable_srna.csv"
-  per_sample_ref: "no"
-  default_palette: "ggsci::default_aaas" #paletteer palettes https://emilhvitfeldt.github.io/paletteer/
+  per_sample_ref: "no" #yes or no
+  map_to_mycoplasma: "yes" #yes or no
+  default_palette: "ggsci::default_aaas" #must be a paletteer palette: https://emilhvitfeldt.github.io/paletteer/
   samples:
     - "PRO_low_O2_1"
     - "PRO_low_O2_2"
@@ -118,7 +121,7 @@ srna:
     - "PRO_normoxic"
     - "DDIS_8w_low_O2"
 
-  contrasts:
+  contrasts: #follows the syntax: condition_ + level from "levels" + _vs_ + level from "levels"
     - "condition_RS_0w_low_O2_vs_PRO_low_O2"
     - "condition_RS_4w_low_O2_vs_PRO_low_O2"
     - "condition_RS_8w_low_O2_vs_PRO_low_O2"
@@ -126,8 +129,9 @@ srna:
     - "condition_PRO_normoxic_vs_PRO_low_O2"
     - "condition_DDIS_8w_low_O2_vs_PRO_low_O2"
 
+
   paralellize_bioc: 8
-  counttypes:
+  counttypes: #For TEs, whether to consider unique + multi mapping reads OR only unique mappers. Default is to run the pipeline for both.
     - "telescope_multi"
     - "telescope_unique"
 

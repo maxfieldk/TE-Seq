@@ -119,13 +119,15 @@ for pipeline in config["pipelines_to_deploy"]:
             enrichment_analysis = "srna/results/agg/enrichment_analysis/enrichment_analysis_environment.RData"
             enrichment_analysis_repeats = expand("srna/results/agg/enrichment_analysis_repeats/{counttype}/enrichment_analysis_repeats_environment.RData", counttype = config["srna"]["counttypes"])
             repeatanalysisplots = expand("srna/results/agg/repeatanalysis/{counttype}/repeatanalysisplots_environment.RData", counttype = config["srna"]["counttypes"])
-            bigwigs = "srna/results/agg/bigwig_plots/bigwigplots_environment.RData"
-            qc = [expand("srna/qc/mycoplasma/mycoplasma{sample}.sorted.bam", sample = config["srna"]["samples"]), "srna/qc/multiqc/multiqc_report.html"]
-            return list(flatten([bigwigs, deseq, enrichment_analysis, enrichment_analysis_repeats, repeatanalysisplots, qc]))
-       
+            bigwigs = "srna/results/agg/bigwig_plots/bigwigplots_environment.RData",
+            report = "srna/qc/multiqc/multiqc_report.html"
+            return list(flatten([bigwigs, deseq, enrichment_analysis, enrichment_analysis_repeats, repeatanalysisplots, report]))
+
         for e in srna_rally():
             final_input.append(e)
-
+        qc = [expand("srna/qc/mycoplasma/mycoplasma{sample}.sorted.bam", sample = config["srna"]["samples"])]
+        if config["srna"]["map_to_mycoplasma"] == "yes":
+            final_input.append(qc)
 rule all:
     input:
         [            

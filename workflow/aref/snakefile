@@ -1,4 +1,4 @@
-container: "docker://maxfieldkelsey/pipelinerteseq:v0.5"
+container: "docker://maxfieldkelsey/pipelinerteseq:v1.0"
 import os
 import pandas as pd
 import csv
@@ -25,7 +25,6 @@ def aref_complete_input(wildcards):
         "aref/A.REF_annotations/cytobands.bed",
         "aref/A.REF_Analysis/l1element_analysis.rds"
     ]
-    # paths.append(expand("aref/{sample_or_ref}_Analysis/l1element_analysis.outfile", sample_or_ref = "A.REF"))
 
     if config["update_ref_with_tldr"]["response"] == "yes":
         paths.append(expand("aref/qc/{sample_or_ref}/{sample_or_ref}pycoQC.html", sample_or_ref = config["samples"]))
@@ -39,7 +38,6 @@ def aref_complete_input(wildcards):
             paths.append(expand("aref/{sample_or_ref}_annotations/{sample_or_ref}_rte_beds/outfile.txt", sample_or_ref = config["samples"]))
             paths.append(expand("aref/{sample_or_ref}_tldr/{sample_or_ref}.table.txt", sample_or_ref = config["samples"]))
             
-            # paths.append(expand("aref/{sample_or_ref}_Analysis/l1element_analysis.outfile", sample_or_ref = "A.REF"))
             paths.append(expand("aref/{sample_or_ref}_annotations/{sample_or_ref}_rte_beds/outfile.txt", sample_or_ref = config["samples"]))
             paths.append(expand("aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.complete.gtf", sample_or_ref = config["samples"]))
             paths.append(expand("aref/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.gff3", sample_or_ref = config["samples"]))
@@ -95,7 +93,7 @@ touch {output}
         """
 rule sym_link_aref_contents:
     input:
-        aref_dir = config["symlink_aref"]["aref_symlinkdir"]
+        aref_dir = config["symlink_aref_contents"]["aref_symlinkdir"]
     output:
         sym_link_outfile = "aref_contents.symlinked.outfile"
     shell:

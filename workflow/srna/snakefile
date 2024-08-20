@@ -1,4 +1,4 @@
-container: "docker://maxfieldkelsey/pipelinerteseq:v0.5"
+container: "docker://maxfieldkelsey/pipelinerteseq:v1.0"
 
 import os
 import pandas as pd
@@ -338,34 +338,6 @@ cut -f1,7- {output.countsstrandnonspecificmessy} | awk 'NR > 1' > {output.counts
 featureCounts -T {threads} -B -O -a {params.gtf} -o {output.metafeaturecounts} {input.sortedSTARbams}
         """
 
-
-
-rule featurecounts_genesandrtes_SE:
-#for non-telescope based counts for RTEs
-    input:
-        sortedSTARbams = expand("srna/outs/{sample}/star_output/{sample}.sorted.primary.bam", sample = samples),
-        libtype = "srna/qc/library_type.txt"
-    output:
-        countsmessy = "srna/outs/agg/featurecounts_genesandrtes/counts_messy.txt",
-        counts = "srna/outs/agg/featurecounts_genesandrtes/counts.txt",
-    benchmark:
-        "srna/benchmarks/featurecounts_genesandrtes_SE/featurecounts_genesandrtes_SE.tsv"
-    params: 
-        gtf = "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf",
-        featureCountsstrandparam = getFeatureCountsStrandParam()
-    conda:
-        "omics"
-    resources:
-        cpus_per_task =10,
-        runtime = 3000,
-        mem_mb = 32000,
-    shell: 
-        """
-echo {params.featureCountsstrandparam}
-featureCounts -s {params.featureCountsstrandparam} -M -T 8 --primary --ignoreDup --largestOverlap -a {params.gtf} -o {output.countsmessy} {input.sortedSTARbams}
-cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
-        """
-
 #tag ALIGNMENT UTILITIES
 rule sortIndexBam:
     input:
@@ -652,7 +624,6 @@ rule getBigWigR:
         "deeptools"
     shell: "bamCoverage -b {input.sortedbam} -o {output.bwR} --numberOfProcessors max  --samFlagExclude 256 --filterRNAstrand {params.rna_strand_param} --binSize 50"
 # --scaleFactor {params.sample_size_factor}
-
 #The --filterRNAstrand option assumes the sequencing library generated from ILLUMINA
 # dUTP/NSR/NNSR methods, which are the most commonly used method for library preparation, 
 #where Read 2 (R2) is in the direction of RNA strand (reverse-stranded library). 
@@ -686,30 +657,6 @@ rule bigwigplots:
         "repeatanalysis"
     script: "scripts/bigwig_analysis.R"
 
-# rule deeptools_l1hs_profile:
-#     input:
-#         bwF = "srna/outs/{sample}/star_output/{sample}.F.bw",
-#         bwR = "srna/outs/{sample}/star_output/{sample}.R.bw"
-#     output:
-#         bwR = "srna/outs/{sample}/star_output/{sample}.R.bw"
-#     resources:
-#         cpus_per_task =10,
-#         mem_mb = 40000
-#     conda:
-#         "deeptools"
-#     shell: 
-#         """
-# deepTools2.0/bin/computeMatrix scale-regions \
-#   -R genes_chr19_firstHalf.bed genes_chr19_secondHalf.bed \ # separate multiple files with spaces
-#   -S testFiles/log2ratio_*.bw  \ or use the wild card approach
-#   -b 3000 -a 3000 \
-#   --regionBodyLength 5000 \
-#   --skipZeros -o matrix2_multipleBW_l2r_twoGroups_scaled.gz \
-#   --outFileNameMatrix matrix2_multipleBW_l2r_twoGroups_scaled.tab \
-#   --outFileSortedRegions regions2_multipleBW_l2r_twoGroups_genes.bed
-#         """
-
-
 rule fpkm:
     input:
         sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.primary.bam"
@@ -731,5 +678,3 @@ rule fpkm:
 output_path={output.values}
 FPKM_count.py -i {input.sortedbam} -o ${{output_path%.*}} -r {params.bed} -d {params.FpkmCountStrandParam} -q 1
         """
-
-# --scaleFactor {params.sample_size_factor}
