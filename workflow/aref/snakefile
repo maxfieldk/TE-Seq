@@ -428,8 +428,8 @@ rule update_reference_extended_nonref_flank:
         reference = lambda w: config["update_ref_with_tldr"]["tldr_input_bam_ref"],
         tldroutput = "aref/{sample_or_ref}_tldr/{sample_or_ref}.table.txt"
     output:
-        updated_reference_plusflank = "aref/extended/{sample_or_ref}-pre-ins-filtering-plusflank.fa",
-        non_ref_contigs_plusflank = "aref/extended/{sample_or_ref}-pre-ins-filtering_nonrefcontigs-plusflank.fa"
+        updated_reference_plusflank = "aref/extended/{sample_or_ref}-pre-ins-filtering.fa",
+        non_ref_contigs_plusflank = "aref/extended/{sample_or_ref}-pre-ins-filtering_nonrefcontigs.fa"
     benchmark:
         "aref/benchmarks/update_reference/{sample_or_ref}.tsv"
     conda:
@@ -594,7 +594,7 @@ RepeatMasker -species "$species" -pa {resources.cpus_per_task} -gff {input.fasta
 rule getGtfs:
     input:
         rmout = "aref/{default_or_extended}/A.REF_repeatmasker/{sample_or_ref}-pre-ins-filtering_nonrefcontigs.fa.out",
-        rmref = "aref/{default_or_extended}/A.REF_repeatmasker/A.REF.repeatmasker_raw.out"
+        rmref = "aref/default/A.REF_repeatmasker/A.REF.repeatmasker_raw.out"
     params:
         module_prefix = config["prefix"]
     benchmark:
