@@ -47,7 +47,6 @@ dir.create(outputdir, recursive = TRUE, showWarnings = FALSE)
 
 
 dflist <- list()
-rm(sample_sequencing_data)
 for (sample in sample_table$sample_name) {
     if (conf$update_ref_with_tldr$per_sample == "yes") {
         df <- read.table(grep(sprintf("%s_tldr", sample), inputs$tldroutput, value = TRUE), header = TRUE) %>%
