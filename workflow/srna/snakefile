@@ -226,7 +226,7 @@ rule alignSTAR_PE:
         aref = "aref.done.outfile"
     retries: 3
     params:
-        index = lambda wildcards: "aref/%s_indeces/star_index"%(wildcards.sample) if config["per_sample_ref"] == "yes" else "aref/A.REF_indeces/star_index"
+        index = lambda wildcards: "aref/default/%s_indeces/star_index"%(wildcards.sample) if config["per_sample_ref"] == "yes" else "aref/default/A.REF_indeces/star_index"
     output:
         bam = temp("srna/outs/{sample}/star_output/Aligned.out.sam")
     benchmark:
@@ -273,7 +273,7 @@ rule featurecounts_genesandrtes_PE:
         countsmessy = "srna/outs/agg/featurecounts_genesandrtes/counts_messy.txt",
         counts = "srna/outs/agg/featurecounts_genesandrtes/counts.txt",
     params: 
-        gtf = "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf",
+        gtf = "aref/default/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf",
         featureCountsstrandparam = getFeatureCountsStrandParam()
     benchmark:
         "srna/benchmarks/featurecounts_genesandrtes_PE/featurecounts_genesandrtes_PE.tsv"
@@ -295,7 +295,7 @@ rule alignSTAR_SE:
         r1 = "srna/outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz"
     retries: 3
     params:
-        index = lambda wildcards: "aref/%s_indeces/star_index"%(wildcards.sample) if config["per_sample_ref"] == "yes" else "aref/A.REF_indeces/star_index"
+        index = lambda wildcards: "aref/default/%s_indeces/star_index"%(wildcards.sample) if config["per_sample_ref"] == "yes" else "aref/default/A.REF_indeces/star_index"
     output:
         bam = temp("srna/outs/{sample}/star_output/Aligned.out.sam")
     benchmark:
@@ -403,7 +403,7 @@ rule telescope:
         libtype = "srna/qc/library_type.txt",
     params:
         strandparam = getTelescopeStrandParam(),
-        gff = lambda wildcards: "aref/%s_annotations/%s_repeatmasker.gff2"%(wildcards.sample, wildcards.sample) if config["per_sample_ref"] == "yes" else "aref/A.REF_annotations/A.REF_repeatmasker.gff2"
+        gff = lambda wildcards: "aref/default/%s_annotations/%s_repeatmasker.gff2"%(wildcards.sample, wildcards.sample) if config["per_sample_ref"] == "yes" else "aref/default/A.REF_annotations/A.REF_repeatmasker.gff2"
     retries: 3
     output:
         counts = "srna/outs/{sample}/telescope/telescope-run_stats.tsv"
@@ -640,7 +640,7 @@ rule bigwigplots:
     params:
         r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
         r_repeatmasker_annotation = config["r_repeatmasker_annotation"],
-        txdbrefseq = "aref/A.REF_annotations/refseq.sqlite"
+        txdbrefseq = "aref/default/A.REF_annotations/refseq.sqlite"
     benchmark:
         "srna/benchmarks/bigwigplots/bigwigplots.tsv"
     output:
@@ -661,7 +661,7 @@ rule fpkm:
     input:
         sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.primary.bam"
     params:
-        bed = "aref/A.REF_annotations/A.REF_repeatmasker.complete.bed",
+        bed = "aref/default/A.REF_annotations/A.REF_repeatmasker.complete.bed",
         FpkmCountStrandParam = getFpkmCountStrandParam()
     output:
         values = "srna/outs/{sample}/star_output/{sample}.fpkm"

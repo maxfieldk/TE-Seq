@@ -59,7 +59,7 @@ rule align_to_updated_ref:
         fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq",
         aref = "aref.done.outfile"
     params:
-        ref = lambda wildcards: "aref/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF.fa"
+        ref = lambda wildcards: "aref/extended/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF.fa"
     output:
         sam = temp(expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sam",ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]))
     resources:
@@ -97,10 +97,10 @@ rule telometer_prep:
     input:
         aref = "aref.done.outfile"
     params:
-        ref = "aref/A.REF.fa",
+        ref = "aref/extended/A.REF.fa",
         stong_subtelo_fa = "/oscar/data/jsedivy/mkelsey/ref/sequences/stong_subtels.fa"
     output:
-        ref_telometer = "aref/A.REF_telometer.fa"
+        ref_telometer = "aref/extended/A.REF_telometer.fa"
     conda: "omics"
     resources:
         cpus_per_task =1,
@@ -115,7 +115,7 @@ samtools faidx {output.ref_telometer}
 rule telometer_align:
     input:
         fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq",
-        ref_telometer = "aref/A.REF_telometer.fa"
+        ref_telometer = "aref/extended/A.REF_telometer.fa"
     output:
         sam = temp(expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sam",ref_genome = "telometer", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]))
     resources:
@@ -458,7 +458,7 @@ rule modbamtobed:
         sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
         sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
     params:
-        ref = lambda wildcards: "/oscar/data/jsedivy/mkelsey/ref/genomes/hg38/hg38.p13.sorted.fa" if wildcards.ref_genome == "hg38" else "aref/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF.fa"
+        ref = lambda wildcards: "/oscar/data/jsedivy/mkelsey/ref/genomes/hg38/hg38.p13.sorted.fa" if wildcards.ref_genome == "hg38" else "aref/extended/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF.fa"
     resources:
         cpus_per_task = 36,
         mem_mb = 128000
@@ -628,7 +628,7 @@ rule extractmods:
     params:
         ref = config["ldna"]["reference"],
         ref_annotation_dir = config["ldna"]["reference_annotation_dir"],
-        region = lambda wildcards: "aref/%s_annotations/%s_rte_beds/outfile.txt"%(wildcards.sample, wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF_annotations/A.REF_rte_beds/outfile.txt"
+        region = lambda wildcards: "aref/extended/%s_annotations/%s_rte_beds/outfile.txt"%(wildcards.sample, wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF_annotations/A.REF_rte_beds/outfile.txt"
     resources:
         cpus_per_task = 8,
         mem_mb = 80000
@@ -656,7 +656,7 @@ rule extractmods_cg_context:
     params:
         ref = config["ldna"]["reference"],
         ref_annotation_dir = config["ldna"]["reference_annotation_dir"],
-        region = lambda wildcards: "aref/%s_annotations/%s_rte_beds/outfile.txt"%(wildcards.sample, wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF_annotations/A.REF_rte_beds/outfile.txt"
+        region = lambda wildcards: "aref/extended/%s_annotations/%s_rte_beds/outfile.txt"%(wildcards.sample, wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF_annotations/A.REF_rte_beds/outfile.txt"
     resources:
         cpus_per_task = 8,
         mem_mb = 80000
@@ -749,8 +749,8 @@ rule bedmethylanalysis_single_sample:
 rule insertion_analysis:
     params:
         filtered_tldr = lambda wildcards: expand("aref/{sample}_tldr/{sample}.table.kept_in_updated_ref.txt", sample = samples) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF_tldr/A.REF.table.kept_in_updated_ref.txt",
-        r_annotation_fragmentsjoined = lambda wildcards: expand("aref/{sample}_annotations/{sample}_repeatmasker.gtf.rformatted.fragmentsjoined.csv", sample = samples) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
-        r_repeatmasker_annotation = lambda wildcards: expand("aref/{sample}_annotations/{sample}_repeatmasker_annotation.csv", sample = samples) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF_annotations/A.REF_repeatmasker_annotation.csv"
+        r_annotation_fragmentsjoined = lambda wildcards: expand("aref/extended/{sample}_annotations/{sample}_repeatmasker.gtf.rformatted.fragmentsjoined.csv", sample = samples) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
+        r_repeatmasker_annotation = lambda wildcards: expand("aref/extended/{sample}_annotations/{sample}_repeatmasker_annotation.csv", sample = samples) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF_annotations/A.REF_repeatmasker_annotation.csv"
     output:
         plots = "ldna/results/insertion_analysis/insertion_analysis.rds",
     conda:
@@ -820,9 +820,9 @@ rule init_wgbstools_default_ref:
     input:
         aref = "aref.done.outfile"
     params:
-        ref = "aref/A.REF.fa"
+        ref = "aref/extended/A.REF.fa"
     output:
-        outfile = "aref/A.REF.analysis_default.wgbs.init.out"
+        outfile = "aref/extended/A.REF.analysis_default.wgbs.init.out"
     resources:
         runtime = 1000,
         mem_mb = 128000,
@@ -841,7 +841,7 @@ rule init_wgbstools_hg38:
     params:
         ref = "/oscar/data/jsedivy/mkelsey/ref/genomes/hg38/hg38.p13.sorted.fa"
     output:
-        outfile = "aref/A.REF.hg38.wgbs.init.out"
+        outfile = "aref/extended/A.REF.hg38.wgbs.init.out"
     resources:
         runtime = 1000,
         mem_mb = 128000,
@@ -855,7 +855,7 @@ touch {output.outfile}
         """
 rule wgbs_bam2pat:
     input:
-        outfile = "aref/A.REF.{ref_genome}.wgbs.init.out",
+        outfile = "aref/extended/A.REF.{ref_genome}.wgbs.init.out",
         bam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
     output:
         pat = expand("ldna/results/wgbs/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
@@ -986,7 +986,7 @@ rule methylartistlocusplot_loci_of_interest:
         sortedbam = expand("ldna/intermediates/{sample}/alignments/{rate}/{ref_genome}/{sample}.{type}.{modification_string}.sorted.filtered.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples),
         sortedbai = expand("ldna/intermediates/{sample}/alignments/{rate}/{ref_genome}/{sample}.{type}.{modification_string}.sorted.filtered.bam.bai", ref_genome = "analysis_default",rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples),
         dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
-        repeatmaskerbgz = "/users/mkelsey/data/Nanopore/alz/RTE/aref/A.REF_annotations/A.REF_repeatmasker.complete.gtf.gz",
+        repeatmaskerbgz = "/users/mkelsey/data/Nanopore/alz/RTE/aref/extended/A.REF_annotations/A.REF_repeatmasker.complete.gtf.gz",
     resources:
         runtime = 180,
         mem_mb = 5000
