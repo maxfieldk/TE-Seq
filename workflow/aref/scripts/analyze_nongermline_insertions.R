@@ -92,11 +92,6 @@ dffilt <- dfall %>%
     filter(Filter == "PASS") %>%
     filter(!is.na(TSD))
 
-
-rmfragments <- read_csv(conf$r_annotation_fragmentsjoined, col_names = TRUE)
-rmfamilies <- read_csv(conf$r_repeatmasker_annotation, col_names = TRUE)
-rmann <- left_join(rmfragments, rmfamilies)
-
 for (element_type in dffilt %$% Subfamily %>% unique()) {
     dftemp <- dffilt %>% filter(Subfamily == element_type)
     p <- dftemp %>%
