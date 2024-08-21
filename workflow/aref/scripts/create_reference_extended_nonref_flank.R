@@ -62,12 +62,21 @@ df <- df %>%
     mutate(ins_consensus_noflank = Consensus_lower[insLenMatch]) %>%
     mutate(ins_consensus_30flank = str_sub(Consensus, str_locate(Consensus, ins_consensus_noflank)[1] - 30, str_locate(Consensus, ins_consensus_noflank)[2] + 30))
 
+
 # fasta
 ss <- DNAStringSet(df %>% dplyr::arrange(faName) %$% ins_consensus_30flank)
 names(ss) <- df %>% dplyr::arrange(faName) %$% faName
 writeXStringSet(ss, outputs$non_ref_contigs, append = FALSE, format = "fasta")
 
+ss_plusflank <- DNAStringSet(df %>% dplyr::arrange(faName) %$% Consensus)
+names(ss_plusflank) <- df %>% dplyr::arrange(faName) %$% faName
+writeXStringSet(ss_plusflank, outputs$non_ref_contigs_plusflank, append = FALSE, format = "fasta")
+
 dir.create(dirname(outputs$updated_reference), recursive = TRUE, showWarnings = FALSE)
 system(sprintf("cp %s %s", inputs$reference, outputs$updated_reference))
 writeXStringSet(ss, outputs$updated_reference, append = TRUE, format = "fasta")
 system(sprintf("samtools faidx %s", outputs$updated_reference))
+
+system(sprintf("cp %s %s", inputs$reference, outputs$updated_reference_plusflank))
+writeXStringSet(ss_plusflank, outputs$updated_reference_plusflank, append = TRUE, format = "fasta")
+system(sprintf("samtools faidx %s", outputs$updated_reference_plusflank))
