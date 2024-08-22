@@ -30,14 +30,14 @@ tryCatch(
     error = function(e) {
         assign("inputs", list(
             tldroutput = "aref/A.REF_tldr/A.REF.table.txt",
-            r_annotation_fragmentsjoined = "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
-            r_repeatmasker_annotation = "aref/A.REF_annotations/A.REF_repeatmasker_annotation.csv",
-            ref = "aref/ref_pre_ins_filtering.fa",
-            contigs_to_keep = "aref/contigs_to_keep.txt",
+            r_annotation_fragmentsjoined = "aref/default/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
+            r_repeatmasker_annotation = "aref/default/A.REF_annotations/A.REF_repeatmasker_annotation.csv",
+            ref = "aref/default/ref_pre_ins_filtering.fa",
+            contigs_to_keep = "aref/default/contigs_to_keep.txt",
             filtered_tldr = "aref/A.REF_tldr/A.REF.table.kept_in_updated_ref.txt"
         ), env = globalenv())
         assign("outputs", list(
-            plots = "aref/A.REF_Analysis/tldr_plots/tldr_plots.rds"
+            plots = "aref/default/A.REF_Analysis/tldr_plots/tldr_plots.rds"
         ), env = globalenv())
     }
 )
@@ -184,4 +184,5 @@ trsd %>% head(n = 4) %$% Transduction_3p
 
 trsd %$% TransductionLen %>% summary()
 
-save(mysaveandstoreplots, file = outputs$plots)
+x <- tibble(OUT = "")
+write_tsv(x, file = outputs$plots)

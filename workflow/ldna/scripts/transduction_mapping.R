@@ -519,4 +519,5 @@ mysaveandstore(sprintf("%s/l1hs_intact_tree_gapped.pdf", outputdir), w = 5, h = 
 
 ####
 
-save(mysaveandstoreplots, file = outputs$plots)
+x <- tibble(OUT = "")
+write_tsv(x, file = outputs$plots)

@@ -16,11 +16,11 @@ tryCatch(
     error = function(e) {
         print("not sourced snake variables")
         assign("inputs", list(
-            "r_annotation_fragmentsjoined" = "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
-            "r_repeatmasker_annotation" = "aref/A.REF_annotations/A.REF_repeatmasker_annotation.csv"
+            "r_annotation_fragmentsjoined" = "aref/default/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
+            "r_repeatmasker_annotation" = "aref/default/A.REF_annotations/A.REF_repeatmasker_annotation.csv"
         ), env = globalenv())
         assign("outputs", list(
-            "outfile" = "aref/A.REF_annotations/rte_beds/outfile.txt"
+            "outfile" = "aref/default/A.REF_annotations/rte_beds/outfile.txt"
         ), env = globalenv())
     }
 )

@@ -467,4 +467,5 @@ tryCatch(
 
 ##########
 
-save(mysaveandstoreplots, file = outputs$plots)
+x <- tibble(OUT = "")
+write_tsv(x, file = outputs$plots)

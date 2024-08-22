@@ -453,9 +453,9 @@ samtools faidx {output.ref}
 
 rule get_repeatmasker_raw:
     input:
-        out = "aref/A.REF_repeatmasker/A.REF.repeatmasker_raw.out"
+        out = "aref/default/A.REF_repeatmasker/A.REF.repeatmasker_raw.out"
     output:
-        repeatmasker = "aref/{sample_or_ref}_repeatmasker/A.REF_repeatmasker_raw.gtf"
+        repeatmasker = "aref/default/{sample_or_ref}_repeatmasker/A.REF_repeatmasker_raw.gtf"
     benchmark:
         "aref/benchmarks/get_repeatmasker_raw/{sample_or_ref}.tsv"
     shell:
@@ -468,11 +468,11 @@ rm {output.repeatmasker}.unsorted
 
 checkpoint index_reference:
     input:
-        reference = "aref/{sample_or_ref}.fa"
+        reference = "aref/{default_or_extended}/{sample_or_ref}.fa"
     output:
-        reference_index = "aref/{sample_or_ref}.fa.fai"
+        reference_index = "aref/{default_or_extended}/{sample_or_ref}.fa.fai"
     benchmark:
-        "aref/benchmarks/index_reference/{sample_or_ref}.tsv"
+        "aref/benchmarks/index_reference/{sample_or_ref}_{default_or_extended}.tsv"
     conda:
         "omics"
     shell:
@@ -514,7 +514,7 @@ rule repeatmasker_whole_genome:
     benchmark:
         "aref/benchmarks/repeatmasker_whole_genome/repeatmasker_whole_genome.{chromosome}.tsv"
     output:
-        rmout = "aref/A.REF_repeatmasker/wholegenome/A.REF_{chromosome}.fa.out"
+        rmout = "aref/default/A.REF_repeatmasker/wholegenome/A.REF_{chromosome}.fa.out"
     resources:
         cpus_per_task =20,
         runtime = 1000,
@@ -536,7 +536,7 @@ def merge_outs_wholegenome_input(wildcards):
     #call checkpoint output just to register rule merge_rm_out_wholegenome as dependent on the move_staring_reference rule
     checkpoint_output = checkpoints.index_reference.get().output[0]
     if os.path.exists("aref/default/A.REF.fa.fai"):
-        return expand("aref/default/A.REF_repeatmasker/wholegenome/A.REF_{chromosome}.fa.out", chromosome = pd.read_table("aref/A.REF.fa.fai", header = None)[0].tolist())
+        return expand("aref/default/A.REF_repeatmasker/wholegenome/A.REF_{chromosome}.fa.out", chromosome = pd.read_table("aref/default/A.REF.fa.fai", header = None)[0].tolist())
     else:
         return "TEMP"
 rule merge_rm_out_wholegenome:

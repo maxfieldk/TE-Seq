@@ -16,8 +16,8 @@ tryCatch(
             reference = "../genome_files/reference.ucsc.fa"
         ), env = globalenv())
         assign("outputs", list(
-            updated_reference = "aref/A.REF-pre-ins-filtering.fa",
-            non_ref_contigs = "aref/A.REF-pre-ins-filtering_nonrefcontigs.fa"
+            updated_reference = "aref/default/A.REF-pre-ins-filtering.fa",
+            non_ref_contigs = "aref/default/A.REF-pre-ins-filtering_nonrefcontigs.fa"
         ), env = globalenv())
     }
 )

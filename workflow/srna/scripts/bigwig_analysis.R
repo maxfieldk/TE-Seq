@@ -47,7 +47,7 @@ tryCatch(
             "outputdir" = "srna/results/agg/repeatanalysis",
             "r_annotation_fragmentsjoined" = conf$r_annotation_fragmentsjoined,
             "r_repeatmasker_annotation" = conf$r_repeatmasker_annotation,
-            txdbrefseq = "aref/A.REF_annotations/refseq.sqlite"
+            txdbrefseq = "aref/default/A.REF_annotations/refseq.sqlite"
         ), env = globalenv())
         assign("inputs", list(
             bwF = sprintf("srna/outs/%s/star_output/%s.F.bw", conf$samples, conf$samples),
@@ -239,7 +239,7 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
                                 mutate(smoothed_condition_value = zoo::rollmean(condition_value, 5, fill = NA, align = "left")) %>%
                                 ungroup()
 
-                            element_anatomy <- read_delim("aref/A.REF_Analysis/intact_l1_anatomy_coordinates.tsv")
+                            element_anatomy <- read_delim("aref/default/A.REF_Analysis/intact_l1_anatomy_coordinates.tsv")
                             representative_element <- element_anatomy %>%
                                 filter(gene_id == element_anatomy$gene_id[1]) %>%
                                 filter(!(feature %in% c("EN", "RT")))

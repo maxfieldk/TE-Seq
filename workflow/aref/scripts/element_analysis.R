@@ -40,14 +40,14 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            r_annotation_fragmentsjoined = "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
-            r_repeatmasker_annotation = "aref/A.REF_annotations/A.REF_repeatmasker_annotation.csv",
-            ref = "aref/A.REF.fa"
+            r_annotation_fragmentsjoined = "aref/default/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
+            r_repeatmasker_annotation = "aref/default/A.REF_annotations/A.REF_repeatmasker_annotation.csv",
+            ref = "aref/default/A.REF.fa"
         ), env = globalenv())
         assign("params", list(l13 = conf$l13fasta), env = globalenv())
         assign("outputs", list(
-            outfile = "aref/A.REF_Analysis/l1element_analysis.outfile",
-            plots = "aref/A.REF_Analysis/l1element_analysis.rds"
+            outfile = "aref/default/A.REF_Analysis/l1element_analysis.outfile",
+            plots = "aref/default/A.REF_Analysis/l1element_analysis.rds"
         ), env = globalenv())
     }
 )

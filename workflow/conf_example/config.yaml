@@ -40,8 +40,8 @@ aref:
   ref_cpgislands: resources/genomes/hs1/annotations/cpgislands.tsv
   l13fasta: resources/sequences/l1.3.fa
   #PATHS TO FILES WHICH WILL BE CREATED
-  ref: aref/A.REF.fa
-  ref_index: aref/A.REF.fa.fai
+  ref: aref/default/A.REF.fa
+  ref_index: aref/default/A.REF.fa.fai
 
   #MODULE SETTINGS
   prefix: aref
@@ -151,15 +151,15 @@ srna:
     Senescence: resources/genesets/human/mycustom/senescence.txt
     InflammatoryGenes: resources/genesets/human/mycustom/inflammatory.txt
 
-  annotation_genes: "aref/A.REF_annotations/refseq.gtf"
-  annotation_genes_bed12: "aref/A.REF_annotations/refseq.bed"
+  annotation_genes: "aref/default/A.REF_annotations/refseq.gtf"
+  annotation_genes_bed12: "aref/default/A.REF_annotations/refseq.bed"
 
   gtf_id_mapping: #in the event that gene_id in annotation genes is not symbol, you can pass a df with gene_id and gene_name cols, and gene_id will be swapped for gene_name in during enrichment analysis 
     response: "no"
     path: "/users/mkelsey/data/elif3/TE-Seq/aref/A.REF_annotations/refseq_id_mapping.tsv"
     
-  r_annotation_fragmentsjoined: "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv"
-  r_repeatmasker_annotation: "aref/A.REF_annotations/A.REF_repeatmasker_annotation.csv"
+  r_annotation_fragmentsjoined: "aref/default/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv"
+  r_repeatmasker_annotation: "aref/default/A.REF_annotations/A.REF_repeatmasker_annotation.csv"
 
 ldna:
   ##      ANALYSIS PARAMETERES       ##
@@ -198,31 +198,31 @@ ldna:
   MINIMUM_COVERAGE_FOR_METHYLATION_ANALYSIS: 7
   SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS: ""
   reference_annotation_dir: "aref"
-  reference: "aref/A.REF.fa"
-  annotation: "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf"
-  refseq_unaltered: "aref/A.REF_annotations/refseq.gff3"
-  refseq: "aref/A.REF_annotations/refseq.complete.gtf"
-  cytobands: aref/A.REF_annotations/cytobands.bed
+  reference: "aref/extended/A.REF.fa"
+  annotation: "aref/extended/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf"
+  refseq_unaltered: "aref/extended/A.REF_annotations/refseq.gff3"
+  refseq: "aref/default/A.REF_annotations/refseq.complete.gtf"
+  cytobands: aref/extended/A.REF_annotations/cytobands.bed
   ccres: /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations3/cCREs/hs1-imr90-cCREsCuratedWithClosestGene.bed
-  telomere: aref/A.REF_annotations/telomeres.bed
+  telomere: aref/extended/A.REF_annotations/telomeres.bed
   censat: /users/mkelsey/data/ref/genomes/hs1/annotations7/chm13v2.0_censat_v2.0.bed
   chromHMM: /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations7/ENCFF965JOC_lungfibroblast_chromHMM_hs1.bed
 
-  refseqbgz: "aref/A.REF_annotations/refseq.complete.gff3.gz"
-  repeatmasker: "aref/A.REF_annotations/A.REF_repeatmasker.complete.gtf"
-  repeatmaskerbgz: "aref/A.REF_annotations/A.REF_repeatmasker.complete.gff3.gz"
-  ref_cytobands: "aref/A.REF_annotations/cytobands.bed"
-  cpg_islands: aref/A.REF_annotations/cpg_islands.bed
-  cpgi_shores: aref/A.REF_annotations/cpgi_shores.bed
-  cpgi_shelves: aref/A.REF_annotations/cpgi_shelves.bed
-  clinvar_bgz: aref/A.REF_annotations/clinvar.vcf.gz
-  clinvar_tbi: aref/A.REF_annotations/clinvar.vcf.tbi
+  refseqbgz: "aref/default/A.REF_annotations/refseq.complete.gff3.gz"
+  repeatmasker: "aref/extended/A.REF_annotations/A.REF_repeatmasker.complete.gtf"
+  repeatmaskerbgz: "aref/extended/A.REF_annotations/A.REF_repeatmasker.complete.gff3.gz"
+  ref_cytobands: "aref/extended/A.REF_annotations/cytobands.bed"
+  cpg_islands: aref/extended/A.REF_annotations/cpg_islands.bed
+  cpgi_shores: aref/extended/A.REF_annotations/cpgi_shores.bed
+  cpgi_shelves: aref/extended/A.REF_annotations/cpgi_shelves.bed
+  clinvar_bgz: aref/extended/A.REF_annotations/clinvar.vcf.gz
+  clinvar_tbi: aref/extended/A.REF_annotations/clinvar.vcf.tbi
   vcfanno_clinvar_toml: conf/clinvar.vcfanno.toml
-  intact_l1_anatomy_coordinates: aref/intact_l1_anatomy_coordinates.tsv
-  r_annotation_fragmentsjoined: "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv"
-  r_repeatmasker_annotation: "aref/A.REF_annotations/A.REF_repeatmasker_annotation.csv"
-  rmann: "aref/A.REF_annotations/A.REF_rmann.csv"
-  l1hsintact: "aref/A.REF_annotations/l1hsintact.bed"
+  intact_l1_anatomy_coordinates: aref/extended/A.REF_analysis/intact_l1_anatomy_coordinates.tsv
+  r_annotation_fragmentsjoined: "aref/extended/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv"
+  r_repeatmasker_annotation: "aref/extended/A.REF_annotations/A.REF_repeatmasker_annotation.csv"
+  rmann: "aref/extended/A.REF_annotations/A.REF_rmann.csv"
+  l1hsintact: "aref/extended/A.REF_annotations/l1hsintact.bed"
   methylartist_loci_of_interest: "conf/ldna_methylartist_loci_of_interest.bed"
   methylartist_bam_config: "conf/ldna_methylartist_bam_config.txt"
   l13orfs: "/users/mkelsey/data/ref/sequences/l1.3.orfs.txt"
@@ -324,31 +324,31 @@ lrna:
 
   paralellize_bioc: 8
 
-  dorado: "/users/mkelsey/data/tools/dorado-0.6.2-linux-x64/bin/dorado"
+  dorado: "/users/mkelsey/data/tools/dorado-0.7.2-linux-x64/bin/dorado"
   guppy: "/oscar/data/jsedivy/mkelsey/tools/ont-guppy/bin/guppy_basecaller"
   guppy_config: "/oscar/data/jsedivy/mkelsey/tools/ont-guppy/data/rna_r9.4.1_70bps_sup.cfg"
 
-  reference: "aref/A.REF.fa"
-  rtes_genes_gtf: "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf"
+  reference: "aref/default/A.REF.fa"
+  rtes_genes_gtf: "aref/default/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf"
 
   junctionbed: "/users/mkelsey/data/ref/genomes/hs1/refseq_2023_10/GCF_009914755.1_T2T-CHM13v2.0_genomic.ucscnames.bed"
   referencetranscriptome: "/oscar/data/jsedivy/mkelsey/ref/transcriptome/GRCh38_latest_rna_andRCS.fna"
 
   ## new additions
-  annotation_genes: "aref/A.REF_annotations/refseq.gtf"
+  annotation_genes: "aref/default/A.REF_annotations/refseq.gtf"
   annotation_genes_bed12: "/oscar/data/jsedivy/mkelsey/ref/genomes/hs1/refseq_2023_10/GCF_009914755.1_T2T-CHM13v2.0_genomic.ucscnames.bed"
-  annotation_genesandrtes: "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf"
-  annotation_rtes: "aref/A.REF_annotations/A.REF_repeatmasker.gff2"
-  annotation_genesandrtes_fasta: "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.fa"
+  annotation_genesandrtes: "aref/default/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf"
+  annotation_rtes: "aref/default/A.REF_annotations/A.REF_repeatmasker.gff2"
+  annotation_genesandrtes_fasta: "aref/default/A.REF_annotations/A.REF_repeatmasker_refseq.complete.fa"
 
   gtf_id_mapping: #in the event that gene_id in annotation genes is not symbol, you can pass a df with gene_id and gene_name cols, and gene_id will be swapped for gene_name in during enrichment analysis 
     response: "no"
     path: "/users/mkelsey/data/elif3/TE-Seq/aref/A.REF_annotations/refseq_id_mapping.tsv"
     
-  r_annotation_fragmentsjoined: "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv"
-  r_repeatmasker_annotation: "aref/A.REF_annotations/A.REF_repeatmasker_annotation.csv"
-  txdb: "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.sqlite"
-  cytobands: "aref/A.REF_annotations/cytobands.bed"
+  r_annotation_fragmentsjoined: "aref/default/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv"
+  r_repeatmasker_annotation: "aref/default/A.REF_annotations/A.REF_repeatmasker_annotation.csv"
+  txdb: "aref/default/A.REF_annotations/A.REF_repeatmasker_refseq.complete.sqlite"
+  cytobands: "aref/default/A.REF_annotations/cytobands.bed"
   mycoplasma: "/users/mkelsey/data/ref/genomes/mycoplasma/mycoplasma.fa"
 
   rte_subfamily_read_level_analysis:
