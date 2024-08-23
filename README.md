@@ -17,7 +17,7 @@ It also aims address concerns pertaining to:
 
 This project derives from my work in the __Sedivy Lab at Brown University__, where we study transposable elements, in particular __LINE1__.
 #
-![workflow_graphic](https://github.com/user-attachments/assets/46fe2120-b7c9-46bb-84e8-a5b830a74c1d)
+[MCB_RETREAT_POSTER_2024_FINAL.pdf](https://github.com/user-attachments/files/16732613/MCB_RETREAT_POSTER_2024_FINAL.pdf)
 
 
 ## Pipeline Overview
