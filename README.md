@@ -249,9 +249,8 @@ CTRL F to the only occurrence of "conf$species". You will find two blocks of cod
   ```
   snakemake --profile workflow/profile/default --report report.html
   ```
-  In the event that a rule fails, all hope is not lost!
+  In the event that a rule fails, all hope is not lost! Failed jobs will be retried twice by default, increasing resource specifications at each pass. Logs are automatically kept facilitating the tracing of any persistent error.     
   I recommend familiarizing yourself with the basics of Snakemake before embarking on a complex analysis with this pipeline. For help with Snakemake, consult its highly usable and detailed docs at https://snakemake.readthedocs.io/en/stable/index.html  
-  For help with git, consult https://git-scm.com/docs/gittutorial  
   If you encounter problems, please create a new issue on the github page.  
 
 
