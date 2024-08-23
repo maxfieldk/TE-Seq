@@ -145,4 +145,5 @@ p <- df %>%
     ggtitle("Non-reference RTE Insertions")
 mysaveandstore(sprintf("%s/insertions_subfamily.pdf", outputdir), 5, 5)
 
-save(mysaveandstoreplots, file = outputs$plots)
+x <- tibble(OUT = "")
+write_tsv(x, file = outputs$plots)

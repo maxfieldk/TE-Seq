@@ -42,14 +42,14 @@ tryCatch(
     error = function(e) {
         assign("inputs", list(
             filtered_tldr = "aref/A.REF_tldr/A.REF.table.kept_in_updated_ref.txt",
-            r_annotation_fragmentsjoined = "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
-            r_repeatmasker_annotation = "aref/A.REF_annotations/A.REF_repeatmasker_annotation.csv",
-            ref = "aref/A.REF.fa",
-            blast_njs = "aref/A.REF.njs"
+            r_annotation_fragmentsjoined = "aref/default/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
+            r_repeatmasker_annotation = "aref/default/A.REF_annotations/A.REF_repeatmasker_annotation.csv",
+            ref = "aref/default/A.REF.fa",
+            blast_njs = "aref/default/A.REF.njs"
         ), env = globalenv())
         assign("outputs", list(
-            plots = "aref/A.REF_Analysis/tldr_plots/transduction_mapping.rds",
-            transduction_df = "aref/A.REF_Analysis/transduction_df.csv"
+            plots = "aref/default/A.REF_Analysis/tldr_plots/transduction_mapping.rds",
+            transduction_df = "aref/default/A.REF_Analysis/transduction_df.csv"
         ), env = globalenv())
         assign("params", list(
             sample_or_ref = "A.REF"
@@ -175,7 +175,7 @@ mysaveandstore(sprintf("%s/Transduction_based_offspring_per_source_element.pdf",
 })
 
 #PHYLOGENY BASED MAPPING OF INTACT ELEMENTS
-for (alignment in list.files(sprintf("aref/%s_Analysis", params$sample_or_ref), pattern = "_intact.aln.fa", full.names = TRUE)) {
+for (alignment in list.files(sprintf("aref/default/%s_Analysis", params$sample_or_ref), pattern = "_intact.aln.fa", full.names = TRUE)) {
     tryCatch({
     element_name <- gsub("_intact.aln.fa", "", alignment) %>% gsub(".*/", "", .)
 
@@ -265,5 +265,5 @@ for (alignment in list.files(sprintf("aref/%s_Analysis", params$sample_or_ref), 
 })
 }
 
-
-save(mysaveandstoreplots, file = outputs$plots)
+x <- tibble(OUT = "")
+write_tsv(x, file = outputs$plots)

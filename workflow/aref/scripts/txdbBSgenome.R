@@ -18,14 +18,14 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            refseq = "aref/A.REF_annotations/refseq.gff3",
-            repeatmasker = "aref/A.REF_annotations/A.REF_repeatmasker.complete.gff3",
-            genome2bit = "aref/A.REF.2bit"
+            refseq = "aref/default/A.REF_annotations/refseq.gff3",
+            repeatmasker = "aref/default/A.REF_annotations/A.REF_repeatmasker.complete.gff3",
+            genome2bit = "aref/default/A.REF.2bit"
         ), env = globalenv())
         assign("outputs", list(
-            txdb = "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.sqlite",
-            txdbrefseq = "aref/A.REF_annotations/refseq.sqlite",
-            txdbrepeatmasker = "aref/A.REF_annotations/A.REF_repeatmasker.complete.sqlite"
+            txdb = "aref/default/A.REF_annotations/A.REF_repeatmasker_refseq.complete.sqlite",
+            txdbrefseq = "aref/default/A.REF_annotations/refseq.sqlite",
+            txdbrepeatmasker = "aref/default/A.REF_annotations/A.REF_repeatmasker.complete.sqlite"
         ), env = globalenv())
     }
 )

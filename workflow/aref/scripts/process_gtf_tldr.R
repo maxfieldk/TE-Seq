@@ -16,17 +16,17 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            gtf = "aref/A.REF_repeatmasker/A.REF_repeatmasker_raw.gtf",
-            ref_cytobands = "aref/A.REF_annotations/cytobands.bed",
+            gtf = "aref/default/A.REF_repeatmasker/A.REF_repeatmasker_raw.gtf",
+            ref_cytobands = "aref/default/A.REF_annotations/cytobands.bed",
             tldroutput = "aref/A.REF_tldr/A.REF.table.txt",
-            ref = "aref/A.REF-pre-ins-filtering.fa"
+            ref = "aref/default/A.REF-pre-ins-filtering.fa"
         ), env = globalenv())
         assign("outputs", list(
-            contigs_to_keep = "aref/contigs_to_keep.txt",
+            contigs_to_keep = "aref/default/contigs_to_keep.txt",
             filtered_tldr = "aref/A.REF_tldr/A.REF.table.kept_in_updated_ref.txt",
-            repmask_gff2 = "aref/A.REF_annotations/A.REF_repeatmasker.gff2",
-            repmask_gff3 = "aref/A.REF_annotations/A.REF_repeatmasker.gff3",
-            r_annotation_fragmentsjoined = "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv"
+            repmask_gff2 = "aref/default/A.REF_annotations/A.REF_repeatmasker.gff2",
+            repmask_gff3 = "aref/default/A.REF_annotations/A.REF_repeatmasker.gff3",
+            r_annotation_fragmentsjoined = "aref/default/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv"
         ), env = globalenv())
     }
 )

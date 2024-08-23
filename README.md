@@ -225,7 +225,7 @@ Make sure your fastq file naming is consistent with the naming scheme set forth 
   The "samples" , "sample_table", and "levels" keys in the aref section of the config are only relevant if creating a custom reference genome using long-read dna sequencing, and you can ignore these values if you are not using this feature. The same is true for the associated sample_table file, conf/sample_table_aref.csv, which will not be used in this case. 
 ### SRNA
   The "per_sample_ref" key's value instructs the pipeline as to whether each sample has its own unique reference and TE annotations ("yes"; this situtaion occurs when you have nanopore DNA sequencing on all samples and wish to use custom references), or whether all samples will be using the same reference and TE annotations.  
-  
+  In order to rule out mycoplasma contamination of cultured cells, reads are mapped to a collection of mycoplasma genomes (nearly 100% of reads should then fail to map). This is done by default. Insofar as your samples are not cultured cells, you can omit this step by switching the "srna" "map_to_mycoplasma" key's value from "yes" to "no". 
 ## Applying this pipeline to non-human/mouse species.
 Several additional parameters will need to be specified.
 1. Change the aref species key's value in conf/config.yaml to a valid NCBI Taxonomy Database species name which is also contained in the RepeatMasker repeat database. 

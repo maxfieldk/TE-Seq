@@ -920,12 +920,8 @@ for (collec in gse_df %$% collection %>% unique()) {
     mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/unbiased/gsea_top_%s_grid_3_2.pdf", collec), 6, 1 * length(sigIDs))
 }
 
-if (conf$store_env_as_rds == "yes") {
-    save.image(file = outputs$environment)
-} else {
-    x <- tibble(Env_file = "Opted not to store environment. If this is not desired, change 'store_plots_as_rds' to 'yes' in the relevant config file and rerun this rule.")
-    write_tsv(x, file = outputs$environment)
-}
+x <- tibble(OUT = "")
+write_tsv(x, file = outputs$environment)
 
 # figures: modify plot compositions at will!
 # load(outputs$environment)

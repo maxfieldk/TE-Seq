@@ -1,2 +1,3 @@
-"sample_name","condition"
-"X3TC1","X3TC"
+"sample_name","condition","nanopore_rawdata_dir"
+"PRO1","PRO","/users/mkelsey/data/LF1/RTE/ldna/rawdata/5khz/PRO1"
+"SEN1","SEN","/users/mkelsey/data/LF1/RTE/ldna/rawdata/5khz/SEN1"

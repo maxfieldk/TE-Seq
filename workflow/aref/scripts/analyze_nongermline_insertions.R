@@ -47,7 +47,6 @@ dir.create(outputdir, recursive = TRUE, showWarnings = FALSE)
 
 
 dflist <- list()
-rm(sample_sequencing_data)
 for (sample in sample_table$sample_name) {
     if (conf$update_ref_with_tldr$per_sample == "yes") {
         df <- read.table(grep(sprintf("%s_tldr", sample), inputs$tldroutput, value = TRUE), header = TRUE) %>%
@@ -92,11 +91,6 @@ dffilt <- dfall %>%
     filter(SpanReads == 1) %>%
     filter(Filter == "PASS") %>%
     filter(!is.na(TSD))
-
-
-rmfragments <- read_csv(conf$r_annotation_fragmentsjoined, col_names = TRUE)
-rmfamilies <- read_csv(conf$r_repeatmasker_annotation, col_names = TRUE)
-rmann <- left_join(rmfragments, rmfamilies)
 
 for (element_type in dffilt %$% Subfamily %>% unique()) {
     dftemp <- dffilt %>% filter(Subfamily == element_type)
@@ -473,4 +467,5 @@ tryCatch(
 
 ##########
 
-save(mysaveandstoreplots, file = outputs$plots)
+x <- tibble(OUT = "")
+write_tsv(x, file = outputs$plots)
