@@ -18,9 +18,7 @@ It also aims address concerns pertaining to:
 - the quality of TE annotations.
 
 This project derives from my work in the __Sedivy Lab at Brown University__, where we study transposable elements, in particular __LINE1__.
-![Asset 3](https://github.com/user-attachments/assets/4a3931e9-d2bf-4279-9119-b14786574d83)
-
-
+<img src="https://github.com/user-attachments/assets/4a3931e9-d2bf-4279-9119-b14786574d83" width="2000">
 ## Pipeline Overview
   This pipeline conducts an end-to-end analysis of raw sequencing data, implementing state of the art TE-minded computational methods. It produces a comprehensive analyses of repetitive element expression at both the level of an individual repetitive element as well as family groupings of these elements. It consists of 4 modules, "Annotate Referene" (AREF), short-read RNA-Seq (SRNA), long-read RNA-Seq (LRNA), and long-read DNA-Seq (LDNA). LRNA and LDNA remain in active development and will be formally released at a future date. Accordingly, this guide pertains only to the AREF and SRNA modules. 
 
