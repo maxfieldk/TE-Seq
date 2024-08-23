@@ -1,7 +1,7 @@
 # TE-Seq: A Transposable Element Annotation & RNA-Seq Pipeline
 [![Snakemake](https://img.shields.io/badge/snakemake-≥8.0.0-brightgreen.svg)](https://snakemake.github.io)
-
-
+<img width="1665" alt="Screenshot 2024-08-23 at 3 23 28 PM" src="https://github.com/user-attachments/assets/a7148bf4-412a-4250-b539-ce3959e38fb0">
+[TE-SEQ_POSTER.pdf](https://github.com/user-attachments/files/16732892/MCB_RETREAT_POSTER_2024_FINAL.pdf)
 
 This project consists of a __snakemake pipeline__ to analyze transposable element (TE) sequencing data.
 
@@ -18,7 +18,7 @@ It also aims address concerns pertaining to:
 - the quality of TE annotations.
 
 This project derives from my work in the __Sedivy Lab at Brown University__, where we study transposable elements, in particular __LINE1__.
-<img src="https://github.com/user-attachments/assets/4a3931e9-d2bf-4279-9119-b14786574d83" width="2000">
+
 ## Pipeline Overview
   This pipeline conducts an end-to-end analysis of raw sequencing data, implementing state of the art TE-minded computational methods. It produces a comprehensive analyses of repetitive element expression at both the level of an individual repetitive element as well as family groupings of these elements. It consists of 4 modules, "Annotate Referene" (AREF), short-read RNA-Seq (SRNA), long-read RNA-Seq (LRNA), and long-read DNA-Seq (LDNA). LRNA and LDNA remain in active development and will be formally released at a future date. Accordingly, this guide pertains only to the AREF and SRNA modules. 
 
