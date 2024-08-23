@@ -4,7 +4,7 @@ channels:
   - bioconda
   - defaults
 dependencies:
-  - python[version='>=3.7']
+  - python[version='<3.9']
   - future
   - pyyaml
   - cython
@@ -15,6 +15,7 @@ dependencies:
   - intervaltree
   - pandas
   - samtools
+  - pip
   - pip:
     - git+https://github.com/mlbendall/telescope.git@sc_remove
 prefix: telescope3
