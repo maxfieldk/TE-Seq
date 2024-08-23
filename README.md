@@ -1,7 +1,6 @@
 # TE-Seq: A Transposable Element Annotation & RNA-Seq Pipeline
 [![Snakemake](https://img.shields.io/badge/snakemake-≥8.0.0-brightgreen.svg)](https://snakemake.github.io)
 
-<img src="https://github.com/user-attachments/assets/d148f7ad-07ca-47a6-ad58-046e4aa802ab" width="100%">
 
 
 This project consists of a __snakemake pipeline__ to analyze transposable element (TE) sequencing data.
@@ -19,6 +18,7 @@ It also aims address concerns pertaining to:
 - the quality of TE annotations.
 
 This project derives from my work in the __Sedivy Lab at Brown University__, where we study transposable elements, in particular __LINE1__.
+![Asset 3](https://github.com/user-attachments/assets/4a3931e9-d2bf-4279-9119-b14786574d83)
 
 
 ## Pipeline Overview
