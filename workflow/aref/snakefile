@@ -30,7 +30,17 @@ def aref_complete_input(wildcards):
         d_or_e = ["default"]
 
     paths = [
-
+        "aref/default/A.REF_Analysis/l1element_analysis.rds",
+        "aref/default/A.REF_annotations/refseq.complete.gff3.gz.tbi",
+        "aref/default/A.REF_annotations/refseq.complete.gtf.gz.tbi",
+        expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker.complete.gff3.gz.tbi",default_or_extended = d_or_e),
+        expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker.complete.gtf.gz.tbi",default_or_extended = d_or_e),
+        expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf",default_or_extended = d_or_e),
+        expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gff3",default_or_extended = d_or_e),
+        expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker.complete.bed",default_or_extended = d_or_e),
+        expand("aref/{default_or_extended}/A.REF_annotations/A.REF_rte_beds/outfile.txt",default_or_extended = d_or_e),
+        expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker_refseq.complete.sqlite",default_or_extended = d_or_e),
+        expand("aref/{default_or_extended}/A.REF_annotations/cytobands.bed",default_or_extended = d_or_e),
     ]
 
     if config["update_ref_with_tldr"]["response"] == "yes":
@@ -63,17 +73,7 @@ def aref_complete_input(wildcards):
 
     else:
         paths.append("aref/default/A.REF_indeces/make_star_index.out")
-        paths.append("aref/default/A.REF_annotations/refseq.complete.gff3.gz.tbi"),
-        paths.append("aref/default/A.REF_annotations/refseq.complete.gtf.gz.tbi"),
-        paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_Analysis/l1element_analysis.rds", default_or_extended = d_or_e))
-        paths.append(expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker.complete.gff3.gz.tbi",default_or_extended = d_or_e)),
-        paths.append(expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker.complete.gtf.gz.tbi",default_or_extended = d_or_e)),
-        paths.append(expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf",default_or_extended = d_or_e)),
-        paths.append(expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gff3",default_or_extended = d_or_e)),
-        paths.append(expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker.complete.bed",default_or_extended = d_or_e)),
-        paths.append(expand("aref/{default_or_extended}/A.REF_annotations/A.REF_rte_beds/outfile.txt",default_or_extended = d_or_e)),
-        paths.append(expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker_refseq.complete.sqlite",default_or_extended = d_or_e)),
-        paths.append(expand("aref/{default_or_extended}/A.REF_annotations/cytobands.bed",default_or_extended = d_or_e)),
+
 
     if config["running_ldna"]["response"] == "yes":
         paths.append("aref/extended/A.REF_annotations/cpg_islands.bed")
@@ -482,7 +482,7 @@ rule copy_starting_reference:
         "omics"
     priority: 100
     output:
-        ref = "aref/default/A.REF.fa"
+        ref = "aref/{default_or_extended}/A.REF.fa"
     shell:
         """
 cp {params.ref} {output.ref}
@@ -491,11 +491,11 @@ samtools faidx {output.ref}
 
 rule get_repeatmasker_raw:
     input:
-        out = "aref/default/A.REF_repeatmasker/A.REF.repeatmasker_raw.out"
+        out = "aref/{default_or_extended}/A.REF_repeatmasker/A.REF.repeatmasker_raw.out"
     output:
-        repeatmasker = "aref/default/{sample_or_ref}_repeatmasker/A.REF_repeatmasker_raw.gtf"
+        repeatmasker = "aref/{default_or_extended}/{sample_or_ref}_repeatmasker/A.REF_repeatmasker_raw.gtf"
     benchmark:
-        "aref/benchmarks/get_repeatmasker_raw/{sample_or_ref}.tsv"
+        "aref/benchmarks/get_repeatmasker_raw/{sample_or_ref}_{default_or_extended}.tsv"
     shell:
         """
 cp {input.out} {output.repeatmasker}
@@ -523,7 +523,7 @@ rule get_repeatmasker_raw_out:
     params:
         rmref = config["run_repeatmasker"]["starting_ref_repeatmasker"]
     output:
-        out = "aref/default/A.REF_repeatmasker/A.REF.repeatmasker_raw.out"
+        out = "aref/{default_or_extended}/A.REF_repeatmasker/A.REF.repeatmasker_raw.out"
     shell:
         """
 cp {params.rmref} {output.out}
