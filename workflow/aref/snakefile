@@ -46,7 +46,7 @@ def aref_complete_input(wildcards):
     if config["update_ref_with_tldr"]["response"] == "yes":
         paths.append(expand("aref/qc/{sample_or_ref}/{sample_or_ref}pycoQC.html", sample_or_ref = config["samples"]))
         paths.append("aref/qc/multiqc.out")
-        paths.append("aref/results/insertions/analyze_nongermline_insertions.rds")
+        # paths.append("aref/results/insertions/analyze_nongermline_insertions.rds")
 
         if config["update_ref_with_tldr"]["per_sample"] == "yes":
             paths.append(expand("aref/default/{sample_or_ref}_Analysis/tldr_plots/tldr_plots.rds", sample_or_ref = config["samples"]))
@@ -359,7 +359,8 @@ bams=$(echo {input.bams})
 commabams=$(echo $bams | tr ' ' ',')
 
 nonrefavailible={params.known_nonref}
-if [[ $nonrefavailible = "not_provided"]]; then
+if [[ $nonrefavailible = "not_provided" ]]
+then
 
 tldr -b $commabams \
 -e {params.tldr_te_ref} \
@@ -415,7 +416,8 @@ rule tldr_per_sample:
     shell:
         """
 nonrefavailible={params.known_nonref}
-if [[ $nonrefavailible = "not_provided"]]; then
+if [[ $nonrefavailible = "not_provided" ]]
+then
 
 tldr -b {input.bam} \
 -e {params.tldr_te_ref} \
@@ -475,6 +477,9 @@ rule update_reference_extended_nonref_flank:
     script:
         "scripts/create_reference_extended_nonref_flank.R"
 
+if config["update_ref_with_tldr"]["response"] == "yes":
+    if config["update_ref_with_tldr"]["per_sample"] == "yes":
+        ruleorder: copy_starting_reference > cleanup_updated_ref
 rule copy_starting_reference:
     params:
         ref = config["starting_ref"]
@@ -611,7 +616,7 @@ rule repeatmasker:
     benchmark:
         "aref/benchmarks/repeatmasker/{sample_or_ref}_{default_or_extended}.tsv"
     output:
-        rmout = "aref/{default_or_extended}/A.REF_repeatmasker/{sample_or_ref}-pre-ins-filtering_nonrefcontigs.fa.out"
+        rmout = "aref/{default_or_extended}/{sample_or_ref}_repeatmasker/{sample_or_ref}-pre-ins-filtering_nonrefcontigs.fa.out"
     resources:
         cpus_per_task =20,
         runtime = 1200,
@@ -629,18 +634,21 @@ mkdir -p $(dirname {output})
 RepeatMasker -species "$species" -pa {resources.cpus_per_task} -gff {input.fasta} -dir $(dirname {output})
         """
 
+if config["update_ref_with_tldr"]["response"] == "yes":
+    if config["running_ldna"]["response"] == "yes":
+        ruleorder: get_repeatmasker_raw > getGtfs
 rule getGtfs:
     input:
-        rmout = "aref/{default_or_extended}/A.REF_repeatmasker/{sample_or_ref}-pre-ins-filtering_nonrefcontigs.fa.out",
+        rmout = "aref/{default_or_extended}/{sample_or_ref}_repeatmasker/{sample_or_ref}-pre-ins-filtering_nonrefcontigs.fa.out",
         rmref = "aref/default/A.REF_repeatmasker/A.REF.repeatmasker_raw.out"
     params:
         module_prefix = config["prefix"]
     benchmark:
         "aref/benchmarks/getGtfs/{sample_or_ref}_{default_or_extended}.tsv"
     output:
-       ref = "aref/{default_or_extended}/A.REF_repeatmasker/{sample_or_ref}_repeatmasker_ref_raw.gtf",
-       nonref = "aref/{default_or_extended}/A.REF_repeatmasker/{sample_or_ref}_repeatmasker_nonref_raw.gtf",
-       merged = "aref/{default_or_extended}/A.REF_repeatmasker/{sample_or_ref}_repeatmasker_raw.gtf"
+       ref = "aref/{default_or_extended}/{sample_or_ref}_repeatmasker/{sample_or_ref}_repeatmasker_ref_raw.gtf",
+       nonref = "aref/{default_or_extended}/{sample_or_ref}_repeatmasker/{sample_or_ref}_repeatmasker_nonref_raw.gtf",
+       merged = "aref/{default_or_extended}/{sample_or_ref}_repeatmasker/{sample_or_ref}_repeatmasker_raw.gtf"
     conda:
         "evo2"
     shell:
@@ -669,7 +677,7 @@ rule process_gtf:
 
 rule process_gtf_tldr:
     input:
-        gtf = "aref/{default_or_extended}/A.REF_repeatmasker/{sample_or_ref}_repeatmasker_raw.gtf",
+        gtf = "aref/{default_or_extended}/{sample_or_ref}_repeatmasker/{sample_or_ref}_repeatmasker_raw.gtf",
         ref_cytobands = "aref/{default_or_extended}/A.REF_annotations/cytobands.bed",
         ref = "aref/{default_or_extended}/{sample_or_ref}-pre-ins-filtering.fa",
         tldroutput = "aref/{sample_or_ref}_tldr/{sample_or_ref}.table.txt"
