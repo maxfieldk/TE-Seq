@@ -30,17 +30,7 @@ def aref_complete_input(wildcards):
         d_or_e = ["default"]
 
     paths = [
-        "aref/default/A.REF_Analysis/l1element_analysis.rds",
-        "aref/default/A.REF_annotations/refseq.complete.gff3.gz.tbi",
-        "aref/default/A.REF_annotations/refseq.complete.gtf.gz.tbi",
-        expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker.complete.gff3.gz.tbi",default_or_extended = d_or_e),
-        expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker.complete.gtf.gz.tbi",default_or_extended = d_or_e),
-        expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf",default_or_extended = d_or_e),
-        expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gff3",default_or_extended = d_or_e),
-        expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker.complete.bed",default_or_extended = d_or_e),
-        expand("aref/{default_or_extended}/A.REF_annotations/A.REF_rte_beds/outfile.txt",default_or_extended = d_or_e),
-        expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker_refseq.complete.sqlite",default_or_extended = d_or_e),
-        expand("aref/{default_or_extended}/A.REF_annotations/cytobands.bed",default_or_extended = d_or_e),
+
     ]
 
     if config["update_ref_with_tldr"]["response"] == "yes":
@@ -73,7 +63,17 @@ def aref_complete_input(wildcards):
 
     else:
         paths.append("aref/default/A.REF_indeces/make_star_index.out")
-
+        paths.append("aref/default/A.REF_annotations/refseq.complete.gff3.gz.tbi"),
+        paths.append("aref/default/A.REF_annotations/refseq.complete.gtf.gz.tbi"),
+        paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_Analysis/l1element_analysis.rds", default_or_extended = d_or_e))
+        paths.append(expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker.complete.gff3.gz.tbi",default_or_extended = d_or_e)),
+        paths.append(expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker.complete.gtf.gz.tbi",default_or_extended = d_or_e)),
+        paths.append(expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf",default_or_extended = d_or_e)),
+        paths.append(expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gff3",default_or_extended = d_or_e)),
+        paths.append(expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker.complete.bed",default_or_extended = d_or_e)),
+        paths.append(expand("aref/{default_or_extended}/A.REF_annotations/A.REF_rte_beds/outfile.txt",default_or_extended = d_or_e)),
+        paths.append(expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker_refseq.complete.sqlite",default_or_extended = d_or_e)),
+        paths.append(expand("aref/{default_or_extended}/A.REF_annotations/cytobands.bed",default_or_extended = d_or_e)),
 
     if config["running_ldna"]["response"] == "yes":
         paths.append("aref/extended/A.REF_annotations/cpg_islands.bed")
@@ -341,7 +341,8 @@ rule tldr_aggregate_multiple_samples:
         bais = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam.bai", sample = config["samples"], rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
     params:
         tldr_input_bam_ref = lambda w: config["update_ref_with_tldr"]["tldr_input_bam_ref"],
-        tldr_te_ref = lambda w: config["update_ref_with_tldr"]["tldr_te_ref"][species]
+        tldr_te_ref = lambda w: config["update_ref_with_tldr"]["tldr_te_ref"][species],
+        known_nonref = lambda w: [config["update_ref_with_tldr"]["known_nonref"]["path"] if config["update_ref_with_tldr"]["known_nonref"]["response"] == "yes" else "not_provided"][0]
     benchmark:
         "aref/benchmarks/tldr_aggregate_multiple_samples/tldr_aggregate_multiple_samples.tsv"
     output:
@@ -357,6 +358,9 @@ rule tldr_aggregate_multiple_samples:
 bams=$(echo {input.bams})
 commabams=$(echo $bams | tr ' ' ',')
 
+nonrefavailible={params.known_nonref}
+if [[ $nonrefavailible = "not_provided"]]; then
+
 tldr -b $commabams \
 -e {params.tldr_te_ref} \
 -r {params.tldr_input_bam_ref} \
@@ -366,6 +370,21 @@ tldr -b $commabams \
 --detail_output \
 --extend_consensus 4000 \
 --trdcol
+
+else
+
+tldr -b $commabams \
+-e {params.tldr_te_ref} \
+-r {params.tldr_input_bam_ref} \
+-p 20 \
+--nonref {params.known_nonref} \
+--minreads 1 \
+--outbase A.REF \
+--detail_output \
+--extend_consensus 4000 \
+--trdcol
+
+fi
 
 mkdir -p $(dirname {output.tldr})
 mv A.REF.table.txt {output.tldr}
@@ -383,7 +402,8 @@ rule tldr_per_sample:
         "aref/benchmarks/tldr_per_sample/{sample}.tsv"
     params:
         tldr_input_bam_ref = lambda w: config["update_ref_with_tldr"]["tldr_input_bam_ref"],
-        tldr_te_ref = lambda w: config["update_ref_with_tldr"]["tldr_te_ref"][species]
+        tldr_te_ref = lambda w: config["update_ref_with_tldr"]["tldr_te_ref"][species],
+        known_nonref = lambda w: [config["update_ref_with_tldr"]["known_nonref"]["path"] if config["update_ref_with_tldr"]["known_nonref"]["response"] == "yes" else "not_provided"][0]
     output:
         tldr = "aref/{sample}_tldr/{sample}.table.txt"
     resources:
@@ -394,6 +414,9 @@ rule tldr_per_sample:
         "tldr"
     shell:
         """
+nonrefavailible={params.known_nonref}
+if [[ $nonrefavailible = "not_provided"]]; then
+
 tldr -b {input.bam} \
 -e {params.tldr_te_ref} \
 -r {params.tldr_input_bam_ref} \
@@ -403,6 +426,21 @@ tldr -b {input.bam} \
 --detail_output \
 --extend_consensus 4000 \
 --trdcol
+
+else
+
+tldr -b {input.bam} \
+-e {params.tldr_te_ref} \
+-r {params.tldr_input_bam_ref} \
+-p 20 \
+--nonref {params.known_nonref} \
+--minreads 1 \
+--outbase {wildcards.sample} \
+--detail_output \
+--extend_consensus 4000 \
+--trdcol
+
+fi
 
 mkdir -p $(dirname {output.tldr})
 mv {wildcards.sample}.table.txt {output.tldr}

@@ -33,7 +33,9 @@ tryCatch(
     error = function(e) {
         assign("inputs", list(
             tldroutput = sprintf("aref/%s_tldr/%s.table.txt", conf$samples, conf$samples),
-            json = sprintf("aref/qc/%s/%spycoQC.json", conf$samples, conf$samples)
+            json = sprintf("aref/qc/%s/%spycoQC.json", conf$samples, conf$samples),
+            filtered_tldr = sprintf("aref/%s_tldr/%s.table.kept_in_updated_ref.txt", sample_table$sample_name, sample_table$sample_name),
+            bam = sprintf("aref/intermediates/%s/alignments/5khz/%s.hac.5mCG_5hmCG.sorted.bam", sample_table$sample_name, sample_table$sample_name)
         ), env = globalenv())
         assign("outputs", list(
             plots = "aref/results/somatic_insertions/analyze_nongermline_insertions.rds"
@@ -44,8 +46,52 @@ outputdir <- dirname(outputs$plots)
 dir.create(outputdir, recursive = TRUE, showWarnings = FALSE)
 
 
+segdupsdf <- read_delim("/users/mkelsey/data/Nanopore/alz/segdups.bed", col_names = TRUE, delim = "\t")
+segdups <- segdupsdf %>%
+    dplyr::rename(seqnames = `#chrom`, start = chromStart, end = chromEnd) %>%
+    GRanges()
+cytobandsdf <- read_delim(conf$ref_cytobands, col_names = FALSE, delim = "\t")
+cytobands <- cytobandsdf %>%
+    dplyr::rename(seqnames = X1, start = X2, end = X3) %>%
+    GRanges()
+centromere <- cytobandsdf %>%
+    filter(X5 == "acen") %>%
+    dplyr::rename(seqnames = X1, start = X2, end = X3) %>%
+    GRanges()
+telomeredf <- read_delim(conf$ref_telomere, col_names = FALSE, delim = "\t")
+telomere <- telomeredf %>%
+    dplyr::rename(seqnames = X1, start = X2, end = X3) %>%
+    GRanges()
+mappability <- import("/users/mkelsey/data/Nanopore/alz/k50.Unique.Mappability.bb")
+
+for (sample in sample_table$sample_name) {
+    json <- fromJSON(grep(sprintf("/%s/", sample), inputs$json, value = TRUE))
+    reads_number <- json[["All Reads"]][["basecall"]]$reads_number
+    N50 <- json[["All Reads"]][["basecall"]]$N50
+    bases_number <- json[["All Reads"]][["basecall"]]$bases_number
+    row <- tibble(sample_name = sample, reads_number = reads_number, N50 = N50, bases_number = bases_number)
+    if (!exists("sample_sequencing_data")) {
+        sample_sequencing_data <- row
+    } else {
+        sample_sequencing_data <- rbind(sample_sequencing_data, row)
+    }
+}
+
+# only tldr germinline tldr insertions that wind up in reference
+dfs_filtered <- list()
+for (sample in sample_table$sample_name) {
+    df <- read.table(grep(sprintf("%s_tldr", sample), inputs$filtered_tldr, value = TRUE), header = TRUE)
+    df$sample_name <- sample
+    df <- df %>% left_join(sample_table)
+    dfs_filtered[[sample]] <- df
+}
+
+germline <- do.call(rbind, dfs_filtered) %>%
+    tibble() %>%
+    left_join(sample_sequencing_data)
 
 
+# all TLDR insertions
 dflist <- list()
 for (sample in sample_table$sample_name) {
     if (conf$update_ref_with_tldr$per_sample == "yes") {
@@ -63,17 +109,6 @@ for (sample in sample_table$sample_name) {
         filter(grepl(sample, SampleReads)) %>%
         filter(!grepl(paste(setdiff(sample_table$sample_name, sample), collapse = "|"), SampleReads))
     dflist[[sample]] <- df
-
-    json <- fromJSON(grep(sprintf("/%s/", sample), inputs$json, value = TRUE))
-    reads_number <- json[["All Reads"]][["basecall"]]$reads_number
-    N50 <- json[["All Reads"]][["basecall"]]$N50
-    bases_number <- json[["All Reads"]][["basecall"]]$bases_number
-    row <- tibble(sample_name = sample, reads_number = reads_number, N50 = N50, bases_number = bases_number)
-    if (!exists("sample_sequencing_data")) {
-        sample_sequencing_data <- row
-    } else {
-        sample_sequencing_data <- rbind(sample_sequencing_data, row)
-    }
 }
 
 dfall <- do.call(bind_rows, dflist) %>%
@@ -82,7 +117,7 @@ dfall <- do.call(bind_rows, dflist) %>%
     left_join(sample_table)
 sample_sequencing_data
 
-dffilt <- dfall %>%
+somatic <- dfall %>%
     separate_wider_delim(EmptyReads, delim = "|", names = c("bamname", "emptyreadsnum")) %>%
     mutate(fraction_reads_count = UsedReads / (UsedReads + as.numeric(emptyreadsnum))) %>%
     filter(fraction_reads_count < 0.1) %>%
@@ -92,10 +127,55 @@ dffilt <- dfall %>%
     filter(Filter == "PASS") %>%
     filter(!is.na(TSD))
 
-for (element_type in dffilt %$% Subfamily %>% unique()) {
-    dftemp <- dffilt %>% filter(Subfamily == element_type)
+
+somatic <- GRanges(somatic) %>%
+    subsetByOverlaps(centromere, invert = TRUE) %>%
+    subsetByOverlaps(telomere, invert = TRUE) %>%
+    subsetByOverlaps(segdups, invert = TRUE) %>%
+    subsetByOverlaps(mappability) %>%
+    as.data.frame() %>%
+    tibble()
+
+# still want to add some measure of the number of multimapping reads at that locus
+
+
+# ADDTIONAL FILTERS
+# I think these are overly restrictive given how tsd calling on a single lossy read may occur - doesn't have the benefit of deriving from cluster
+germline_insert_characteristics <- tibble(germline_tsd_95 = numeric(), germline_trsd3_95 = numeric(), germline_trsd5_95 = numeric(), germline_endte_05 = numeric(), Subfamily = character())
+for (element_type in somatic %$% Subfamily %>% unique()) {
+    germlinetemp <- germline %>% filter(Subfamily == element_type)
+    germline_tsd_95 <- germlinetemp %$% TSD %>%
+        nchar() %>%
+        replace_na(0) %>%
+        quantile(0.95, na.rm = TRUE)
+    germline_trsd3_95 <- germlinetemp %$% Transduction_3p %>%
+        nchar() %>%
+        replace_na(0) %>%
+        quantile(0.95, na.rm = TRUE)
+    germline_trsd5_95 <- germlinetemp %$% Transduction_5p %>%
+        nchar() %>%
+        replace_na(0) %>%
+        quantile(0.95, na.rm = TRUE)
+    germline_endte_05 <- germlinetemp %$% EndTE %>%
+        quantile(0.05, na.rm = TRUE) %>%
+        unname()
+    germline_insert_characteristics <- germline_insert_characteristics %>% add_row(germline_tsd_95 = germline_tsd_95, germline_trsd3_95 = germline_trsd3_95, germline_trsd5_95 = germline_trsd5_95, germline_endte_05 = germline_endte_05, Subfamily = element_type)
+}
+
+somatic <- somatic %>%
+    left_join(germline_insert_characteristics) %>%
+    filter(EndTE >= germline_endte_05) %>%
+    filter(nchar(TSD) <= germline_tsd_95) %>%
+    filter(nchar(Transduction_5p) <= germline_trsd5_95)
+# filter(nchar(Transduction_3p) <= germline_trsd3_95)
+# filter(EndTE - StartTE < LengthIns + 30) %>% #what if you just have a couple of basepairs that spuriously align to the front of TE
+
+
+
+for (element_type in somatic %$% Subfamily %>% unique()) {
+    dftemp <- somatic %>% filter(Subfamily == element_type)
     p <- dftemp %>%
-        gghistogram(x = "LengthIns") +
+        gghistogram(x = "LengthIns", fill = "blue") +
         mtopen +
         labs(title = element_type)
     mysaveandstore(sprintf("%s/%s/length_distribution.pdf", outputdir, element_type))
@@ -103,22 +183,19 @@ for (element_type in dffilt %$% Subfamily %>% unique()) {
     p <- dftemp %>%
         mutate(tsdlen = nchar(TSD)) %>%
         gghistogram(x = "tsdlen", fill = "blue") +
-        labs(title = element_type)
-    mtopen
+        labs(title = element_type) + mtopen
     mysaveandstore(sprintf("%s/%s/tsd_length_distribution.pdf", outputdir, element_type))
 
     p <- dftemp %>%
         mutate(trsd5 = nchar(Transduction_5p)) %>%
         gghistogram(x = "trsd5", fill = "blue") +
-        labs(title = element_type)
-    mtopen
+        labs(title = element_type) + mtopen
     mysaveandstore(sprintf("%s/%s/trsd5_length_distribution.pdf", outputdir, element_type))
 
     p <- dftemp %>%
         mutate(trsd3 = nchar(Transduction_3p)) %>%
         gghistogram(x = "trsd3", fill = "blue") +
-        labs(title = element_type)
-    mtopen
+        labs(title = element_type) + mtopen
     mysaveandstore(sprintf("%s/%s/trsd3_length_distribution.pdf", outputdir, element_type))
 
     p <- dftemp %>%
@@ -132,10 +209,10 @@ for (element_type in dffilt %$% Subfamily %>% unique()) {
 }
 
 
-for (sample in unique(dffilt$sample_name)) {
+for (sample in unique(somatic$sample_name)) {
     tempoutputdir <- sprintf("aref/%s_Analysis/tldr_plots/nongermline", sample)
     dfallsample <- dfall %>% filter(sample_name == sample)
-    dffiltsample <- dffilt %>% filter(sample_name == sample)
+    somaticsample <- somatic %>% filter(sample_name == sample)
 
     p <- dfallsample %>% ggplot(aes(x = UsedReads, fill = Filter == "PASS")) +
         geom_histogram() +
@@ -153,9 +230,7 @@ for (sample in unique(dffilt$sample_name)) {
         scale_palette
     mysaveandstore(sprintf("%s/usedreads_bar.pdf", tempoutputdir), 5, 4)
 
-    p <- dffiltsample %>%
-        filter(UsedReads == 1) %>%
-        filter(SpanReads == 1) %>%
+    p <- somaticsample %>%
         ggplot(aes(x = Family, fill = Filter == "PASS")) +
         geom_bar() +
         labs(x = "Supporting Read Count", title = "RTE Somatic Insertions") +
@@ -164,11 +239,7 @@ for (sample in unique(dffilt$sample_name)) {
         scale_palette
     mysaveandstore(sprintf("%s/single_read_bar.pdf", tempoutputdir), 5, 4)
 
-    p <- dffiltsample %>%
-        filter(UsedReads == 1) %>%
-        filter(SpanReads == 1) %>%
-        filter(Filter == "PASS") %>%
-        filter(MedianMapQ >= 60) %>%
+    p <- somaticsample %>%
         ggplot(aes(x = Family, fill = Filter == "PASS")) +
         geom_bar() +
         labs(x = "Supporting Read Count", title = "RTE Somatic Insertions") +
@@ -177,18 +248,10 @@ for (sample in unique(dffilt$sample_name)) {
         scale_palette
     mysaveandstore(sprintf("%s/single_read_fillpass_bar.pdf", tempoutputdir), 5, 4)
 
-    dffiltsample %>%
-        filter(UsedReads == 1) %>%
-        filter(SpanReads == 1) %>%
-        filter(Filter == "PASS") %>%
-        filter(MedianMapQ >= 60) %>%
+    somaticsample %>%
         write_delim(sprintf("%s/single_read_pass.tsv", tempoutputdir), delim = "\t")
 
-    p <- dffiltsample %>%
-        filter(UsedReads == 1) %>%
-        filter(SpanReads == 1) %>%
-        filter(Filter == "PASS") %>%
-        filter(MedianMapQ >= 60) %>%
+    p <- somaticsample %>%
         ggplot(aes(x = Family, fill = is.na(TSD))) +
         geom_bar() +
         labs(x = "Supporting Read Count", title = "RTE Somatic Insertions") +
@@ -197,11 +260,7 @@ for (sample in unique(dffilt$sample_name)) {
         scale_palette
     mysaveandstore(sprintf("%s/single_read_pass_bar.pdf", tempoutputdir), 5, 4)
 
-    p <- dffiltsample %>%
-        filter(UsedReads == 1) %>%
-        filter(SpanReads == 1) %>%
-        filter(Filter == "PASS") %>%
-        filter(MedianMapQ >= 60) %>%
+    p <- somaticsample %>%
         ggplot(aes(x = LengthIns)) +
         geom_histogram() +
         labs(x = "Insertion Length", y = "Count", title = "RTE Somatic Insertions") +
@@ -212,9 +271,7 @@ for (sample in unique(dffilt$sample_name)) {
     mysaveandstore(sprintf("%s/single_read_pass_insertion_length.pdf", tempoutputdir), 5, 3)
 }
 
-p <- dffilt %>%
-    filter(UsedReads == 1) %>%
-    filter(SpanReads == 1) %>%
+p <- somatic %>%
     ggplot(aes(x = sample_name, fill = Filter == "PASS")) +
     geom_bar() +
     facet_wrap(~Family) +
@@ -226,21 +283,15 @@ p <- dffilt %>%
     mtclosed
 mysaveandstore(sprintf("%s/single_read_bar.pdf", outputdir), 8, 5)
 
-# p <- dffilt %>% filter(UsedReads == 1) %>% filter(Filter == "PASS") %>% ggplot(aes(x = sample_name, fill = Filter == "PASS")) + geom_bar()+ facet_wrap(~Family) + labs(x = "Supporting Read Count", title = "RTE Somatic Insertions", subtitle = "Single Read Supported") + mtopen + anchorbar + scale_palette+ theme(axis.text.x = element_text(angle = 45, hjust = 1))
+# p <- somatic %>% filter(UsedReads == 1) %>% filter(Filter == "PASS") %>% ggplot(aes(x = sample_name, fill = Filter == "PASS")) + geom_bar()+ facet_wrap(~Family) + labs(x = "Supporting Read Count", title = "RTE Somatic Insertions", subtitle = "Single Read Supported") + mtopen + anchorbar + scale_palette+ theme(axis.text.x = element_text(angle = 45, hjust = 1))
 # mysaveandstore(sprintf("%s/single_read_pass_bar.pdf", outputdir), 8, 5)
 
-dffilt %>%
-    filter(UsedReads == 1) %>%
-    filter(SpanReads == 1) %>%
+somatic %>%
     filter(Filter == "PASS") %>%
     filter(MedianMapQ >= 60) %>%
-    write_delim(sprintf("%s/single_read_pass.tsv", outputdir), delim = "\t")
+    write_delim(sprintf("%s/somatic_inserts.tsv", outputdir), delim = "\t")
 
-p <- dffilt %>%
-    filter(UsedReads == 1) %>%
-    filter(SpanReads == 1) %>%
-    filter(Filter == "PASS") %>%
-    filter(MedianMapQ >= 60) %>%
+p <- somatic %>%
     ggplot(aes(x = sample_name, fill = condition)) +
     geom_bar() +
     facet_wrap(~Family) +
@@ -251,11 +302,7 @@ p <- dffilt %>%
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
 mysaveandstore(sprintf("%s/single_read_pass_bar.pdf", outputdir), 8, 5)
 
-p <- dffilt %>%
-    filter(UsedReads == 1) %>%
-    filter(SpanReads == 1) %>%
-    filter(Filter == "PASS") %>%
-    filter(MedianMapQ >= 60) %>%
+p <- somatic %>%
     group_by(sample_name, Subfamily, condition) %>%
     summarise(nins = n()) %>%
     ungroup() %>%
@@ -271,21 +318,13 @@ p <- dffilt %>%
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
 mysaveandstore(sprintf("%s/single_read_pass_l1hs_aluy_corr_bar.pdf", outputdir), 4, 4)
 
-dffilt %>%
-    filter(UsedReads == 1) %>%
-    filter(SpanReads == 1) %>%
-    filter(Filter == "PASS") %>%
-    filter(MedianMapQ >= 60) %>%
+somatic %>%
     filter(Subfamily %in% c("AluY")) %>%
     filter(sample_name == "AD1") %>%
     filter(UUID == "a72cba1d-f8c4-4dd4-8054-ee7c97a6c704") %>%
     print(width = Inf)
 
-p <- dffilt %>%
-    filter(UsedReads == 1) %>%
-    filter(SpanReads == 1) %>%
-    filter(Filter == "PASS") %>%
-    filter(MedianMapQ >= 60) %>%
+p <- somatic %>%
     filter(Subfamily %in% c("L1HS", "AluY")) %>%
     ggplot(aes(x = TEMatch, fill = condition)) +
     geom_histogram() +
@@ -297,11 +336,7 @@ p <- dffilt %>%
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
 mysaveandstore(sprintf("%s/single_read_pass_histogram.pdf", outputdir), 5, 20)
 
-p <- dffilt %>%
-    filter(UsedReads == 1) %>%
-    filter(SpanReads == 1) %>%
-    filter(Filter == "PASS") %>%
-    filter(MedianMapQ >= 60) %>%
+p <- somatic %>%
     filter(Subfamily %in% c("AluY")) %>%
     ggplot(aes(x = sample_name, fill = condition)) +
     geom_bar() +
@@ -314,11 +349,7 @@ mysaveandstore(sprintf("%s/single_read_pass_bar_aluy.pdf", outputdir), 8, 5)
 
 
 
-p <- dffilt %>%
-    filter(UsedReads == 1) %>%
-    filter(SpanReads == 1) %>%
-    filter(Filter == "PASS") %>%
-    filter(MedianMapQ >= 60) %>%
+p <- somatic %>%
     ggplot(aes(x = LengthIns)) +
     geom_histogram() +
     labs(x = "Insertion Length", y = "Count", title = "RTE Somatic Insertions", subtitle = "Single Read Supported") +
@@ -329,11 +360,7 @@ p <- dffilt %>%
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
 mysaveandstore(sprintf("%s/single_read_pass_insertion_length.pdf", outputdir), 10, 10)
 
-dffilt %>%
-    filter(UsedReads == 1) %>%
-    filter(SpanReads == 1) %>%
-    filter(Filter == "PASS") %>%
-    filter(MedianMapQ >= 60) %>%
+somatic %>%
     filter(LengthIns > 5000) %>%
     filter(Subfamily == "L1HS") %>%
     print(width = Inf)
@@ -345,43 +372,36 @@ tryCatch(
 
 
         grouping_vars <- c("sample_name", "condition", sequencing_metadata_vars, metadata_vars)
-        pfpass <- dfall %>%
-            filter(Filter == "PASS") %>%
-            filter(UsedReads > 4) %>%
+        germline_n <- germline %>%
             group_by(across(grouping_vars)) %>%
             summarise(nins = n()) %>%
             ungroup() %>%
-            mutate(SingleReadSupport = "MultiReadSupport")
-        pfpasssrs <- dfall %>%
-            filter(Filter == "PASS") %>%
-            filter(UsedReads == 1) %>%
-            filter(SpanReads == 1) %>%
-            filter(MedianMapQ >= 60) %>%
-            filter(fraction_reads_count < 0.1) %>%
+            mutate(Insert_Type = "Germline")
+        somatic_n <- somatic %>%
             group_by(across(grouping_vars)) %>%
             summarise(nins = n()) %>%
             ungroup() %>%
-            mutate(SingleReadSupport = "SingleReadSupport")
-        pf <- bind_rows(pfpass, pfpasssrs)
-        p <- pf %>% ggplot(aes(x = N50, y = nins, color = sample_name)) +
+            mutate(Insert_Type = "Somatic")
+        insert_n <- bind_rows(germline_n, somatic_n)
+        p <- insert_n %>% ggplot(aes(x = N50, y = nins, color = sample_name)) +
             geom_point(size = 2) +
-            facet_wrap(~SingleReadSupport) +
+            facet_wrap(~Insert_Type) +
             labs(x = "N50", y = "Number of Insertions") +
             mtclosed +
             scale_samples_unique
         mysaveandstore(sprintf("%s/n50_vs_insertions_facet.pdf", outputdir), 7, 4)
 
-        p <- pf %>% ggplot(aes(x = reads_number, y = nins, color = sample_name)) +
+        p <- insert_n %>% ggplot(aes(x = reads_number, y = nins, color = sample_name)) +
             geom_point() +
-            facet_wrap(~SingleReadSupport) +
+            facet_wrap(~Insert_Type) +
             labs(x = "Total Reads Count", y = "Number of Insertions") +
             mtclosed +
             scale_samples_unique
         mysaveandstore(sprintf("%s/reads_number_vs_insertions_facet.pdf", outputdir), 7, 4)
 
-        p <- pf %>% ggplot(aes(x = bases_number, y = nins, color = sample_name)) +
+        p <- insert_n %>% ggplot(aes(x = bases_number, y = nins, color = sample_name)) +
             geom_point() +
-            facet_wrap(~SingleReadSupport) +
+            facet_wrap(~Insert_Type) +
             labs(x = "Total Bases Count", y = "Number of Insertions") +
             mtclosed +
             scale_samples_unique
@@ -390,59 +410,52 @@ tryCatch(
         predictors <- c(sequencing_metadata_vars, metadata_vars, "condition")
         model_formula <- paste("nins ~ ", paste(predictors, collapse = "+"), sep = "")
 
-        model <- lm(as.formula(model_formula), data = pf)
+        model <- lm(as.formula(model_formula), data = insert_n)
         output <- coef(summary(model)) %>%
             as.data.frame() %>%
             rownames_to_column() %>%
             tibble()
         write_delim(output, file = sprintf("%s/lm_allins2.txt", outputdir), delim = "\t")
 
-        model <- lm(as.formula(model_formula), data = pfpasssrs)
+        model <- lm(as.formula(model_formula), data = somatic_n)
         output <- coef(summary(model)) %>%
             as.data.frame() %>%
             rownames_to_column() %>%
             tibble()
-        write_delim(output, file = sprintf("%s/lm_srsins.txt", outputdir), delim = "\t")
+        write_delim(output, file = sprintf("%s/lm_somatic.txt", outputdir), delim = "\t")
 
         predictors <- c(sequencing_metadata_vars, "condition")
         model_formula <- paste("nins ~ ", paste(predictors, collapse = "+"), sep = "")
-        model <- lm(as.formula(model_formula), data = pfpasssrs)
+        model <- lm(as.formula(model_formula), data = somatic_n)
         output <- coef(summary(model)) %>%
             as.data.frame() %>%
             rownames_to_column() %>%
             tibble()
-        write_delim(output, file = sprintf("%s/lm_srsins_model_limited.txt", outputdir), delim = "\t")
+        write_delim(output, file = sprintf("%s/lm_somatic_model_limited.txt", outputdir), delim = "\t")
 
 
-        pfpass <- dfall %>%
-            filter(Filter == "PASS") %>%
-            filter(UsedReads > 4) %>%
+        germline_n_bysubfam <- germline %>%
             group_by(across(c(grouping_vars, Subfamily))) %>%
             summarise(nins = n()) %>%
             ungroup() %>%
-            mutate(SingleReadSupport = "MultiReadSupport")
-        pfpasssrs <- dfall %>%
-            filter(Filter == "PASS") %>%
-            filter(UsedReads == 1) %>%
-            filter(SpanReads == 1) %>%
-            filter(MedianMapQ >= 60) %>%
-            filter(fraction_reads_count < 0.1) %>%
+            mutate(Insert_Type = "Germline")
+        somatic_n_bysubfam <- somatic %>%
             group_by(across(c(grouping_vars, Subfamily))) %>%
             summarise(nins = n()) %>%
             ungroup() %>%
-            mutate(SingleReadSupport = "SingleReadSupport")
-        pf <- bind_rows(pfpass, pfpasssrs)
-        for (insertion_type in pfpasssrs %$% Subfamily %>% unique()) {
-            pf <- pfpasssrs %>% filter(Subfamily == insertion_type)
+            mutate(Insert_Type = "Somatic")
+        insert_n_bysubfam <- bind_rows(germline_n_bysubfam, somatic_n_bysubfam)
+        for (insertion_type in somatic_n_bysubfam %$% Subfamily %>% unique()) {
+            insert_n_bysubfam <- somatic_n_bysubfam %>% filter(Subfamily == insertion_type)
             for (mvar in metadata_vars) {
                 tryCatch(
                     {
                         if (sample_table[[mvar]] %>% is.numeric()) {
-                            p <- pf %>% ggscatter(x = mvar, y = "nins", color = "condition", size = 3) +
+                            p <- insert_n_bysubfam %>% ggscatter(x = mvar, y = "nins", color = "condition", size = 3) +
                                 scale_conditions + stat_cor() +
                                 stat_smooth(method = "lm", formula = y ~ x, geom = "smooth")
                         } else {
-                            p <- pf %>% ggplot(aes(x = sample_name, y = nins, fill = condition)) +
+                            p <- insert_n_bysubfam %>% ggplot(aes(x = sample_name, y = nins, fill = condition)) +
                                 facet_grid(cols = vars(!!sym(mvar)), scales = "free_x", space = "free") +
                                 geom_col() +
                                 labs(x = "", y = "Number of Insertions", , title = "RTE Somatic Insertions", subtitle = "Multi and Single Read Supported") +
@@ -469,3 +482,22 @@ tryCatch(
 
 x <- tibble(OUT = "")
 write_tsv(x, file = outputs$plots)
+
+inputs$bam
+library(GenomicAlignments)
+for (sample in conf$samples) {
+    bampath <- grep(sample, inputs$bam, value = TRUE)
+
+    aln1 <- readGAlignments(bampath, param = ScanBamParam(which = whichgr, what = scanBamWhat(), flag = flag))
+    as.data.frame(aln1) %>%
+        tibble() %>%
+        filter(grepl("327I", cigar))
+    whichgr <- GRanges(somatic)[2]
+}
+# ctrl6
+
+flag <- scanBamFlag(
+    isUnmappedQuery = NA,
+    isSecondaryAlignment = NA, isNotPassingQualityControls = NA,
+    isDuplicate = NA, isSupplementaryAlignment = NA
+)
