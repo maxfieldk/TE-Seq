@@ -658,6 +658,9 @@ workflow/{params.module_prefix}/scripts/outToGtf.sh {input.rmref} {output.ref}
 cat {output.ref} {output.nonref} > {output.merged}
         """
 
+if config["update_ref_with_tldr"]["response"] == "yes":
+    if config["update_ref_with_tldr"]["per_sample"] == "yes":
+        ruleorder: process_gtf > process_gtf_tldr
 rule process_gtf:
     input:
         gtf = "aref/{default_or_extended}/A.REF_repeatmasker/A.REF_repeatmasker_raw.gtf",
