@@ -635,7 +635,7 @@ RepeatMasker -species "$species" -pa {resources.cpus_per_task} -gff {input.fasta
         """
 
 if config["update_ref_with_tldr"]["response"] == "yes":
-    if config["running_ldna"]["response"] == "yes":
+    if config["update_ref_with_tldr"]["per_sample"] == "yes":
         ruleorder: get_repeatmasker_raw > getGtfs
 rule getGtfs:
     input:
