@@ -41,7 +41,7 @@ basecaller \
 
 rule mod_bam_to_fastq:
     input:
-        bam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+        bam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
     output:
         fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq"
     conda: 
@@ -355,6 +355,9 @@ samtools index  -@6 {input.bam}
 rule filterbam:
     input:
         bam = "ldna/{path}.sorted.bam"
+    params:
+        min_mapq = 10,
+        min_qscore = 10
     output:
         bam = "ldna/{path}.sorted.filtered.bam"
     resources:
@@ -365,7 +368,7 @@ rule filterbam:
     shell: 
         """
 #keeps on only primary and supplementary alignments
-samtools view -b -F 0x100 -q 10 {input.bam} > {output.bam}"
+samtools view -b -F 0x100 -q {params.min_mapq} -e '[qs] >= {params.min_qscore}' {input.bam} > {output.bam}
         """
 #tag PHASING
 
@@ -1559,12 +1562,12 @@ sniffles -i {input.sortedbam} -v {output.vcf} --threads 28 --mosaic --reference 
 
 rule pepper:
     input:
-        sortedbam = expand("ldna/intermediates/{{sample_or_ref}}/alignments/{rate}/{ref_genome}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-        sortedbamindex = expand("ldna/intermediates/{{sample_or_ref}}/alignments/{rate}/{ref_genome}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam.bai", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+        sortedbam = ancient(expand("ldna/intermediates/{{sample_or_ref}}/alignments/{rate}/{ref_genome}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])),
+        sortedbamindex = ancient(expand("ldna/intermediates/{{sample_or_ref}}/alignments/{rate}/{ref_genome}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam.bai", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]))
     params:
         ref = config["ldna"]["reference"]
     output:
-        outfile = "ldna/intermediates/{sample_or_ref}/pepper/out.outfile",
+        outfile = protected("ldna/intermediates/{sample_or_ref}/pepper/out.outfile"),
         vcf_intermediate_for_margin_haplotag = "ldna/intermediates/{sample_or_ref}/pepper/intermediate_files/PEPPER_VARIANT_FULL.vcf.gz",
         vcf = "ldna/intermediates/{sample_or_ref}/pepper/PEPPER_MARGIN_DEEPVARIANT_FINAL_OUTPUT.vcf.gz",
     resources:

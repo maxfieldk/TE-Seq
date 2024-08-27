@@ -356,6 +356,15 @@ lrna:
 
   rte_subfamily_read_level_analysis:
     - "L1HS_intactness_req_ALL"
-    
+
+  rte_subfamily_extra_modification_analysis:
+    - "L1HS_intactness_req_ALL"
+    - "L1HS_rte_length_req_ALL"
+    - "L1PA2_rte_length_req_ALL"
+    - "L1PA3_rte_length_req_ALL"
+    - "L1PA4_rte_length_req_ALL"
+
+  MINIMUM_COVERAGE_FOR_METHYLATION_ANALYSIS: 5
+
 integrated:
   regions_of_interest: "conf/integrated_regions_of_interest.bed"

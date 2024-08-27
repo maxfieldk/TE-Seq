@@ -56,9 +56,9 @@ for pipeline in config["pipelines_to_deploy"]:
         methylartist = "ldna/results/plots/methylartist/locus/methylartistlocusplot_loci_of_interest.outfile"
         hg38pat = expand("ldna/results/wgbs/hg38/{sample}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample=  config["ldna"]["samples"])
         gimme = "ldna/results/gimme/gimme_plots.rds"
-        pepper_aref = expand("ldna/intermediates/{sample}/pepper/out.outfile", sample = config["ldna"]["samples"])
-        variants_aref = expand("ldna/intermediates/{sample_or_ref}/snpeff/snpeff_sml.pass.vcf", sample_or_ref = "A.REF")
-        variants_per_sample = expand("ldna/intermediates/{sample_or_ref}/snpeff/snpeff_sml.pass.vcf", sample_or_ref = config["ldna"]["samples"])
+        # pepper_aref = expand("ldna/intermediates/{sample}/pepper/out.outfile", sample = config["ldna"]["samples"])
+        # variants_aref = expand("ldna/intermediates/{sample_or_ref}/snpeff/snpeff_sml.pass.vcf", sample_or_ref = "A.REF")
+        # variants_per_sample = expand("ldna/intermediates/{sample_or_ref}/snpeff/snpeff_sml.pass.vcf", sample_or_ref = config["ldna"]["samples"])
         for e in list(flatten([mycoplasma, multiqc])):
             final_input.append(e)
         if config["ldna"]["single_condition"] == "yes":
@@ -67,13 +67,13 @@ for pipeline in config["pipelines_to_deploy"]:
         else:
             for e in list(flatten([bedmethanalysis,dmrs, methylartist,hg38pat])):
                 final_input.append(e)
-        if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
-            if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
-                for e in list(flatten([variants_per_sample])):
-                    final_input.append(e)
-            else:
-                for e in list(flatten([variants_aref])):
-                    final_input.append(e)
+        # if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
+        #     if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
+        #         for e in list(flatten([variants_per_sample])):
+        #             final_input.append(e)
+        #     else:
+        #         for e in list(flatten([variants_aref])):
+        #             final_input.append(e)
 
     if pipeline == "lrna":
         module lrna:
