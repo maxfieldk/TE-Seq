@@ -67,7 +67,7 @@ aref:
       mouse: resources/sequences/teref.mouse.fa
     known_nonref:
       response: "no"
-      path: resources/genomes/hs1/annotations/nonref.collection.hs1.chr.bed.gz.tbi #if using, ensure this file is in your genome's coordinate space! Tabix index of bgzipped bed file with location of nonref insertions
+      path: resources/genomes/hs1/annotations/nonref.collection.hs1.chr.bed.gz #if using, ensure this file is in your genome's coordinate space! Tabix index of bgzipped bed file with location of nonref insertions
 
   dorado: "/users/mkelsey/data/tools/dorado-0.5.1-linux-x64/bin/dorado"
   basecallingModel:
