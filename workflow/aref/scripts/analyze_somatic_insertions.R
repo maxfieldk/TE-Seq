@@ -34,7 +34,7 @@ tryCatch(
         assign("inputs", list(
             tldroutput = sprintf("aref/%s_tldr/%s.table.txt", conf$samples, conf$samples),
             json = sprintf("aref/qc/%s/%spycoQC.json", conf$samples, conf$samples),
-            filtered_tldr = sprintf("aref/%s_tldr/%s.table.kept_in_updated_ref.txt", sample_table$sample_name, sample_table$sample_name),
+            filtered_tldr = sprintf("aref/default/%s.table.kept_in_updated_ref.txt", sample_table$sample_name),
             bam = sprintf("aref/intermediates/%s/alignments/5khz/%s.hac.5mCG_5hmCG.sorted.bam", sample_table$sample_name, sample_table$sample_name)
         ), env = globalenv())
         assign("outputs", list(
@@ -64,6 +64,7 @@ telomere <- telomeredf %>%
     GRanges()
 mappability <- import("/users/mkelsey/data/Nanopore/alz/k50.Unique.Mappability.bb")
 
+rm(sample_sequencing_data)
 for (sample in sample_table$sample_name) {
     json <- fromJSON(grep(sprintf("/%s/", sample), inputs$json, value = TRUE))
     reads_number <- json[["All Reads"]][["basecall"]]$reads_number
@@ -80,7 +81,7 @@ for (sample in sample_table$sample_name) {
 # only tldr germinline tldr insertions that wind up in reference
 dfs_filtered <- list()
 for (sample in sample_table$sample_name) {
-    df <- read.table(grep(sprintf("%s_tldr", sample), inputs$filtered_tldr, value = TRUE), header = TRUE)
+    df <- read.table(grep(sprintf("%s.table", sample), inputs$filtered_tldr, value = TRUE), header = TRUE)
     df$sample_name <- sample
     df <- df %>% left_join(sample_table)
     dfs_filtered[[sample]] <- df
@@ -103,19 +104,16 @@ for (sample in sample_table$sample_name) {
             mutate(faName = paste0("NI_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>%
             tibble()
     }
-
     df$sample_name <- sample
     df <- df %>%
         filter(grepl(sample, SampleReads)) %>%
         filter(!grepl(paste(setdiff(sample_table$sample_name, sample), collapse = "|"), SampleReads))
     dflist[[sample]] <- df
 }
-
 dfall <- do.call(bind_rows, dflist) %>%
-    tibble() %>%
     left_join(sample_sequencing_data) %>%
     left_join(sample_table)
-sample_sequencing_data
+
 
 somatic <- dfall %>%
     separate_wider_delim(EmptyReads, delim = "|", names = c("bamname", "emptyreadsnum")) %>%
@@ -136,8 +134,66 @@ somatic <- GRanges(somatic) %>%
     as.data.frame() %>%
     tibble()
 
-# still want to add some measure of the number of multimapping reads at that locus
+library(GenomicAlignments)
+flag <- scanBamFlag(
+    isUnmappedQuery = NA,
+    isSecondaryAlignment = NA, isNotPassingQualityControls = NA,
+    isDuplicate = NA, isSupplementaryAlignment = NA
+)
 
+insert_mean_mapqs <- list()
+insert_supplementary_status <- list()
+insert_indel_and_clipping_status <- list()
+for (sample in conf$samples) {
+    print(sample)
+    bampath <- grep(sample, inputs$bam, value = TRUE)
+    insert_ids <- somatic %>% filter(sample_name == sample) %$% UUID
+    print(length(insert_ids))
+    for (insert_id in insert_ids) {
+        insert_row <- somatic %>%
+            filter(sample_name == sample) %>%
+            filter(UUID == insert_id)
+        whichgr <- GRanges(somatic %>% filter(sample_name == sample) %>% filter(UUID == insert_id))
+        aln1 <- readGAlignments(bampath, param = ScanBamParam(which = whichgr, what = scanBamWhat(), tag = c("SA"), flag = flag))
+        alndf <- as.data.frame(aln1) %>%
+            tibble()
+        mean_mapq <- alndf$mapq %>% mean()
+        insert_mean_mapqs[[insert_id]] <- mean_mapq
+
+        # insert fails if it was captured in a read which has supplementary alignments
+        tldr_df <- read_delim(sprintf("aref/%s_tldr/%s/%s.detail.out", sample, sample, insert_id))
+        read_name <- tldr_df %>% filter(Useable == TRUE & IsSpanRead == TRUE) %$% ReadName
+        read_of_interest <- alndf %>% filter(qname == read_name)
+        insert_supplementary_status[[insert_id]] <- ifelse(is.na(read_of_interest$SA), "PASS", "FAIL")
+
+        # insert fails if it was captured in a read which has extensive indels or clipping
+        inserts <- str_extract_all(read_of_interest$cigar, "[0-9]+I") %>%
+            unlist() %>%
+            gsub("I", "", .) %>%
+            as.numeric()
+        deletions <- str_extract_all(read_of_interest$cigar, "[0-9]+D") %>%
+            unlist() %>%
+            gsub("D", "", .) %>%
+            as.numeric()
+        clips <- str_extract_all(read_of_interest$cigar, "([0-9]+S)|([0-9]+H)") %>%
+            unlist() %>%
+            gsub("S|H", "", .) %>%
+            as.numeric()
+        insert_indel_and_clipping_status[[insert_id]] <- ifelse((sum(inserts > 50) > 1) | (sum(deletions > 50) > 0) | (sum(clips > 50) > 0), "FAIL", "PASS")
+    }
+}
+mean_mapq_filter <- tibble(UUID = names(insert_mean_mapqs), insert_mean_mapqs = unname(insert_mean_mapqs) %>% unlist())
+supplementary_alignment_filter <- tibble(UUID = names(insert_supplementary_status), insert_supplementary_status = unname(insert_supplementary_status) %>% map(~ .x[1]) %>% unlist())
+indel_and_clipping_filter <- tibble(UUID = names(insert_indel_and_clipping_status), insert_indel_and_clipping_status = unname(insert_indel_and_clipping_status) %>% unlist())
+
+somatic <- somatic %>%
+    left_join(mean_mapq_filter) %>%
+    left_join(supplementary_alignment_filter) %>%
+    left_join(indel_and_clipping_filter)
+somatic <- somatic %>%
+    filter(insert_mean_mapqs > 55) %>%
+    filter(insert_supplementary_status == "PASS") %>%
+    filter(insert_indel_and_clipping_status == "PASS")
 
 # ADDTIONAL FILTERS
 # I think these are overly restrictive given how tsd calling on a single lossy read may occur - doesn't have the benefit of deriving from cluster
@@ -162,18 +218,20 @@ for (element_type in somatic %$% Subfamily %>% unique()) {
     germline_insert_characteristics <- germline_insert_characteristics %>% add_row(germline_tsd_95 = germline_tsd_95, germline_trsd3_95 = germline_trsd3_95, germline_trsd5_95 = germline_trsd5_95, germline_endte_05 = germline_endte_05, Subfamily = element_type)
 }
 
-somatic <- somatic %>%
+somatic_filt <- somatic %>%
     left_join(germline_insert_characteristics) %>%
-    filter(EndTE >= germline_endte_05) %>%
-    filter(nchar(TSD) <= germline_tsd_95) %>%
-    filter(nchar(Transduction_5p) <= germline_trsd5_95)
+    filter(EndTE >= germline_endte_05 - 30)
+
+
+# filter(nchar(TSD) <= germline_tsd_95) %>%
+# filter(nchar(Transduction_5p) <= germline_trsd5_95)
+
+# somatic_filt %>% filter(sample_name == "CTRL2")
 # filter(nchar(Transduction_3p) <= germline_trsd3_95)
 # filter(EndTE - StartTE < LengthIns + 30) %>% #what if you just have a couple of basepairs that spuriously align to the front of TE
 
-
-
-for (element_type in somatic %$% Subfamily %>% unique()) {
-    dftemp <- somatic %>% filter(Subfamily == element_type)
+for (element_type in somatic_filt %$% Subfamily %>% unique()) {
+    dftemp <- somatic_filt %>% filter(Subfamily == element_type)
     p <- dftemp %>%
         gghistogram(x = "LengthIns", fill = "blue") +
         mtopen +
@@ -212,7 +270,7 @@ for (element_type in somatic %$% Subfamily %>% unique()) {
 for (sample in unique(somatic$sample_name)) {
     tempoutputdir <- sprintf("aref/%s_Analysis/tldr_plots/nongermline", sample)
     dfallsample <- dfall %>% filter(sample_name == sample)
-    somaticsample <- somatic %>% filter(sample_name == sample)
+    somaticsample <- somatic_filt %>% filter(sample_name == sample)
 
     p <- dfallsample %>% ggplot(aes(x = UsedReads, fill = Filter == "PASS")) +
         geom_histogram() +
@@ -271,7 +329,7 @@ for (sample in unique(somatic$sample_name)) {
     mysaveandstore(sprintf("%s/single_read_pass_insertion_length.pdf", tempoutputdir), 5, 3)
 }
 
-p <- somatic %>%
+p <- somatic_filt %>%
     ggplot(aes(x = sample_name, fill = Filter == "PASS")) +
     geom_bar() +
     facet_wrap(~Family) +
@@ -283,15 +341,15 @@ p <- somatic %>%
     mtclosed
 mysaveandstore(sprintf("%s/single_read_bar.pdf", outputdir), 8, 5)
 
-# p <- somatic %>% filter(UsedReads == 1) %>% filter(Filter == "PASS") %>% ggplot(aes(x = sample_name, fill = Filter == "PASS")) + geom_bar()+ facet_wrap(~Family) + labs(x = "Supporting Read Count", title = "RTE Somatic Insertions", subtitle = "Single Read Supported") + mtopen + anchorbar + scale_palette+ theme(axis.text.x = element_text(angle = 45, hjust = 1))
+# p <- somatic_filt%>% filter(UsedReads == 1) %>% filter(Filter == "PASS") %>% ggplot(aes(x = sample_name, fill = Filter == "PASS")) + geom_bar()+ facet_wrap(~Family) + labs(x = "Supporting Read Count", title = "RTE Somatic Insertions", subtitle = "Single Read Supported") + mtopen + anchorbar + scale_palette+ theme(axis.text.x = element_text(angle = 45, hjust = 1))
 # mysaveandstore(sprintf("%s/single_read_pass_bar.pdf", outputdir), 8, 5)
 
-somatic %>%
+somatic_filt %>%
     filter(Filter == "PASS") %>%
     filter(MedianMapQ >= 60) %>%
     write_delim(sprintf("%s/somatic_inserts.tsv", outputdir), delim = "\t")
 
-p <- somatic %>%
+p <- somatic_filt %>%
     ggplot(aes(x = sample_name, fill = condition)) +
     geom_bar() +
     facet_wrap(~Family) +
@@ -302,7 +360,7 @@ p <- somatic %>%
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
 mysaveandstore(sprintf("%s/single_read_pass_bar.pdf", outputdir), 8, 5)
 
-p <- somatic %>%
+p <- somatic_filt %>%
     group_by(sample_name, Subfamily, condition) %>%
     summarise(nins = n()) %>%
     ungroup() %>%
@@ -318,13 +376,13 @@ p <- somatic %>%
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
 mysaveandstore(sprintf("%s/single_read_pass_l1hs_aluy_corr_bar.pdf", outputdir), 4, 4)
 
-somatic %>%
+somatic_filt %>%
     filter(Subfamily %in% c("AluY")) %>%
     filter(sample_name == "AD1") %>%
     filter(UUID == "a72cba1d-f8c4-4dd4-8054-ee7c97a6c704") %>%
     print(width = Inf)
 
-p <- somatic %>%
+p <- somatic_filt %>%
     filter(Subfamily %in% c("L1HS", "AluY")) %>%
     ggplot(aes(x = TEMatch, fill = condition)) +
     geom_histogram() +
@@ -336,7 +394,7 @@ p <- somatic %>%
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
 mysaveandstore(sprintf("%s/single_read_pass_histogram.pdf", outputdir), 5, 20)
 
-p <- somatic %>%
+p <- somatic_filt %>%
     filter(Subfamily %in% c("AluY")) %>%
     ggplot(aes(x = sample_name, fill = condition)) +
     geom_bar() +
@@ -349,7 +407,7 @@ mysaveandstore(sprintf("%s/single_read_pass_bar_aluy.pdf", outputdir), 8, 5)
 
 
 
-p <- somatic %>%
+p <- somatic_filt %>%
     ggplot(aes(x = LengthIns)) +
     geom_histogram() +
     labs(x = "Insertion Length", y = "Count", title = "RTE Somatic Insertions", subtitle = "Single Read Supported") +
@@ -360,7 +418,7 @@ p <- somatic %>%
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
 mysaveandstore(sprintf("%s/single_read_pass_insertion_length.pdf", outputdir), 10, 10)
 
-somatic %>%
+somatic_filt %>%
     filter(LengthIns > 5000) %>%
     filter(Subfamily == "L1HS") %>%
     print(width = Inf)
@@ -377,7 +435,7 @@ tryCatch(
             summarise(nins = n()) %>%
             ungroup() %>%
             mutate(Insert_Type = "Germline")
-        somatic_n <- somatic %>%
+        somatic_n <- somatic_filt %>%
             group_by(across(grouping_vars)) %>%
             summarise(nins = n()) %>%
             ungroup() %>%
@@ -439,7 +497,7 @@ tryCatch(
             summarise(nins = n()) %>%
             ungroup() %>%
             mutate(Insert_Type = "Germline")
-        somatic_n_bysubfam <- somatic %>%
+        somatic_n_bysubfam <- somatic_filt %>%
             group_by(across(c(grouping_vars, Subfamily))) %>%
             summarise(nins = n()) %>%
             ungroup() %>%
@@ -483,21 +541,9 @@ tryCatch(
 x <- tibble(OUT = "")
 write_tsv(x, file = outputs$plots)
 
-inputs$bam
-library(GenomicAlignments)
-for (sample in conf$samples) {
-    bampath <- grep(sample, inputs$bam, value = TRUE)
 
-    aln1 <- readGAlignments(bampath, param = ScanBamParam(which = whichgr, what = scanBamWhat(), flag = flag))
-    as.data.frame(aln1) %>%
-        tibble() %>%
-        filter(grepl("327I", cigar))
-    whichgr <- GRanges(somatic)[2]
-}
+somatic_filt %>%
+    filter(Subfamily == "L1HS") %>%
+    print(width = Inf)
+somatic_filt_out
 # ctrl6
-
-flag <- scanBamFlag(
-    isUnmappedQuery = NA,
-    isSecondaryAlignment = NA, isNotPassingQualityControls = NA,
-    isDuplicate = NA, isSupplementaryAlignment = NA
-)

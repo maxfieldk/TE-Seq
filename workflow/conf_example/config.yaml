@@ -171,7 +171,7 @@ ldna:
   default_palette: "ggsci::default_aaas" #paletteer palettes https://emilhvitfeldt.github.io/paletteer/
   use_aref_basecalls: "yes"
   single_condition: "no"
-
+  map_to_mycoplasma: "yes" #yes or no
   samples:
     - "N2102EP1"
 
@@ -203,7 +203,7 @@ ldna:
   reference_annotation_dir: "aref"
   reference: "aref/extended/A.REF.fa"
   annotation: "aref/extended/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf"
-  refseq_unaltered: "aref/extended/A.REF_annotations/refseq.gff3"
+  refseq_unaltered: "aref/default/A.REF_annotations/refseq.gff3"
   refseq: "aref/default/A.REF_annotations/refseq.complete.gtf"
   cytobands: aref/extended/A.REF_annotations/cytobands.bed
   ccres: /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations3/cCREs/hs1-imr90-cCREsCuratedWithClosestGene.bed

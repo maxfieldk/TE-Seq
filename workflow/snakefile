@@ -48,7 +48,7 @@ for pipeline in config["pipelines_to_deploy"]:
         mycoplasma = expand("ldna/qc/mycoplasma/mycoplasma{sample}.bam", sample = config["ldna"]["samples"])
         multiqc = "ldna/qc/multiqc_report.html"
         dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
-        haplotaggedbam = expand("ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.haplotagged.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = config["ldna"]["samples"])
+        haplo_bam = expand("ldna/intermediates/{sample_or_ref}/alignments/{rate}/{ref_genome}/{sample_or_ref}.{type}.{modification_string}.sorted.filtered.haplotagged.bam", ref_genome = "analysis_default", sample_or_ref = config["ldna"]["samples"], rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
         bedmethanalysis = "ldna/results/plots/bedmethylanalysis.rds"
         bedmethanalysis_single_sample = "ldna/outfiles/bedmethylanalysis_single_sample.txt"
         sniffles = expand("ldna/intermediates/{sample}/sniffles/sniffles.vcf", sample = config["ldna"]["samples"])
@@ -57,23 +57,26 @@ for pipeline in config["pipelines_to_deploy"]:
         hg38pat = expand("ldna/results/wgbs/hg38/{sample}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample=  config["ldna"]["samples"])
         gimme = "ldna/results/gimme/gimme_plots.rds"
         # pepper_aref = expand("ldna/intermediates/{sample}/pepper/out.outfile", sample = config["ldna"]["samples"])
-        # variants_aref = expand("ldna/intermediates/{sample_or_ref}/snpeff/snpeff_sml.pass.vcf", sample_or_ref = "A.REF")
-        # variants_per_sample = expand("ldna/intermediates/{sample_or_ref}/snpeff/snpeff_sml.pass.vcf", sample_or_ref = config["ldna"]["samples"])
-        for e in list(flatten([mycoplasma, multiqc])):
+        variants_aref = expand("ldna/intermediates/{sample_or_ref}/snpeff/snpeff_sml.pass.vcf", sample_or_ref = "A.REF")
+        variants_per_sample = expand("ldna/intermediates/{sample_or_ref}/snpeff/snpeff_sml.pass.vcf", sample_or_ref = config["ldna"]["samples"])
+        for e in list(flatten([mycoplasma, multiqc, haplo_bam])):
             final_input.append(e)
+        if config["ldna"]["map_to_mycoplasma"] == "yes":
+            for e in list(flatten([mycoplasma])):
+                final_input.append(e)
         if config["ldna"]["single_condition"] == "yes":
             for e in list(flatten([bedmethanalysis_single_sample, methylartist])):
                 final_input.append(e)
         else:
             for e in list(flatten([bedmethanalysis,dmrs, methylartist,hg38pat])):
                 final_input.append(e)
-        # if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
-        #     if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
-        #         for e in list(flatten([variants_per_sample])):
-        #             final_input.append(e)
-        #     else:
-        #         for e in list(flatten([variants_aref])):
-        #             final_input.append(e)
+        if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
+            if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
+                for e in list(flatten([variants_per_sample])):
+                    final_input.append(e)
+            else:
+                for e in list(flatten([variants_aref])):
+                    final_input.append(e)
 
     if pipeline == "lrna":
         module lrna:

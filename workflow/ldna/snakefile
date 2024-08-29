@@ -7,7 +7,7 @@ samples = config["ldna"]["samples"]
 rule dorado:
     input:
         dir = "ldna/rawdata/{rate}/{sample}",
-        aref = "aref.done.outfile"
+        aref = ancient("aref.done.outfile")
     output:
         calls = expand("ldna/intermediates/{{sample}}/alignments/{{rate}}/{ref_genome}/{{sample}}.{{type}}.{{modification_string}}.bam", ref_genome = "analysis_default")
     wildcard_constraints:
@@ -51,13 +51,13 @@ rule mod_bam_to_fastq:
     shell:
         """
 mkdir -p $(dirname {output.fastq})
-samtools fastq -TMM,ML {input.bam} > {output.fastq}
+samtools fastq -T MM,ML,qs {input.bam} > {output.fastq}
         """
 
 rule align_to_updated_ref:
     input:
         fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq",
-        aref = "aref.done.outfile"
+        aref = ancient("aref.done.outfile")
     params:
         ref = lambda wildcards: "aref/extended/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF.fa"
     output:
@@ -76,7 +76,7 @@ minimap2 -a -x map-ont -t 14 -y {params.ref} {input.fastq} > {output.sam}
 rule align_to_hg38:
     input:
         fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq",
-        aref = "aref.done.outfile"
+        aref = ancient("aref.done.outfile")
     params:
         ref = "/oscar/data/jsedivy/mkelsey/ref/genomes/hg38/hg38.p13.sorted.fa"
     output:
@@ -95,7 +95,7 @@ minimap2 -a -x map-ont -t 14 -y {params.ref} {input.fastq} > {output.sam}
 
 rule telometer_prep:
     input:
-        aref = "aref.done.outfile"
+        aref = ancient("aref.done.outfile")
     params:
         ref = "aref/extended/A.REF.fa",
         stong_subtelo_fa = "/oscar/data/jsedivy/mkelsey/ref/sequences/stong_subtels.fa"
@@ -240,7 +240,7 @@ touch {output.outfile}
 rule mycoplasmaCheck:
     input:
         fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq",
-        aref = "aref.done.outfile"
+        aref = ancient("aref.done.outfile")
     params:
         reference = "resources/genomes/mycoplasma/mycoplasma.fa"
     output:
@@ -372,68 +372,68 @@ samtools view -b -F 0x100 -q {params.min_mapq} -e '[qs] >= {params.min_qscore}' 
         """
 #tag PHASING
 
-rule whatshap:
-    input:
-        sortedbams = expand("ldna/intermediates/{sample}/alignments/{rate}/{ref_genome}/{sample}.{type}.{modification_string}.sorted.filtered.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples),
-        sortedbamsindex = expand("ldna/intermediates/{sample}/alignments/{rate}/{ref_genome}/{sample}.{type}.{modification_string}.sorted.filtered.bam.bai", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
-    params:
-        shortreadsbam = "/oscar/data/jsedivy/mkelsey/freebayes/alignment/lf1.sorted.bam",
-        shortreadsbamindex = "/oscar/data/jsedivy/mkelsey/freebayes/alignment/lf1.sorted.bam.bai",
-        vcf = "/oscar/data/jsedivy/mkelsey/freebayes/results/variants.vcf",
-        ref = config["ldna"]["reference"]
-    output:
-        phasedvcf = "ldna/intermediates/phased.vcf"
-    resources:
-        cpus_per_task =10,
-        runtime = 1200,
-        mem_mb = 80000
-    conda:
-        "whatshap"
-    shell:	
-        """
-mkdir -p $(dirname {output})
-whatshap phase \
---ignore-read-groups \
--o {output.phasedvcf} \
---reference={params.ref} \
-{params.vcf} \
-# {params.shortreadsbam} \
-# {input.sortedbams}
-        """
+# rule whatshap:
+#     input:
+#         sortedbams = expand("ldna/intermediates/{sample}/alignments/{rate}/{ref_genome}/{sample}.{type}.{modification_string}.sorted.filtered.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples),
+#         sortedbamsindex = expand("ldna/intermediates/{sample}/alignments/{rate}/{ref_genome}/{sample}.{type}.{modification_string}.sorted.filtered.bam.bai", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
+#     params:
+#         shortreadsbam = "/oscar/data/jsedivy/mkelsey/freebayes/alignment/lf1.sorted.bam",
+#         shortreadsbamindex = "/oscar/data/jsedivy/mkelsey/freebayes/alignment/lf1.sorted.bam.bai",
+#         vcf = "/oscar/data/jsedivy/mkelsey/freebayes/results/variants.vcf",
+#         ref = config["ldna"]["reference"]
+#     output:
+#         phasedvcf = "ldna/intermediates/phased.vcf"
+#     resources:
+#         cpus_per_task =10,
+#         runtime = 1200,
+#         mem_mb = 80000
+#     conda:
+#         "whatshap"
+#     shell:	
+#         """
+# mkdir -p $(dirname {output})
+# whatshap phase \
+# --ignore-read-groups \
+# -o {output.phasedvcf} \
+# --reference={params.ref} \
+# {params.vcf} \
+# # {params.shortreadsbam} \
+# # {input.sortedbams}
+#         """
 
-rule bgzipandindexphased:
-    input:
-        phasedvcf = "ldna/intermediates/phased.vcf"
-    output:
-        phasedvcfgz = "ldna/intermediates/phased.vcf.gz"
-    conda:
-        "omics"
-    resources:
-        cpus_per_task =10
-    shell:	
-        """
-bgzip {input.phasedvcf}
-tabix {input.phasedvcf}.gz
-        """
+# rule bgzipandindexphased:
+#     input:
+#         phasedvcf = "ldna/intermediates/phased.vcf"
+#     output:
+#         phasedvcfgz = "ldna/intermediates/phased.vcf.gz"
+#     conda:
+#         "omics"
+#     resources:
+#         cpus_per_task =10
+#     shell:	
+#         """
+# bgzip {input.phasedvcf}
+# tabix {input.phasedvcf}.gz
+#         """
         
-rule addphasetobam:
-    input:
-        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-        phasedvcfgz = "ldna/intermediates/phased.vcf.gz",
-        ref = config["ldna"]["reference"]
-    output:
-        haplotaggedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filtered.haplotagged.bam",ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-        haplotaggedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filtered.haplotagged.bam.bai",ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
-    resources:
-        cpus_per_task = 20
-    conda:
-        "whatshap"
-    shell:
-        """
-whatshap haplotag -o {output.haplotaggedbam} --output-threads=$(( {resources.cpus_per_task}-10 )) --ignore-read-groups --skip-missing-contigs --reference {input.ref} {input.phasedvcfgz} {input.sortedbam}
-samtools index -@ 6 {output.haplotaggedbam}
-        """
+# rule addphasetobam:
+#     input:
+#         sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+#         sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+#         phasedvcfgz = "ldna/intermediates/phased.vcf.gz",
+#         ref = config["ldna"]["reference"]
+#     output:
+#         haplotaggedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filtered.haplotagged.bam",ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+#         haplotaggedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filtered.haplotagged.bam.bai",ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+#     resources:
+#         cpus_per_task = 20
+#     conda:
+#         "whatshap"
+#     shell:
+#         """
+# whatshap haplotag -o {output.haplotaggedbam} --output-threads=$(( {resources.cpus_per_task}-10 )) --ignore-read-groups --skip-missing-contigs --reference {input.ref} {input.phasedvcfgz} {input.sortedbam}
+# samtools index -@ 6 {output.haplotaggedbam}
+#         """
 
 #tag METHYLATION
 
@@ -821,7 +821,7 @@ rule callmodbamtobedandextractmods:
 
 rule init_wgbstools_default_ref:
     input:
-        aref = "aref.done.outfile"
+        aref = ancient("aref.done.outfile")
     params:
         ref = "aref/extended/A.REF.fa"
     output:
@@ -840,7 +840,7 @@ touch {output.outfile}
 
 rule init_wgbstools_hg38:
     input:
-        aref = "aref.done.outfile"
+        aref = ancient("aref.done.outfile")
     params:
         ref = "/oscar/data/jsedivy/mkelsey/ref/genomes/hg38/hg38.p13.sorted.fa"
     output:
@@ -1567,7 +1567,7 @@ rule pepper:
     params:
         ref = config["ldna"]["reference"]
     output:
-        outfile = protected("ldna/intermediates/{sample_or_ref}/pepper/out.outfile"),
+        outfile = "ldna/intermediates/{sample_or_ref}/pepper/out.outfile",
         vcf_intermediate_for_margin_haplotag = "ldna/intermediates/{sample_or_ref}/pepper/intermediate_files/PEPPER_VARIANT_FULL.vcf.gz",
         vcf = "ldna/intermediates/{sample_or_ref}/pepper/PEPPER_MARGIN_DEEPVARIANT_FINAL_OUTPUT.vcf.gz",
     resources:
@@ -1598,7 +1598,7 @@ rule margin_get_haplotagged_bam:
     params:
         ref = config["ldna"]["reference"]
     output:
-        outfile = "ldna/intermediates/{sample_or_ref}/pepper/intermediate_files/happlotagged_manual.out"
+        haplo_bam = expand("ldna/intermediates/{{sample_or_ref}}/alignments/{rate}/{ref_genome}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.haplotagged.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
     resources:
         cpus_per_task = 32,
         runtime = 1000,
@@ -1625,14 +1625,17 @@ echo '{{
 margin phase \
     {input.bam} \
     {params.ref} \
-    {input.vcf} \
+    {input.vcf_intermediate_for_margin_haplotag} \
     allParams.haplotag.ont-r104q20.json \
-    --skipPhasedVCF --threads 20 --outputBase $(dirname {output.outfile})/haplotagged
-samtools index $(dirname {output.outfile})/haplotagged.haplotagged.bam
-mv $(dirname {output.outfile})/haplotagged.haplotagged.bam {input.bam}
-mv $(dirname {output.outfile})/haplotagged.haplotagged.bam.bai {input.bam}.bai
-touch {output.outfile}
+    --skipPhasedVCF --threads 20 --outputBase $(dirname {input.vcf_intermediate_for_margin_haplotag})/haplotagged
+samtools index $(dirname {input.vcf_intermediate_for_margin_haplotag})/haplotagged.haplotagged.bam
+mv $(dirname {input.vcf_intermediate_for_margin_haplotag})/haplotagged.haplotagged.bam {output.haplo_bam}
+mv $(dirname {input.vcf_intermediate_for_margin_haplotag})/haplotagged.haplotagged.bam.bai {output.haplo_bam}.bai
         """
+
+rule get_haplo_bam:
+        input: expand("ldna/intermediates/{sample_or_ref}/alignments/{rate}/{ref_genome}/{sample_or_ref}.{type}.{modification_string}.sorted.filtered.haplotagged.bam", ref_genome = "analysis_default", sample_or_ref = config["ldna"]["samples"], rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+
 
 rule snpeff_build_db:
     input:

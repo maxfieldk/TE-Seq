@@ -46,7 +46,7 @@ def aref_complete_input(wildcards):
     if config["update_ref_with_tldr"]["response"] == "yes":
         paths.append(expand("aref/qc/{sample_or_ref}/{sample_or_ref}pycoQC.html", sample_or_ref = config["samples"]))
         paths.append("aref/qc/multiqc.out")
-        # paths.append("aref/results/insertions/analyze_nongermline_insertions.rds")
+        # paths.append("aref/results/insertions/analyze_somatic_insertions.rds")
 
         if config["update_ref_with_tldr"]["per_sample"] == "yes":
             paths.append(expand("aref/default/{sample_or_ref}_Analysis/tldr_plots/tldr_plots.rds", sample_or_ref = config["samples"]))
@@ -714,18 +714,18 @@ rule analyze_insertions:
     script:
         "scripts/analyze_insertions.R"
 
-rule analyze_nongermline_insertions:
+rule analyze_somatic_insertions:
     input:
         json = expand("aref/qc/{sample}/{sample}pycoQC.json", sample = config["samples"]),
         tldroutput = lambda w: expand("aref/{sample}_tldr/{sample}.table.txt", sample = config["samples"]) if config["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF_tldr/A.REF.table.txt"
     output:
-        plots = "aref/results/insertions/analyze_nongermline_insertions.rds"
+        plots = "aref/results/insertions/analyze_somatic_insertions.rds"
     benchmark:
-        "aref/benchmarks/analyze_nongermline_insertions/analyze_nongermline_insertions.tsv"
+        "aref/benchmarks/analyze_somatic_insertions/analyze_somatic_insertions.tsv"
     conda:
         "ds"
     script:
-        "scripts/analyze_nongermline_insertions.R"
+        "scripts/analyze_somatic_insertions.R"
         
 rule cleanup_updated_ref:
     input:

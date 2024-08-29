@@ -92,6 +92,11 @@ contrasts <- conf$contrasts
 counttype <- params$counttype
 
 
+aa <- tidydf %>% filter(rte_subfamily == "L1HS")
+aa %>%
+    arrange(-counts) %>%
+    print(width = Inf)
+
 ## Load Data and add annotations
 resultsdf1 <- read_delim(inputs$resultsdf, delim = "\t") %>% filter(counttype == !!counttype)
 r_annotation_fragmentsjoined <- read_csv(params$r_annotation_fragmentsjoined)
