@@ -46,7 +46,7 @@ def aref_complete_input(wildcards):
     if config["update_ref_with_tldr"]["response"] == "yes":
         paths.append(expand("aref/qc/{sample_or_ref}/{sample_or_ref}pycoQC.html", sample_or_ref = config["samples"]))
         paths.append("aref/qc/multiqc.out")
-        # paths.append("aref/results/insertions/analyze_nongermline_insertions.rds")
+        # paths.append("aref/results/insertions/analyze_somatic_insertions.rds")
 
         if config["update_ref_with_tldr"]["per_sample"] == "yes":
             paths.append(expand("aref/default/{sample_or_ref}_Analysis/tldr_plots/tldr_plots.rds", sample_or_ref = config["samples"]))
@@ -317,6 +317,26 @@ mkdir -p $(dirname {output})
 samtools sort -@8 -m4g {input.bam} > {output.sortedbam}
         """
 
+rule filterbam:
+    input:
+        bam = "aref/{path}.sorted.bam"
+    params:
+        min_mapq = 10,
+        min_qscore = 10
+    output:
+        bam = "aref/{path}.sorted.filtered.bam"
+    resources:
+        cpus_per_task =6,
+        mem_mb = 40000,
+        runtime = 300
+    conda:
+        "omics"
+    shell: 
+        """
+#keeps on only primary and supplementary alignments
+samtools view -b -F 0x100 -q {params.min_mapq} -e '[qs] >= {params.min_qscore}' {input.bam} > {output.bam}
+        """
+
 rule IndexBam:
     input:
         bam = "aref/{bampath}.bam"
@@ -337,8 +357,8 @@ samtools index  -@6 {input.bam}
 species = config["species"]
 rule tldr_aggregate_multiple_samples:
     input:
-        bams = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam", sample = config["samples"], rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
-        bais = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam.bai", sample = config["samples"], rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
+        bams = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam", sample = config["samples"], rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
+        bais = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam.bai", sample = config["samples"], rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
     params:
         tldr_input_bam_ref = lambda w: config["update_ref_with_tldr"]["tldr_input_bam_ref"],
         tldr_te_ref = lambda w: config["update_ref_with_tldr"]["tldr_te_ref"][species],
@@ -399,8 +419,8 @@ rule call_tldr_per_sample:
         expand("aref/{sample_or_ref}_tldr/{sample_or_ref}.table.txt", sample = config["samples"], sample_or_ref = config["samples"])
 rule tldr_per_sample:
     input:
-        bam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
-        bai = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam.bai", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
+        bam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
+        bai = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
     benchmark:
         "aref/benchmarks/tldr_per_sample/{sample}.tsv"
     params:
@@ -483,7 +503,17 @@ rule update_reference_extended_nonref_flank:
 
 if config["update_ref_with_tldr"]["response"] == "yes":
     if config["update_ref_with_tldr"]["per_sample"] == "yes":
-        ruleorder: copy_starting_reference > cleanup_updated_ref
+        ruleorder: copy_starting_reference > cleanup_updated_ref > cleanup_updated_ref_and_patch
+
+if config["update_ref_with_tldr"]["response"] == "yes":
+    if config["update_ref_with_tldr"]["patch_ref"] == "yes":
+        print("patching")
+        ruleorder: cleanup_updated_ref_and_patch > cleanup_updated_ref
+        ruleorder: cleanup_updated_sample_ref_and_patch > cleanup_updated_sample_ref
+    else:
+        print("not patching")
+        ruleorder:  cleanup_updated_ref > cleanup_updated_ref_and_patch
+        ruleorder:  cleanup_updated_sample_ref > cleanup_updated_sample_ref_and_patch
 rule copy_starting_reference:
     params:
         ref = config["starting_ref"]
@@ -497,6 +527,230 @@ rule copy_starting_reference:
 cp {params.ref} {output.ref}
 samtools faidx {output.ref}
         """
+       
+rule cleanup_updated_ref:
+    input:
+        updated_reference = "aref/{default_or_extended}/A.REF-pre-ins-filtering.fa",
+        contigs_to_keep = "aref/{default_or_extended}/A.REF_contigs_to_keep.txt"
+    output:
+        filtered_ref = "aref/{default_or_extended}/A.REF.fa"
+    priority: 100
+    benchmark:
+        "aref/benchmarks/cleanup_updated_ref/cleanup_updated_ref_{default_or_extended}.tsv"
+    conda:
+        "omics"
+    shell:
+        """
+seqkit grep --by-name -f {input.contigs_to_keep} {input.updated_reference} > {output.filtered_ref}
+        """
+
+rule cleanup_updated_sample_ref:
+    input:
+        updated_reference = "aref/{default_or_extended}/{sample}-pre-ins-filtering.fa",
+        contigs_to_keep = "aref/{default_or_extended}/{sample}_contigs_to_keep.txt"
+    output:
+        filtered_ref = "aref/{default_or_extended}/{sample}.fa"
+    priority: 100
+    benchmark:
+        "aref/benchmarks/cleanup_updated_sample_ref/{sample}_{default_or_extended}.tsv"
+    wildcard_constraints:
+        sample = "[A-Za-z0-9_]+"
+    conda:
+        "omics"
+    shell:
+        """
+seqkit grep --by-name -f {input.contigs_to_keep} {input.updated_reference} > {output.filtered_ref}
+samtools faidx {output.filtered_ref}
+        """
+
+rule cleanup_updated_ref_and_patch:
+    input:
+        updated_reference = "aref/{default_or_extended}/A.REF-pre-ins-filtering.fa",
+        contigs_to_keep = "aref/{default_or_extended}/A.REF_contigs_to_keep.txt",
+        hq_snps = "aref/intermediates/A.REF/pepper/hq_snps.vcf.gz",
+    output:
+        filtered_ref = "aref/{default_or_extended}/A.REF.fa"
+    priority: 100
+    benchmark:
+        "aref/benchmarks/cleanup_updated_ref_and_patch/cleanup_updated_ref_and_patch_{default_or_extended}.tsv"
+    conda:
+        "omics"
+    shell:
+        """
+seqkit grep --by-name -f {input.contigs_to_keep} {input.updated_reference} > {output.filtered_ref}.temp
+bcftools consensus -I -f {output.filtered_ref}.temp -o {output.filtered_ref} {input.hq_snps}
+rm {output.filtered_ref}.temp
+samtools faidx {output.filtered_ref}
+        """
+
+rule cleanup_updated_sample_ref_and_patch:
+    input:
+        updated_reference = "aref/{default_or_extended}/{sample}-pre-ins-filtering.fa",
+        contigs_to_keep = "aref/{default_or_extended}/{sample}_contigs_to_keep.txt",
+        hq_snps = "aref/intermediates/{sample}/pepper/hq_snps.vcf.gz",
+    output:
+        filtered_ref = "aref/{default_or_extended}/{sample}.fa"
+    priority: 100
+    benchmark:
+        "aref/benchmarks/cleanup_updated_sample_ref_and_patch/{sample}_{default_or_extended}.tsv"
+    wildcard_constraints:
+        sample = "[A-Za-z0-9_]+"
+    conda:
+        "omics"
+    shell:
+        """
+seqkit grep --by-name -f {input.contigs_to_keep} {input.updated_reference} > {output.filtered_ref}
+bcftools consensus -I -f {output.filtered_ref}.temp -o {output.filtered_ref} {input.hq_snps}
+rm {output.filtered_ref}.temp
+samtools faidx {output.filtered_ref}
+        """
+
+#Variant calling for ref patching
+rule sniffles:
+    input:
+        sortedbam = expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
+        sortedbamindex = expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
+    output:
+        vcf = "aref/intermediates/{sample_or_ref}/sniffles/sniffles.vcf"
+    params:
+        ref = lambda w: config["update_ref_with_tldr"]["tldr_input_bam_ref"]
+    resources:
+        runtime = 1000,
+        mem_mb = 128000,
+        cpus_per_task = 32
+    conda: "sniffles"
+    shell:
+        """
+mkdir -p $(dirname {output})
+sniffles -i {input.sortedbam} -v {output.vcf} --threads 28 --mosaic --reference {params.ref}
+        """
+
+rule pepper:
+    input:
+        sortedbam = ancient(expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])),
+        sortedbamindex = ancient(expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]))
+    params:
+        ref = lambda w: config["update_ref_with_tldr"]["tldr_input_bam_ref"],
+    output:
+        outfile = "aref/intermediates/{sample_or_ref}/pepper/{chr}/pepper.out.outfile",
+        vcf = "aref/intermediates/{sample_or_ref}/pepper/{chr}/PEPPER_MARGIN_DEEPVARIANT_FINAL_OUTPUT.vcf.gz"
+
+    resources:
+        cpus_per_task =20,
+        runtime = 300,
+        mem_mb = 50000
+    retries: 0
+    container:
+        "docker://kishwars/pepper_deepvariant:r0.8"
+    shell:	
+        """
+mkdir -p $(dirname {output.outfile})
+touch {output.outfile}
+
+run_pepper_margin_deepvariant --help
+run_pepper_margin_deepvariant call_variant \
+-b {input.sortedbam} \
+-f {params.ref} \
+-o $(dirname {output.outfile}) \
+-t {resources.cpus_per_task} \
+-r {wildcards.chr} \
+--pepper_min_mapq 30 \
+--pepper_snp_p_value 0.2 \
+--pepper_insert_p_value 0.3 \
+--pepper_delete_p_value 0.3 \
+--ont_r10_q20
+        """
+
+rule merge_vcfs:
+    input:
+        vcfs = expand("aref/intermediates/{{sample_or_ref}}/pepper/{chromosome}/PEPPER_MARGIN_DEEPVARIANT_FINAL_OUTPUT.vcf.gz", chromosome = [e for e in pd.read_table(config["update_ref_with_tldr"]["tldr_input_bam_ref"] + ".fai", header = None).iloc[:,0] if e != "chrM"])
+    output:
+        vcf = "aref/intermediates/{sample_or_ref}/pepper/merged.vcf.gz"
+    conda:
+        "omics"
+    shell:
+        """
+bcftools concat --naive {input.vcfs} > {output.vcf}.temp
+bcftools sort {output.vcf}.temp > {output.vcf}.temp.sorted
+bgzip -c {output.vcf}.temp.sorted > {output.vcf}.temp.gz
+mv {output.vcf}.temp.gz {output.vcf}
+tabix {output.vcf}
+rm {output.vcf}.temp
+rm {output.vcf}.temp.sorted
+        """
+
+
+rule extract_highquality_snps:
+    input:
+        vcf = "aref/intermediates/{sample_or_ref}/pepper/merged.vcf.gz"
+    output:
+        hq_snps = "aref/intermediates/{sample_or_ref}/pepper/hq_snps.vcf.gz"
+    conda:
+        "omics"
+    shell:
+        """
+bcftools filter -i 'TYPE="snp" && MIN(DP)>10 && QUAL>20 && FILTER="PASS"' {input.vcf} > {output.hq_snps}
+bgzip {output.hq_snps}
+mv {output.hq_snps}.gz {output.hq_snps}
+tabix {output.hq_snps}
+        """
+
+rule snpeff_smv:
+    input: 
+        vcf = "aref/intermediates/{sample_or_ref}/pepper/merged.vcf.gz",
+        db_outfile = "aref/intermediates/snpeff/db.outfile"
+    resources:
+        runtime = 1000,
+        mem_mb = 128000,
+        cpus_per_task = 12
+    conda: "snpeff"
+    output:
+        outfile = "aref/intermediates/{sample_or_ref}/snpeff/snpeff_smv.outfile",
+        vcf = "aref/intermediates/{sample_or_ref}/snpeff/snpeff_sml.vcf"
+    shell:
+        """
+zcat {input.vcf} | java -Xmx60g -jar $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.jar hs1 -v -c $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.config -chr 'chr' -csvStats aref/intermediates/{wildcards.sample_or_ref}/snpeff/csvStats_sml.csv -htmlStats aref/intermediates/{wildcards.sample_or_ref}/snpeff/snpeffStats_sml.html - > {output.vcf}
+mkdir -p $(dirname {output.outfile})
+touch {output.outfile}
+exit 0
+        """
+
+rule snpeff_sv:
+    input: 
+        vcf = "aref/intermediates/{sample_or_ref}/sniffles/sniffles.vcf",
+        db_outfile = "aref/intermediates/snpeff/db.outfile"
+    resources:
+        runtime = 1000,
+        mem_mb = 128000,
+        cpus_per_task = 12
+    conda: "snpeff"
+    output:
+        outfile = "aref/intermediates/{sample_or_ref}/snpeff/snpeff_sv.outfile",
+        vcf = "aref/intermediates/{sample_or_ref}/snpeff/snpeff_sv.vcf"
+    shell:
+        """
+cat {input.vcf} | java -Xmx60g -jar $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.jar hs1 -v -c $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.config -chr 'chr' -csvStats aref/intermediates/{wildcards.sample_or_ref}/snpeff/csvStats_sv.csv -htmlStats aref/intermediates/{wildcards.sample_or_ref}/snpeff/snpeffStats_sv.html {input.vcf} > {output.vcf}
+mkdir -p $(dirname {output.outfile})
+touch {output.outfile}
+exit 0
+        """
+
+rule pass_vcf:
+    input:
+        vcf_sml = "aref/intermediates/{sample_or_ref}/snpeff/snpeff_sml.vcf",
+        vcf_sv = "aref/intermediates/{sample_or_ref}/snpeff/snpeff_sv.vcf"
+    output:
+        vcf_sml = "aref/intermediates/{sample_or_ref}/snpeff/snpeff_sml.pass.vcf",
+        vcf_sv = "aref/intermediates/{sample_or_ref}/snpeff/snpeff_sv.pass.vcf"
+    conda:
+        "omics"
+    shell:
+        """
+bcftools view -f 'PASS' {input.vcf_sml} > {output.vcf_sml}
+bcftools view -f 'PASS' {input.vcf_sv} > {output.vcf_sv}
+        """
+
+####
 
 rule get_repeatmasker_raw:
     input:
@@ -718,51 +972,19 @@ rule analyze_insertions:
     script:
         "scripts/analyze_insertions.R"
 
-rule analyze_nongermline_insertions:
+rule analyze_somatic_insertions:
     input:
         json = expand("aref/qc/{sample}/{sample}pycoQC.json", sample = config["samples"]),
         tldroutput = lambda w: expand("aref/{sample}_tldr/{sample}.table.txt", sample = config["samples"]) if config["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF_tldr/A.REF.table.txt"
     output:
-        plots = "aref/results/insertions/analyze_nongermline_insertions.rds"
+        plots = "aref/results/insertions/analyze_somatic_insertions.rds"
     benchmark:
-        "aref/benchmarks/analyze_nongermline_insertions/analyze_nongermline_insertions.tsv"
+        "aref/benchmarks/analyze_somatic_insertions/analyze_somatic_insertions.tsv"
     conda:
         "ds"
     script:
-        "scripts/analyze_nongermline_insertions.R"
-        
-rule cleanup_updated_ref:
-    input:
-        updated_reference = "aref/{default_or_extended}/A.REF-pre-ins-filtering.fa",
-        contigs_to_keep = "aref/{default_or_extended}/A.REF_contigs_to_keep.txt"
-    output:
-        filtered_ref = "aref/{default_or_extended}/A.REF.fa"
-    benchmark:
-        "aref/benchmarks/cleanup_updated_ref/cleanup_updated_ref_{default_or_extended}.tsv"
-    conda:
-        "omics"
-    shell:
-        """
-seqkit grep --by-name -f {input.contigs_to_keep} {input.updated_reference} > {output.filtered_ref}
-        """
+        "scripts/analyze_somatic_insertions.R"
 
-rule cleanup_updated_sample_ref:
-    input:
-        updated_reference = "aref/{default_or_extended}/{sample}-pre-ins-filtering.fa",
-        contigs_to_keep = "aref/{default_or_extended}/{sample}_contigs_to_keep.txt"
-    output:
-        filtered_ref = "aref/{default_or_extended}/{sample}.fa"
-    benchmark:
-        "aref/benchmarks/cleanup_updated_sample_ref/{sample}_{default_or_extended}.tsv"
-    wildcard_constraints:
-        sample = "[A-Za-z0-9_]+"
-    conda:
-        "omics"
-    shell:
-        """
-seqkit grep --by-name -f {input.contigs_to_keep} {input.updated_reference} > {output.filtered_ref}
-samtools faidx {output.filtered_ref}
-        """
 
 rule move_refseq:
     input:
