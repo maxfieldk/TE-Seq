@@ -362,7 +362,8 @@ rule filterbam:
         bam = "ldna/{path}.sorted.filtered.bam"
     resources:
         cpus_per_task =6,
-        mem_mb = 40000
+        mem_mb = 40000,
+        runtime = 300
     conda:
         "omics"
     shell: 
@@ -372,6 +373,51 @@ samtools view -b -F 0x100 -q {params.min_mapq} -e '[qs] >= {params.min_qscore}' 
         """
 #tag PHASING
 
+
+rule margin_get_haplotagged_bam:
+    input:
+        vcf_intermediate_for_margin_haplotag = "ldna/intermediates/{sample_or_ref}/pepper/merged.vcf",
+        bam = expand("ldna/intermediates/{{sample_or_ref}}/alignments/{rate}/{ref_genome}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+    params:
+        ref = config["ldna"]["reference"]
+    output:
+        haplo_bam = expand("ldna/intermediates/{{sample_or_ref}}/alignments/{rate}/{ref_genome}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.haplotagged.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+    resources:
+        cpus_per_task = 32,
+        runtime = 1000,
+        mem_mb = 128000
+    container:
+        "docker://kishwars/pepper_deepvariant:r0.8"
+    shell:
+        """
+echo '{{
+        "include" : "/opt/margin_dir/params/base_params.json",
+        "polish": {{
+                "filterAlignmentsWithMapQBelowThisThreshold": 5,
+                "maxDepth": 32
+        }},
+        "phase" : {{
+                "onlyUseSNPVCFEntries": true,
+                "useVariantSelectionAdaptiveSampling": true,
+                "variantSelectionAdaptiveSamplingPrimaryThreshold": 15,
+                "variantSelectionAdaptiveSamplingDesiredBasepairsPerVariant": 2000,
+                "minSnpVariantQuality": 10
+        }}
+}}' > allParams.haplotag.ont-r104q20.json
+
+margin phase \
+    {input.bam} \
+    {params.ref} \
+    {input.vcf_intermediate_for_margin_haplotag} \
+    allParams.haplotag.ont-r104q20.json \
+    --skipPhasedVCF --threads 20 --outputBase $(dirname {input.vcf_intermediate_for_margin_haplotag})/haplotagged
+samtools index $(dirname {input.vcf_intermediate_for_margin_haplotag})/haplotagged.haplotagged.bam
+mv $(dirname {input.vcf_intermediate_for_margin_haplotag})/haplotagged.haplotagged.bam {output.haplo_bam}
+mv $(dirname {input.vcf_intermediate_for_margin_haplotag})/haplotagged.haplotagged.bam.bai {output.haplo_bam}.bai
+        """
+
+rule get_haplo_bam:
+        input: expand("ldna/intermediates/{sample_or_ref}/alignments/{rate}/{ref_genome}/{sample_or_ref}.{type}.{modification_string}.sorted.filtered.haplotagged.bam", ref_genome = "analysis_default", sample_or_ref = config["ldna"]["samples"], rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
 # rule whatshap:
 #     input:
 #         sortedbams = expand("ldna/intermediates/{sample}/alignments/{rate}/{ref_genome}/{sample}.{type}.{modification_string}.sorted.filtered.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples),
@@ -1541,100 +1587,6 @@ flye --nano-raw {input.fq} --out-dir $(dirname {output.outfile}) --threads 30
 # touch {output.outfile}
 #         """
 
-rule sniffles:
-    input:
-        sortedbam = expand("ldna/intermediates/{{sample_or_ref}}/alignments/{rate}/{ref_genome}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-        sortedbamindex = expand("ldna/intermediates/{{sample_or_ref}}/alignments/{rate}/{ref_genome}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam.bai", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
-    output:
-        vcf = "ldna/intermediates/{sample_or_ref}/sniffles/sniffles.vcf"
-    params:
-        ref = config["ldna"]["reference"]
-    resources:
-        runtime = 1000,
-        mem_mb = 128000,
-        cpus_per_task = 32
-    conda: "sniffles"
-    shell:
-        """
-mkdir -p $(dirname {output})
-sniffles -i {input.sortedbam} -v {output.vcf} --threads 28 --mosaic --reference {params.ref}
-        """
-
-rule pepper:
-    input:
-        sortedbam = ancient(expand("ldna/intermediates/{{sample_or_ref}}/alignments/{rate}/{ref_genome}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])),
-        sortedbamindex = ancient(expand("ldna/intermediates/{{sample_or_ref}}/alignments/{rate}/{ref_genome}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam.bai", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]))
-    params:
-        ref = config["ldna"]["reference"]
-    output:
-        outfile = "ldna/intermediates/{sample_or_ref}/pepper/out.outfile",
-        vcf_intermediate_for_margin_haplotag = "ldna/intermediates/{sample_or_ref}/pepper/intermediate_files/PEPPER_VARIANT_FULL.vcf.gz",
-        vcf = "ldna/intermediates/{sample_or_ref}/pepper/PEPPER_MARGIN_DEEPVARIANT_FINAL_OUTPUT.vcf.gz",
-    resources:
-        cpus_per_task =32,
-        runtime = 4000,
-        mem_mb = 156000
-    retries: 0
-    container:
-        "docker://kishwars/pepper_deepvariant:r0.8"
-    shell:	
-        """
-mkdir -p $(dirname {output})
-run_pepper_margin_deepvariant --help
-run_pepper_margin_deepvariant call_variant \
--b {input.sortedbam} \
--f {params.ref} \
--o $(dirname {output.outfile}) \
--t {resources.cpus_per_task} \
---ont_r10_q20
-
-touch {output.outfile}
-        """
-
-rule margin_get_haplotagged_bam:
-    input:
-        vcf_intermediate_for_margin_haplotag = "ldna/intermediates/{sample_or_ref}/pepper/intermediate_files/PEPPER_VARIANT_FULL.vcf.gz",
-        bam = expand("ldna/intermediates/{{sample_or_ref}}/alignments/{rate}/{ref_genome}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
-    params:
-        ref = config["ldna"]["reference"]
-    output:
-        haplo_bam = expand("ldna/intermediates/{{sample_or_ref}}/alignments/{rate}/{ref_genome}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.haplotagged.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
-    resources:
-        cpus_per_task = 32,
-        runtime = 1000,
-        mem_mb = 128000
-    container:
-        "docker://kishwars/pepper_deepvariant:r0.8"
-    shell:
-        """
-echo '{{
-        "include" : "/opt/margin_dir/params/base_params.json",
-        "polish": {{
-                "filterAlignmentsWithMapQBelowThisThreshold": 5,
-                "maxDepth": 32
-        }},
-        "phase" : {{
-                "onlyUseSNPVCFEntries": true,
-                "useVariantSelectionAdaptiveSampling": true,
-                "variantSelectionAdaptiveSamplingPrimaryThreshold": 15,
-                "variantSelectionAdaptiveSamplingDesiredBasepairsPerVariant": 2000,
-                "minSnpVariantQuality": 10
-        }}
-}}' > allParams.haplotag.ont-r104q20.json
-
-margin phase \
-    {input.bam} \
-    {params.ref} \
-    {input.vcf_intermediate_for_margin_haplotag} \
-    allParams.haplotag.ont-r104q20.json \
-    --skipPhasedVCF --threads 20 --outputBase $(dirname {input.vcf_intermediate_for_margin_haplotag})/haplotagged
-samtools index $(dirname {input.vcf_intermediate_for_margin_haplotag})/haplotagged.haplotagged.bam
-mv $(dirname {input.vcf_intermediate_for_margin_haplotag})/haplotagged.haplotagged.bam {output.haplo_bam}
-mv $(dirname {input.vcf_intermediate_for_margin_haplotag})/haplotagged.haplotagged.bam.bai {output.haplo_bam}.bai
-        """
-
-rule get_haplo_bam:
-        input: expand("ldna/intermediates/{sample_or_ref}/alignments/{rate}/{ref_genome}/{sample_or_ref}.{type}.{modification_string}.sorted.filtered.haplotagged.bam", ref_genome = "analysis_default", sample_or_ref = config["ldna"]["samples"], rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
 
 
 rule snpeff_build_db:
@@ -1662,60 +1614,7 @@ mkdir -p $(dirname {output.outfile})
 touch {output.outfile}
         """
 
-rule snpeff_smv:
-    input: 
-        vcf = "ldna/intermediates/{sample_or_ref}/pepper/PEPPER_MARGIN_DEEPVARIANT_FINAL_OUTPUT.vcf.gz",
-        db_outfile = "ldna/intermediates/snpeff/db.outfile"
-    resources:
-        runtime = 1000,
-        mem_mb = 128000,
-        cpus_per_task = 12
-    conda: "snpeff"
-    output:
-        outfile = "ldna/intermediates/{sample_or_ref}/snpeff/snpeff_smv.outfile",
-        vcf = "ldna/intermediates/{sample_or_ref}/snpeff/snpeff_sml.vcf"
-    shell:
-        """
-cat {input.vcf} | java -Xmx60g -jar $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.jar hs1 -v -c $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.config -chr 'chr' -csvStats ldna/intermediates/{wildcards.sample_or_ref}/snpeff/csvStats_sml.csv -htmlStats ldna/intermediates/{wildcards.sample_or_ref}/snpeff/snpeffStats_sml.html {input.vcf} > {output.vcf}
-mkdir -p $(dirname {output.outfile})
-touch {output.outfile}
-exit 0
-        """
 
-rule snpeff_sv:
-    input: 
-        vcf = "ldna/intermediates/{sample_or_ref}/sniffles/sniffles.vcf",
-        db_outfile = "ldna/intermediates/snpeff/db.outfile"
-    resources:
-        runtime = 1000,
-        mem_mb = 128000,
-        cpus_per_task = 12
-    conda: "snpeff"
-    output:
-        outfile = "ldna/intermediates/{sample_or_ref}/snpeff/snpeff_sv.outfile",
-        vcf = "ldna/intermediates/{sample_or_ref}/snpeff/snpeff_sv.vcf"
-    shell:
-        """
-cat {input.vcf} | java -Xmx60g -jar $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.jar hs1 -v -c $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.config -chr 'chr' -csvStats ldna/intermediates/{wildcards.sample_or_ref}/snpeff/csvStats_sv.csv -htmlStats ldna/intermediates/{wildcards.sample_or_ref}/snpeff/snpeffStats_sv.html {input.vcf} > {output.vcf}
-mkdir -p $(dirname {output.outfile})
-touch {output.outfile}
-exit 0
-        """
-
-rule pass_vcf:
-    input:
-        vcf_sml = "ldna/intermediates/{sample_or_ref}/snpeff/snpeff_sml.vcf",
-        vcf_sv = "ldna/intermediates/{sample_or_ref}/snpeff/snpeff_sv.vcf"
-    output:
-        vcf_sml = "ldna/intermediates/{sample_or_ref}/snpeff/snpeff_sml.pass.vcf",
-        vcf_sv = "ldna/intermediates/{sample_or_ref}/snpeff/snpeff_sv.pass.vcf"
-    conda:
-        "omics"
-    shell:
-        """
-bcftools view -f 'PASS' {input.vcf_sml} > {output.vcf_sml}
-bcftools view -f 'PASS' {input.vcf_sv} > {output.vcf_sv}
-        """
 
 
 

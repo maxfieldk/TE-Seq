@@ -4,6 +4,17 @@ import csv
 from pathlib import Path
 from pandas.core.common import flatten
 
+print("""
+░▒▓████████▓▒░▒▓████████▓▒░░▒▓███████▓▒░▒▓████████▓▒░▒▓██████▓▒░  
+   ░▒▓█▓▒░   ░▒▓█▓▒░      ░▒▓█▓▒░      ░▒▓█▓▒░     ░▒▓█▓▒░░▒▓█▓▒░ 
+   ░▒▓█▓▒░   ░▒▓█▓▒░      ░▒▓█▓▒░      ░▒▓█▓▒░     ░▒▓█▓▒░░▒▓█▓▒░ 
+   ░▒▓█▓▒░   ░▒▓██████▓▒░  ░▒▓██████▓▒░░▒▓██████▓▒░░▒▓█▓▒░░▒▓█▓▒░ 
+   ░▒▓█▓▒░   ░▒▓█▓▒░             ░▒▓█▓▒░▒▓█▓▒░     ░▒▓█▓▒░░▒▓█▓▒░ 
+   ░▒▓█▓▒░   ░▒▓█▓▒░             ░▒▓█▓▒░▒▓█▓▒░     ░▒▓█▓▒░░▒▓█▓▒░ 
+   ░▒▓█▓▒░   ░▒▓████████▓▒░▒▓███████▓▒░░▒▓████████▓▒░▒▓██████▓▒░  
+                                                      ░▒▓█▓▒░     
+                                                       ░▒▓██▓▒░
+""")
 configfile: "conf/config.yaml"
 
 final_input = []
@@ -24,7 +35,7 @@ for pipeline in config["pipelines_to_deploy"]:
                     else: 
                         use rule * from aref exclude sym_link,copy_starting_reference,merge_rm_out_wholegenome,move_starting_reference,tldr_per_sample,get_repeatmasker_raw,process_gtf as aref_*
                 else:
-                    use rule * from aref exclude sym_link,multiqc,merge_rm_out_wholegenome,dorado,dorado_seqsummary,pycoQC,process_gtf_tldr,cleanup_updated_ref,repeatmasker,getGtfs as aref_*
+                    use rule * from aref exclude sym_link,multiqc,merge_rm_out_wholegenome,dorado,dorado_seqsummary,pycoQC,process_gtf_tldr,cleanup_updated_ref, cleanup_updated_sample_ref,cleanup_updated_ref_and_patch, cleanup_updated_sample_ref_and_patch, repeatmasker,getGtfs as aref_*
             else:
                 if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
                     if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
@@ -32,7 +43,7 @@ for pipeline in config["pipelines_to_deploy"]:
                     else: 
                         use rule * from aref exclude sym_link,copy_starting_reference,get_repeatmasker_raw_out,move_starting_reference,tldr_per_sample,get_repeatmasker_raw,process_gtf as aref_*
                 else:
-                    use rule * from aref exclude sym_link,multiqc,get_repeatmasker_raw_out,dorado,dorado_seqsummary,pycoQC,process_gtf_tldr,cleanup_updated_ref,repeatmasker,getGtfs as aref_*
+                    use rule * from aref exclude sym_link,multiqc,get_repeatmasker_raw_out,dorado,dorado_seqsummary,pycoQC,process_gtf_tldr,cleanup_updated_ref,cleanup_updated_sample_ref,cleanup_updated_ref_and_patch, cleanup_updated_sample_ref_and_patch, repeatmasker,getGtfs as aref_*
     
     if pipeline == "ldna":
         module ldna:
@@ -56,10 +67,10 @@ for pipeline in config["pipelines_to_deploy"]:
         methylartist = "ldna/results/plots/methylartist/locus/methylartistlocusplot_loci_of_interest.outfile"
         hg38pat = expand("ldna/results/wgbs/hg38/{sample}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample=  config["ldna"]["samples"])
         gimme = "ldna/results/gimme/gimme_plots.rds"
-        # pepper_aref = expand("ldna/intermediates/{sample}/pepper/out.outfile", sample = config["ldna"]["samples"])
+        # pepper_aref = expand("ldna/intermediates/{sample}/pepper.out.outfile", sample = config["ldna"]["samples"])
         variants_aref = expand("ldna/intermediates/{sample_or_ref}/snpeff/snpeff_sml.pass.vcf", sample_or_ref = "A.REF")
         variants_per_sample = expand("ldna/intermediates/{sample_or_ref}/snpeff/snpeff_sml.pass.vcf", sample_or_ref = config["ldna"]["samples"])
-        for e in list(flatten([mycoplasma, multiqc, haplo_bam])):
+        for e in list(flatten([mycoplasma, multiqc])):
             final_input.append(e)
         if config["ldna"]["map_to_mycoplasma"] == "yes":
             for e in list(flatten([mycoplasma])):
@@ -70,13 +81,13 @@ for pipeline in config["pipelines_to_deploy"]:
         else:
             for e in list(flatten([bedmethanalysis,dmrs, methylartist,hg38pat])):
                 final_input.append(e)
-        if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
-            if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
-                for e in list(flatten([variants_per_sample])):
-                    final_input.append(e)
-            else:
-                for e in list(flatten([variants_aref])):
-                    final_input.append(e)
+        # if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
+        #     if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
+        #         for e in list(flatten([variants_per_sample])):
+        #             final_input.append(e)
+        #     else:
+        #         for e in list(flatten([variants_aref])):
+        #             final_input.append(e)
 
     if pipeline == "lrna":
         module lrna:

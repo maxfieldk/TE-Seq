@@ -59,6 +59,8 @@ aref:
     response: "no"
     #if making one ref per sample (i.e. each sample has unique inserts), then "yes", else "no"
     per_sample: "no"
+    #if you would like snps to be incorporated into the reference
+    patch_ref: "yes"
     #IF updating reference with tldr inserts; else NULL
     tldr_input_bam_ref: ../genome_files/reference.ucsc.fa
     #ensure tldr_input_bams are a full path, not relative paths
