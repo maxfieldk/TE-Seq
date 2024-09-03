@@ -1,9 +1,10 @@
 import os
 import pandas as pd
 import csv
+import random
 from pathlib import Path
 from pandas.core.common import flatten
-
+random.seed(123)
 print("""
 ░▒▓████████▓▒░▒▓████████▓▒░░▒▓███████▓▒░▒▓████████▓▒░▒▓██████▓▒░  
    ░▒▓█▓▒░   ░▒▓█▓▒░      ░▒▓█▓▒░      ░▒▓█▓▒░     ░▒▓█▓▒░░▒▓█▓▒░ 

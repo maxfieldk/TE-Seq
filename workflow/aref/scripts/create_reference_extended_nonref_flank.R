@@ -4,6 +4,7 @@ source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 library(configr)
 library(Biostrings)
+set.seed(123)
 
 tryCatch(
     {

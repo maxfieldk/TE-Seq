@@ -6,6 +6,7 @@ source("workflow/scripts/generate_colors_to_source.R")
 library(readr)
 library(bsseq)
 library(BiocParallel)
+set.seed(123)
 
 tryCatch(
     {

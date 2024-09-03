@@ -212,6 +212,7 @@ Make sure your fastq file naming is consistent with the naming scheme set forth 
   TO
   singularity-args: '--bind /users/YOURUSERNAME/data,/oscar/data/jsedivy/YOURUSERNAME'
   ```
+  This workflow/profile/config file specifies also the default compute resources used by rules, as well as a number of rule-specific resources. If supplying nanopore DNA reads, pay particular attention to the resources specified for the dorado rule, which should if possible be run on a batch partition / system with an Nvidia GPU. Running this step solely on a CPU will take a long time... 
 ## Workflow Logic:
 ### AREF
   In the spirit of use case flexibility, the AREF module has a number of workflow modifying parameters. These live in the aref section of the config.yaml file.  
