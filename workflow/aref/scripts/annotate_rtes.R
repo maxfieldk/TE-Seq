@@ -215,6 +215,9 @@ if (conf$species == "human") {
         "L1MdGf_I", "L1MdGf_II",
         "L1MdA_I", "L1MdA_II", "L1MdA_III"
     )
+} else {
+    element_to_annotate <- rmfamilies %$% least_diverged_families_l1 %>% unique()
+    element_to_annotate <- element_to_annotate[element_to_annotate!="Other"]
 }
 # trycatch needed if you are not using human/mouse
 
@@ -346,17 +349,19 @@ tryCatch(
     }
 )
 
+fulllength_trnc_length_threshold <- conf$yng_old_divergence_threshold
 length_ann <- rmfragments %>%
     dplyr::select(gene_id, pctconsensuscovered) %>%
     full_join(rmfamilies %>% dplyr::select(gene_id, rte_subfamily)) %>%
-    mutate(rte_length_req = ifelse(pctconsensuscovered >= 95, "FL", "Trnc"))
+    mutate(rte_length_req = ifelse(pctconsensuscovered >= fulllength_trnc_length_threshold, "FL", "Trnc"))
+yng_old_divergence_threshold <- conf$yng_old_divergence_threshold
 divergence_ann <- rmfragments %>%
     dplyr::select(gene_id, family, pctdiv, pctconsensuscovered) %>%
     group_by(family) %>%
     mutate(family_av_pctdiv = mean(pctdiv, na.rm = TRUE), family_av_coverage = mean(pctconsensuscovered, na.rm = TRUE)) %>%
     ungroup() %>%
     mutate(divergence_age = ifelse(
-        family_av_pctdiv < 15, "Yng", "Old"
+        family_av_pctdiv <= yng_old_divergence_threshold, "Yng", "Old"
     ))
 
 tryCatch(
@@ -375,10 +380,10 @@ req_annot <- req_annot %>%
     mutate(req_integrative = case_when(
         (intactness_req == "Intact") & (divergence_age == "Yng") ~ "Yng Intact",
         (intactness_req == "Intact") & (divergence_age == "Old") ~ "Old Intact",
-        (pctconsensuscovered >= 95) & (divergence_age == "Yng") ~ "Yng FL",
-        (pctconsensuscovered < 95) & (divergence_age == "Yng") ~ "Yng Trnc",
-        (pctconsensuscovered >= 95) & (divergence_age == "Old") ~ "Old FL",
-        (pctconsensuscovered < 95) & (divergence_age == "Old") ~ "Old Trnc",
+        (rte_length_req == "FL") & (divergence_age == "Yng") ~ "Yng FL",
+        (rte_length_req == "Trnc") & (divergence_age == "Yng") ~ "Yng Trnc",
+        (rte_length_req == "FL") & (divergence_age == "Old") ~ "Old FL",
+        (rte_length_req == "Trnc") & (divergence_age == "Old") ~ "Old Trnc",
         TRUE ~ "Unclassified"
     )) %>%
     mutate(req_integrative = factor(req_integrative, levels = c("Old Trnc", "Old FL", "Yng Trnc", "Yng FL", "Yng Intact")))
@@ -399,9 +404,9 @@ ints <- rmfamilies %>%
     filter(grepl("-int$", family)) %>%
     left_join(rmfragments)
 intsgrs <- GRanges(ints)
-intsfl <- ints %>% filter(pctconsensuscovered >= 95)
+intsfl <- ints %>% filter(rte_length_req == "FL")
 intsflgrs <- GRanges(intsfl)
-intsnotfl <- ints %>% filter(pctconsensuscovered < 95)
+intsnotfl <- ints %>% filter(rte_length_req == "Trnc")
 intsnotflgrs <- GRanges(intsnotfl)
 
 Solo_LTR <- ltrsgrsextended %>%

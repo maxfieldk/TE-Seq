@@ -25,6 +25,7 @@ library(ggpmisc)
 library(ggpubr)
 library(ggh4x)
 
+
 tryCatch(
     {
         inputs <- snakemake@input
@@ -220,41 +221,47 @@ for (element_type in somatic %$% Subfamily %>% unique()) {
 
 somatic_filt <- somatic %>%
     left_join(germline_insert_characteristics) %>%
-    filter(EndTE >= germline_endte_05 - 30)
+    mutate(endte_manual_filter = case_when(
+        Family == "ALU" ~ 250,
+        Family == "L1" ~ 5800,
+    )) %>%
+    filter(EndTE >= endte_manual_filter | is.na(endte_manual_filter)) %>%
+    filter(EndTE >= germline_endte_05 - 50)
+somatic_filt %>%
+    write_delim(sprintf("%s/somatic_inserts.tsv", outputdir), delim = "\t")
 
-
+somatic_filt %>% filter(Family == "L1")
 # filter(nchar(TSD) <= germline_tsd_95) %>%
 # filter(nchar(Transduction_5p) <= germline_trsd5_95)
 
 # somatic_filt %>% filter(sample_name == "CTRL2")
 # filter(nchar(Transduction_3p) <= germline_trsd3_95)
 # filter(EndTE - StartTE < LengthIns + 30) %>% #what if you just have a couple of basepairs that spuriously align to the front of TE
-
 for (element_type in somatic_filt %$% Subfamily %>% unique()) {
-    dftemp <- somatic_filt %>% filter(Subfamily == element_type)
+    dftemp <- somatic %>% filter(Subfamily == element_type)
     p <- dftemp %>%
         gghistogram(x = "LengthIns", fill = "blue") +
         mtopen +
         labs(title = element_type)
-    mysaveandstore(sprintf("%s/%s/length_distribution.pdf", outputdir, element_type))
+    mysaveandstore(sprintf("%s/%s/filter_set1/length_distribution.pdf", outputdir, element_type))
     dftemp %$% LengthIns %>% quantile()
     p <- dftemp %>%
         mutate(tsdlen = nchar(TSD)) %>%
         gghistogram(x = "tsdlen", fill = "blue") +
         labs(title = element_type) + mtopen
-    mysaveandstore(sprintf("%s/%s/tsd_length_distribution.pdf", outputdir, element_type))
+    mysaveandstore(sprintf("%s/%s/filter_set1/tsd_length_distribution.pdf", outputdir, element_type))
 
     p <- dftemp %>%
         mutate(trsd5 = nchar(Transduction_5p)) %>%
         gghistogram(x = "trsd5", fill = "blue") +
         labs(title = element_type) + mtopen
-    mysaveandstore(sprintf("%s/%s/trsd5_length_distribution.pdf", outputdir, element_type))
+    mysaveandstore(sprintf("%s/%s/filter_set1/trsd5_length_distribution.pdf", outputdir, element_type))
 
     p <- dftemp %>%
         mutate(trsd3 = nchar(Transduction_3p)) %>%
         gghistogram(x = "trsd3", fill = "blue") +
         labs(title = element_type) + mtopen
-    mysaveandstore(sprintf("%s/%s/trsd3_length_distribution.pdf", outputdir, element_type))
+    mysaveandstore(sprintf("%s/%s/filter_set1/trsd3_length_distribution.pdf", outputdir, element_type))
 
     p <- dftemp %>%
         arrange(-EndTE) %>%
@@ -263,60 +270,63 @@ for (element_type in somatic_filt %$% Subfamily %>% unique()) {
         geom_segment(aes(x = StartTE, xend = EndTE, y = nrow, yend = nrow)) +
         mtclosed +
         labs(title = element_type)
-    mysaveandstore(sprintf("%s/%s/te_body_distribution.pdf", outputdir, element_type))
+    mysaveandstore(sprintf("%s/%s/filter_set1/te_body_distribution.pdf", outputdir, element_type))
+}
+
+for (element_type in somatic_filt %$% Subfamily %>% unique()) {
+    dftemp <- somatic_filt %>% filter(Subfamily == element_type)
+    p <- dftemp %>%
+        gghistogram(x = "LengthIns", fill = "blue") +
+        mtopen +
+        labs(title = element_type)
+    mysaveandstore(sprintf("%s/%s/filter_set2/length_distribution.pdf", outputdir, element_type))
+    dftemp %$% LengthIns %>% quantile()
+    p <- dftemp %>%
+        mutate(tsdlen = nchar(TSD)) %>%
+        gghistogram(x = "tsdlen", fill = "blue") +
+        labs(title = element_type) + mtopen
+    mysaveandstore(sprintf("%s/%s/filter_set2/tsd_length_distribution.pdf", outputdir, element_type))
+
+    p <- dftemp %>%
+        mutate(trsd5 = nchar(Transduction_5p)) %>%
+        gghistogram(x = "trsd5", fill = "blue") +
+        labs(title = element_type) + mtopen
+    mysaveandstore(sprintf("%s/%s/filter_set2/trsd5_length_distribution.pdf", outputdir, element_type))
+
+    p <- dftemp %>%
+        mutate(trsd3 = nchar(Transduction_3p)) %>%
+        gghistogram(x = "trsd3", fill = "blue") +
+        labs(title = element_type) + mtopen
+    mysaveandstore(sprintf("%s/%s/filter_set2/trsd3_length_distribution.pdf", outputdir, element_type))
+
+    p <- dftemp %>%
+        arrange(-EndTE) %>%
+        mutate(nrow = row_number()) %>%
+        ggplot() +
+        geom_segment(aes(x = StartTE, xend = EndTE, y = nrow, yend = nrow)) +
+        mtclosed +
+        labs(title = element_type)
+    mysaveandstore(sprintf("%s/%s/filter_set2/te_body_distribution.pdf", outputdir, element_type))
 }
 
 
-for (sample in unique(somatic$sample_name)) {
-    tempoutputdir <- sprintf("aref/%s_Analysis/tldr_plots/nongermline", sample)
+for (sample in unique(somatic_filt$sample_name)) {
+    tempoutputdir <- sprintf("aref/%s_Analysis/tldr_plots/somatic", sample)
     dfallsample <- dfall %>% filter(sample_name == sample)
     somaticsample <- somatic_filt %>% filter(sample_name == sample)
 
-    p <- dfallsample %>% ggplot(aes(x = UsedReads, fill = Filter == "PASS")) +
-        geom_histogram() +
-        labs(x = "Supporting Read Count", title = "RTE Somatic Insertions") +
-        mtopen +
-        anchorbar +
-        scale_palette
-    mysaveandstore(sprintf("%s/usedreads_hist.pdf", tempoutputdir), 5, 4)
-
-    p <- dfallsample %>% ggplot(aes(x = Family, fill = Filter == "PASS")) +
-        geom_bar() +
-        labs(x = "Supporting Read Count", title = "RTE Somatic Insertions") +
-        mtopen +
-        anchorbar +
-        scale_palette
-    mysaveandstore(sprintf("%s/usedreads_bar.pdf", tempoutputdir), 5, 4)
-
-    p <- somaticsample %>%
-        ggplot(aes(x = Family, fill = Filter == "PASS")) +
-        geom_bar() +
-        labs(x = "Supporting Read Count", title = "RTE Somatic Insertions") +
-        mtopen +
-        anchorbar +
-        scale_palette
-    mysaveandstore(sprintf("%s/single_read_bar.pdf", tempoutputdir), 5, 4)
-
-    p <- somaticsample %>%
-        ggplot(aes(x = Family, fill = Filter == "PASS")) +
-        geom_bar() +
-        labs(x = "Supporting Read Count", title = "RTE Somatic Insertions") +
-        mtopen +
-        anchorbar +
-        scale_palette
-    mysaveandstore(sprintf("%s/single_read_fillpass_bar.pdf", tempoutputdir), 5, 4)
-
     somaticsample %>%
-        write_delim(sprintf("%s/single_read_pass.tsv", tempoutputdir), delim = "\t")
+        write_delim(sprintf("%s/somatic_pass.tsv", tempoutputdir), delim = "\t")
 
     p <- somaticsample %>%
-        ggplot(aes(x = Family, fill = is.na(TSD))) +
+        ggplot(aes(x = Family)) +
         geom_bar() +
         labs(x = "Supporting Read Count", title = "RTE Somatic Insertions") +
         mtopen +
         anchorbar +
         scale_palette
-    mysaveandstore(sprintf("%s/single_read_pass_bar.pdf", tempoutputdir), 5, 4)
+    mysaveandstore(sprintf("%s/somatic_bar.pdf", tempoutputdir), 5, 4)
+
 
     p <- somaticsample %>%
         ggplot(aes(x = LengthIns)) +
@@ -326,28 +336,9 @@ for (sample in unique(somatic$sample_name)) {
         mtclosed +
         anchorbar +
         scale_palette
-    mysaveandstore(sprintf("%s/single_read_pass_insertion_length.pdf", tempoutputdir), 5, 3)
+    mysaveandstore(sprintf("%s/somatic_pass_insertion_length.pdf", tempoutputdir), 5, 3)
 }
 
-p <- somatic_filt %>%
-    ggplot(aes(x = sample_name, fill = Filter == "PASS")) +
-    geom_bar() +
-    facet_wrap(~Family) +
-    labs(x = "Supporting Read Count", title = "RTE Somatic Insertions") +
-    mtopen +
-    anchorbar +
-    scale_palette +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-    mtclosed
-mysaveandstore(sprintf("%s/single_read_bar.pdf", outputdir), 8, 5)
-
-# p <- somatic_filt%>% filter(UsedReads == 1) %>% filter(Filter == "PASS") %>% ggplot(aes(x = sample_name, fill = Filter == "PASS")) + geom_bar()+ facet_wrap(~Family) + labs(x = "Supporting Read Count", title = "RTE Somatic Insertions", subtitle = "Single Read Supported") + mtopen + anchorbar + scale_palette+ theme(axis.text.x = element_text(angle = 45, hjust = 1))
-# mysaveandstore(sprintf("%s/single_read_pass_bar.pdf", outputdir), 8, 5)
-
-somatic_filt %>%
-    filter(Filter == "PASS") %>%
-    filter(MedianMapQ >= 60) %>%
-    write_delim(sprintf("%s/somatic_inserts.tsv", outputdir), delim = "\t")
 
 p <- somatic_filt %>%
     ggplot(aes(x = sample_name, fill = condition)) +
@@ -358,13 +349,14 @@ p <- somatic_filt %>%
     anchorbar +
     scale_conditions +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
-mysaveandstore(sprintf("%s/single_read_pass_bar.pdf", outputdir), 8, 5)
+mysaveandstore(sprintf("%s/somatic_bar.pdf", outputdir), 10, 5)
 
 p <- somatic_filt %>%
     group_by(sample_name, Subfamily, condition) %>%
     summarise(nins = n()) %>%
     ungroup() %>%
     pivot_wider(names_from = Subfamily, values_from = nins) %>%
+    replace(is.na(.), 0) %>%
     ggplot(aes(x = L1HS, y = AluY)) +
     geom_point(aes(color = condition)) +
     scale_conditions +
@@ -374,7 +366,7 @@ p <- somatic_filt %>%
     mtclosed +
     anchorbar +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
-mysaveandstore(sprintf("%s/single_read_pass_l1hs_aluy_corr_bar.pdf", outputdir), 4, 4)
+mysaveandstore(sprintf("%s/somatic_pass_l1hs_aluy_corr_bar.pdf", outputdir), 4, 4)
 
 somatic_filt %>%
     filter(Subfamily %in% c("AluY")) %>%
@@ -392,7 +384,7 @@ p <- somatic_filt %>%
     anchorbar +
     scale_conditions +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
-mysaveandstore(sprintf("%s/single_read_pass_histogram.pdf", outputdir), 5, 20)
+mysaveandstore(sprintf("%s/somatic_histogram.pdf", outputdir), 5, 20)
 
 p <- somatic_filt %>%
     filter(Subfamily %in% c("AluY")) %>%
@@ -403,7 +395,7 @@ p <- somatic_filt %>%
     anchorbar +
     scale_conditions +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
-mysaveandstore(sprintf("%s/single_read_pass_bar_aluy.pdf", outputdir), 8, 5)
+mysaveandstore(sprintf("%s/somatic_bar_aluy.pdf", outputdir), 8, 5)
 
 
 
@@ -416,7 +408,7 @@ p <- somatic_filt %>%
     anchorbar +
     scale_palette +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
-mysaveandstore(sprintf("%s/single_read_pass_insertion_length.pdf", outputdir), 10, 10)
+mysaveandstore(sprintf("%s/somatic_insertion_length.pdf", outputdir), 10, 10)
 
 somatic_filt %>%
     filter(LengthIns > 5000) %>%
