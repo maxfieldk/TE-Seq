@@ -378,7 +378,9 @@ rule tldr_aggregate_multiple_samples:
 bams=$(echo {input.bams})
 commabams=$(echo $bams | tr ' ' ',')
 
+echo "params known nonref"
 nonrefavailible={params.known_nonref}
+echo $nonrefavailible
 if [[ $nonrefavailible = "not_provided" ]]
 then
 
@@ -435,7 +437,9 @@ rule tldr_per_sample:
         "tldr"
     shell:
         """
+echo "params known nonref"
 nonrefavailible={params.known_nonref}
+echo $nonrefavailible
 if [[ $nonrefavailible = "not_provided" ]]
 then
 
