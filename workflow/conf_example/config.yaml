@@ -25,6 +25,10 @@ aref:
   running_ldna:
     response: "no"
   
+  #TE ANNOTATION PARAMETERS
+  fulllength_trnc_length_threshold: 95 #percent of consensus covered by an element for it to be considered full length
+  yng_old_divergence_threshold: 15  
+
   #USER PROVIDED ANNOTATIONS - CHANGE PATHS AS NEEDED
   #Be sure to follow ucsc naming conventions, e.g. chr1, chr2, ...
   starting_ref: ../genome_files/reference.ucsc.fa
