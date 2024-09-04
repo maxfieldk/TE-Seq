@@ -22,7 +22,6 @@ library(patchwork)
 library(magrittr)
 library(forcats)
 library(jsonlite)
-library(ggpmisc)
 library(ggpubr)
 library(ggh4x)
 
@@ -101,6 +100,8 @@ if (conf$update_ref_with_tldr$per_sample == "yes") {
 
 
 # all TLDR insertions
+library(BSgenome)
+fa <- Rsamtools::FaFile(conf$ref)
 dflist <- list()
 if (conf$update_ref_with_tldr$per_sample == "yes") {
     for (sample in sample_table$sample_name) {
@@ -221,6 +222,10 @@ somatic <- somatic %>%
     filter(insert_mean_mapqs > 55) %>%
     filter(insert_supplementary_status == "PASS") %>%
     filter(insert_indel_and_clipping_status == "PASS")
+somatic %>%
+    write_delim(sprintf("%s/somatic_inserts.tsv", outputdir), delim = "\t")
+
+
 
 # ADDTIONAL FILTERS
 # I think these are overly restrictive given how tsd calling on a single lossy read may occur - doesn't have the benefit of deriving from cluster
@@ -254,15 +259,125 @@ somatic_filt <- somatic %>%
     filter(EndTE >= endte_manual_filter | is.na(endte_manual_filter)) %>%
     filter(EndTE >= germline_endte_05 - 50)
 somatic_filt %>%
-    write_delim(sprintf("%s/somatic_inserts.tsv", outputdir), delim = "\t")
-
-somatic_filt %>% filter(Family == "L1")
+    write_delim(sprintf("%s/somatic_inserts_filt.tsv", outputdir), delim = "\t")
+# somatic_filt <- read_delim(sprintf("%s/somatic_inserts_filt.tsv", outputdir))
+# somatic_filt %>% filter(Family == "L1")
 # filter(nchar(TSD) <= germline_tsd_95) %>%
 # filter(nchar(Transduction_5p) <= germline_trsd5_95)
 
 # somatic_filt %>% filter(sample_name == "CTRL2")
 # filter(nchar(Transduction_3p) <= germline_trsd3_95)
 # filter(EndTE - StartTE < LengthIns + 30) %>% #what if you just have a couple of basepairs that spuriously align to the front of TE
+library(seqinr)
+for (insert_id in somatic_filt$UUID) {
+    insert_row <- somatic_filt %>% filter(UUID == insert_id)
+
+    sample <- insert_row$sample_name
+    bampath <- grep(sample, inputs$bam, value = TRUE)
+    whichgr <- GRanges(somatic %>% filter(sample_name == sample) %>% filter(UUID == insert_id))
+    aln1 <- readGAlignments(bampath, param = ScanBamParam(which = whichgr, what = scanBamWhat(), tag = c("SA"), flag = flag))
+    alndf <- as.data.frame(aln1) %>%
+        tibble()
+    # insert fails if it was captured in a read which has supplementary alignments
+    tldr_df <- read_delim(sprintf("aref/%s_tldr/%s/%s.detail.out", sample, sample, insert_id))
+    read_name <- tldr_df %>% filter(Useable == TRUE & IsSpanRead == TRUE) %$% ReadName
+    read_of_interest <- alndf %>% filter(qname == read_name)
+    read_length <- read_of_interest$seq %>% nchar()
+    cigar <- read_of_interest$cigar
+
+    inserts <- str_extract_all(read_of_interest$cigar, "[0-9]+I") %>%
+        unlist() %>%
+        gsub("I", "", .) %>%
+        as.numeric()
+    insert_start_in_read <- str_split(cigar, paste0(inserts[inserts > 50], "I"))[[1]][1] %>%
+        str_split(., pattern = "[a-zA-Z]") %>%
+        unlist() %>%
+        as.numeric() %>%
+        sum(na.rm = TRUE)
+
+    read_seq_sense <- DNAStringSet(read_of_interest$seq)
+    read_seq_sense <- subseq(read_seq_sense, start = insert_start_in_read - 300, end = insert_start_in_read + 500)
+    if (insert_row$strand == "+") {
+        insert_site_sense <- getSeq(fa, whichgr + round((width(read_seq_sense) - width(insert_loc)) / 2))
+    } else {
+        insert_site_sense <- getSeq(fa, whichgr + round((width(read_seq_sense) - width(insert_loc)) / 2)) %>% reverseComplement()
+    }
+
+    path <- "temp_read.fa"
+    writeXStringSet(read_seq_sense, path)
+    makeblastdb(path)
+    bl <- blast(db = path)
+    bres <- tibble(predict(bl, insert_site_sense))
+    insert_site_split <- unlist(strsplit(unname(as.character(insert_site_sense)), split = ""))
+    read_seq_split <- unlist(strsplit(unname(as.character(read_seq_sense)), split = ""))
+
+    plotpath <- sprintf("%s/dotplots/%s_insertlen_%s_%s_%s.pdf", outputdir, insert_row$Subfamily, insert_row$LengthIns, sample, gsub("-", "_", insert_id))
+    dir.create(dirname(plotpath), recursive = TRUE)
+    pdf(plotpath)
+    dotPlot(read_seq_split, insert_site_split, wsize = 10, nmatch = 9)
+    dev.off()
+}
+
+library(rBLAST)
+tldr_te_ref_path <- conf$update_ref_with_tldr$tldr_te_ref[[conf$species]]
+
+my_tsd_check <- tibble(sample_name = character(), UUID = character(), my_tsd = character(), my_tsd_left_start = numeric(), my_tsd_right_start = numeric(), my_te_start = numeric(), my_te_end = numeric())
+for (sample in conf$samples) {
+    print(sample)
+    bampath <- grep(sample, inputs$bam, value = TRUE)
+    insert_ids <- somatic %>% filter(sample_name == sample) %$% UUID
+    print(length(insert_ids))
+    for (insert_id in insert_ids) {
+        insert_row <- somatic %>%
+            filter(sample_name == sample) %>%
+            filter(UUID == insert_id)
+        insert_loc <- GRanges(insert_row)
+        css <- DNAStringSet(insert_row$Consensus)
+
+        tryCatch(
+            {
+                bl <- blast(db = tldr_te_ref_path)
+                bres <- tibble(predict(bl, css))
+                hit <- bres %>%
+                    filter(grepl(insert_row$Subfamily, sseqid)) %>%
+                    mutate(length_dif_from_insert = abs(length - insert_row$LengthIns)) %>%
+                    arrange(length_dif_from_insert) %>%
+                    head(1)
+
+                # I scan the 220 bp region flanking the predicted insert for TSD. Will fail if there is a large five or three prime transduction
+                five_start <- hit$qstart - 200
+                five_end <- hit$qstart + 20
+                three_start <- hit$qend - 20
+                three_end <- hit$qend + 200
+
+                five_string <- str_sub(as.character(css), start = five_start, end = five_end)
+                three_string <- str_sub(as.character(css), start = three_start, end = three_end)
+                if (is.null(five_string) | is.null(three_string)) {
+                    print("empty strings")
+                } else {
+                    mat <- nucleotideSubstitutionMatrix(match = 1, mismatch = -1000, baseOnly = TRUE)
+                    paln <- pairwiseAlignment(DNAStringSet(five_string), DNAStringSet(three_string), type = "local", substitutionMatrix = mat, gapOpening = 1000)
+                    tsd_loc <- str_locate_all(as.character(css), as.character(paln@subject))[[1]]
+                    row <- tibble(sample_name = sample, UUID = insert_id, my_tsd = as.character(paln@pattern), my_tsd_left_start = as.data.frame(tsd_loc)$start[1], my_tsd_right_start = as.data.frame(tsd_loc)$start[2], my_te_start = hit$qstart, my_te_end = hit$qend)
+                    my_tsd_check <- bind_rows(my_tsd_check, row)
+                }
+                # write(paste0(">five\n", five_string), "five.fa")
+                # makeblastdb("five.fa")
+                # bl <- blast(db = "five.fa")
+                # bres <- tibble(predict(bl, DNAStringSet(three_string)))
+            },
+            error = function(e) {
+                "issue"
+            }
+        )
+    }
+}
+
+
+
+
+
+
 for (element_type in somatic_filt %$% Subfamily %>% unique()) {
     dftemp <- somatic %>% filter(Subfamily == element_type)
     p <- dftemp %>%
