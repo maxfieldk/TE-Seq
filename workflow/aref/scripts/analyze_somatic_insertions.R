@@ -243,9 +243,10 @@ somatic_filt %>%
 # somatic_filt %>% filter(sample_name == "CTRL2")
 # filter(nchar(Transduction_3p) <= germline_trsd3_95)
 # filter(EndTE - StartTE < LengthIns + 30) %>% #what if you just have a couple of basepairs that spuriously align to the front of TE
-
+library(seqinr)
 for (insert_id in somatic_filt$UUID) {
     insert_row <- somatic_filt %>% filter(UUID == insert_id)
+
     sample <- insert_row$sample_name
     bampath <- grep(sample, inputs$bam, value = TRUE)
     whichgr <- GRanges(somatic %>% filter(sample_name == sample) %>% filter(UUID == insert_id))
@@ -257,9 +258,20 @@ for (insert_id in somatic_filt$UUID) {
     read_name <- tldr_df %>% filter(Useable == TRUE & IsSpanRead == TRUE) %$% ReadName
     read_of_interest <- alndf %>% filter(qname == read_name)
     read_length <- read_of_interest$seq %>% nchar()
+    cigar <- read_of_interest$cigar
 
+    inserts <- str_extract_all(read_of_interest$cigar, "[0-9]+I") %>%
+        unlist() %>%
+        gsub("I", "", .) %>%
+        as.numeric()
+    insert_start_in_read <- str_split(cigar, paste0(inserts[inserts > 50], "I"))[[1]][1] %>%
+        str_split(., pattern = "[a-zA-Z]") %>%
+        unlist() %>%
+        as.numeric() %>%
+        sum(na.rm = TRUE)
 
     read_seq_sense <- DNAStringSet(read_of_interest$seq)
+    read_seq_sense <- subseq(read_seq_sense, start = insert_start_in_read - 300, end = insert_start_in_read + 500)
     if (insert_row$strand == "+") {
         insert_site_sense <- getSeq(fa, whichgr + round((width(read_seq_sense) - width(insert_loc)) / 2))
     } else {
@@ -271,13 +283,12 @@ for (insert_id in somatic_filt$UUID) {
     makeblastdb(path)
     bl <- blast(db = path)
     bres <- tibble(predict(bl, insert_site_sense))
-    bres
-    library(seqinr)
     insert_site_split <- unlist(strsplit(unname(as.character(insert_site_sense)), split = ""))
     read_seq_split <- unlist(strsplit(unname(as.character(read_seq_sense)), split = ""))
 
-
-    pdf(sprintf("%s/%s_%s.pdf", outputdir, sample, insert_id))
+    plotpath <- sprintf("%s/dotplots/%s_insertlen_%s_%s_%s.pdf", outputdir, insert_row$Subfamily, insert_row$LengthIns, sample, gsub("-", "_", insert_id))
+    dir.create(dirname(plotpath), recursive = TRUE)
+    pdf(plotpath)
     dotPlot(read_seq_split, insert_site_split, wsize = 10, nmatch = 9)
     dev.off()
 }
