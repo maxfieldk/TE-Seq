@@ -34,9 +34,9 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            tldroutput = sprintf("aref/%s_tldr/%s.table.txt", conf$samples, conf$samples),
+            tldroutput = ifelse(conf$update_ref_with_tldr$per_sample == "yes", sprintf("aref/%s_tldr/%s.table.txt", conf$samples, conf$samples), sprintf("aref/%s_tldr/%s.table.txt", "A.REF", "A.REF")),
             json = sprintf("aref/qc/%s/%spycoQC.json", conf$samples, conf$samples),
-            filtered_tldr = sprintf("aref/default/%s.table.kept_in_updated_ref.txt", sample_table$sample_name),
+            filtered_tldr = ifelse(conf$update_ref_with_tldr$per_sample == "yes", sprintf("aref/default/%s.table.kept_in_updated_ref.txt", sample_table$sample_name), sprintf("aref/default/%s.table.kept_in_updated_ref.txt", "A.REF")),
             bam = sprintf("aref/intermediates/%s/alignments/5khz/%s.hac.5mCG_5hmCG.sorted.bam", sample_table$sample_name, sample_table$sample_name)
         ), env = globalenv())
         assign("outputs", list(
@@ -82,50 +82,71 @@ for (sample in sample_table$sample_name) {
 
 # only tldr germinline tldr insertions that wind up in reference
 dfs_filtered <- list()
-for (sample in sample_table$sample_name) {
-    df <- read.table(grep(sprintf("%s.table", sample), inputs$filtered_tldr, value = TRUE), header = TRUE)
-    df$sample_name <- sample
-    df <- df %>% left_join(sample_table)
-    dfs_filtered[[sample]] <- df
+if (conf$update_ref_with_tldr$per_sample == "yes") {
+    for (sample in sample_table$sample_name) {
+        df <- read.table(grep(sprintf("%s.table", sample), inputs$filtered_tldr, value = TRUE), header = TRUE)
+        df$sample_name <- sample
+        df <- df %>% left_join(sample_table)
+        dfs_filtered[[sample]] <- df
+        germline <- do.call(rbind, dfs_filtered) %>%
+            tibble() %>%
+            left_join(sample_sequencing_data)
+    }
+} else {
+    germline <- read.table(inputs$filtered_tldr, header = TRUE) %>%
+        tibble()
 }
 
-germline <- do.call(rbind, dfs_filtered) %>%
-    tibble() %>%
-    left_join(sample_sequencing_data)
+
 
 
 # all TLDR insertions
 dflist <- list()
-for (sample in sample_table$sample_name) {
-    if (conf$update_ref_with_tldr$per_sample == "yes") {
+if (conf$update_ref_with_tldr$per_sample == "yes") {
+    for (sample in sample_table$sample_name) {
         df <- read.table(grep(sprintf("%s_tldr", sample), inputs$tldroutput, value = TRUE), header = TRUE) %>%
             mutate(faName = paste0("NI_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>%
             tibble()
-    } else {
-        df <- read.table("aref/A.REF_tldr/A.REF.table.txt", header = TRUE) %>%
-            mutate(faName = paste0("NI_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>%
-            tibble()
+
+        df$sample_name <- sample
+        df <- df %>%
+            filter(grepl(sample, SampleReads)) %>%
+            filter(!grepl(paste(setdiff(sample_table$sample_name, sample), collapse = "|"), SampleReads))
+        dflist[[sample]] <- df
     }
-    df$sample_name <- sample
-    df <- df %>%
-        filter(grepl(sample, SampleReads)) %>%
-        filter(!grepl(paste(setdiff(sample_table$sample_name, sample), collapse = "|"), SampleReads))
-    dflist[[sample]] <- df
+    dfall <- do.call(bind_rows, dflist) %>%
+        left_join(sample_sequencing_data) %>%
+        left_join(sample_table)
+    somatic <- dfall %>%
+        separate_wider_delim(EmptyReads, delim = "|", names = c("bamname", "emptyreadsnum")) %>%
+        mutate(fraction_reads_count = UsedReads / (UsedReads + as.numeric(emptyreadsnum))) %>%
+        filter(fraction_reads_count < 0.1) %>%
+        filter(MedianMapQ >= 60) %>%
+        filter(UsedReads == 1) %>%
+        filter(SpanReads == 1) %>%
+        filter(Filter == "PASS") %>%
+        filter(!is.na(TSD))
+} else {
+    dfall <- read.table("aref/A.REF_tldr/A.REF.table.txt", header = TRUE) %>%
+        mutate(faName = paste0("NI_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>%
+        tibble()
+
+    somatic <- dfall %>%
+        filter(!is.na(EmptyReads)) %>%
+        rowwise() %>%
+        mutate(emptyreadsnum = sum(as.numeric(gsub("\\|", "", unlist(str_extract_all(EmptyReads, pattern = "\\|[0-9]+")))))) %>%
+        ungroup() %>%
+        mutate(fraction_reads_count = UsedReads / (UsedReads + as.numeric(emptyreadsnum))) %>%
+        filter(fraction_reads_count < 0.1) %>%
+        filter(MedianMapQ >= 60) %>%
+        filter(UsedReads == 1) %>%
+        filter(SpanReads == 1) %>%
+        filter(Filter == "PASS") %>%
+        filter(!is.na(TSD)) %>%
+        mutate(sample_name = str_extract(SampleReads, paste(conf$samples, collapse = "|")))
 }
-dfall <- do.call(bind_rows, dflist) %>%
-    left_join(sample_sequencing_data) %>%
-    left_join(sample_table)
 
-
-somatic <- dfall %>%
-    separate_wider_delim(EmptyReads, delim = "|", names = c("bamname", "emptyreadsnum")) %>%
-    mutate(fraction_reads_count = UsedReads / (UsedReads + as.numeric(emptyreadsnum))) %>%
-    filter(fraction_reads_count < 0.1) %>%
-    filter(MedianMapQ >= 60) %>%
-    filter(UsedReads == 1) %>%
-    filter(SpanReads == 1) %>%
-    filter(Filter == "PASS") %>%
-    filter(!is.na(TSD))
+somatic %$% sample_name
 
 
 somatic <- GRanges(somatic) %>%
@@ -163,7 +184,11 @@ for (sample in conf$samples) {
         insert_mean_mapqs[[insert_id]] <- mean_mapq
 
         # insert fails if it was captured in a read which has supplementary alignments
-        tldr_df <- read_delim(sprintf("aref/%s_tldr/%s/%s.detail.out", sample, sample, insert_id))
+        if (conf$update_ref_with_tldr$per_sample == "yes") {
+            tldr_df <- read_delim(sprintf("aref/%s_tldr/%s/%s.detail.out", sample, sample, insert_id))
+        } else {
+            tldr_df <- read_delim(sprintf("aref/%s_tldr/%s/%s.detail.out", "A.REF", "A.REF", insert_id))
+        }
         read_name <- tldr_df %>% filter(Useable == TRUE & IsSpanRead == TRUE) %$% ReadName
         read_of_interest <- alndf %>% filter(qname == read_name)
         insert_supplementary_status[[insert_id]] <- ifelse(is.na(read_of_interest$SA), "PASS", "FAIL")
