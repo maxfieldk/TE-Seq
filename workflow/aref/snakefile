@@ -662,7 +662,7 @@ run_pepper_margin_deepvariant call_variant \
 
 rule merge_vcfs:
     input:
-        vcfs = expand("aref/intermediates/{{sample_or_ref}}/pepper/{chromosome}/PEPPER_MARGIN_DEEPVARIANT_FINAL_OUTPUT.vcf.gz", chromosome = [e for e in pd.read_table(config["update_ref_with_tldr"]["tldr_input_bam_ref"] + ".fai", header = None).iloc[:,0] if e != "chrM"])
+        vcfs = [expand("aref/intermediates/{{sample_or_ref}}/pepper/{chromosome}/PEPPER_MARGIN_DEEPVARIANT_FINAL_OUTPUT.vcf.gz", chromosome = [e for e in pd.read_table(config["update_ref_with_tldr"]["tldr_input_bam_ref"] + ".fai", header = None).iloc[:,0] if e != "chrM"]) if config["update_ref_with_tldr"]["response"] == "yes" else ""] #this used to thrown an error if the tldr_input_bam_ref fai did not exist - even if you weren't running the tldr
     output:
         vcf = "aref/intermediates/{sample_or_ref}/pepper/merged.vcf.gz"
     conda:

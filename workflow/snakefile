@@ -36,7 +36,7 @@ for pipeline in config["pipelines_to_deploy"]:
                     else: 
                         use rule * from aref exclude sym_link,copy_starting_reference,merge_rm_out_wholegenome,move_starting_reference,tldr_per_sample,get_repeatmasker_raw,process_gtf as aref_*
                 else:
-                    use rule * from aref exclude sym_link,multiqc,merge_rm_out_wholegenome,dorado,dorado_seqsummary,pycoQC,process_gtf_tldr,cleanup_updated_ref, cleanup_updated_sample_ref,cleanup_updated_ref_and_patch, cleanup_updated_sample_ref_and_patch, repeatmasker,getGtfs as aref_*
+                    use rule * from aref exclude sym_link,multiqc,merge_rm_out_wholegenome,dorado,dorado_seqsummary,pycoQC,process_gtf_tldr,cleanup_updated_ref, cleanup_updated_sample_ref,cleanup_updated_ref_and_patch, cleanup_updated_sample_ref_and_patch, repeatmasker,getGtfs,merge_vcfs as aref_*
             else:
                 if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
                     if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
@@ -44,7 +44,7 @@ for pipeline in config["pipelines_to_deploy"]:
                     else: 
                         use rule * from aref exclude sym_link,copy_starting_reference,get_repeatmasker_raw_out,move_starting_reference,tldr_per_sample,get_repeatmasker_raw,process_gtf as aref_*
                 else:
-                    use rule * from aref exclude sym_link,multiqc,get_repeatmasker_raw_out,dorado,dorado_seqsummary,pycoQC,process_gtf_tldr,cleanup_updated_ref,cleanup_updated_sample_ref,cleanup_updated_ref_and_patch, cleanup_updated_sample_ref_and_patch, repeatmasker,getGtfs as aref_*
+                    use rule * from aref exclude sym_link,multiqc,get_repeatmasker_raw_out,dorado,dorado_seqsummary,pycoQC,process_gtf_tldr,cleanup_updated_ref,cleanup_updated_sample_ref,cleanup_updated_ref_and_patch, cleanup_updated_sample_ref_and_patch, repeatmasker,getGtfs,merge_vcfs as aref_*
     
     if pipeline == "ldna":
         module ldna:
