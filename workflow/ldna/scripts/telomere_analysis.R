@@ -14,6 +14,7 @@ library(GenomicRanges)
 library(configr)
 library(Biostrings)
 library(ggpubr)
+set.seed(123)
 
 samples <- conf$samples
 source("conf/sample_table_source.R")

@@ -6,7 +6,7 @@ library("magrittr")
 library("purrr")
 library("tibble")
 library(readr)
-
+set.seed(123)
 
 module_name <- "ldna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]

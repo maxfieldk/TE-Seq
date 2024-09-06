@@ -25,6 +25,10 @@ aref:
   running_ldna:
     response: "no"
   
+  #TE ANNOTATION PARAMETERS
+  fulllength_trnc_length_threshold: 95 #percent of consensus covered by an element for it to be considered full length
+  yng_old_divergence_threshold: 15  
+
   #USER PROVIDED ANNOTATIONS - CHANGE PATHS AS NEEDED
   #Be sure to follow ucsc naming conventions, e.g. chr1, chr2, ...
   starting_ref: ../genome_files/reference.ucsc.fa
@@ -59,12 +63,17 @@ aref:
     response: "no"
     #if making one ref per sample (i.e. each sample has unique inserts), then "yes", else "no"
     per_sample: "no"
+    #if you would like snps to be incorporated into the reference
+    patch_ref: "yes"
     #IF updating reference with tldr inserts; else NULL
     tldr_input_bam_ref: ../genome_files/reference.ucsc.fa
     #ensure tldr_input_bams are a full path, not relative paths
     tldr_te_ref:
       human: resources/sequences/teref.ont.human.fa
       mouse: resources/sequences/teref.mouse.fa
+    known_nonref:
+      response: "no"
+      path: resources/genomes/hs1/annotations/nonref.collection.hs1.chr.bed.gz #if using, ensure this file is in your genome's coordinate space! Tabix index of bgzipped bed file with location of nonref insertions
 
   dorado: "/users/mkelsey/data/tools/dorado-0.5.1-linux-x64/bin/dorado"
   basecallingModel:
@@ -168,7 +177,7 @@ ldna:
   default_palette: "ggsci::default_aaas" #paletteer palettes https://emilhvitfeldt.github.io/paletteer/
   use_aref_basecalls: "yes"
   single_condition: "no"
-
+  map_to_mycoplasma: "yes" #yes or no
   samples:
     - "N2102EP1"
 
@@ -200,7 +209,7 @@ ldna:
   reference_annotation_dir: "aref"
   reference: "aref/extended/A.REF.fa"
   annotation: "aref/extended/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf"
-  refseq_unaltered: "aref/extended/A.REF_annotations/refseq.gff3"
+  refseq_unaltered: "aref/default/A.REF_annotations/refseq.gff3"
   refseq: "aref/default/A.REF_annotations/refseq.complete.gtf"
   cytobands: aref/extended/A.REF_annotations/cytobands.bed
   ccres: /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations3/cCREs/hs1-imr90-cCREsCuratedWithClosestGene.bed
@@ -353,6 +362,15 @@ lrna:
 
   rte_subfamily_read_level_analysis:
     - "L1HS_intactness_req_ALL"
-    
+
+  rte_subfamily_extra_modification_analysis:
+    - "L1HS_intactness_req_ALL"
+    - "L1HS_rte_length_req_ALL"
+    - "L1PA2_rte_length_req_ALL"
+    - "L1PA3_rte_length_req_ALL"
+    - "L1PA4_rte_length_req_ALL"
+
+  MINIMUM_COVERAGE_FOR_METHYLATION_ANALYSIS: 5
+
 integrated:
   regions_of_interest: "conf/integrated_regions_of_interest.bed"

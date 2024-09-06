@@ -11,6 +11,7 @@ library(forcats)
 
 library(configr)
 library(calcPCBrainAge)
+set.seed(123)
 
 
 

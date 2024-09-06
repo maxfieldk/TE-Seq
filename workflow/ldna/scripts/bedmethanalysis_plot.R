@@ -3,6 +3,7 @@ conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
 source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 source("conf/sample_table_source.R")
+set.seed(123)
 
 library(rtracklayer)
 library(Biostrings)
@@ -157,7 +158,7 @@ p <- grsdfs %>% ggplot() +
     geom_boxplot(aes(x = islandStatus, y = pctM, fill = condition)) +
     mtopen +
     scale_conditions
-mysaveandstore(fn = "ldna/results/plots/genomewide/cpgislandstatusbox.pdf", w = 4, h = 4, res = 300, pl = p)
+mysaveandstore(fn = "ldna/results/plots/genomewide/cpgislandstatusbox.pdf", w = 6, h = 5, res = 300, pl = p)
 
 
 p <- grsdfs %>%
@@ -402,7 +403,10 @@ mysaveandstore(sprintf("ldna/results/plots/rte/dmfl%s_promoter.pdf", "all"), 12,
 
 pf <- perelementdf_promoters
 p <- pf %>%
-    group_by(rte_subfamily) %>% mutate(n = n()) %>% mutate(rte_subfamily_n = paste0(rte_subfamily, "\nn=", n)) %>% ungroup() %>%
+    group_by(rte_subfamily) %>%
+    mutate(n = n()) %>%
+    mutate(rte_subfamily_n = paste0(rte_subfamily, "\nn=", n)) %>%
+    ungroup() %>%
     ggplot() +
     geom_quasirandom(aes(x = rte_subfamily_n, y = mean_meth, color = condition), dodge.width = 0.75) +
     geom_boxplot(aes(x = rte_subfamily_n, y = mean_meth, color = condition), alpha = 0.5, outlier.shape = NA) +
@@ -423,7 +427,10 @@ mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters.pdf", ra
 
 p <- pf %>%
     filter(!grepl("HERVL", rte_subfamily)) %>%
-    group_by(rte_subfamily) %>% mutate(n = n()) %>% mutate(rte_subfamily_n = paste0(rte_subfamily, "\nn=", n)) %>% ungroup() %>%
+    group_by(rte_subfamily) %>%
+    mutate(n = n()) %>%
+    mutate(rte_subfamily_n = paste0(rte_subfamily, "\nn=", n)) %>%
+    ungroup() %>%
     ggplot() +
     geom_quasirandom(aes(x = rte_subfamily_n, y = mean_meth, color = condition), dodge.width = 0.75) +
     geom_boxplot(aes(x = rte_subfamily_n, y = mean_meth, color = condition), alpha = 0.5, outlier.shape = NA) +
@@ -444,7 +451,10 @@ mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters_1.pdf", 
 
 p <- pf %>%
     filter(grepl("^L1", rte_subfamily)) %>%
-    group_by(rte_subfamily) %>% mutate(n = n()) %>% mutate(rte_subfamily_n = paste0(rte_subfamily, "\nn=", n)) %>% ungroup() %>%
+    group_by(rte_subfamily) %>%
+    mutate(n = n()) %>%
+    mutate(rte_subfamily_n = paste0(rte_subfamily, "\nn=", n)) %>%
+    ungroup() %>%
     ggplot(aes(x = rte_subfamily_n, y = mean_meth, color = condition)) +
     geom_quasirandom(dodge.width = 0.75) +
     geom_boxplot(alpha = 0.5, outlier.shape = NA) +
@@ -468,7 +478,10 @@ mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters_L1s.pdf"
 
 p <- pf %>%
     filter(grepl("^L1HS", rte_subfamily)) %>%
-    group_by(rte_subfamily) %>% mutate(n = n()) %>% mutate(rte_subfamily_n = paste0(rte_subfamily, "\nn=", n)) %>% ungroup() %>%
+    group_by(rte_subfamily) %>%
+    mutate(n = n()) %>%
+    mutate(rte_subfamily_n = paste0(rte_subfamily, "\nn=", n)) %>%
+    ungroup() %>%
     ggplot(aes(x = sample, y = mean_meth, color = condition)) +
     geom_quasirandom(dodge.width = 0.75) +
     geom_boxplot(alpha = 0.5, outlier.shape = NA) +
@@ -487,7 +500,10 @@ mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters_by_sampl
 p <- pf %>%
     filter(grepl("^L1HS", rte_subfamily)) %>%
     filter(intactness_req == "Intact") %>%
-    group_by(rte_subfamily) %>% mutate(n = n()) %>% mutate(rte_subfamily_n = paste0(rte_subfamily, "\nn=", n)) %>% ungroup() %>%
+    group_by(rte_subfamily) %>%
+    mutate(n = n()) %>%
+    mutate(rte_subfamily_n = paste0(rte_subfamily, "\nn=", n)) %>%
+    ungroup() %>%
     ggplot(aes(x = sample, y = mean_meth, color = condition)) +
     geom_quasirandom(dodge.width = 0.75) +
     geom_boxplot(alpha = 0.5, outlier.shape = NA) +
@@ -506,7 +522,10 @@ p <- pf %>%
     filter(grepl("^L1HS", rte_subfamily)) %>%
     left_join(sample_table %>% dplyr::rename(sample = sample_name)) %>%
     filter(intactness_req == "Intact") %>%
-    group_by(rte_subfamily) %>% mutate(n = n()) %>% mutate(rte_subfamily_n = paste0(rte_subfamily, "\nn=", n)) %>% ungroup() %>%
+    group_by(rte_subfamily) %>%
+    mutate(n = n()) %>%
+    mutate(rte_subfamily_n = paste0(rte_subfamily, "\nn=", n)) %>%
+    ungroup() %>%
     ggplot(aes(x = braak, y = mean_meth, color = sample)) +
     geom_quasirandom(dodge.width = 0.75) +
     geom_boxplot(alpha = 0.5, outlier.shape = NA) +
@@ -525,7 +544,10 @@ mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters_by_sampl
 p <- pf %>%
     filter(grepl("^L1HS", rte_subfamily)) %>%
     left_join(sample_table %>% dplyr::rename(sample = sample_name)) %>%
-    group_by(rte_subfamily) %>% mutate(n = n()) %>% mutate(rte_subfamily_n = paste0(rte_subfamily, "\nn=", n)) %>% ungroup() %>%
+    group_by(rte_subfamily) %>%
+    mutate(n = n()) %>%
+    mutate(rte_subfamily_n = paste0(rte_subfamily, "\nn=", n)) %>%
+    ungroup() %>%
     ggplot(aes(x = sample, y = mean_meth, color = braak)) +
     geom_quasirandom(dodge.width = 0.75) +
     geom_boxplot(alpha = 0.5, outlier.shape = NA) +
@@ -535,7 +557,13 @@ p <- pf %>%
     scale_palette_alt +
     mtopen
 pf %>%
-    filter(grepl("^L1HS", rte_subfamily)) %>% group_by(sample) %>% summarize(median = median(mean_meth)) %>% left_join(sample_table %>% dplyr::rename(sample = sample_name)) %>% ungroup() %>% group_by(condition) %>% summarize(mean_of_median = mean(median))
+    filter(grepl("^L1HS", rte_subfamily)) %>%
+    group_by(sample) %>%
+    summarize(median = median(mean_meth)) %>%
+    left_join(sample_table %>% dplyr::rename(sample = sample_name)) %>%
+    ungroup() %>%
+    group_by(condition) %>%
+    summarize(mean_of_median = mean(median))
 stats <- pf %>%
     compare_means(mean_meth ~ condition, data = ., group.by = "rte_subfamily", p.adjust.method = "fdr")
 mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters_by_sample_braak_L1s.pdf", 10, 6, sf = stats)
@@ -543,35 +571,56 @@ mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters_by_sampl
 
 
 
-pfl1 <- pf %>% filter(grepl("^L1", rte_subfamily)) 
-p <- pfl1 %>% group_by(gene_id, rte_subfamily, condition) %>% summarize(mean_meth = mean(mean_meth)) %>% pivot_wider(names_from = condition, values_from =mean_meth) %>% 
+pfl1 <- pf %>% filter(grepl("^L1", rte_subfamily))
+p <- pfl1 %>%
+    group_by(gene_id, rte_subfamily, condition) %>%
+    summarize(mean_meth = mean(mean_meth)) %>%
+    pivot_wider(names_from = condition, values_from = mean_meth) %>%
     ungroup() %>%
-    mutate(dif = CTRL - AD) %>% mutate(abs_dif = abs(dif)) %>% arrange(-abs_dif) %>%
-    group_by(rte_subfamily) %>% mutate(rank_change = row_number()) %>% 
+    mutate(dif = CTRL - AD) %>%
+    mutate(abs_dif = abs(dif)) %>%
+    arrange(-abs_dif) %>%
+    group_by(rte_subfamily) %>%
+    mutate(rank_change = row_number()) %>%
     mutate(top_change = ifelse(rank_change <= 10, "Top", "NotTop")) %>%
     arrange(abs_dif) %>%
     ungroup() %>%
     ggpaired(cond1 = "CTRL", cond2 = "AD", line.color = "top_change", alpha = "top_change", facet.by = "rte_subfamily") +
-    scale_alpha_manual(values = c(1,0.5)) +
+    scale_alpha_manual(values = c(1, 0.5)) +
     scale_color_manual(values = c("Top" = "red", "NotTop" = "grey")) +
     mtclosedgridh
-mysaveandstore(fn = "ldna/results/plots/rte/repmasker_paired_promoters_L1s.pdf", 14, 6,raster = TRUE)
+mysaveandstore(fn = "ldna/results/plots/rte/repmasker_paired_promoters_L1s.pdf", 14, 6, raster = TRUE)
 
-top_l1hs_movers <- pfl1 %>% group_by(gene_id, rte_subfamily, condition) %>% summarize(mean_meth = mean(mean_meth)) %>% pivot_wider(names_from = condition, values_from =mean_meth) %>% 
+top_l1hs_movers <- pfl1 %>%
+    group_by(gene_id, rte_subfamily, condition) %>%
+    summarize(mean_meth = mean(mean_meth)) %>%
+    pivot_wider(names_from = condition, values_from = mean_meth) %>%
     ungroup() %>%
-    mutate(dif = CTRL - AD) %>% mutate(abs_dif = abs(dif)) %>% arrange(-abs_dif) %>%
-    group_by(rte_subfamily) %>% mutate(rank_change = row_number()) %>% 
+    mutate(dif = CTRL - AD) %>%
+    mutate(abs_dif = abs(dif)) %>%
+    arrange(-abs_dif) %>%
+    group_by(rte_subfamily) %>%
+    mutate(rank_change = row_number()) %>%
     mutate(top_change = ifelse(rank_change <= 10, "Top", "NotTop")) %>%
-    ungroup() %>% filter(rte_subfamily == "L1HS") %$% gene_id %>% head(n = 10)
+    ungroup() %>%
+    filter(rte_subfamily == "L1HS") %$% gene_id %>%
+    head(n = 10)
 
-top_l1hs_movers_intact <- pfl1 %>% 
+top_l1hs_movers_intact <- pfl1 %>%
     filter(intactness_req == "Intact") %>%
-    group_by(gene_id, rte_subfamily, condition) %>% summarize(mean_meth = mean(mean_meth)) %>% pivot_wider(names_from = condition, values_from =mean_meth) %>% 
+    group_by(gene_id, rte_subfamily, condition) %>%
+    summarize(mean_meth = mean(mean_meth)) %>%
+    pivot_wider(names_from = condition, values_from = mean_meth) %>%
     ungroup() %>%
-    mutate(dif = CTRL - AD) %>% mutate(abs_dif = abs(dif)) %>% arrange(-abs_dif) %>%
-    group_by(rte_subfamily) %>% mutate(rank_change = row_number()) %>% 
+    mutate(dif = CTRL - AD) %>%
+    mutate(abs_dif = abs(dif)) %>%
+    arrange(-abs_dif) %>%
+    group_by(rte_subfamily) %>%
+    mutate(rank_change = row_number()) %>%
     mutate(top_change = ifelse(rank_change <= 10, "Top", "NotTop")) %>%
-    ungroup() %>% filter(rte_subfamily == "L1HS") %$% gene_id %>% head(n = 10)
+    ungroup() %>%
+    filter(rte_subfamily == "L1HS") %$% gene_id %>%
+    head(n = 10)
 
 
 
@@ -654,7 +703,8 @@ p <- pf %>%
     xlab("") +
     ylab("Average CpG Methylation Per Element") +
     ggtitle("RTE CpG Methylation") +
-    geom_pwc(aes(group = condition), tip.length = 0,
+    geom_pwc(aes(group = condition),
+        tip.length = 0,
         method = "t.test", label = "{p.adj.format}",
         p.adjust.method = "fdr", p.adjust.by = "panel",
         hide.ns = FALSE
@@ -673,7 +723,6 @@ tryCatch(
 )
 
 #################
-rtedf %$% element_strand
 
 l1hsintactmethgr <- rtedf %>%
     filter(intactness_req == "Intact")
@@ -754,7 +803,7 @@ mysaveandstore("ldna/results/plots/rte/l1intact_Lines_neg_strand_promoter.pdf", 
 # for the fig
 
 
-element_anatomy <- read_delim("aref/A.REF_Analysis/intact_l1_anatomy_coordinates.tsv")
+element_anatomy <- read_delim("aref/default/A.REF_Analysis/intact_l1_anatomy_coordinates.tsv")
 
 dm_intact_l1hs_elements <- flRTEpromoter %>%
     filter(rte_subfamily == "L1HS") %>%
@@ -1038,24 +1087,31 @@ l1hsintactmethdf <- l1hsintactmethgr %>%
     tibble()
 
 for (gene_id in l1hsintactmethdf %$% gene_id %>% unique()) {
-    pf <- l1hsintactmethdf %>%
-        filter(gene_id == !!gene_id) %>%
-        filter(cov > MINIMUMCOVERAGE) %>%
-        group_by(sample) %>%
-        mutate(rM = rollmean(pctM, 15, na.pad = TRUE, align = "center")) %>%
-        filter(!is.na(rM)) %>%
-        ungroup()
-    p <- pf %>% ggplot() +
-        geom_line(aes(x = start, y = rM, color = condition)) +
-        scale_x_continuous(breaks = scales::breaks_pretty(3)) +
-        facet_wrap(~gene_id, ncol = 5, scales = "free_x") +
-        ylim(c(0, 100)) +
-        mtopen +
-        scale_conditions
-    dir.create("ldna/results/plots/rte/l1hsintact")
-    png(paste0("ldna/results/plots/rte/l1hsintact/", gene_id, ".png"), 8, 3, units = "in", res = 300)
-    print(p)
-    dev.off()
+    tryCatch(
+        {
+            pf <- l1hsintactmethdf %>%
+                filter(gene_id == !!gene_id) %>%
+                filter(cov > MINIMUMCOVERAGE) %>%
+                group_by(sample) %>%
+                mutate(rM = rollmean(pctM, 15, na.pad = TRUE, align = "center")) %>%
+                filter(!is.na(rM)) %>%
+                ungroup()
+            p <- pf %>% ggplot() +
+                geom_line(aes(x = start, y = rM, color = condition)) +
+                scale_x_continuous(breaks = scales::breaks_pretty(3)) +
+                facet_wrap(~gene_id, ncol = 5, scales = "free_x") +
+                ylim(c(0, 100)) +
+                mtopen +
+                scale_conditions
+            dir.create("ldna/results/plots/rte/l1hsintact")
+            png(paste0("ldna/results/plots/rte/l1hsintact/", gene_id, ".png"), 8, 3, units = "in", res = 300)
+            print(p)
+            dev.off()
+        },
+        error = function(e) {
+
+        }
+    )
 }
 
 
@@ -1405,7 +1461,7 @@ library(msigdbr)
             }
         })
     }
- }
+}
 
 
 

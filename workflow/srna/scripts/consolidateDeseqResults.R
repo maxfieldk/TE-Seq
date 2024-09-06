@@ -1,3 +1,4 @@
+set.seed(123)
 library("ggplot2")
 library("RColorBrewer")
 library("magrittr")

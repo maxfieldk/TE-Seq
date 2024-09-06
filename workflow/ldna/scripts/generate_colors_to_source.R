@@ -1,5 +1,6 @@
 library(paletteer)
 library(colorspace)
+set.seed(123)
 
 {
 conf <- configr::read.config(file = "conf/config.yaml")
