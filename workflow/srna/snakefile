@@ -205,7 +205,7 @@ infer_experiment.py -r {params.gtf} -i {input.bam} > {output.librarytype}
 rule multiqc:
     input:
         bams = expand("srna/outs/{sample}/star_output/{sample}.sorted.bam.stats.txt", sample = samples),
-        deseq = expand("srna/results/agg/deseq/{counttype}/counttablesizenormed.csv", counttype = config["counttypes"])
+        deseq = lambda w: [expand("srna/results/agg/deseq/{counttype}/counttablesizenormed.csv", counttype = config["counttypes"]) if len(config["levels"]) > 1 else ""]
     output:
         "srna/qc/multiqc/multiqc_report.html"
     benchmark:
@@ -427,6 +427,30 @@ telescope assign \
 {params.gff}
         """
 
+rule tpm:
+    input:
+        counts = "srna/outs/agg/featurecounts_genes/counts.txt",
+        rte_counts = expand("srna/outs/{sample}/telescope/telescope-run_stats.tsv", sample = samples)
+    params:
+        sample_table = config["sample_table"],
+        contrasts = config["contrasts"],
+        levels = config["levels"],
+        annotation_genes = config["annotation_genes"],
+        r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
+        r_repeatmasker_annotation = config["r_repeatmasker_annotation"],
+        counttype = lambda w: w.counttype
+    benchmark:
+        "srna/benchmarks/tpm/{counttype}.tsv"
+    resources:
+        mem_mb = 100000
+    conda: "evo2"
+    wildcard_constraints:
+        counttype="[A-Za-z0-9_]+"
+    output:
+        tpm = "srna/outs/agg/tpm/{counttype}/tpmdf.tsv"
+    script:
+        "scripts/tpm.R"
+
 rule deseq:
     input:
         counts = "srna/outs/agg/featurecounts_genes/counts.txt",
@@ -571,19 +595,46 @@ rule repeatanalysis_plots:
     script:
         "scripts/repeatanalysisPlots.R"
 
-def bigwig_sizefactor_input(wildcards):
-    sizefactor_path = "srna/results/agg/deseq/%s/sizefactors.csv"%(config["counttypes"][0])
-    if not Path(sizefactor_path).exists():
-        return "NA"
-    else:
-        return 1/float(pd.read_csv("srna/results/agg/deseq/%s/sizefactors.csv"%(config["counttypes"][0])).set_index("sample_name").loc[wildcards.sample, "sizefactor"])
+
+rule characterize_tpm:
+    input:
+        tpm = "srna/outs/agg/tpm/{counttype}/tpmdf.tsv"
+    params:
+        counttype = lambda w: w.counttype,
+        outputdir = lambda w, output: os.path.dirname(os.path.dirname(output.environment)),
+        r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
+        r_repeatmasker_annotation = config["r_repeatmasker_annotation"],
+        refseq = config["annotation_genes"],
+        ref = "aref/default/A.REF.fa",
+        annotation_genes = config["annotation_genes"],
+        module_name = "srna"
+    benchmark:
+        "srna/benchmarks/repeatanalysis_plots/{counttype}.tsv"
+    conda:
+        "repeatanalysis"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 200000,
+        runtime = 500
+    output:
+        environment = "srna/results/agg/tpm_sources/{counttype}/characterize_tpm_environment.RData"
+    script:
+        "scripts/characterize_samples.R"
+
+
+
+
+# def bigwig_sizefactor_input(wildcards):
+#     sizefactor_path = "srna/results/agg/deseq/%s/sizefactors.csv"%(config["counttypes"][0])
+#     if not Path(sizefactor_path).exists():
+#         return "NA"
+#     else:
+#         return 1/float(pd.read_csv("srna/results/agg/deseq/%s/sizefactors.csv"%(config["counttypes"][0])).set_index("sample_name").loc[wildcards.sample, "sizefactor"])
 
 rule getBigWigF:
     input:
-        sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.primary.bam",
-        sizefactors = expand("srna/results/agg/deseq/{counttype}/sizefactors.csv", counttype = config["counttypes"][0])
+        sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.primary.bam"
     params:
-        sample_size_factor = bigwig_sizefactor_input,
         rna_strand_param = lambda w: "reverse" if inferLibraryType() == "forward" else "forward"
     output:
         bwF = "srna/outs/{sample}/star_output/{sample}.F.bw"
@@ -607,10 +658,8 @@ rule getBigWigF:
 
 rule getBigWigR:
     input:
-        sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.primary.bam",
-        sizefactors = expand("srna/results/agg/deseq/{counttype}/sizefactors.csv",counttype = config["counttypes"][0])
+        sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.primary.bam"
     params:
-        sample_size_factor = bigwig_sizefactor_input,
         rna_strand_param = lambda w: "forward" if inferLibraryType() == "forward" else "reverse"
     output:
         bwR = "srna/outs/{sample}/star_output/{sample}.R.bw"

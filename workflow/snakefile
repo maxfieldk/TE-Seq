@@ -115,13 +115,17 @@ for pipeline in config["pipelines_to_deploy"]:
         counttypes = config["srna"]["counttypes"]
 
         def srna_rally():
-            deseq = expand("srna/results/agg/deseq/{counttype}/{contrast}/results_genes.csv", counttype = config["srna"]["counttypes"], contrast = config["srna"]["contrasts"])
-            enrichment_analysis = "srna/results/agg/enrichment_analysis/enrichment_analysis_environment.RData"
-            enrichment_analysis_repeats = expand("srna/results/agg/enrichment_analysis_repeats/{counttype}/enrichment_analysis_repeats_environment.RData", counttype = config["srna"]["counttypes"])
-            repeatanalysisplots = expand("srna/results/agg/repeatanalysis/{counttype}/repeatanalysisplots_environment.RData", counttype = config["srna"]["counttypes"])
             bigwigs = "srna/results/agg/bigwig_plots/bigwigplots_environment.RData"
-            report_file = "srna/qc/multiqc/multiqc_report.html"
-            return list(flatten([bigwigs, deseq, enrichment_analysis, enrichment_analysis_repeats, repeatanalysisplots, report_file]))
+            mqc_report_file = "srna/qc/multiqc/multiqc_report.html"
+            tpm_characterization = expand("srna/results/agg/tpm_sources/{counttype}/characterize_tpm_environment.RData",counttype = config["srna"]["counttypes"])
+            if len(config["srna"]["levels"]) > 1:
+                deseq = expand("srna/results/agg/deseq/{counttype}/{contrast}/results_genes.csv", counttype = config["srna"]["counttypes"], contrast = config["srna"]["contrasts"])
+                enrichment_analysis = "srna/results/agg/enrichment_analysis/enrichment_analysis_environment.RData"
+                enrichment_analysis_repeats = expand("srna/results/agg/enrichment_analysis_repeats/{counttype}/enrichment_analysis_repeats_environment.RData", counttype = config["srna"]["counttypes"])
+                repeatanalysisplots = expand("srna/results/agg/repeatanalysis/{counttype}/repeatanalysisplots_environment.RData", counttype = config["srna"]["counttypes"])
+                return list(flatten([bigwigs, tpm_characterization, deseq, enrichment_analysis, enrichment_analysis_repeats, repeatanalysisplots, mqc_report_file]))
+            else:
+                return list(flatten([bigwigs,tpm_characterization, mqc_report_file]))
 
         for e in srna_rally():
             final_input.append(e)
