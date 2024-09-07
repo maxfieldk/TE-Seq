@@ -980,7 +980,7 @@ rule analyze_somatic_insertions:
     benchmark:
         "aref/benchmarks/analyze_somatic_insertions/analyze_somatic_insertions.tsv"
     conda:
-        "ds"
+        "evo2"
     script:
         "scripts/analyze_somatic_insertions.R"
 

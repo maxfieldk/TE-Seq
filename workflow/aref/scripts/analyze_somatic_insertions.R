@@ -269,6 +269,8 @@ somatic_filt %>%
 # filter(nchar(Transduction_3p) <= germline_trsd3_95)
 # filter(EndTE - StartTE < LengthIns + 30) %>% #what if you just have a couple of basepairs that spuriously align to the front of TE
 library(seqinr)
+library(rBLAST)
+# somatic
 for (insert_id in somatic_filt$UUID) {
     insert_row <- somatic_filt %>% filter(UUID == insert_id)
 
@@ -279,7 +281,11 @@ for (insert_id in somatic_filt$UUID) {
     alndf <- as.data.frame(aln1) %>%
         tibble()
     # insert fails if it was captured in a read which has supplementary alignments
-    tldr_df <- read_delim(sprintf("aref/%s_tldr/%s/%s.detail.out", sample, sample, insert_id))
+    if (conf$update_ref_with_tldr$per_sample == "yes") {
+        tldr_df <- read_delim(sprintf("aref/%s_tldr/%s/%s.detail.out", sample, sample, insert_id))
+    } else {
+        tldr_df <- read_delim(sprintf("aref/%s_tldr/%s/%s.detail.out", "A.REF", "A.REF", insert_id))
+    }
     read_name <- tldr_df %>% filter(Useable == TRUE & IsSpanRead == TRUE) %$% ReadName
     read_of_interest <- alndf %>% filter(qname == read_name)
     read_length <- read_of_interest$seq %>% nchar()
@@ -298,10 +304,74 @@ for (insert_id in somatic_filt$UUID) {
     read_seq_sense <- DNAStringSet(read_of_interest$seq)
     read_seq_sense <- subseq(read_seq_sense, start = insert_start_in_read - 300, end = insert_start_in_read + 500)
     if (insert_row$strand == "+") {
-        insert_site_sense <- getSeq(fa, whichgr + round((width(read_seq_sense) - width(insert_loc)) / 2))
+        insert_site_sense <- getSeq(fa, whichgr + round((width(read_seq_sense) - width(whichgr)) / 2))
     } else {
-        insert_site_sense <- getSeq(fa, whichgr + round((width(read_seq_sense) - width(insert_loc)) / 2)) %>% reverseComplement()
+        insert_site_sense <- getSeq(fa, whichgr + round((width(read_seq_sense) - width(whichgr)) / 2)) %>% reverseComplement()
     }
+    path <- "temp_read.fa"
+    writeXStringSet(read_seq_sense, path)
+    makeblastdb(path)
+    bl <- blast(db = path)
+    bres <- tibble(predict(bl, insert_site_sense))
+    insert_site_split <- unlist(strsplit(unname(as.character(insert_site_sense)), split = ""))
+    read_seq_split <- unlist(strsplit(unname(as.character(read_seq_sense)), split = ""))
+
+    plotpath <- sprintf("%s/somatic_dotplots/%s_insertlen_%s_%s_%s.pdf", outputdir, insert_row$Subfamily, insert_row$LengthIns, sample, gsub("-", "_", insert_id))
+    dir.create(dirname(plotpath), recursive = TRUE)
+    pdf(plotpath)
+    dotPlot(read_seq_split, insert_site_split, wsize = 10, nmatch = 9)
+    dev.off()
+}
+
+# germline
+for (insert_id in germline$UUID) {
+    insert_row <- germline %>% filter(UUID == insert_id)
+    bampath <- inputs$bam[[1]]
+    whichgr <- GRanges(germline %>% filter(UUID == insert_id))
+    aln1 <- readGAlignments(bampath, param = ScanBamParam(which = whichgr, what = scanBamWhat(), tag = c("SA"), flag = flag))
+    alndf <- as.data.frame(aln1) %>%
+        tibble()
+    # insert fails if it was captured in a read which has supplementary alignments
+    if (conf$update_ref_with_tldr$per_sample == "yes") {
+        tldr_df <- read_delim(sprintf("aref/%s_tldr/%s/%s.detail.out", sample, sample, insert_id))
+    } else {
+        tldr_df <- read_delim(sprintf("aref/%s_tldr/%s/%s.detail.out", "A.REF", "A.REF", insert_id))
+    }
+    read_name <- tldr_df %>%
+        filter(Useable == TRUE & IsSpanRead == TRUE) %$% ReadName %>%
+        pluck(1)
+    read_of_interest <- alndf %>% filter(qname == read_name)
+    read_length <- read_of_interest$seq %>% nchar()
+    cigar <- read_of_interest$cigar
+
+    inserts <- str_extract_all(read_of_interest$cigar, "[0-9]+I") %>%
+        unlist() %>%
+        gsub("I", "", .) %>%
+        as.numeric()
+    insert_start_in_read <- str_split(cigar, paste0(inserts[inserts > 50], "I"))[[1]][1] %>%
+        str_split(., pattern = "[a-zA-Z]") %>%
+        unlist() %>%
+        as.numeric() %>%
+        sum(na.rm = TRUE)
+
+    read_seq_sense <- DNAStringSet(read_of_interest$seq)
+    read_seq_sense <- subseq(read_seq_sense, start = insert_start_in_read - 600, end = insert_start_in_read + 800)
+    tryCatch(
+        {
+            if (insert_row$strand == "+") {
+                insert_site_sense <- getSeq(fa, whichgr + round((width(read_seq_sense) - width(whichgr)) / 2))
+            } else {
+                insert_site_sense <- getSeq(fa, whichgr + round((width(read_seq_sense) - width(whichgr)) / 2)) %>% reverseComplement()
+            }
+        },
+        error = function(e) {
+            if (insert_row$Strand == "+") {
+                insert_site_sense <- getSeq(fa, whichgr + round((width(read_seq_sense) - width(whichgr)) / 2))
+            } else {
+                insert_site_sense <- getSeq(fa, whichgr + round((width(read_seq_sense) - width(whichgr)) / 2)) %>% reverseComplement()
+            }
+        }
+    )
 
     path <- "temp_read.fa"
     writeXStringSet(read_seq_sense, path)
@@ -311,12 +381,12 @@ for (insert_id in somatic_filt$UUID) {
     insert_site_split <- unlist(strsplit(unname(as.character(insert_site_sense)), split = ""))
     read_seq_split <- unlist(strsplit(unname(as.character(read_seq_sense)), split = ""))
 
-    plotpath <- sprintf("%s/dotplots/%s_insertlen_%s_%s_%s.pdf", outputdir, insert_row$Subfamily, insert_row$LengthIns, sample, gsub("-", "_", insert_id))
+    plotpath <- sprintf("%s/germline_dotplots/%s_insertlen_%s_%s.pdf", outputdir, insert_row$Subfamily, insert_row$LengthIns, gsub("-", "_", insert_id))
     dir.create(dirname(plotpath), recursive = TRUE)
     pdf(plotpath)
     dotPlot(read_seq_split, insert_site_split, wsize = 10, nmatch = 9)
     dev.off()
-}
+} # TODO STILL HAVE AN ISSUE WITH THESE DOT PLOTS.
 
 library(rBLAST)
 tldr_te_ref_path <- conf$update_ref_with_tldr$tldr_te_ref[[conf$species]]
