@@ -36,7 +36,7 @@ for pipeline in config["pipelines_to_deploy"]:
                     else: 
                         use rule * from aref exclude sym_link,copy_starting_reference,merge_rm_out_wholegenome,move_starting_reference,tldr_per_sample,get_repeatmasker_raw,process_gtf as aref_*
                 else:
-                    use rule * from aref exclude sym_link,multiqc,merge_rm_out_wholegenome,dorado,dorado_seqsummary,pycoQC,process_gtf_tldr,cleanup_updated_ref, cleanup_updated_sample_ref,cleanup_updated_ref_and_patch, cleanup_updated_sample_ref_and_patch, repeatmasker,getGtfs as aref_*
+                    use rule * from aref exclude sym_link,multiqc,merge_rm_out_wholegenome,dorado,dorado_seqsummary,pycoQC,process_gtf_tldr,cleanup_updated_ref, cleanup_updated_sample_ref,cleanup_updated_ref_and_patch, cleanup_updated_sample_ref_and_patch, repeatmasker,getGtfs,merge_vcfs as aref_*
             else:
                 if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
                     if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
@@ -44,7 +44,7 @@ for pipeline in config["pipelines_to_deploy"]:
                     else: 
                         use rule * from aref exclude sym_link,copy_starting_reference,get_repeatmasker_raw_out,move_starting_reference,tldr_per_sample,get_repeatmasker_raw,process_gtf as aref_*
                 else:
-                    use rule * from aref exclude sym_link,multiqc,get_repeatmasker_raw_out,dorado,dorado_seqsummary,pycoQC,process_gtf_tldr,cleanup_updated_ref,cleanup_updated_sample_ref,cleanup_updated_ref_and_patch, cleanup_updated_sample_ref_and_patch, repeatmasker,getGtfs as aref_*
+                    use rule * from aref exclude sym_link,multiqc,get_repeatmasker_raw_out,dorado,dorado_seqsummary,pycoQC,process_gtf_tldr,cleanup_updated_ref,cleanup_updated_sample_ref,cleanup_updated_ref_and_patch, cleanup_updated_sample_ref_and_patch, repeatmasker,getGtfs,merge_vcfs as aref_*
     
     if pipeline == "ldna":
         module ldna:
@@ -130,13 +130,17 @@ for pipeline in config["pipelines_to_deploy"]:
         counttypes = config["srna"]["counttypes"]
 
         def srna_rally():
-            deseq = expand("srna/results/agg/deseq/{counttype}/{contrast}/results_genes.csv", counttype = config["srna"]["counttypes"], contrast = config["srna"]["contrasts"])
-            enrichment_analysis = "srna/results/agg/enrichment_analysis/enrichment_analysis_environment.RData"
-            enrichment_analysis_repeats = expand("srna/results/agg/enrichment_analysis_repeats/{counttype}/enrichment_analysis_repeats_environment.RData", counttype = config["srna"]["counttypes"])
-            repeatanalysisplots = expand("srna/results/agg/repeatanalysis/{counttype}/repeatanalysisplots_environment.RData", counttype = config["srna"]["counttypes"])
             bigwigs = "srna/results/agg/bigwig_plots/bigwigplots_environment.RData"
-            report_file = "srna/qc/multiqc/multiqc_report.html"
-            return list(flatten([bigwigs, deseq, enrichment_analysis, enrichment_analysis_repeats, repeatanalysisplots, report_file]))
+            mqc_report_file = "srna/qc/multiqc/multiqc_report.html"
+            tpm_characterization = expand("srna/results/agg/tpm_sources/{counttype}/characterize_tpm_environment.RData",counttype = config["srna"]["counttypes"])
+            if len(config["srna"]["levels"]) > 1:
+                deseq = expand("srna/results/agg/deseq/{counttype}/{contrast}/results_genes.csv", counttype = config["srna"]["counttypes"], contrast = config["srna"]["contrasts"])
+                enrichment_analysis = "srna/results/agg/enrichment_analysis/enrichment_analysis_environment.RData"
+                enrichment_analysis_repeats = expand("srna/results/agg/enrichment_analysis_repeats/{counttype}/enrichment_analysis_repeats_environment.RData", counttype = config["srna"]["counttypes"])
+                repeatanalysisplots = expand("srna/results/agg/repeatanalysis/{counttype}/repeatanalysisplots_environment.RData", counttype = config["srna"]["counttypes"])
+                return list(flatten([bigwigs, tpm_characterization, deseq, enrichment_analysis, enrichment_analysis_repeats, repeatanalysisplots, mqc_report_file]))
+            else:
+                return list(flatten([bigwigs,tpm_characterization, mqc_report_file]))
 
         for e in srna_rally():
             final_input.append(e)
