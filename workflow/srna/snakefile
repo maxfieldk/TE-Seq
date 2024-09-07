@@ -205,7 +205,7 @@ infer_experiment.py -r {params.gtf} -i {input.bam} > {output.librarytype}
 rule multiqc:
     input:
         bams = expand("srna/outs/{sample}/star_output/{sample}.sorted.bam.stats.txt", sample = samples),
-        deseq = lambda w: [expand("srna/results/agg/deseq/{counttype}/counttablesizenormed.csv", counttype = config["counttypes"]) if len(config["levels"]) > 1 else ""]
+        deseq = lambda w: [expand("srna/results/agg/deseq/{counttype}/counttablesizenormed.csv", counttype = config["counttypes"]) if len(config["levels"]) > 1 else ""][0]
     output:
         "srna/qc/multiqc/multiqc_report.html"
     benchmark:

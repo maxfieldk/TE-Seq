@@ -5,7 +5,8 @@ import random
 from pathlib import Path
 from pandas.core.common import flatten
 random.seed(123)
-print("""
+onstart:
+    print("""
 ░▒▓████████▓▒░▒▓████████▓▒░░▒▓███████▓▒░▒▓████████▓▒░▒▓██████▓▒░  
    ░▒▓█▓▒░   ░▒▓█▓▒░      ░▒▓█▓▒░      ░▒▓█▓▒░     ░▒▓█▓▒░░▒▓█▓▒░ 
    ░▒▓█▓▒░   ░▒▓█▓▒░      ░▒▓█▓▒░      ░▒▓█▓▒░     ░▒▓█▓▒░░▒▓█▓▒░ 
@@ -15,7 +16,11 @@ print("""
    ░▒▓█▓▒░   ░▒▓████████▓▒░▒▓███████▓▒░░▒▓████████▓▒░▒▓██████▓▒░  
                                                       ░▒▓█▓▒░     
                                                        ░▒▓██▓▒░
-""")
+    """)
+onsuccess:
+    print("TE-Seq pipeline finished successfully!")
+
+
 configfile: "conf/config.yaml"
 
 final_input = []

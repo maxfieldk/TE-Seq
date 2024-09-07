@@ -507,11 +507,9 @@ if config["update_ref_with_tldr"]["response"] == "yes":
 
 if config["update_ref_with_tldr"]["response"] == "yes":
     if config["update_ref_with_tldr"]["patch_ref"] == "yes":
-        print("patching")
         ruleorder: cleanup_updated_ref_and_patch > cleanup_updated_ref
         ruleorder: cleanup_updated_sample_ref_and_patch > cleanup_updated_sample_ref
     else:
-        print("not patching")
         ruleorder:  cleanup_updated_ref > cleanup_updated_ref_and_patch
         ruleorder:  cleanup_updated_sample_ref > cleanup_updated_sample_ref_and_patch
 rule copy_starting_reference:
