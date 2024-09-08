@@ -218,7 +218,7 @@ if (conf$species == "human") {
     )
 } else {
     element_to_annotate <- rmfamilies %$% least_diverged_families_l1 %>% unique()
-    element_to_annotate <- element_to_annotate[element_to_annotate!="Other"]
+    element_to_annotate <- element_to_annotate[element_to_annotate != "Other"]
 }
 # trycatch needed if you are not using human/mouse
 
@@ -350,7 +350,7 @@ tryCatch(
     }
 )
 
-fulllength_trnc_length_threshold <- conf$yng_old_divergence_threshold
+fulllength_trnc_length_threshold <- conf$fulllength_trnc_length_threshold
 length_ann <- rmfragments %>%
     dplyr::select(gene_id, pctconsensuscovered) %>%
     full_join(rmfamilies %>% dplyr::select(gene_id, rte_subfamily)) %>%
@@ -405,9 +405,9 @@ ints <- rmfamilies %>%
     filter(grepl("-int$", family)) %>%
     left_join(rmfragments)
 intsgrs <- GRanges(ints)
-intsfl <- ints %>% filter(rte_length_req == "FL")
+intsfl <- ints %>% filter(pctconsensuscovered >= fulllength_trnc_length_threshold)
 intsflgrs <- GRanges(intsfl)
-intsnotfl <- ints %>% filter(rte_length_req == "Trnc")
+intsnotfl <- ints %>% filter(pctconsensuscovered < fulllength_trnc_length_threshold)
 intsnotflgrs <- GRanges(intsnotfl)
 
 Solo_LTR <- ltrsgrsextended %>%

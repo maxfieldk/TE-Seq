@@ -41,7 +41,7 @@ for (i in 1:length(er)) {
     emptyreadsnum <- c(emptyreadsnum, val)
 }
 
-df$emptyreadsnum <- emptyreadsnum
+df$emptyreadsnum <- emptyreadsnum %>% replace_na(0)
 df <- df %>%
     mutate(fraction_reads_count = UsedReads / (UsedReads + emptyreadsnum)) %>%
     filter(fraction_reads_count > 0.30) %>%

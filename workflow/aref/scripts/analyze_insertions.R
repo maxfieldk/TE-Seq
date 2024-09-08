@@ -35,7 +35,7 @@ tryCatch(
             r_repeatmasker_annotation = "aref/default/A.REF_annotations/A.REF_repeatmasker_annotation.csv",
             ref = "aref/default/ref_pre_ins_filtering.fa",
             contigs_to_keep = "aref/default/contigs_to_keep.txt",
-            filtered_tldr = "aref/A.REF_tldr/A.REF.table.kept_in_updated_ref.txt"
+            filtered_tldr = "aref/default/A.REF.table.kept_in_updated_ref.txt"
         ), env = globalenv())
         assign("outputs", list(
             plots = "aref/default/A.REF_Analysis/tldr_plots/tldr_plots.rds"
@@ -95,46 +95,6 @@ df <- read_delim(inputs$tldroutput) %>%
 df_filtered <- read_delim(inputs$filtered_tldr)
 
 
-df %$% Subfamily %>% table()
-df %$% Filter %>% table()
-p <- df %>%
-    filter(Family != "NA") %>%
-    ggplot(aes(x = Family)) +
-    geom_bar(color = "black") +
-    labs(x = "", y = "Count") +
-    paletteer::scale_fill_paletteer_d(conf$default_palette) +
-    ggtitle("Non-reference RTE Insertions") +
-    mtopen +
-    anchorbar
-mysaveandstore(sprintf("%s/insertions.pdf", outputdir), 5, 5)
-
-
-p <- df %>%
-    filter(Family != "NA") %>%
-    ggplot(aes(x = Subfamily)) +
-    facet_grid(~Family, scales = "free", space = "free_x") +
-    geom_bar(color = "black") +
-    labs(x = "", y = "Count") +
-    paletteer::scale_fill_paletteer_d(conf$default_palette) +
-    ggtitle("Non-reference RTE Insertions") +
-    mtclosed +
-    anchorbar +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1))
-mysaveandstore(sprintf("%s/insertions_subfamily.pdf", outputdir), 5, 5)
-
-p <- df %>%
-    filter(Subfamily == "L1HS") %>%
-    ggplot() +
-    geom_histogram(aes(x = LengthIns)) +
-    geom_vline(xintercept = 6000, color = "red", linetype = 2) +
-    ggtitle("L1HS Insertion Lengths") +
-    labs(x = "Length (bp)", y = "Count") +
-    mtopen +
-    anchorbar
-mysaveandstore(sprintf("%s/l1hs_length.pdf", outputdir), 5, 5)
-
-
-# only insertions that are in the updated reference
 df_filtered %$% Subfamily %>% table()
 df_filtered %$% Filter %>% table()
 p <- df_filtered %>%
@@ -146,7 +106,6 @@ p <- df_filtered %>%
     ggtitle("Non-reference RTE Insertions") +
     mtopen +
     anchorbar
-
 mysaveandstore(sprintf("%s/insertions_in_updated_ref.pdf", outputdir), 3, 4)
 
 
