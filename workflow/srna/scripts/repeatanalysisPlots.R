@@ -531,39 +531,46 @@ for (ontology in c("rte_subfamily_limited", "l1_subfamily_limited", "rte_family"
         cor.test(te_gene_matrix$TE, te_gene_matrix$GENE, method = "spearman", )$estimate
         cor.test(te_gene_matrix$TE, te_gene_matrix$GENE, method = "spearman", )$p.value
         te_gene_matrix <- te_gene_matrix %>% drop_na()
-        cor_df <- te_gene_matrix %>%
-            mutate(req_integrative = gsub(".*Intact.*", "Full Length", req_integrative)) %>%
-            group_by(!!sym(ontology), req_integrative, loc_integrative) %>%
-            mutate(groupN = n()) %>%
-            filter(groupN > 4) %>%
-            summarise(cor = cor.test(TE, GENE, method = "spearman")$estimate, pval = cor.test(TE, GENE, method = "spearman")$p.value)
-        cor_df %$% req_integrative %>% unique()
-        pf <- cor_df %>%
-            ungroup() %>%
-            filter(loc_integrative != "Centromeric") %>%
-            complete(!!sym(ontology), req_integrative, loc_integrative)
-        p <- pf %>%
-            mutate(genicfacet = ifelse(loc_integrative == "Intergenic", "", "Genic")) %>%
-            ggplot() +
-            geom_tile(aes(x = !!sym(ontology), y = loc_integrative, fill = cor)) +
-            facet_grid(genicfacet ~ req_integrative, space = "free", scales = "free") +
-            scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.8, 0, 0.8), na.value = "dark grey") +
-            mtclosed +
-            theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-            labs(x = "", y = "")
-        mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_%s.pdf", outputdir, counttype, contrast, ontology), 6, 4)
+        tryCatch(
+            {
+                cor_df <- te_gene_matrix %>%
+                    mutate(req_integrative = gsub(".*Intact.*", "Full Length", req_integrative)) %>%
+                    group_by(!!sym(ontology), req_integrative, loc_integrative) %>%
+                    mutate(groupN = n()) %>%
+                    filter(groupN > 4) %>%
+                    summarise(cor = cor.test(TE, GENE, method = "spearman")$estimate, pval = cor.test(TE, GENE, method = "spearman")$p.value)
+                cor_df %$% req_integrative %>% unique()
+                pf <- cor_df %>%
+                    ungroup() %>%
+                    filter(loc_integrative != "Centromeric") %>%
+                    complete(!!sym(ontology), req_integrative, loc_integrative)
+                p <- pf %>%
+                    mutate(genicfacet = ifelse(loc_integrative == "Intergenic", "", "Genic")) %>%
+                    ggplot() +
+                    geom_tile(aes(x = !!sym(ontology), y = loc_integrative, fill = cor)) +
+                    facet_grid(genicfacet ~ req_integrative, space = "free", scales = "free") +
+                    scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.8, 0, 0.8), na.value = "dark grey") +
+                    mtclosed +
+                    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+                    labs(x = "", y = "")
+                mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_%s.pdf", outputdir, counttype, contrast, ontology), 6, 4)
 
-        p <- pf %>%
-            mutate(genicfacet = ifelse(loc_integrative == "Intergenic", "", "Genic")) %>%
-            ggplot(aes(x = !!sym(ontology), y = loc_integrative)) +
-            geom_tile(aes(fill = cor)) +
-            facet_grid(genicfacet ~ req_integrative, space = "free", scales = "free") +
-            geom_text(aes(label = ifelse(pval < 0.05, "*", "")), size = 3) +
-            scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.8, 0, 0.8), na.value = "dark grey") +
-            mtclosed +
-            theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-            labs(x = "", y = "")
-        mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_pval_%s.pdf", outputdir, counttype, contrast, ontology), 10, 6)
+                p <- pf %>%
+                    mutate(genicfacet = ifelse(loc_integrative == "Intergenic", "", "Genic")) %>%
+                    ggplot(aes(x = !!sym(ontology), y = loc_integrative)) +
+                    geom_tile(aes(fill = cor)) +
+                    facet_grid(genicfacet ~ req_integrative, space = "free", scales = "free") +
+                    geom_text(aes(label = ifelse(pval < 0.05, "*", "")), size = 3) +
+                    scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.8, 0, 0.8), na.value = "dark grey") +
+                    mtclosed +
+                    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+                    labs(x = "", y = "")
+                mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_pval_%s.pdf", outputdir, counttype, contrast, ontology), 10, 6)
+            },
+            error = function(e) {
+
+            }
+        )
     }
 
     te_gene_matrix_all <- Reduce(bind_rows, te_gene_matrix_list)
