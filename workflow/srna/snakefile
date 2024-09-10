@@ -238,7 +238,7 @@ rule alignSTAR_PE:
         aref = "aref.done.outfile"
     retries: 3
     params:
-        index = get_proper_ref_starindex()
+        index = get_proper_ref_starindex
     output:
         bam = temp("srna/outs/{sample}/star_output/Aligned.out.sam")
     benchmark:
