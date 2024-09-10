@@ -563,7 +563,8 @@ rule enrichment_analysis_repeats:
         report = report(
             directory("srna/results/agg/enrichment_analysis_repeats/{counttype}"),
             patterns=["std/gsea_top_{name}.pdf"],
-            category="RTE Enrichment")
+            category="RTE Enrichment {counttype}")
+
     script:
         "scripts/ea_repeats.R"
 
@@ -617,7 +618,12 @@ rule characterize_tpm:
         mem_mb = 200000,
         runtime = 500
     output:
-        environment = "srna/results/agg/tpm_sources/{counttype}/characterize_tpm_environment.RData"
+        environment = "srna/results/agg/tpm_sources/{counttype}/characterize_tpm_environment.RData",
+        report = report(
+            directory("srna/results/agg/tpm_sources/{counttype}"),
+            patterns=["{group}/{restofstring}.pdf", "{group}/{restofstring}.pdf"],
+            category="TPM Characterization {counttype}",
+            subcategory="{group}")
     script:
         "scripts/characterize_samples.R"
 

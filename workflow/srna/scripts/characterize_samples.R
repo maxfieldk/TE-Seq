@@ -98,53 +98,6 @@ p <- tgenes %>%
     geom_point()
 mysaveandstore()
 
-# library(ggrepel)
-# library(ggExtra)
-
-# for (type in c("genes", "tes")) {
-#     if (type == "genes") {
-#         tdf <- tgenes
-#         outdir <- "top_genes"
-#     } else {
-#         tdf <- trepeats
-#         outdir <- "top_repeats"
-#     }
-#     plots <- list()
-#     for (sample in conf$samples) {
-#         pf <- tdf %>%
-#             filter(tpm > 0) %>%
-#             filter(sample == sample) %>%
-#             group_by(sample) %>%
-#             arrange(-tpm) %>%
-#             mutate(rank = row_number()) %>%
-#             ungroup() %>%
-#             mutate(gene_id_label = ifelse(rank <= 10, gene_id, ""))
-#         pl <- pf %>%
-#             ggplot(aes(x = rank, y = log10(tpm))) +
-#             xlab("Rank") +
-#             ylab(bquote(Log[10](TPM))) +
-#             ggtitle(sample) +
-#             rasterize(geom_point(alpha = 0.1), dpi = 400) +
-#             geom_text_repel(
-#                 aes(label = gene_id_label),
-#                 force_pull = 0, # do not pull toward data points
-#                 nudge_x = quantile(pf$rank, probs = c(0.6)),
-#                 direction = "y",
-#                 angle = 0,
-#                 vjust = 0,
-#                 segment.size = 0.2,
-#                 max.iter = 1e4, max.time = 1
-#             ) +
-#             mtclosed
-#         p <- ggMarginal(pl, margins = "y")
-#         mysaveandstore(sprintf("%s/%s/%s.pdf", outputdir, outdir, sample))
-#         plots[[sample]] <- p
-#     }
-#     n_rows <- floor(sqrt(length(plots)))
-#     ptch <- wrap_plots(plots, nrow = n_rows)
-#     mysaveandstore(pl = ptch, fn = sprintf("%s/top_genes/agg.pdf", outputdir), w = n_rows * 5, h = n_rows * 5)
-# }
-
 resultsdf <- wrepeats
 tidydf <- trepeats
 library(ggpubr)
@@ -172,7 +125,7 @@ for (g_var in c("rte_family", "rte_subfamily")) {
             scale_fill_viridis_d(option = "viridis") +
             scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
             theme(axis.text.x = element_text(angle = 45, hjust = 1))
-        mysaveandstore(sprintf("%s/single_group_plots/%s_bar.pdf", outputdir, group), width, height)
+        mysaveandstore(sprintf("%s/single_group/%s_bar.pdf", outputdir, group), width, height)
 
         p <- pf %>%
             arrange(req_integrative) %>%
@@ -182,7 +135,7 @@ for (g_var in c("rte_family", "rte_subfamily")) {
             scale_fill_viridis_d() +
             scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
             theme(axis.text.x = element_text(angle = 45, hjust = 1))
-        mysaveandstore(sprintf("%s/single_group_plots/%s_bar_reqintegrative.pdf", outputdir, group), 10, 5)
+        mysaveandstore(sprintf("%s/single_group/%s_bar_reqintegrative.pdf", outputdir, group), 10, 5)
 
         p <- pf %>%
             arrange(req_integrative) %>%
@@ -192,7 +145,7 @@ for (g_var in c("rte_family", "rte_subfamily")) {
             scale_fill_viridis_d() +
             scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
             theme(axis.text.x = element_text(angle = 45, hjust = 1))
-        mysaveandstore(sprintf("%s/single_group_plots/%s_bar_reqintegrative_same_scale.pdf", outputdir, group), 10, 5)
+        mysaveandstore(sprintf("%s/single_group/%s_bar_reqintegrative_same_scale.pdf", outputdir, group), 10, 5)
 
         pff <- df %>%
             group_by(sample, req_integrative) %>%
@@ -206,7 +159,7 @@ for (g_var in c("rte_family", "rte_subfamily")) {
             scale_fill_viridis_d() +
             scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
             theme(axis.text.x = element_text(angle = 45, hjust = 1))
-        mysaveandstore(sprintf("%s/single_group_plots/%s_bar_reqintegrative_nofacet.pdf", outputdir, group), 6, 5)
+        mysaveandstore(sprintf("%s/single_group/%s_bar_reqintegrative_nofacet.pdf", outputdir, group), 6, 5)
 
         if (df %$% rte_superfamily %>% unique() == "LTR") {
             pf <- df %>%
@@ -222,7 +175,7 @@ for (g_var in c("rte_family", "rte_subfamily")) {
                 scale_fill_viridis_d() +
                 scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
                 theme(axis.text.x = element_text(angle = 45, hjust = 1))
-            mysaveandstore(sprintf("%s/single_group_plots/%s_bar_ltr_viral_status_.pdf", outputdir, group), width, height + 4)
+            mysaveandstore(sprintf("%s/single_group/%s_bar_ltr_viral_status_.pdf", outputdir, group), width, height + 4)
         }
     }
 }
@@ -256,9 +209,6 @@ p <- pf %>%
     mtclosed +
     theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
 mysaveandstore(sprintf("%s/multiple_groups/gene_or_repeat_type.pdf", outputdir), w = 1 + length(conf$samples) / 2.4, h = 5)
-
-
-
 
 refseq <- import(params$annotation_genes)
 refseqdf <- refseq %>%
