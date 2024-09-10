@@ -7,8 +7,8 @@ from pandas.core.common import flatten
 
 sample_table = pd.read_csv("conf/sample_table_aref.csv")
 
-if config["update_ref_with_tldr"]["response"] == "yes":
-    if config["running_ldna"]["response"] == "yes":
+if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
+    if config["aref"]["running_ldna"]["response"] == "yes":
         d_or_e = ["default", "extended"]
     else:
         d_or_e = ["default"] 
@@ -17,12 +17,12 @@ else:
 
 def aref_complete_input(wildcards):
     final_input = []
-    if config["symlink_aref_contents"]["response"] == "yes":
+    if config["aref"]["symlink_aref_contents"]["response"] == "yes":
         final_input.append("aref_contents.symlinked.outfile")
         return final_input
 
-    if config["update_ref_with_tldr"]["response"] == "yes":
-        if config["running_ldna"]["response"] == "yes":
+    if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
+        if config["aref"]["running_ldna"]["response"] == "yes":
             d_or_e = ["default", "extended"]
         else:
             d_or_e = ["default"] 
@@ -43,24 +43,25 @@ def aref_complete_input(wildcards):
         expand("aref/{default_or_extended}/A.REF_annotations/cytobands.bed",default_or_extended = d_or_e),
     ]
 
-    if config["update_ref_with_tldr"]["response"] == "yes":
-        paths.append(expand("aref/qc/{sample_or_ref}/{sample_or_ref}pycoQC.html", sample_or_ref = config["samples"]))
+    if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
+        paths.append(expand("aref/qc/{sample_or_ref}/{sample_or_ref}pycoQC.html", sample_or_ref = config["aref"]["samples"]))
         paths.append("aref/qc/multiqc.out")
         # paths.append("aref/results/insertions/analyze_somatic_insertions.rds")
 
-        if config["update_ref_with_tldr"]["per_sample"] == "yes":
-            paths.append(expand("aref/default/{sample_or_ref}_Analysis/tldr_plots/tldr_plots.rds", sample_or_ref = config["samples"]))
-            paths.append(expand("aref/default/{sample_or_ref}_Analysis/tldr_plots/transduction_mapping.rds", sample_or_ref = config["samples"]))
-            paths.append(expand("aref/default/{sample_or_ref}_Analysis/l1element_analysis.rds", sample_or_ref = config["samples"]))
-            paths.append(expand("aref/{sample_or_ref}_tldr/{sample_or_ref}.table.txt", sample_or_ref = config["samples"]))
+        if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
+            paths.append(expand("aref/default/{sample_or_ref}_Analysis/tldr_plots/tldr_plots.rds", sample_or_ref = config["aref"]["samples"]))
+            paths.append(expand("aref/default/{sample_or_ref}_Analysis/tldr_plots/transduction_mapping.rds", sample_or_ref = config["aref"]["samples"]))
+            paths.append(expand("aref/default/{sample_or_ref}_Analysis/l1element_analysis.rds", sample_or_ref = config["aref"]["samples"]))
+            paths.append(expand("aref/{sample_or_ref}_tldr/{sample_or_ref}.table.txt", sample_or_ref = config["aref"]["samples"]))
             
-            paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_rte_beds/outfile.txt", sample_or_ref = config["samples"], default_or_extended = d_or_e))
-            paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_rte_beds/outfile.txt", sample_or_ref = config["samples"], default_or_extended = d_or_e))
-            paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.complete.gtf", sample_or_ref = config["samples"], default_or_extended = d_or_e))
-            paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.gff3", sample_or_ref = config["samples"], default_or_extended = d_or_e))
-            paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.complete.gff3", sample_or_ref = config["samples"], default_or_extended = d_or_e))
-            paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_indeces/make_star_index.out", sample_or_ref = config["samples"], default_or_extended = d_or_e))
-
+            paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_rte_beds/outfile.txt", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
+            paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_rte_beds/outfile.txt", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
+            paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.complete.gtf", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
+            paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.gff3", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
+            paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.complete.gff3", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
+            paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_indeces/make_star_index.out", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
+            if config["aref"]["patch_ref"] == "yes":
+                paths.append(expand("aref/{default_or_extended}/{sample_or_ref}.snp_patched_indeces/make_star_index.out", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
         else:
             paths.append(expand("aref/default/{sample_or_ref}_Analysis/tldr_plots/tldr_plots.rds", sample_or_ref = "A.REF"))
             paths.append(expand("aref/default/{sample_or_ref}_Analysis/tldr_plots/transduction_mapping.rds", sample_or_ref = "A.REF"))
@@ -70,17 +71,20 @@ def aref_complete_input(wildcards):
             paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.gff3", sample_or_ref = "A.REF", default_or_extended = d_or_e))
             paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.complete.gff3", sample_or_ref = "A.REF", default_or_extended = d_or_e))
             paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_indeces/make_star_index.out", sample_or_ref = "A.REF", default_or_extended = d_or_e))
+            if config["aref"]["patch_ref"] == "yes":
+                paths.append(expand("aref/{default_or_extended}/{sample_or_ref}.snp_patched_indeces/make_star_index.out", sample_or_ref = "A.REF", default_or_extended = d_or_e))
 
     else:
         paths.append("aref/default/A.REF_indeces/make_star_index.out")
+        if config["aref"]["patch_ref"] == "yes":
+            paths.append("aref/default/A.REF.snp_patched_indeces/make_star_index.out")
 
 
-    if config["running_ldna"]["response"] == "yes":
+    if config["aref"]["running_ldna"]["response"] == "yes":
         paths.append("aref/extended/A.REF_annotations/cpg_islands.bed")
     
     for path in list(flatten(paths)):
         final_input.append(path)
-    print(final_input)
     return final_input
 
 
@@ -88,7 +92,7 @@ def aref_complete_input(wildcards):
 paths = [
     "aref/benchmarks",
     ]
-if config["symlink_aref"]["response"] == "no":
+if config["aref"]["symlink_aref"]["response"] == "no":
     for path in paths:
         os.makedirs(path, exist_ok = True)
 
@@ -100,7 +104,7 @@ rule aref_complete:
     shell: "touch {output}"
 rule sym_link:
     input:
-        aref_dir = config["symlink_aref"]["aref_symlinkdir"]
+        aref_dir = config["aref"]["symlink_aref"]["aref_symlinkdir"]
     priority: 100
     output:
         "aref.done.outfile"
@@ -111,7 +115,7 @@ touch {output}
         """
 rule sym_link_aref_contents:
     input:
-        aref_dir = config["symlink_aref_contents"]["aref_symlinkdir"]
+        aref_dir = config["aref"]["symlink_aref_contents"]["aref_symlinkdir"]
     output:
         sym_link_outfile = "aref_contents.symlinked.outfile"
     shell:
@@ -135,8 +139,8 @@ rule dorado:
     benchmark:
         "aref/benchmarks/dorado/{rate}.{sample}.{type}.{modifications_string}.tsv"
     params:
-        dorado = config["dorado"],
-        reference = config["update_ref_with_tldr"]["tldr_input_bam_ref"]
+        dorado = config["aref"]["dorado"],
+        reference = config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"]
     resources:
         cpus_per_task =12,
         slurm_partition="gpu-he",
@@ -159,7 +163,7 @@ mv {output.calls}.unfinished {output.calls}
 
 rule call_dorado_resume:
     input:
-        expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.bam.unfinished", sample = config["samples"], rate = config["rate"], type = config["type"], modifications_string = config["modification_string"])
+        expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.bam.unfinished", sample = config["aref"]["samples"], rate = config["aref"]["rate"], type = config["aref"]["type"], modifications_string = config["aref"]["modification_string"])
 
 rule dorado_resume:
     input:
@@ -174,9 +178,9 @@ rule dorado_resume:
         rate = "[0-9A-Za-z]+",
         modifications_string = "[0-9A-Za-z_-]+"
     params:
-        dorado = config["dorado"],
-        basecallingModel = lambda w: config["basecallingModel"][w.rate][w.type],
-        reference = config["update_ref_with_tldr"]["tldr_input_bam_ref"]
+        dorado = config["aref"]["dorado"],
+        basecallingModel = lambda w: config["aref"]["basecallingModel"][w.rate][w.type],
+        reference = config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"]
     resources:
         cpus_per_task =12,
         slurm_partition="gpu-he",
@@ -200,10 +204,10 @@ mv {output.calls}.temp {output.calls}
 
 rule dorado_seqsummary:
     input:
-        sortedbam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
-        sortedbamindex = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam.bai", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
+        sortedbam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
+        sortedbamindex = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam.bai", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
     params:
-        dorado = config["dorado"]
+        dorado = config["aref"]["dorado"]
     benchmark:
         "aref/benchmarks/dorado_seqsummary/{sample}.tsv"
     output:
@@ -218,7 +222,7 @@ rule dorado_seqsummary:
 rule pycoQC:
     input:
         seqsummary = "aref/qc/{sample}/{sample}.doradosummary.txt",
-        sortedbam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
+        sortedbam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
     output:
         html = "aref/qc/{sample}/{sample}pycoQC.html",
         json = "aref/qc/{sample}/{sample}pycoQC.json"
@@ -236,8 +240,8 @@ pycoQC --summary_file {input.seqsummary} --bam_file {input.sortedbam} --html_out
 
 rule multiqc:
     input:
-        seqsummary = expand("aref/qc/{sample}/{sample}.doradosummary.txt", sample = config["samples"]),
-        sortedbam = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam", sample = config["samples"], rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
+        seqsummary = expand("aref/qc/{sample}/{sample}.doradosummary.txt", sample = config["aref"]["samples"]),
+        sortedbam = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam", sample = config["aref"]["samples"], rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
     output:
         mqc = "aref/qc/multiqc.out",
     benchmark:
@@ -274,12 +278,12 @@ mkdir -p $(dirname {output.subsampled})
 
 samtools view -b {input.bam} chr10 > {output.subsampled}
         """
-if config["update_ref_with_tldr"]["response"] == "yes":
-    if config["update_ref_with_tldr"]["per_sample"] == "no":
+if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
+    if config["aref"]["update_ref_with_tldr"]["per_sample"] == "no":
         ruleorder: merge_bams_when_per_sample_is_no_for_ldna_variants > sortBam 
 rule merge_bams_when_per_sample_is_no_for_ldna_variants:
     input:
-        sorted_bams = expand("aref/intermediates/{sample}/alignments/{{rate}}/{sample}.{{type}}.{{modifications_string}}.sorted.bam", sample = config["samples"])
+        sorted_bams = expand("aref/intermediates/{sample}/alignments/{{rate}}/{sample}.{{type}}.{{modifications_string}}.sorted.bam", sample = config["aref"]["samples"])
     output:
         merged_bams = "aref/intermediates/A.REF/alignments/{rate}/A.REF.{type}.{modifications_string}.sorted.bam"
     benchmark:
@@ -354,15 +358,15 @@ rule IndexBam:
 samtools index  -@6 {input.bam}
         """
         
-species = config["species"]
+species = config["aref"]["species"]
 rule tldr_aggregate_multiple_samples:
     input:
-        bams = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam", sample = config["samples"], rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
-        bais = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam.bai", sample = config["samples"], rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
+        bams = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam", sample = config["aref"]["samples"], rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
+        bais = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam.bai", sample = config["aref"]["samples"], rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
     params:
-        tldr_input_bam_ref = lambda w: config["update_ref_with_tldr"]["tldr_input_bam_ref"],
-        tldr_te_ref = lambda w: config["update_ref_with_tldr"]["tldr_te_ref"][species],
-        known_nonref = lambda w: [config["update_ref_with_tldr"]["known_nonref"]["path"] if config["update_ref_with_tldr"]["known_nonref"]["response"] == "yes" else "not_provided"][0]
+        tldr_input_bam_ref = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"],
+        tldr_te_ref = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_te_ref"][species],
+        known_nonref = lambda w: [config["aref"]["update_ref_with_tldr"]["known_nonref"]["path"] if config["aref"]["update_ref_with_tldr"]["known_nonref"]["response"] == "yes" else "not_provided"][0]
     benchmark:
         "aref/benchmarks/tldr_aggregate_multiple_samples/tldr_aggregate_multiple_samples.tsv"
     output:
@@ -416,17 +420,17 @@ mv A.REF $(dirname {output.tldr})/
 
 rule call_tldr_per_sample:
     input:
-        expand("aref/{sample_or_ref}_tldr/{sample_or_ref}.table.txt", sample = config["samples"], sample_or_ref = config["samples"])
+        expand("aref/{sample_or_ref}_tldr/{sample_or_ref}.table.txt", sample = config["aref"]["samples"], sample_or_ref = config["aref"]["samples"])
 rule tldr_per_sample:
     input:
-        bam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
-        bai = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
+        bam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
+        bai = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"])
     benchmark:
         "aref/benchmarks/tldr_per_sample/{sample}.tsv"
     params:
-        tldr_input_bam_ref = lambda w: config["update_ref_with_tldr"]["tldr_input_bam_ref"],
-        tldr_te_ref = lambda w: config["update_ref_with_tldr"]["tldr_te_ref"][species],
-        known_nonref = lambda w: [config["update_ref_with_tldr"]["known_nonref"]["path"] if config["update_ref_with_tldr"]["known_nonref"]["response"] == "yes" else "not_provided"][0]
+        tldr_input_bam_ref = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"],
+        tldr_te_ref = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_te_ref"][species],
+        known_nonref = lambda w: [config["aref"]["update_ref_with_tldr"]["known_nonref"]["path"] if config["aref"]["update_ref_with_tldr"]["known_nonref"]["response"] == "yes" else "not_provided"][0]
     output:
         tldr = "aref/{sample}_tldr/{sample}.table.txt"
     resources:
@@ -475,7 +479,7 @@ mv {wildcards.sample} $(dirname {output.tldr})/
 
 rule update_reference:
     input:
-        reference = lambda w: config["update_ref_with_tldr"]["tldr_input_bam_ref"],
+        reference = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"],
         tldroutput = "aref/{sample_or_ref}_tldr/{sample_or_ref}.table.txt"
     output:
         updated_reference = "aref/default/{sample_or_ref}-pre-ins-filtering.fa",
@@ -489,7 +493,7 @@ rule update_reference:
 
 rule update_reference_extended_nonref_flank:
     input:
-        reference = lambda w: config["update_ref_with_tldr"]["tldr_input_bam_ref"],
+        reference = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"],
         tldroutput = "aref/{sample_or_ref}_tldr/{sample_or_ref}.table.txt"
     output:
         updated_reference_plusflank = "aref/extended/{sample_or_ref}-pre-ins-filtering.fa",
@@ -501,12 +505,12 @@ rule update_reference_extended_nonref_flank:
     script:
         "scripts/create_reference_extended_nonref_flank.R"
 
-if config["update_ref_with_tldr"]["response"] == "yes":
-    if config["update_ref_with_tldr"]["per_sample"] == "yes":
+if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
+    if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
         ruleorder: copy_starting_reference > cleanup_updated_ref > cleanup_updated_ref_and_patch
 
-if config["update_ref_with_tldr"]["response"] == "yes":
-    if config["update_ref_with_tldr"]["patch_ref"] == "yes":
+if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
+    if config["aref"]["patch_ref"] == "yes":
         ruleorder: cleanup_updated_ref_and_patch > cleanup_updated_ref
         ruleorder: cleanup_updated_sample_ref_and_patch > cleanup_updated_sample_ref
     else:
@@ -514,7 +518,7 @@ if config["update_ref_with_tldr"]["response"] == "yes":
         ruleorder:  cleanup_updated_sample_ref > cleanup_updated_sample_ref_and_patch
 rule copy_starting_reference:
     params:
-        ref = config["starting_ref"]
+        ref = config["aref"]["starting_ref"]
     conda:
         "omics"
     priority: 100
@@ -567,7 +571,7 @@ rule cleanup_updated_ref_and_patch:
         contigs_to_keep = "aref/{default_or_extended}/A.REF_contigs_to_keep.txt",
         hq_snps = "aref/intermediates/A.REF/pepper/hq_snps.vcf.gz",
     output:
-        filtered_ref = "aref/{default_or_extended}/A.REF.fa"
+        filtered_ref = "aref/{default_or_extended}/A.REF.snp_patched.fa"
     priority: 100
     benchmark:
         "aref/benchmarks/cleanup_updated_ref_and_patch/cleanup_updated_ref_and_patch_{default_or_extended}.tsv"
@@ -587,7 +591,7 @@ rule cleanup_updated_sample_ref_and_patch:
         contigs_to_keep = "aref/{default_or_extended}/{sample}_contigs_to_keep.txt",
         hq_snps = "aref/intermediates/{sample}/pepper/hq_snps.vcf.gz",
     output:
-        filtered_ref = "aref/{default_or_extended}/{sample}.fa"
+        filtered_ref = "aref/{default_or_extended}/{sample}.snp_patched.fa"
     priority: 100
     benchmark:
         "aref/benchmarks/cleanup_updated_sample_ref_and_patch/{sample}_{default_or_extended}.tsv"
@@ -606,12 +610,12 @@ samtools faidx {output.filtered_ref}
 #Variant calling for ref patching
 rule sniffles:
     input:
-        sortedbam = expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
-        sortedbamindex = expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])
+        sortedbam = expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
+        sortedbamindex = expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"])
     output:
         vcf = "aref/intermediates/{sample_or_ref}/sniffles/sniffles.vcf"
     params:
-        ref = lambda w: config["update_ref_with_tldr"]["tldr_input_bam_ref"]
+        ref = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"]
     resources:
         runtime = 1000,
         mem_mb = 128000,
@@ -625,10 +629,10 @@ sniffles -i {input.sortedbam} -v {output.vcf} --threads 28 --mosaic --reference 
 
 rule pepper:
     input:
-        sortedbam = ancient(expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"])),
-        sortedbamindex = ancient(expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]))
+        sortedbam = ancient(expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"])),
+        sortedbamindex = ancient(expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]))
     params:
-        ref = lambda w: config["update_ref_with_tldr"]["tldr_input_bam_ref"],
+        ref = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"],
     output:
         outfile = "aref/intermediates/{sample_or_ref}/pepper/{chr}/pepper.out.outfile",
         vcf = "aref/intermediates/{sample_or_ref}/pepper/{chr}/PEPPER_MARGIN_DEEPVARIANT_FINAL_OUTPUT.vcf.gz"
@@ -660,7 +664,7 @@ run_pepper_margin_deepvariant call_variant \
 
 rule merge_vcfs:
     input:
-        vcfs = [expand("aref/intermediates/{{sample_or_ref}}/pepper/{chromosome}/PEPPER_MARGIN_DEEPVARIANT_FINAL_OUTPUT.vcf.gz", chromosome = [e for e in pd.read_table(config["update_ref_with_tldr"]["tldr_input_bam_ref"] + ".fai", header = None).iloc[:,0] if e != "chrM"]) if config["update_ref_with_tldr"]["response"] == "yes" else ""] #this used to thrown an error if the tldr_input_bam_ref fai did not exist - even if you weren't running the tldr
+        vcfs = [expand("aref/intermediates/{{sample_or_ref}}/pepper/{chromosome}/PEPPER_MARGIN_DEEPVARIANT_FINAL_OUTPUT.vcf.gz", chromosome = [e for e in pd.read_table(config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"] + ".fai", header = None).iloc[:,0] if e != "chrM"]) if config["aref"]["update_ref_with_tldr"]["response"] == "yes" else ""] #this used to thrown an error if the tldr_input_bam_ref fai did not exist - even if you weren't running the tldr
     output:
         vcf = "aref/intermediates/{sample_or_ref}/pepper/merged.vcf.gz"
     conda:
@@ -781,7 +785,7 @@ samtools faidx {input.reference}
 #### to repeat mask or not to repeatmask, that is the question
 rule get_repeatmasker_raw_out:
     params:
-        rmref = config["run_repeatmasker"]["starting_ref_repeatmasker"]
+        rmref = config["aref"]["run_repeatmasker"]["starting_ref_repeatmasker"]
     output:
         out = "aref/{default_or_extended}/A.REF_repeatmasker/A.REF.repeatmasker_raw.out"
     shell:
@@ -808,7 +812,7 @@ rule repeatmasker_whole_genome:
     input: 
         split = "aref/default/A.REF_split/A.REF_{chromosome}.fa"
     params:
-        species = config["species"]
+        species = config["aref"]["species"]
     benchmark:
         "aref/benchmarks/repeatmasker_whole_genome/repeatmasker_whole_genome.{chromosome}.tsv"
     output:
@@ -858,16 +862,16 @@ awk 'FNR > 3' {input.outs} >> {output.out}
 #######
 #non ref contig buisness
 def repeatmasker_input(wildcards):
-    if config["update_ref_with_tldr"]["response"] == "yes":
+    if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
         return expand("aref/{default_or_extended}/{sample_or_ref}-pre-ins-filtering_nonrefcontigs.fa", sample_or_ref = wildcards.sample_or_ref, default_or_extended = wildcards.default_or_extended)
     else:
-        return config["ref"]
+        return config["aref"]["ref"]
 
 rule repeatmasker:
     input:
         fasta = repeatmasker_input
     params:
-        species = config["species"]
+        species = config["aref"]["species"]
     benchmark:
         "aref/benchmarks/repeatmasker/{sample_or_ref}_{default_or_extended}.tsv"
     output:
@@ -889,15 +893,15 @@ mkdir -p $(dirname {output})
 RepeatMasker -species "$species" -pa {resources.cpus_per_task} -gff {input.fasta} -dir $(dirname {output})
         """
 
-if config["update_ref_with_tldr"]["response"] == "yes":
-    if config["update_ref_with_tldr"]["per_sample"] == "yes":
+if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
+    if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
         ruleorder: get_repeatmasker_raw > getGtfs
 rule getGtfs:
     input:
         rmout = "aref/{default_or_extended}/{sample_or_ref}_repeatmasker/{sample_or_ref}-pre-ins-filtering_nonrefcontigs.fa.out",
         rmref = "aref/default/A.REF_repeatmasker/A.REF.repeatmasker_raw.out"
     params:
-        module_prefix = config["prefix"]
+        module_prefix = config["aref"]["prefix"]
     benchmark:
         "aref/benchmarks/getGtfs/{sample_or_ref}_{default_or_extended}.tsv"
     output:
@@ -913,8 +917,8 @@ workflow/{params.module_prefix}/scripts/outToGtf.sh {input.rmref} {output.ref}
 cat {output.ref} {output.nonref} > {output.merged}
         """
 
-if config["update_ref_with_tldr"]["response"] == "yes":
-    if config["update_ref_with_tldr"]["per_sample"] == "yes":
+if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
+    if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
         ruleorder: process_gtf > process_gtf_tldr
 rule process_gtf:
     input:
@@ -971,8 +975,8 @@ rule analyze_insertions:
 
 rule analyze_somatic_insertions:
     input:
-        json = expand("aref/qc/{sample}/{sample}pycoQC.json", sample = config["samples"]),
-        tldroutput = lambda w: expand("aref/{sample}_tldr/{sample}.table.txt", sample = config["samples"]) if config["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF_tldr/A.REF.table.txt"
+        json = expand("aref/qc/{sample}/{sample}pycoQC.json", sample = config["aref"]["samples"]),
+        tldroutput = lambda w: expand("aref/{sample}_tldr/{sample}.table.txt", sample = config["aref"]["samples"]) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF_tldr/A.REF.table.txt"
     output:
         plots = "aref/results/insertions/analyze_somatic_insertions.rds"
     benchmark:
@@ -985,8 +989,8 @@ rule analyze_somatic_insertions:
 
 rule move_refseq:
     input:
-        ref_refseq_gff3 = config["ref_refseq_gff3"],
-        ref_refseq_gtf = config["ref_refseq_gtf"]
+        ref_refseq_gff3 = config["aref"]["ref_refseq_gff3"],
+        ref_refseq_gtf = config["aref"]["ref_refseq_gtf"]
     output:
         refseq_gff3 = "aref/{default_or_extended}/{sample_or_ref}_annotations/refseq.possibly_unsorted.gff3",
         refseq_gtf = "aref/{default_or_extended}/{sample_or_ref}_annotations/refseq.possibly_unsorted.gtf"
@@ -1077,7 +1081,7 @@ agat_convert_sp_gff2bed.pl --gff {input.complete_gff3} -o {output.bed12}.temp
 awk '!/#/ {{print}}' {output.bed12}.temp | awk '{{FS="\t";OFS="\t"}} $4 < 900000000000 {{print}}' | sort -k1,1V -k2,2n -k3,3n > {output.bed12}
 rm {output.bed12}.temp
         """
-if config["symlink_aref"]["response"] == "no":
+if config["aref"]["symlink_aref"]["response"] == "no":
     ruleorder: merge_genes_and_repeats_gff > complete_gff3 
 rule merge_genes_and_repeats_gff:
     input:
@@ -1122,7 +1126,7 @@ cat {output.merged_gff3}.temp | sort -k1,1V -k4,4n -k5,5n > {output.merged_gff3}
 rm {output.merged_gff3}.temp
         """
 
-if config["symlink_aref"]["response"] == "no":
+if config["aref"]["symlink_aref"]["response"] == "no":
     ruleorder: merge_genes_and_repeats_gtf > gff_to_gtf 
 
 rule merge_genes_and_repeats_gtf:
@@ -1255,7 +1259,7 @@ rule element_analysis:
         r_repeatmasker_annotation = "aref/default/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_annotation.csv",
         ref = "aref/default/{sample_or_ref}.fa"
     params:
-        l13 = config["l13fasta"]
+        l13 = config["aref"]["l13fasta"]
     output:
         plots = "aref/default/{sample_or_ref}_Analysis/l1element_analysis.rds"
     benchmark:
@@ -1288,7 +1292,7 @@ touch {output.outfile}
 
 rule cpgIsland:
     params:
-        ref_cpgislands = config["ref_cpgislands"]
+        ref_cpgislands = config["aref"]["ref_cpgislands"]
     output:
         cpg_islands_fullinfo = "aref/extended/A.REF_annotations/cpg_islands.tsv",
         cpg_islands = "aref/extended/A.REF_annotations/cpg_islands.bed",
@@ -1309,8 +1313,8 @@ rule cpgIsland:
 
 rule copySelectAnnotations:
     params:
-        ref_cytobands = config["ref_cytobands"],
-        ref_telomere = config["ref_telomere"],
+        ref_cytobands = config["aref"]["ref_cytobands"],
+        ref_telomere = config["aref"]["ref_telomere"],
     output:
         ref_cytobands = "aref/{default_or_extended}/A.REF_annotations/cytobands.bed",
         ref_telomere = "aref/{default_or_extended}/A.REF_annotations/telomeres.bed",
@@ -1380,7 +1384,7 @@ touch outfile.out
 
 rule extract_putative_translocation_supporting_reads:
     input:
-        sortedbam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
+        sortedbam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
     output:
         alndata = "aref/intermediates/{sample}/translocation_analysis/putative_trans_reads.tsv",
     conda:
@@ -1427,7 +1431,7 @@ samtools view -F 0x800 -F 0x100 {input.sortedbam} | bioawk -c sam '
 
 rule get_all_read_clipping_lengths:
     input:
-        sortedbam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["rate"], type = config["type"], modification_string = config["modification_string"]),
+        sortedbam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
     output:
         alndata = "aref/intermediates/{sample}/translocation_analysis/read_clipping_lengths.tsv",
     conda:
@@ -1463,6 +1467,6 @@ samtools view -F 0x800 -F 0x100 {input.sortedbam} | bioawk -c sam '
 
 rule call_read_extractions:
     input:
-        alndata = expand("aref/intermediates/{sample}/translocation_analysis/read_clipping_lengths.tsv", sample = config["samples"]),
-        alndata1 = expand("aref/intermediates/{sample}/translocation_analysis/putative_trans_reads.tsv", sample = config["samples"])
+        alndata = expand("aref/intermediates/{sample}/translocation_analysis/read_clipping_lengths.tsv", sample = config["aref"]["samples"]),
+        alndata1 = expand("aref/intermediates/{sample}/translocation_analysis/putative_trans_reads.tsv", sample = config["aref"]["samples"])
     
