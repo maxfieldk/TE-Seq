@@ -28,7 +28,7 @@ for pipeline in config["pipelines_to_deploy"]:
     if pipeline == "aref":
         module aref:
             snakefile: "aref/snakefile"
-            config: config["aref"]
+            config: config
         if config["aref"]["symlink_aref"]["response"] == "yes":
             use rule sym_link from aref as aref_*
             final_input.append("aref.done.outfile")
@@ -117,7 +117,7 @@ for pipeline in config["pipelines_to_deploy"]:
     if pipeline == "srna":
         module srna:
             snakefile: "srna/snakefile"
-            config: config["srna"]
+            config: config
         if config["srna"]["library_type"] == "PE":
                 use rule * from srna exclude fastp_SE,alignSTAR_SE,featurecounts_genes_SE,featurecounts_genesandrtes_SE as srna_*
         else:
