@@ -54,9 +54,8 @@ df_filtered <- read_delim(inputs$filtered_tldr) %>% dplyr::rename(nonref_UUID = 
 nrdf <- rmann %>%
     filter(refstatus == "NonRef") %>%
     left_join(df_filtered, by = "nonref_UUID") %>%
-    mutate(homozygosity = factor(ifelse(fraction_reads_count >= 0.95, "homozygous", "heterozygous"), levels = c("homozygous", "heterozygous"))) %>%
+    mutate(zygosity = factor(ifelse(fraction_reads_count >= 0.95, "homozygous", "heterozygous"), levels = c("homozygous", "heterozygous"))) %>%
     mutate(known_nonref = factor(ifelse(is.na(NonRef), "novel", "known"), levels = c("novel", "known")))
-
 
 p1 <- nrdf %>%
     group_by(rte_family, rte_subfamily, req_integrative) %>%
@@ -83,10 +82,10 @@ p1 <- nrdf %>%
 mysaveandstore(pl = p1, sprintf("%s/insertions_subfamily_nofacet_known.pdf", outputdir), 6, 4)
 
 p1 <- nrdf %>%
-    group_by(rte_family, rte_subfamily, homozygosity) %>%
+    group_by(rte_family, rte_subfamily, zygosity) %>%
     summarise(count = n()) %>%
     mutate(counts = count) %>%
-    ggbarplot(x = "rte_subfamily", y = "counts", fill = "homozygosity") +
+    ggbarplot(x = "rte_subfamily", y = "counts", fill = "zygosity") +
     ggtitle("Non-reference RTE Insertions") +
     labs(x = "Subfamily", y = "Counts") +
     scale_palette +
@@ -117,23 +116,22 @@ novel_frac_df <- nrdf %>%
     mutate(frac_novel = frac_total, frac_known = 1 - frac_total)
 
 homozyg_frac_df <- nrdf %>%
-    group_by(rte_subfamily, homozygosity, .drop = FALSE) %>%
+    group_by(rte_subfamily, zygosity, .drop = FALSE) %>%
     summarise(n = n()) %>%
     ungroup() %>%
     group_by(rte_subfamily) %>%
     mutate(family_n = sum(n)) %>%
     mutate(frac_total = n / family_n) %>%
     ungroup() %>%
-    dplyr::filter(homozygosity == "heterozygous") %>%
+    dplyr::filter(zygosity == "heterozygous") %>%
     mutate(frac_heterozygous = frac_total, frac_homozygous = 1 - frac_total)
 
-
 hp <- homozyg_frac_df %>%
-    ggbarplot(x = "rte_subfamily", y = "frac_heterozygous") +
+    ggbarplot(x = "rte_subfamily", y = "frac_heterozygous", fill = "grey") +
     mtclosed + anchorbar + theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
     labs(x = "Subfamily")
 np <- novel_frac_df %>%
-    ggbarplot(x = "rte_subfamily", y = "frac_novel") +
+    ggbarplot(x = "rte_subfamily", y = "frac_novel", fill = "grey") +
     mtclosed + anchorbar + theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
     labs(x = "Subfamily")
 ptch <- p1 / np / hp + plot_layout(heights = c(1, 0.4, 0.4), axis_titles = "collect")
