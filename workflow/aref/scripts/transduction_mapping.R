@@ -42,11 +42,11 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            filtered_tldr = "aref/A.REF_tldr/A.REF.table.kept_in_updated_ref.txt",
+            filtered_tldr = "aref/default/A.REF.table.kept_in_updated_ref.txt",
             r_annotation_fragmentsjoined = "aref/default/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
             r_repeatmasker_annotation = "aref/default/A.REF_annotations/A.REF_repeatmasker_annotation.csv",
             ref = "aref/default/A.REF.fa",
-            blast_njs = "aref/default/A.REF.njs"
+            blast_njs = "aref/default/blastdb/A.REF.njs"
         ), env = globalenv())
         assign("outputs", list(
             plots = "aref/default/A.REF_Analysis/tldr_plots/transduction_mapping.rds",
@@ -79,7 +79,7 @@ tryCatch({
 
 trsd <- l1ta %>%
     mutate(TransductionLen = nchar(Transduction_3p)) %>%
-    filter(TransductionLen > 20)
+    filter(TransductionLen > 15)
 trsd_sankey <- trsd %$% UUID
 trsd %>% head(n = 4) %$% Transduction_3p
 
@@ -123,7 +123,7 @@ bres_hits_grs_prep <- bres_hits1 %>%
     dplyr::select(seqnames, start, end, gene_id)
 bresgrs <- GRanges(bres_hits_grs_prep)
 # extend by 500 bp on either side
-bresgrs <- resize(bresgrs, width = width(bresgrs) + 20000, fix = "center")
+bresgrs <- resize(bresgrs, width = width(bresgrs) + 500, fix = "center")
 
 trsd_adjacent_l1 <- mergeByOverlaps(bresgrs, l1grs) %>% as.data.frame() %>% tibble() %>% dplyr::rename(from_gene_id = l1grs.gene_id, to_gene_id = bresgrs.gene_id) %>% dplyr::select(from_gene_id, to_gene_id)
 
@@ -254,11 +254,15 @@ for (alignment in list.files(sprintf("aref/default/%s_Analysis", params$sample_o
 
 
     number_of_offspring <- from_df %>% group_by(gene_id) %>% summarize(n = n())
-    p <- number_of_offspring  %>% ggplot(aes(x = fct_reorder(gene_id, n), y = n)) + geom_col() + mtopen + coord_flip() +
+    p <- number_of_offspring  %>% 
+        mutate(reordered = fct_reorder(gene_id, n)) %>%
+        ggbarplot(x = "reordered", y = "n", fill = "lightgray") +
+        mtopen + 
+        coord_flip() +
         scale_y_continuous(labels = scales::number_format(accuracy = 1)) +
-        labs(x = "Source Element", y = "Number of Offspring", caption = "Phylogeny-based Source Element Mapping") +
+        labs(x = "Source Element", y = "Number of Offspring") +
         anchorbar
-    mysaveandstore(sprintf("%s/%s_offspring_per_source_element.pdf", outputdir, element_name), 4, 6) 
+    mysaveandstore(sprintf("%s/%s_offspring_per_source_element.pdf", outputdir, element_name), 4, 4) 
 }, error = function(e) {
     print("error in transduction mapping. There may be no non-reference elements")
     print(e)

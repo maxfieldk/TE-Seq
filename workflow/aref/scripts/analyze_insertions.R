@@ -67,7 +67,6 @@ p1 <- nrdf %>%
     labs(x = "Subfamily", y = "Counts") +
     scale_palette +
     mtclosed + anchorbar + theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
 mysaveandstore(pl = p1, sprintf("%s/insertions_subfamily.pdf", outputdir), 6, 4)
 
 p1 <- nrdf %>%
@@ -99,7 +98,7 @@ p1 <- nrdf %>%
     ggbarplot(x = "rte_subfamily", y = "counts", fill = "req_integrative") +
     ggtitle("Non-reference RTE Insertions") +
     labs(x = "Subfamily", y = "Counts") +
-    scale_palette +
+    scale_fill_viridis_d() +
     mtclosed + anchorbar + theme(axis.text.x = element_text(angle = 45, hjust = 1))
 mysaveandstore(pl = p1, sprintf("%s/insertions_subfamily_nofacet.pdf", outputdir), 6, 4)
 
@@ -127,15 +126,19 @@ homozyg_frac_df <- nrdf %>%
     mutate(frac_heterozygous = frac_total, frac_homozygous = 1 - frac_total)
 
 hp <- homozyg_frac_df %>%
-    ggbarplot(x = "rte_subfamily", y = "frac_heterozygous", fill = "grey") +
-    mtclosed + anchorbar + theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    pivot_longer(cols = c(frac_heterozygous, frac_homozygous)) %>%
+    ggbarplot(x = "rte_subfamily", y = "value", fill = "name") +
+    mtclosed + theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    scale_fill_manual(values = c("tan", "lightblue")) +
     labs(x = "Subfamily")
 np <- novel_frac_df %>%
-    ggbarplot(x = "rte_subfamily", y = "frac_novel", fill = "grey") +
-    mtclosed + anchorbar + theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    pivot_longer(cols = c(frac_novel, frac_known)) %>%
+    ggbarplot(x = "rte_subfamily", y = "value", fill = "name") +
+    mtclosed + theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    scale_fill_manual(values = c("brown", "grey")) +
     labs(x = "Subfamily")
-ptch <- p1 / np / hp + plot_layout(heights = c(1, 0.4, 0.4), axis_titles = "collect")
-mysaveandstore(pl = ptch, sprintf("%s/insertions_subfamily_nofacet1.pdf", outputdir), 6, 6)
+ptch <- p1 / np / hp + plot_layout(heights = c(0.4, 0.4, 0.4), axis_titles = "collect")
+mysaveandstore(pl = ptch, sprintf("%s/insertions_subfamily_patch.pdf", outputdir), 6, 6)
 
 for (rte in homozyg_frac_df %$% rte_subfamily) {
     pf <- homozyg_frac_df %>%
