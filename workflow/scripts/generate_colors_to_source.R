@@ -4,6 +4,10 @@ library(colorspace)
 sample_table <- read_csv(conf[["sample_table"]])
 sample_table <- sample_table[match(conf$samples, sample_table$sample_name), ]
 
+#these are optionally used depending on values set in config.yaml
+custom_descriptive <- c("#DF5C24FF", "#059748FF", "#E5126FFF", "#ffea00", "#0056ce", "#6e4702", "#7B3A96FF" , "#CB2027FF")
+custom_condition <- c("#3B4992FF", "#EE0000FF", "#008B45FF", "#631879FF", "#008280FF", "#BB0021FF", "#5F559BFF", "#A20056FF", "#808180FF", "#1B1919FF")
+
 # build color palettes:
 if (length(conf$levels) == 1) {
     manual_color_vec <- confALL$shared$condition_colors %>% unlist()
@@ -68,7 +72,11 @@ if (length(conf$levels) == 1) {
     )
 
     {
+        tryCatch({
         scale_palette <- list(paletteer::scale_fill_paletteer_d(confALL$shared$default_palette_descriptive), paletteer::scale_color_paletteer_d(confALL$shared$default_palette_descriptive))
+        } else {
+        scale_palette <- list(scale_fill_manual(values = custom_descriptive), scale_color_manual(values = custom_descriptive))       
+        })
         scale_palette_alt <- list(paletteer::scale_fill_paletteer_d("ggthemes::few_Dark"), paletteer::scale_color_paletteer_d("ggthemes::few_Dark"))
 
         scale_samples_unique <- list(scale_fill_manual(values = sample_unique_palette), scale_color_manual(values = sample_unique_palette))
@@ -83,7 +91,13 @@ if (length(conf$levels) == 1) {
     if (all(conf$levels %in% manual_color_vec)) {
         condition_palette <- manual_color_vec
     } else {
-        condition_palette <- setNames(c("grey", as.character(paletteer_d(confALL$shared$default_palette_condition, direction = 1, n = length(conf$levels) - 1))), conf$levels)
+        tryCatch(
+            {
+                condition_palette <- setNames(c("grey", as.character(paletteer_d(confALL$shared$default_palette_condition, direction = 1, n = length(conf$levels) - 1))), conf$levels)
+            } else {
+                condition_palette <- setNames(c("grey", custom_condition[1:length(conf$levels) - 1]), conf$levels)
+            }
+        )
     }
     color_table <- sample_table %>%
         group_by(condition) %>%
@@ -140,7 +154,11 @@ if (length(conf$levels) == 1) {
     )
 
     {
+        tryCatch({
         scale_palette <- list(paletteer::scale_fill_paletteer_d(confALL$shared$default_palette_descriptive), paletteer::scale_color_paletteer_d(confALL$shared$default_palette_descriptive))
+        } else {
+        scale_palette <- list(scale_fill_manual(values = custom_descriptive), scale_color_manual(values = custom_descriptive))
+        })
         scale_palette_alt <- list(paletteer::scale_fill_paletteer_d("ggthemes::few_Dark"), paletteer::scale_color_paletteer_d("ggthemes::few_Dark"))
 
         scale_samples_unique <- list(scale_fill_manual(values = sample_unique_palette), scale_color_manual(values = sample_unique_palette))
@@ -155,7 +173,13 @@ if (length(conf$levels) == 1) {
     if (all(conf$levels %in% manual_color_vec)) {
         condition_palette <- manual_color_vec
     } else {
-        condition_palette <- setNames(c("grey", as.character(paletteer_c("viridis::inferno", direction = 1, n = length(conf$levels) - 1))), conf$levels)
+        tryCatch(
+            {
+                condition_palette <- setNames(c("grey", custom_condition[1:length(conf$levels) - 1]), conf$levels)    
+            } else {
+                condition_palette <- setNames(c("grey", as.character(paletteer_c("viridis::inferno", direction = 1, n = length(conf$levels) - 1))), conf$levels)
+            }
+        )
     }
 
     color_table <- sample_table %>%
@@ -206,7 +230,11 @@ if (length(conf$levels) == 1) {
     )
 
     {
+        tryCatch({
         scale_palette <- list(paletteer::scale_fill_paletteer_d(confALL$shared$default_palette_descriptive), paletteer::scale_color_paletteer_d(confALL$shared$default_palette_descriptive))
+        } else {
+        scale_palette <- list(scale_fill_manual(values = custom_descriptive), scale_color_manual(values = custom_descriptive))
+        })
         scale_palette_alt <- list(paletteer::scale_fill_paletteer_d("ggthemes::few_Dark"), paletteer::scale_color_paletteer_d("ggthemes::few_Dark"))
         scale_samples_unique <- list(scale_fill_manual(values = sample_unique_palette), scale_color_manual(values = sample_unique_palette))
         scale_samples <- list(scale_fill_manual(values = sample_palette), scale_color_manual(values = sample_palette))
