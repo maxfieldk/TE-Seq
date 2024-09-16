@@ -227,8 +227,8 @@ if (conf$update_ref_with_tldr$response == "yes") {
         mutate(refstatus = "NonCentral")
 
 
-    rmref$nonref_UUID <- NA
-    rmnonref_noncentral_elements$nonref_UUID <- NA
+    rmref$nonref_UUID <- "NotApplicable"
+    rmnonref_noncentral_elements$nonref_UUID <- "NotApplicable"
     rm <- rbind(rmref, rmnonrefkeep_central_element, rmnonref_noncentral_elements)
     write_csv(rm %>% dplyr::relocate(-old_id), outputs$r_annotation_fragmentsjoined)
 

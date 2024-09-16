@@ -89,8 +89,8 @@ library(ggpubr)
 p <- ggpie(repeat_lengths, "pct",
     label = "repeat_superfamily",
     lab.pos = "out", fill = "repeat_superfamily", lab.adjust = 1
-) + scale_palette + theme(legend.position = "none")
-mysaveandstore(sprintf("%s/repeat_pie.pdf", outputdir), w = 3, h = 3)
+) + scale_fill_viridis_d() + theme(legend.position = "none")
+mysaveandstore(sprintf("%s/repeat_pie1.pdf", outputdir), w = 3, h = 3)
 
 
 p <- rmann %>%
