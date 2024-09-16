@@ -9,6 +9,7 @@ set.seed(123)
 
 module_name <- "ldna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+confALL <- configr::read.config(file = "conf/config.yaml")
 sample_table <- read_csv(sprintf("conf/sample_table_%s.csv", conf$prefix))
 sample_table <- sample_table[match(conf$samples, sample_table$sample_name), ]
 
@@ -114,30 +115,30 @@ write_delim(dmls, outputs$dmls_unfiltered, delim = "\t", col_names = TRUE)
 write_delim(dmrs, outputs$dmrs_unfiltered, delim = "\t", col_names = TRUE)
 
 {
-genome_lengths <- fasta.seqlengths(conf$reference)
-chromosomesAll <- names(genome_lengths)
-nonrefchromosomes <- grep("^NI", chromosomesAll, value = TRUE)
-refchromosomes <- grep("^chr", chromosomesAll, value = TRUE)
-autosomes <- grep("^chr[1-9]", refchromosomes, value = TRUE)
-chrX <- c("chrX")
-chrY <- c("chrY")
+    genome_lengths <- fasta.seqlengths(conf$reference)
+    chromosomesAll <- names(genome_lengths)
+    nonrefchromosomes <- grep("^NI", chromosomesAll, value = TRUE)
+    refchromosomes <- grep("^chr", chromosomesAll, value = TRUE)
+    autosomes <- grep("^chr[1-9]", refchromosomes, value = TRUE)
+    chrX <- c("chrX")
+    chrY <- c("chrY")
 
-MINIMUMCOVERAGE <- conf$MINIMUM_COVERAGE_FOR_METHYLATION_ANALYSIS
-if ("chrY" %in% conf$SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS) {
-    if ("chrX" %in% conf$SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS) {
-        CHROMOSOMESINCLUDEDINANALYSIS <- c(autosomes, grep("_chrX_|_chrY_", nonrefchromosomes, invert = TRUE, value = TRUE))
-        CHROMOSOMESINCLUDEDINANALYSIS_REF <- c(autosomes)
+    MINIMUMCOVERAGE <- conf$MINIMUM_COVERAGE_FOR_METHYLATION_ANALYSIS
+    if ("chrY" %in% conf$SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS) {
+        if ("chrX" %in% conf$SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS) {
+            CHROMOSOMESINCLUDEDINANALYSIS <- c(autosomes, grep("_chrX_|_chrY_", nonrefchromosomes, invert = TRUE, value = TRUE))
+            CHROMOSOMESINCLUDEDINANALYSIS_REF <- c(autosomes)
+        } else {
+            CHROMOSOMESINCLUDEDINANALYSIS <- c(autosomes, chrX, grep("_chrY_", nonrefchromosomes, invert = TRUE, value = TRUE))
+            CHROMOSOMESINCLUDEDINANALYSIS_REF <- c(autosomes, chrX)
+        }
+    } else if ("chrX" %in% conf$SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS) {
+        CHROMOSOMESINCLUDEDINANALYSIS <- c(autosomes, chrY, grep("_chrX_", nonrefchromosomes, invert = TRUE, value = TRUE))
+        CHROMOSOMESINCLUDEDINANALYSIS_REF <- c(autosomes, chrY)
     } else {
-        CHROMOSOMESINCLUDEDINANALYSIS <- c(autosomes, chrX, grep("_chrY_", nonrefchromosomes, invert = TRUE, value = TRUE))
-        CHROMOSOMESINCLUDEDINANALYSIS_REF <- c(autosomes, chrX)
-    }
-} else if ("chrX" %in% conf$SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS) {
-    CHROMOSOMESINCLUDEDINANALYSIS <- c(autosomes, chrY, grep("_chrX_", nonrefchromosomes, invert = TRUE, value = TRUE))
-    CHROMOSOMESINCLUDEDINANALYSIS_REF <- c(autosomes, chrY)
-} else {
         CHROMOSOMESINCLUDEDINANALYSIS <- c(autosomes, chrX, chrY, nonrefchromosomes)
         CHROMOSOMESINCLUDEDINANALYSIS_REF <- c(autosomes, chrX, chrY)
-}
+    }
 }
 
 dmls <- dmls %>% filter(chr %in% CHROMOSOMESINCLUDEDINANALYSIS)

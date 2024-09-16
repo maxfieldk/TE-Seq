@@ -1,5 +1,6 @@
 module_name <- "ldna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+confALL <- configr::read.config(file = "conf/config.yaml")
 source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 set.seed(123)
@@ -20,8 +21,8 @@ library(GenomicRanges)
 library(configr)
 library(ggbeeswarm)
 library(Biostrings)
-    library(karyoploteR)
-    library(glob)
+library(karyoploteR)
+library(glob)
 ####################
 {
     chromosomesAll <- c(paste0("chr", 1:22), "chrX", "chrY", "chrM")
@@ -83,41 +84,41 @@ grs <- Reduce(c, sample_grs)
 beds <- Reduce(rbind, sample_beds)
 colnames(beds) <- c("seqnames", "start", "end", "name", "strand", "sample", "condition")
 ######
-    # PREP DATA FOR ANALYSIS
-    conditions <- conf$levels
-    condition1 <- conditions[1]
-    condition2 <- conditions[2]
-    condition1samples <- sample_table[sample_table$condition == conditions[1], ]$sample_name
-    condition2samples <- sample_table[sample_table$condition == conditions[2], ]$sample_name
+# PREP DATA FOR ANALYSIS
+conditions <- conf$levels
+condition1 <- conditions[1]
+condition2 <- conditions[2]
+condition1samples <- sample_table[sample_table$condition == conditions[1], ]$sample_name
+condition2samples <- sample_table[sample_table$condition == conditions[2], ]$sample_name
 
-    sample_grs <- list()
-    for (sample_name in samples) {
-        df <- read_table(grep(sprintf("/%s/", sample_name), inputs$bedmethlpaths, value = TRUE), col_names = FALSE)
-        df_m <- df %>% filter(X4 == "m")
-        df_h <- df %>% filter(X4 == "h")
-        rm(df)
-        gr <- GRanges(
-            seqnames = df_m$X1,
-            ranges = IRanges(start = df_m$X2, end = df_m$X2),
-            cov = df_m$X10,
-            pctM = as.double(df_m$X11)
-        )
-        gr$sample <- sample_name
-        gr$condition <- sample_table[sample_table$sample_name == sample_name, ]$condition
-        sample_grs[[sample_name]] <- gr
-    }
+sample_grs <- list()
+for (sample_name in samples) {
+    df <- read_table(grep(sprintf("/%s/", sample_name), inputs$bedmethlpaths, value = TRUE), col_names = FALSE)
+    df_m <- df %>% filter(X4 == "m")
+    df_h <- df %>% filter(X4 == "h")
+    rm(df)
+    gr <- GRanges(
+        seqnames = df_m$X1,
+        ranges = IRanges(start = df_m$X2, end = df_m$X2),
+        cov = df_m$X10,
+        pctM = as.double(df_m$X11)
+    )
+    gr$sample <- sample_name
+    gr$condition <- sample_table[sample_table$sample_name == sample_name, ]$condition
+    sample_grs[[sample_name]] <- gr
+}
 
-    grs <- Reduce(c, sample_grs)
-    rm(sample_grs)
-    # filter out low coverage and ensure that all samples have the same cpgs
-    grs <- grs[grs$cov > MINIMUMCOVERAGE]
-    grsdf <- tibble(as.data.frame(grs))
-    grsdf$seqnames <- factor(grsdf$seqnames, levels = chromosomesAll)
-    seqnames <- grsdf$seqnames
-    start <- grsdf$start
-    end <- grsdf$end
-    pos <- paste0(seqnames, "_", start, "_", end)
-    grsdf$pos <- pos
+grs <- Reduce(c, sample_grs)
+rm(sample_grs)
+# filter out low coverage and ensure that all samples have the same cpgs
+grs <- grs[grs$cov > MINIMUMCOVERAGE]
+grsdf <- tibble(as.data.frame(grs))
+grsdf$seqnames <- factor(grsdf$seqnames, levels = chromosomesAll)
+seqnames <- grsdf$seqnames
+start <- grsdf$start
+end <- grsdf$end
+pos <- paste0(seqnames, "_", start, "_", end)
+grsdf$pos <- pos
 ########
 
 l1s <- beds %>% filter(grepl("L1", name)) %$% seqnames
@@ -166,7 +167,8 @@ p <- rbind(nonref, ref) %>% ggplot() +
     theme(panel.grid.major.y = element_blank(), panel.grid.minor.y = element_blank()) +
     labs(x = "", y = "Mean element methylation") +
     ggtitle("Reference vs Non-reference L1HS") +
-    mtopen + scale_conditions
+    mtopen +
+    scale_conditions
 png("results/plots/tldr/beeswarm_5utr.png", width = 8, height = 4, units = "in", res = 300)
 print(p)
 dev.off()
@@ -175,7 +177,8 @@ p <- rbind(nonref, ref) %>% ggplot() +
     theme(panel.grid.major.y = element_blank(), panel.grid.minor.y = element_blank()) +
     labs(x = "", y = "Mean element methylation") +
     ggtitle("Reference vs Non-reference L1HS") +
-    mtopen + scale_conditions
+    mtopen +
+    scale_conditions
 png("results/plots/tldr/box_hideoutliers_5utr.png", width = 4, height = 4, units = "in", res = 300)
 print(p)
 dev.off()
@@ -185,7 +188,8 @@ p <- rbind(nonref, ref) %>% ggplot() +
     theme(panel.grid.major.y = element_blank(), panel.grid.minor.y = element_blank()) +
     labs(x = "", y = "Mean element methylation") +
     ggtitle("Reference vs Non-reference L1HS") +
-    mtopen + scale_conditions
+    mtopen +
+    scale_conditions
 png("results/plots/tldr/box_5utr.png", width = 4, height = 4, units = "in", res = 300)
 print(p)
 dev.off()
@@ -213,7 +217,8 @@ p <- rbind(nonref, ref) %>% ggplot() +
     theme(panel.grid.major.y = element_blank(), panel.grid.minor.y = element_blank()) +
     labs(x = "", y = "Mean element methylation") +
     ggtitle("Reference vs Non-reference L1HS") +
-    mtopen + scale_conditions
+    mtopen +
+    scale_conditions
 
 png("results/plots/tldr/beeswarm.png", width = 6, height = 4, units = "in", res = 300)
 print(p)
@@ -223,7 +228,8 @@ p <- rbind(nonref, ref) %>% ggplot() +
     theme(panel.grid.major.y = element_blank(), panel.grid.minor.y = element_blank()) +
     labs(x = "", y = "Mean element methylation") +
     ggtitle("Reference vs Non-reference L1HS") +
-    mtopen + scale_conditions
+    mtopen +
+    scale_conditions
 
 png("results/plots/tldr/box_hideoutliers.png", width = 4, height = 4, units = "in", res = 300)
 print(p)
@@ -233,7 +239,8 @@ p <- rbind(nonref, ref) %>% ggplot() +
     theme(panel.grid.major.y = element_blank(), panel.grid.minor.y = element_blank()) +
     labs(x = "", y = "Mean element methylation") +
     ggtitle("Reference vs Non-reference L1HS") +
-    mtopen + scale_conditions
+    mtopen +
+    scale_conditions
 png("results/plots/tldr/box.png", width = 4, height = 4, units = "in", res = 300)
 print(p)
 dev.off()
@@ -264,7 +271,8 @@ p <- ggplot(shared_nonref_counts, aes(x = counts)) +
     labs(x = "Insertion found in N samples", y = "Count", fill = "Shared") +
     scale_x_continuous(breaks = scales::pretty_breaks(n = 6)) +
     ggtitle("Non-reference fl-L1HS Insertion") +
-    mtopen + scale_conditions
+    mtopen +
+    scale_conditions
 png("results/plots/tldr/shared_nonref_hist.png", width = 4, height = 4, units = "in", res = 300)
 print(p)
 dev.off()

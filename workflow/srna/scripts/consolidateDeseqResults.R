@@ -13,6 +13,7 @@ library("tidyr")
 # conf <- configr::read.config(file = "conf/config.yaml")[["lrna"]]
 module_name <- snakemake@params$module_name
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+confALL <- configr::read.config(file = "conf/config.yaml")
 
 tryCatch(
     {
@@ -38,8 +39,9 @@ dir.create(outputdir, recursive = TRUE, showWarnings = FALSE)
 contrasts <- conf$contrasts
 counttypes <- conf$counttypes
 
-ifelse(module_name == "srna", assign("counttypes", conf$counttypes, env = globalenv()), 
-ifelse(module_name == "lrna", assign("counttypes", conf$counttypes, env = globalenv()), NA))
+ifelse(module_name == "srna", assign("counttypes", conf$counttypes, env = globalenv()),
+    ifelse(module_name == "lrna", assign("counttypes", conf$counttypes, env = globalenv()), NA)
+)
 
 
 lengthreq <- conf$lengthreq
