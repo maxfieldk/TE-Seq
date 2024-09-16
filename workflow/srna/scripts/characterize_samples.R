@@ -208,7 +208,7 @@ p <- pf %>%
     scale_fill_viridis_d() +
     mtclosed +
     theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
-mysaveandstore(sprintf("%s/multiple_groups/gene_or_repeat_type.pdf", outputdir), w = 1 + length(conf$samples) / 2.4, h = 5)
+mysaveandstore(sprintf("%s/multiple_groups/gene_or_repeat_type.pdf", outputdir), w = 1 + 1.5 * length(conf$samples) / 2.4, h = 4)
 
 refseq <- import(params$annotation_genes)
 refseqdf <- refseq %>%
@@ -241,7 +241,7 @@ p <- pff %>%
     scale_fill_viridis_d() +
     mtclosed +
     theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
-mysaveandstore(sprintf("%s/multiple_groups/gene_biotype_or_repeat.pdf", outputdir), w = 1 + length(conf$samples) / 2.4, h = 5)
+mysaveandstore(sprintf("%s/multiple_groups/gene_biotype_or_repeat.pdf", outputdir), w = 1 + 1.5 * length(conf$samples) / 2.4, h = 4)
 
 
 
