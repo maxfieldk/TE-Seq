@@ -290,13 +290,13 @@ mysaveandstore(sprintf("srna/results/agg/bigwig_plots/genomic_context/gene_orien
 p <- pf %>%
     mutate(condition = factor(condition, levels = conf$levels)) %>%
     ggbarplot(x = "loc_integrative", y = "score_sum", fill = "sample_name", scales = "free_y", position = position_dodge()) +
-    scale_fill_viridis_d() + mtclosed + anchorbar + labs(x = "", y = "Normalized Read Count")
+    scale_palette + mtclosed + anchorbar + labs(x = "", y = "Normalized Read Count")
 mysaveandstore(sprintf("srna/results/agg/bigwig_plots/genomic_context/gene_oriented_signal_rmpriority_by_sample.pdf"), 6, 3.8)
 p <- pf %>%
     mutate(condition = factor(condition, levels = conf$levels)) %>%
     mutate(sample = factor(sample, levels = conf$samples)) %>%
     ggbarplot(x = "sample_name", y = "score_sum", fill = "loc_integrative", scales = "free_y") +
-    scale_fill_viridis_d() + mtclosed + anchorbar + labs(x = "", y = "Read Fraction") +
+    scale_palette + mtclosed + anchorbar + labs(x = "", y = "Read Fraction") +
     theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
 mysaveandstore(sprintf("srna/results/agg/bigwig_plots/genomic_context/gene_oriented_signal_rmpriority_by_sample_flip.pdf"), 1 + length(conf$samples) / 2.4, h = 5)
 

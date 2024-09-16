@@ -13,7 +13,7 @@ pipelines_to_deploy:
   # - lrna
 shared:
   default_palette_condition: "ggsci::default_aaas" #palette must be at least as long as the number of biological conditions you model; paletteer palettes https://emilhvitfeldt.github.io/paletteer/
-  default_palette_descriptive: "ggthemes::few_dark" #paletteer palettes https://emilhvitfeldt.github.io/paletteer/
+  default_palette_descriptive: "ggthemes::few_Dark" #paletteer palettes https://emilhvitfeldt.github.io/paletteer/
 
 #PIPELINE SETTINGS - Ignore settings for pipelines not being deployed (i.e. not in pipelines_to_deploy)
 aref:

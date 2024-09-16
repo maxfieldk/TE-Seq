@@ -123,7 +123,7 @@ for (g_var in c("rte_family", "rte_subfamily")) {
             ggbarplot(x = "sample", y = "sample_sum", fill = "sample", facet.by = c("req_integrative", "genic_loc"), scales = "free_y") +
             labs(x = "", y = "TPM", subtitle = counttype_label, title = group) +
             mtclosedgridh +
-            scale_fill_viridis_d(option = "viridis") +
+            scale_palette +
             scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
             theme(axis.text.x = element_text(angle = 45, hjust = 1))
         mysaveandstore(sprintf("%s/single_group/%s_bar.pdf", outputdir, group), width, height)
@@ -133,7 +133,7 @@ for (g_var in c("rte_family", "rte_subfamily")) {
             ggbarplot(x = "sample", y = "sample_sum", fill = "req_integrative", facet.by = c("genic_loc"), scales = "free_y") +
             labs(x = "", y = "TPM", subtitle = counttype_label, title = group) +
             mtclosedgridh +
-            scale_fill_viridis_d() +
+            scale_palette +
             scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
             theme(axis.text.x = element_text(angle = 45, hjust = 1))
         mysaveandstore(sprintf("%s/single_group/%s_bar_reqintegrative.pdf", outputdir, group), 10, 5)
@@ -143,7 +143,7 @@ for (g_var in c("rte_family", "rte_subfamily")) {
             ggbarplot(x = "sample", y = "sample_sum", fill = "req_integrative", facet.by = c("genic_loc")) +
             labs(x = "", y = "TPM", subtitle = counttype_label, title = group) +
             mtclosedgridh +
-            scale_fill_viridis_d() +
+            scale_palette +
             scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
             theme(axis.text.x = element_text(angle = 45, hjust = 1))
         mysaveandstore(sprintf("%s/single_group/%s_bar_reqintegrative_same_scale.pdf", outputdir, group), 10, 5)
@@ -157,7 +157,7 @@ for (g_var in c("rte_family", "rte_subfamily")) {
             ggbarplot(x = "sample", y = "sample_sum", fill = "req_integrative") +
             labs(x = "", y = "TPM", subtitle = counttype_label, title = group) +
             mtclosedgridh +
-            scale_fill_viridis_d() +
+            scale_palette +
             scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
             theme(axis.text.x = element_text(angle = 45, hjust = 1))
         mysaveandstore(sprintf("%s/single_group/%s_bar_reqintegrative_nofacet.pdf", outputdir, group), 6, 5)
@@ -173,7 +173,7 @@ for (g_var in c("rte_family", "rte_subfamily")) {
                 ggbarplot(x = "sample", y = "sample_sum", fill = "sample", facet.by = c("ltr_viral_status", "genic_loc"), scales = "free_y") +
                 labs(x = "", y = "TPM", subtitle = counttype_label, title = group) +
                 mtclosedgridh +
-                scale_fill_viridis_d() +
+                scale_palette +
                 scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
                 theme(axis.text.x = element_text(angle = 45, hjust = 1))
             mysaveandstore(sprintf("%s/single_group/%s_bar_ltr_viral_status_.pdf", outputdir, group), width, height + 4)
@@ -206,7 +206,7 @@ p <- pf %>%
     ggbarplot(x = "sample", y = "tpm", fill = "Class") +
     xlab("") +
     ylab("TPM") +
-    scale_fill_viridis_d() +
+    scale_palette +
     mtclosed +
     theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
 mysaveandstore(sprintf("%s/multiple_groups/gene_or_repeat_type.pdf", outputdir), w = 1 + 1.5 * length(conf$samples) / 2.4, h = 4)
@@ -239,7 +239,7 @@ p <- pff %>%
     ggbarplot(x = "sample", y = "tpm", fill = "Class") +
     xlab("") +
     ylab("TPM") +
-    scale_fill_viridis_d() +
+    scale_palette +
     mtclosed +
     theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
 mysaveandstore(sprintf("%s/multiple_groups/gene_biotype_or_repeat.pdf", outputdir), w = 1 + 1.5 * length(conf$samples) / 2.4, h = 4)

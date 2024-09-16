@@ -350,7 +350,6 @@ mysaveandstore(sprintf("%s/offspring_per_source_element_transduction.pdf", outpu
 # geom_sankey(flow.alpha = .6,
 #             node.color = "gray30") +
 # geom_sankey_label(size = 3, color = "white", fill = "gray40") +
-# scale_fill_viridis_d(drop = FALSE) +
 # theme_sankey(base_size = 12) +
 # labs(x = NULL, y = NULL) +
 # theme(legend.position = "none",
