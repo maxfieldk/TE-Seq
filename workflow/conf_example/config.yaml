@@ -11,6 +11,9 @@ pipelines_to_deploy:
   - srna
   # - ldna
   # - lrna
+shared:
+  default_palette_condition: "ggsci::default_aaas" #palette must be at least as long as the number of biological conditions you model; paletteer palettes https://emilhvitfeldt.github.io/paletteer/
+  default_palette_descriptive: "ggthemes::few_dark" #paletteer palettes https://emilhvitfeldt.github.io/paletteer/
 
 #PIPELINE SETTINGS - Ignore settings for pipelines not being deployed (i.e. not in pipelines_to_deploy)
 aref:
@@ -50,7 +53,6 @@ aref:
   #MODULE SETTINGS
   prefix: aref
   species: human #The species name must be a valid NCBI Taxonomy Database species name and be contained in the RepeatMasker repeat database.
-  default_palette: "ggsci::default_aaas" #paletteer palettes https://emilhvitfeldt.github.io/paletteer/
 
   #PARAMETERS RELVANT IF UPDATING REFERENCE WITH LONG READ DATA, ELSE YOU CAN IGNORE
   sample_table: "conf/sample_table_aref.csv"
@@ -92,7 +94,6 @@ srna:
   peptable: "conf/peptable_srna.csv"
   per_sample_ref: "no" #yes or no
   map_to_mycoplasma: "yes" #yes or no
-  default_palette: "ggsci::default_aaas" #must be a paletteer palette: https://emilhvitfeldt.github.io/paletteer/
   samples:
     - "PRO_low_O2_1"
     - "PRO_low_O2_2"
@@ -174,7 +175,6 @@ ldna:
   ##      ANALYSIS PARAMETERES       ##
   prefix: ldna
   sample_table: "conf/sample_table_ldna.csv"
-  default_palette: "ggsci::default_aaas" #paletteer palettes https://emilhvitfeldt.github.io/paletteer/
   use_aref_basecalls: "yes"
   single_condition: "no"
   map_to_mycoplasma: "yes" #yes or no
@@ -276,7 +276,6 @@ lrna:
   prefix: "lrna"
   sample_table: "conf/sample_table_lrna.csv"
   per_sample_ref: "no"
-  default_palette: "ggsci::default_aaas" #paletteer palettes https://emilhvitfeldt.github.io/paletteer/
   samples:
     - "pro1"
     - "pro2"

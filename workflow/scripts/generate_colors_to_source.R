@@ -6,8 +6,12 @@ sample_table <- sample_table[match(conf$samples, sample_table$sample_name), ]
 
 # build color palettes:
 if (length(conf$levels) == 1) {
-    condition_palette <- setNames(c("darkgrey"), conf$levels)
-
+    manual_color_vec <- confALL$shared$condition_colors %>% unlist()
+    if (all(conf$levels %in% manual_color_vec)) {
+        condition_palette <- manual_color_vec
+    } else {
+        condition_palette <- setNames(c("grey", as.character(paletteer_d(confALL$shared$default_palette_condition, direction = 1, n = length(conf$levels) - 1))), conf$levels)
+    }
 
     color_table <- sample_table %>%
         group_by(condition) %>%
@@ -48,7 +52,7 @@ if (length(conf$levels) == 1) {
                 contrasts_to_append <- toappend$contrast
                 tryCatch(
                     {
-                        to_append_palette <- setNames(as.character(paletteer_d(conf$default_palette)[palette_index_start:palette_index_start + length(contrasts_to_append)]), contrasts_to_append)
+                        to_append_palette <- setNames(as.character(paletteer_d(confALL$shared$default_palette_condition)[palette_index_start:palette_index_start + length(contrasts_to_append)]), contrasts_to_append)
                     },
                     error = function(e) {
                         to_append_palette <- setNames(as.character(paletteer_c("viridis::cividis", direction = 1, n = length(contrasts_to_append))), contrasts_to_append)
@@ -64,7 +68,7 @@ if (length(conf$levels) == 1) {
     )
 
     {
-        scale_palette <- list(paletteer::scale_fill_paletteer_d(conf$default_palette), paletteer::scale_color_paletteer_d(conf$default_palette))
+        scale_palette <- list(paletteer::scale_fill_paletteer_d(confALL$shared$default_palette_description), paletteer::scale_color_paletteer_d(confALL$shared$default_palette_description))
         scale_palette_alt <- list(paletteer::scale_fill_paletteer_d("ggthemes::few_Dark"), paletteer::scale_color_paletteer_d("ggthemes::few_Dark"))
 
         scale_samples_unique <- list(scale_fill_manual(values = sample_unique_palette), scale_color_manual(values = sample_unique_palette))
@@ -73,10 +77,14 @@ if (length(conf$levels) == 1) {
         scale_directions <- list(scale_fill_manual(values = direction_palette), scale_color_manual(values = direction_palette))
         scale_methylation <- list(scale_fill_manual(values = methylation_palette), scale_color_manual(values = methylation_palette))
     }
-    mycolor <- "darkgrey"
-} else if (length(conf$levels) < 11) {
-    condition_palette <- setNames(c("darkgrey", as.character(paletteer_d(conf$default_palette, direction = 1, n = length(conf$levels) - 1))), conf$levels)
-
+    mycolor <- "grey"
+} else if (length(conf$levels) <= 1 + length(paletteer_d(confALL$shared$default_palette_condition))) {
+    manual_color_vec <- confALL$shared$condition_colors %>% unlist()
+    if (all(conf$levels %in% manual_color_vec)) {
+        condition_palette <- manual_color_vec
+    } else {
+        condition_palette <- setNames(c("grey", as.character(paletteer_d(confALL$shared$default_palette_condition, direction = 1, n = length(conf$levels) - 1))), conf$levels)
+    }
     color_table <- sample_table %>%
         group_by(condition) %>%
         mutate(replicate = row_number()) %>%
@@ -116,7 +124,7 @@ if (length(conf$levels) == 1) {
                 contrasts_to_append <- toappend$contrast
                 tryCatch(
                     {
-                        to_append_palette <- setNames(as.character(paletteer_d(conf$default_palette)[palette_index_start:palette_index_start + length(contrasts_to_append)]), contrasts_to_append)
+                        to_append_palette <- setNames(as.character(paletteer_d(confALL$shared$default_palette_condition)[palette_index_start:palette_index_start + length(contrasts_to_append)]), contrasts_to_append)
                     },
                     error = function(e) {
                         to_append_palette <- setNames(as.character(paletteer_c("viridis::cividis", direction = 1, n = length(contrasts_to_append))), contrasts_to_append)
@@ -132,7 +140,7 @@ if (length(conf$levels) == 1) {
     )
 
     {
-        scale_palette <- list(paletteer::scale_fill_paletteer_d(conf$default_palette), paletteer::scale_color_paletteer_d(conf$default_palette))
+        scale_palette <- list(paletteer::scale_fill_paletteer_d(confALL$shared$default_palette_description), paletteer::scale_color_paletteer_d(confALL$shared$default_palette_description))
         scale_palette_alt <- list(paletteer::scale_fill_paletteer_d("ggthemes::few_Dark"), paletteer::scale_color_paletteer_d("ggthemes::few_Dark"))
 
         scale_samples_unique <- list(scale_fill_manual(values = sample_unique_palette), scale_color_manual(values = sample_unique_palette))
@@ -141,9 +149,14 @@ if (length(conf$levels) == 1) {
         scale_directions <- list(scale_fill_manual(values = direction_palette), scale_color_manual(values = direction_palette))
         scale_methylation <- list(scale_fill_manual(values = methylation_palette), scale_color_manual(values = methylation_palette))
     }
-    mycolor <- "darkgrey"
-} else if (length(conf$levels) >= 11) {
-    condition_palette <- setNames(c("darkgrey", as.character(paletteer_c("viridis::inferno", direction = 1, n = length(conf$levels) - 1))), conf$levels)
+    mycolor <- "grey"
+} else if (length(conf$levels) > 1 + length(paletteer_d(confALL$shared$default_palette_condition))) {
+    manual_color_vec <- confALL$shared$condition_colors %>% unlist()
+    if (all(conf$levels %in% manual_color_vec)) {
+        condition_palette <- manual_color_vec
+    } else {
+        condition_palette <- setNames(c("grey", as.character(paletteer_c("viridis::inferno", direction = 1, n = length(conf$levels) - 1))), conf$levels)
+    }
 
     color_table <- sample_table %>%
         group_by(condition) %>%
@@ -193,7 +206,7 @@ if (length(conf$levels) == 1) {
     )
 
     {
-        scale_palette <- list(paletteer::scale_fill_paletteer_d(conf$default_palette), paletteer::scale_color_paletteer_d(conf$default_palette))
+        scale_palette <- list(paletteer::scale_fill_paletteer_d(confALL$shared$default_palette_description), paletteer::scale_color_paletteer_d(confALL$shared$default_palette_description))
         scale_palette_alt <- list(paletteer::scale_fill_paletteer_d("ggthemes::few_Dark"), paletteer::scale_color_paletteer_d("ggthemes::few_Dark"))
 
         scale_samples_unique <- list(scale_fill_manual(values = sample_unique_palette), scale_color_manual(values = sample_unique_palette))
@@ -202,5 +215,5 @@ if (length(conf$levels) == 1) {
         scale_directions <- list(scale_fill_manual(values = direction_palette), scale_color_manual(values = direction_palette))
         scale_methylation <- list(scale_fill_manual(values = methylation_palette), scale_color_manual(values = methylation_palette))
     }
-    mycolor <- "darkgrey"
+    mycolor <- "grey"
 }

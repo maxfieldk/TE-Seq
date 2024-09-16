@@ -1,5 +1,6 @@
 module_name <- "aref"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+confALL <- configr::read.config(file = "conf/config.yaml")
 source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 set.seed(123)
@@ -177,7 +178,7 @@ p <- nrdf %>%
     ggtitle("L1HS Insertion Lengths") +
     labs(x = "Length (bp)", y = "Count") +
     mtopen +
-    paletteer::scale_fill_paletteer_d(conf$default_palette) +
+    scale_palette +
     anchorbar
 mysaveandstore(sprintf("%s/l1hs_length_in_updated_ref.pdf", outputdir), 5, 5)
 
