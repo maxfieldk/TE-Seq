@@ -87,18 +87,6 @@ tgenes <- genes %>%
 wgenes <- genes
 
 
-
-
-p <- tgenes %>%
-    group_by(sample) %>%
-    arrange(-tpm) %>%
-    mutate(rank = row_number()) %>%
-    ungroup() %>%
-    filter(sample == conf$samples[[1]]) %>%
-    ggplot(aes(x = rank, y = log10(tpm))) +
-    geom_point()
-mysaveandstore()
-
 resultsdf <- wrepeats
 tidydf <- trepeats
 library(ggpubr)
@@ -119,11 +107,12 @@ for (g_var in c("rte_family", "rte_subfamily")) {
             ungroup()
         p <- pf %>%
             mutate(req_integrative = factor(req_integrative, levels = c("Old Trnc", "Old FL", "Yng Trnc", "Yng FL", "Yng Intact"))) %>%
+            mutate(sample = factor(sample, levels = sample_table$sample_name)) %>%
             arrange(req_integrative) %>%
             ggbarplot(x = "sample", y = "sample_sum", fill = "sample", facet.by = c("req_integrative", "genic_loc"), scales = "free_y") +
             labs(x = "", y = "TPM", subtitle = counttype_label, title = group) +
             mtclosedgridh +
-            scale_palette +
+            scale_samples +
             scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
             theme(axis.text.x = element_text(angle = 45, hjust = 1))
         mysaveandstore(sprintf("%s/single_group/%s_bar.pdf", outputdir, group), width, height)
@@ -170,10 +159,11 @@ for (g_var in c("rte_family", "rte_subfamily")) {
                 filter(ltr_viral_status != "Other")
             p <- pf %>%
                 arrange(ltr_viral_status) %>%
+                mutate(sample = factor(sample, levels = sample_table$sample_name)) %>%
                 ggbarplot(x = "sample", y = "sample_sum", fill = "sample", facet.by = c("ltr_viral_status", "genic_loc"), scales = "free_y") +
                 labs(x = "", y = "TPM", subtitle = counttype_label, title = group) +
                 mtclosedgridh +
-                scale_palette +
+                scale_samples +
                 scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
                 theme(axis.text.x = element_text(angle = 45, hjust = 1))
             mysaveandstore(sprintf("%s/single_group/%s_bar_ltr_viral_status_.pdf", outputdir, group), width, height + 4)
