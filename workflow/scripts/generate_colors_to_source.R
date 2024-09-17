@@ -14,7 +14,7 @@ if (length(conf$levels) == 1) {
     if (all(conf$levels %in% manual_color_vec)) {
         condition_palette <- manual_color_vec
     } else {
-        condition_palette <- setNames(c("grey", as.character(paletteer_d(confALL$shared$default_palette_condition, direction = 1, n = length(conf$levels) - 1))), conf$levels)
+        condition_palette <- setNames(c("grey"), conf$levels)
     }
 
     color_table <- sample_table %>%
@@ -74,7 +74,7 @@ if (length(conf$levels) == 1) {
     {
         tryCatch({
         scale_palette <- list(paletteer::scale_fill_paletteer_d(confALL$shared$default_palette_descriptive), paletteer::scale_color_paletteer_d(confALL$shared$default_palette_descriptive))
-        } else {
+        },error = function(e) {
         scale_palette <- list(scale_fill_manual(values = custom_descriptive), scale_color_manual(values = custom_descriptive))       
         })
         scale_palette_alt <- list(paletteer::scale_fill_paletteer_d("ggthemes::few_Dark"), paletteer::scale_color_paletteer_d("ggthemes::few_Dark"))
@@ -94,7 +94,7 @@ if (length(conf$levels) == 1) {
         tryCatch(
             {
                 condition_palette <- setNames(c("grey", as.character(paletteer_d(confALL$shared$default_palette_condition, direction = 1, n = length(conf$levels) - 1))), conf$levels)
-            } else {
+            },error = function(e) {
                 condition_palette <- setNames(c("grey", custom_condition[1:length(conf$levels) - 1]), conf$levels)
             }
         )
@@ -156,7 +156,7 @@ if (length(conf$levels) == 1) {
     {
         tryCatch({
         scale_palette <- list(paletteer::scale_fill_paletteer_d(confALL$shared$default_palette_descriptive), paletteer::scale_color_paletteer_d(confALL$shared$default_palette_descriptive))
-        } else {
+        }, error = function(e) {
         scale_palette <- list(scale_fill_manual(values = custom_descriptive), scale_color_manual(values = custom_descriptive))
         })
         scale_palette_alt <- list(paletteer::scale_fill_paletteer_d("ggthemes::few_Dark"), paletteer::scale_color_paletteer_d("ggthemes::few_Dark"))
@@ -176,7 +176,7 @@ if (length(conf$levels) == 1) {
         tryCatch(
             {
                 condition_palette <- setNames(c("grey", custom_condition[1:length(conf$levels) - 1]), conf$levels)    
-            } else {
+            }, error = function(e) {
                 condition_palette <- setNames(c("grey", as.character(paletteer_c("viridis::inferno", direction = 1, n = length(conf$levels) - 1))), conf$levels)
             }
         )
@@ -232,7 +232,7 @@ if (length(conf$levels) == 1) {
     {
         tryCatch({
         scale_palette <- list(paletteer::scale_fill_paletteer_d(confALL$shared$default_palette_descriptive), paletteer::scale_color_paletteer_d(confALL$shared$default_palette_descriptive))
-        } else {
+        }, error = function(e) {
         scale_palette <- list(scale_fill_manual(values = custom_descriptive), scale_color_manual(values = custom_descriptive))
         })
         scale_palette_alt <- list(paletteer::scale_fill_paletteer_d("ggthemes::few_Dark"), paletteer::scale_color_paletteer_d("ggthemes::few_Dark"))
