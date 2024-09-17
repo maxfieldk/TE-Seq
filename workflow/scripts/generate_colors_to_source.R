@@ -4,10 +4,18 @@ library(colorspace)
 sample_table <- read_csv(conf[["sample_table"]])
 sample_table <- sample_table[match(conf$samples, sample_table$sample_name), ]
 
-#these are optionally used depending on values set in config.yaml
-custom_descriptive <- c("#DF5C24FF", "#059748FF", "#E5126FFF", "#ffea00", "#0056ce", "#6e4702", "#7B3A96FF" , "#CB2027FF")
-custom_condition <- c("#3B4992FF", "#EE0000FF", "#008B45FF", "#631879FF", "#008280FF", "#BB0021FF", "#5F559BFF", "#A20056FF", "#808180FF", "#1B1919FF")
+# these are optionally used depending on values set in config.yaml
+custom_condition <- c("#4b9b7a", "#ca6728", "#716dab", "#d43f88", "#0068f9", "#ffe100", "#7B3A96FF", "#CB2027FF")
+custom_descriptive <- c("#3B4992FF", "#EE0000FF", "#008B45FF", "#631879FF", "#008280FF", "#BB0021FF", "#5F559BFF", "#A20056FF", "#808180FF", "#1B1919FF")
 
+tryCatch(
+    {
+        condition_palette_length <<- length(as.character(paletteer_d(confALL$shared$default_palette_condition)))
+    },
+    error = function(e) {
+        condition_palette_length <<- length(custom_condition)
+    }
+)
 # build color palettes:
 if (length(conf$levels) == 1) {
     manual_color_vec <- confALL$shared$condition_colors %>% unlist()
@@ -56,10 +64,10 @@ if (length(conf$levels) == 1) {
                 contrasts_to_append <- toappend$contrast
                 tryCatch(
                     {
-                        to_append_palette <- setNames(as.character(paletteer_d(confALL$shared$default_palette_condition)[palette_index_start:palette_index_start + length(contrasts_to_append)]), contrasts_to_append)
+                        to_append_palette <<- setNames(as.character(paletteer_d(confALL$shared$default_palette_condition)[palette_index_start:palette_index_start + length(contrasts_to_append)]), contrasts_to_append)
                     },
                     error = function(e) {
-                        to_append_palette <- setNames(as.character(paletteer_c("viridis::cividis", direction = 1, n = length(contrasts_to_append))), contrasts_to_append)
+                        to_append_palette <<- setNames(as.character(paletteer_c("viridis::cividis", direction = 1, n = length(contrasts_to_append))), contrasts_to_append)
                     }
                 )
                 contrast_palette <- c(contrast_palette, to_append_palette)
@@ -72,11 +80,14 @@ if (length(conf$levels) == 1) {
     )
 
     {
-        tryCatch({
-        scale_palette <- list(paletteer::scale_fill_paletteer_d(confALL$shared$default_palette_descriptive), paletteer::scale_color_paletteer_d(confALL$shared$default_palette_descriptive))
-        },error = function(e) {
-        scale_palette <- list(scale_fill_manual(values = custom_descriptive), scale_color_manual(values = custom_descriptive))       
-        })
+        tryCatch(
+            {
+                scale_palette <<- list(paletteer::scale_fill_paletteer_d(confALL$shared$default_palette_descriptive), paletteer::scale_color_paletteer_d(confALL$shared$default_palette_descriptive))
+            },
+            error = function(e) {
+                scale_palette <<- list(scale_fill_manual(values = custom_descriptive), scale_color_manual(values = custom_descriptive))
+            }
+        )
         scale_palette_alt <- list(paletteer::scale_fill_paletteer_d("ggthemes::few_Dark"), paletteer::scale_color_paletteer_d("ggthemes::few_Dark"))
 
         scale_samples_unique <- list(scale_fill_manual(values = sample_unique_palette), scale_color_manual(values = sample_unique_palette))
@@ -86,16 +97,17 @@ if (length(conf$levels) == 1) {
         scale_methylation <- list(scale_fill_manual(values = methylation_palette), scale_color_manual(values = methylation_palette))
     }
     mycolor <- "grey"
-} else if (length(conf$levels) <= 1 + length(paletteer_d(confALL$shared$default_palette_condition))) {
+} else if (length(conf$levels) <= 1 + condition_palette_length) {
     manual_color_vec <- confALL$shared$condition_colors %>% unlist()
     if (all(conf$levels %in% manual_color_vec)) {
         condition_palette <- manual_color_vec
     } else {
         tryCatch(
             {
-                condition_palette <- setNames(c("grey", as.character(paletteer_d(confALL$shared$default_palette_condition, direction = 1, n = length(conf$levels) - 1))), conf$levels)
-            },error = function(e) {
-                condition_palette <- setNames(c("grey", custom_condition[1:length(conf$levels) - 1]), conf$levels)
+                condition_palette <<- setNames(c("grey", as.character(paletteer_d(confALL$shared$default_palette_condition, direction = 1, n = length(conf$levels) - 1))), conf$levels)
+            },
+            error = function(e) {
+                condition_palette <<- setNames(c("grey", custom_condition[1:length(conf$levels) - 1]), conf$levels)
             }
         )
     }
@@ -138,10 +150,10 @@ if (length(conf$levels) == 1) {
                 contrasts_to_append <- toappend$contrast
                 tryCatch(
                     {
-                        to_append_palette <- setNames(as.character(paletteer_d(confALL$shared$default_palette_condition)[palette_index_start:palette_index_start + length(contrasts_to_append)]), contrasts_to_append)
+                        to_append_palette <<- setNames(as.character(paletteer_d(confALL$shared$default_palette_condition)[palette_index_start:palette_index_start + length(contrasts_to_append)]), contrasts_to_append)
                     },
                     error = function(e) {
-                        to_append_palette <- setNames(as.character(paletteer_c("viridis::cividis", direction = 1, n = length(contrasts_to_append))), contrasts_to_append)
+                        to_append_palette <<- setNames(as.character(paletteer_c("viridis::cividis", direction = 1, n = length(contrasts_to_append))), contrasts_to_append)
                     }
                 )
                 contrast_palette <- c(contrast_palette, to_append_palette)
@@ -154,11 +166,14 @@ if (length(conf$levels) == 1) {
     )
 
     {
-        tryCatch({
-        scale_palette <- list(paletteer::scale_fill_paletteer_d(confALL$shared$default_palette_descriptive), paletteer::scale_color_paletteer_d(confALL$shared$default_palette_descriptive))
-        }, error = function(e) {
-        scale_palette <- list(scale_fill_manual(values = custom_descriptive), scale_color_manual(values = custom_descriptive))
-        })
+        tryCatch(
+            {
+                scale_palette <<- list(paletteer::scale_fill_paletteer_d(confALL$shared$default_palette_descriptive), paletteer::scale_color_paletteer_d(confALL$shared$default_palette_descriptive))
+            },
+            error = function(e) {
+                scale_palette <<- list(scale_fill_manual(values = custom_descriptive), scale_color_manual(values = custom_descriptive))
+            }
+        )
         scale_palette_alt <- list(paletteer::scale_fill_paletteer_d("ggthemes::few_Dark"), paletteer::scale_color_paletteer_d("ggthemes::few_Dark"))
 
         scale_samples_unique <- list(scale_fill_manual(values = sample_unique_palette), scale_color_manual(values = sample_unique_palette))
@@ -168,16 +183,17 @@ if (length(conf$levels) == 1) {
         scale_methylation <- list(scale_fill_manual(values = methylation_palette), scale_color_manual(values = methylation_palette))
     }
     mycolor <- "grey"
-} else if (length(conf$levels) > 1 + length(paletteer_d(confALL$shared$default_palette_condition))) {
+} else if (length(conf$levels) > 1 + condition_palette_length) {
     manual_color_vec <- confALL$shared$condition_colors %>% unlist()
     if (all(conf$levels %in% manual_color_vec)) {
         condition_palette <- manual_color_vec
     } else {
         tryCatch(
             {
-                condition_palette <- setNames(c("grey", custom_condition[1:length(conf$levels) - 1]), conf$levels)    
-            }, error = function(e) {
-                condition_palette <- setNames(c("grey", as.character(paletteer_c("viridis::inferno", direction = 1, n = length(conf$levels) - 1))), conf$levels)
+                condition_palette <<- setNames(c("grey", custom_condition[1:length(conf$levels) - 1]), conf$levels)
+            },
+            error = function(e) {
+                condition_palette <<- setNames(c("grey", as.character(paletteer_c("viridis::inferno", direction = 1, n = length(conf$levels) - 1))), conf$levels)
             }
         )
     }
@@ -230,11 +246,14 @@ if (length(conf$levels) == 1) {
     )
 
     {
-        tryCatch({
-        scale_palette <- list(paletteer::scale_fill_paletteer_d(confALL$shared$default_palette_descriptive), paletteer::scale_color_paletteer_d(confALL$shared$default_palette_descriptive))
-        }, error = function(e) {
-        scale_palette <- list(scale_fill_manual(values = custom_descriptive), scale_color_manual(values = custom_descriptive))
-        })
+        tryCatch(
+            {
+                scale_palette <<- list(paletteer::scale_fill_paletteer_d(confALL$shared$default_palette_descriptive), paletteer::scale_color_paletteer_d(confALL$shared$default_palette_descriptive))
+            },
+            error = function(e) {
+                scale_palette <<- list(scale_fill_manual(values = custom_descriptive), scale_color_manual(values = custom_descriptive))
+            }
+        )
         scale_palette_alt <- list(paletteer::scale_fill_paletteer_d("ggthemes::few_Dark"), paletteer::scale_color_paletteer_d("ggthemes::few_Dark"))
         scale_samples_unique <- list(scale_fill_manual(values = sample_unique_palette), scale_color_manual(values = sample_unique_palette))
         scale_samples <- list(scale_fill_manual(values = sample_palette), scale_color_manual(values = sample_palette))
