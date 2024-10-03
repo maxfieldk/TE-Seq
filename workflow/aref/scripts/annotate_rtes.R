@@ -239,7 +239,6 @@ tryCatch(
             z_score_cutoff <- 4
             pos <- ORFik::findORFs(flss, startCodon = "ATG", longestORF = TRUE, minimumLength = 333)
             names(pos) <- names(flss[as.integer(names(pos))])
-
             orf_frame <- as.data.frame(pos) %>%
                 tibble() %>%
                 mutate(bin_10 = cut(width, breaks = seq(min(width), max(width), by = 1)))
@@ -263,7 +262,6 @@ tryCatch(
                 arrange(-average_start) %$% width
 
             element_orf_intactness_df <- tibble(gene_id = names(flss))
-            i <- 1
             for (modal_width in modal_widths) {
                 tdf <- orf_frame %>% filter(width == modal_width)
                 tss <- flss[names(flss) %in% (tdf %$% group_name)]
@@ -308,23 +306,28 @@ tryCatch(
                 # bres <- tibble(predict(bl, consensus_aa_ss, ))
 
                 tdf <- as.data.frame(d_gappedsquared)
-                colnames(tdf) <- c(paste0("orf", i))
+                colnames(tdf) <- c(paste0("orf_", modal_width))
                 tdf$gene_id <- rownames(tdf)
                 tdf <- tibble(tdf)
                 tdf <- full_join(element_orf_intactness_df, tdf) %>% filter(gene_id != "consensus")
                 element_orf_intactness_df <- tdf
-                i <- i + 1
             }
             element_info_list[[element]] <- element_orf_intactness_df
         }
-        # select all columns that start with orf and include their values in a tuple
-
         rm(intactness_ann)
         for (i in 1:length(element_info_list)) {
             tdf <- element_info_list[[i]] %>%
-                mutate(across(starts_with("orf"), ~ replace_na(., 1))) %>%
-                mutate(orf_distance_tuple = pmap(dplyr::select(., starts_with("orf")), c)) %>%
+                mutate(across(starts_with("orf_"), ~ replace_na(., 1))) %>%
+                mutate(orf_distance_tuple = pmap(
+                    dplyr::select(., starts_with("orf_")),
+                    function(...) {
+                        lst <- list(...)
+                        names(lst) <- names(dplyr::select(., starts_with("orf_")))
+                        return(lst)
+                    }
+                )) %>%
                 dplyr::select(gene_id, orf_distance_tuple)
+
             if (!exists("intactness_ann")) {
                 intactness_ann <- tdf
             } else {
@@ -334,12 +337,15 @@ tryCatch(
 
         intactness_ann <- intactness_ann %>%
             mutate(intactness_req = ifelse(sapply(orf_distance_tuple, function(x) all(x < 0.05)), "Intact", "Not Intact")) %>%
-            mutate(orf_passes_distance_threshold = map(orf_distance_tuple, ~ {
+            mutate(orf_passes_mutation_threshold = map(orf_distance_tuple, ~ {
+                # Get the indices where the values are below the threshold
                 threshold_indices <- which(.x < 0.05)
+
                 if (length(threshold_indices) == 0) {
                     "none"
                 } else {
-                    paste0("orf", threshold_indices)
+                    # Get the names of the corresponding elements
+                    names(.x)[threshold_indices] # Return the names instead of "orf" followed by indices
                 }
             }))
     },
