@@ -362,14 +362,22 @@ length_ann <- rmfragments %>%
     dplyr::select(gene_id, pctconsensuscovered) %>%
     full_join(rmfamilies %>% dplyr::select(gene_id, rte_subfamily)) %>%
     mutate(rte_length_req = ifelse(pctconsensuscovered >= fulllength_trnc_length_threshold, "FL", "Trnc"))
+
 yng_old_divergence_threshold <- conf$yng_old_divergence_threshold
+col_to_use <- names(yng_old_divergence_threshold)
+col_values <- names(yng_old_divergence_threshold[[1]])
+thresholds <- unlist(yng_old_divergence_threshold) %>% unname()
+div_tibble <- tibble(!!sym(col_to_use) := col_values, yng_div_threshold = thresholds) %>%
+    right_join(rmfamilies) %>%
+    dplyr::select(gene_id, yng_div_threshold)
 divergence_ann <- rmfragments %>%
     dplyr::select(gene_id, family, pctdiv, pctconsensuscovered) %>%
     group_by(family) %>%
     mutate(family_av_pctdiv = mean(pctdiv, na.rm = TRUE), family_av_coverage = mean(pctconsensuscovered, na.rm = TRUE)) %>%
     ungroup() %>%
+    left_join(div_tibble) %>%
     mutate(divergence_age = ifelse(
-        family_av_pctdiv <= yng_old_divergence_threshold, "Yng", "Old"
+        family_av_pctdiv <= yng_div_threshold, "Yng", "Old"
     ))
 
 tryCatch(
