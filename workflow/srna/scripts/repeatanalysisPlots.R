@@ -1813,18 +1813,42 @@ tryCatch(
                     {
                         if (group == "gene") {
                             p <- vdf %>%
-                                upset(categories_all, name = "condition", width_ratio = 0.3, min_degree = 1) +
-                                labs(title = sprintf("DE %s", group), subtitle = counttype)
+                                upset(categories_all,
+                                    themes = upset_modify_themes(list(
+                                        "intersections_matrix" = mtclosed + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.title.x = element_blank())
+                                    )),
+                                    name = "condition", width_ratio = 0.3, min_degree = 1,
+                                    base_annotations = list(
+                                        "Intersection size" = intersection_size(counts = TRUE, color = "black") +
+                                            mtclosed + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.title.x = element_blank())
+                                    ),
+                                    encode_sets = FALSE,
+                                    set_sizes = (
+                                        upset_set_size(position = "right") + geom_text(aes(label = ..count..), hjust = 1.1, stat = "count") + mtclosed)
+                                ) +
+                                labs(title = sprintf("DE %s", group), subtitle = counttype) +
+                                mtclosed + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.title.x = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank(), axis.title.y = element_blank())
+
                             mysaveandstore(sprintf("%s/%s/pan_contrast/venn/upset_%s.pdf", outputdir, counttype, group), 9, 6)
                         } else {
                             p <- vdf %>%
                                 upset(categories_all,
+                                    themes = upset_modify_themes(list(
+                                        "intersections_matrix" = mtclosed + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.title.x = element_blank())
+                                    )),
                                     name = "condition", width_ratio = 0.3, min_degree = 1,
                                     base_annotations = list(
-                                        "Intersection size" = intersection_size(counts = FALSE, mapping = aes(fill = req_integrative)) + scale_palette + guides(fill = guide_legend(title = "Element Features"))
-                                    )
+                                        "Intersection size" = intersection_size(counts = TRUE, mapping = aes(fill = req_integrative), color = "black") +
+                                            mtclosed + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.title.x = element_blank()) +
+                                            scale_palette +
+                                            guides(fill = guide_legend(title = "Element Features"))
+                                    ),
+                                    encode_sets = FALSE,
+                                    set_sizes = (
+                                        upset_set_size(position = "right") + geom_text(aes(label = ..count..), hjust = 1.1, stat = "count") + mtclosed)
                                 ) +
-                                labs(title = sprintf("DE %s", group), subtitle = counttype)
+                                labs(title = sprintf("DE %s", group), subtitle = counttype) +
+                                mtclosed + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.title.x = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank(), axis.title.y = element_blank())
                             mysaveandstore(sprintf("%s/%s/pan_contrast/venn/upset_%s.pdf", outputdir, counttype, group), 9, 6)
 
                             p <- vdf %>%
