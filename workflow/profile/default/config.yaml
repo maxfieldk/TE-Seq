@@ -1,7 +1,7 @@
 software-deployment-method: 
   - conda
   - apptainer
-singularity-args: '--bind /users/mkelsey/data,/oscar/data/jsedivy/mkelsey,/oscar/home/jkreilin/data/vesicle_RNAseq'
+singularity-args: '--bind /users/mkelsey/data,/oscar/data/jsedivy/mkelsey,/oscar/home/jkreilin/data/vesicle_RNAseq,/users/jsedivy/data/rkalekar/Github_2024/RTE/srna'
 conda-frontend: mamba
 rerun-triggers: mtime
 keep-going: True

@@ -180,7 +180,7 @@ transcripts <- c(coding_transcripts, noncoding_transcripts)
 
         p <- Heatmap(
             m,
-            col = circlize::colorRamp2(color_breaks_quantile, c("white", "#0000ff", "#ff0000", "black")),
+            col = circlize::colorRamp2(color_breaks_quantile, c("white", "#FCE61F", "#1E908C", "#443A84")),
             cluster_rows = TRUE, cluster_columns = FALSE,
             show_heatmap_legend = TRUE,
             heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_quantile, break_dist = 1),
@@ -194,7 +194,7 @@ transcripts <- c(coding_transcripts, noncoding_transcripts)
         mysaveandstore(sprintf("%s/%s/%s/heatmap/l1s_de.pdf", outputdir, counttype, "pan_contrast"), 5, 10)
         p <- Heatmap(
             m,
-            col = circlize::colorRamp2(color_breaks_quantile, c("white", "#0000ff", "#ff0000", "black")),
+            col = circlize::colorRamp2(color_breaks_quantile, c("white", "#FCE61F", "#1E908C", "#443A84")),
             cluster_rows = TRUE, cluster_columns = TRUE,
             show_heatmap_legend = TRUE,
             heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_quantile, break_dist = 1),
@@ -209,7 +209,7 @@ transcripts <- c(coding_transcripts, noncoding_transcripts)
 
         p <- Heatmap(
             m,
-            col = circlize::colorRamp2(color_breaks_log, c("white", "#0000ff", "#ff0000", "black")),
+            col = circlize::colorRamp2(color_breaks_quantile, c("white", "#fcd71f", "#25aeaa", "#443A84")),
             cluster_rows = TRUE, cluster_columns = FALSE,
             show_heatmap_legend = TRUE,
             heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_log, break_dist = 1),
