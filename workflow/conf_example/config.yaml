@@ -11,6 +11,9 @@ pipelines_to_deploy:
   - srna
   # - ldna
   # - lrna
+shared:
+  default_palette_condition: "ggsci::default_aaas" #palette must be at least as long as the number of biological conditions you model; paletteer palettes https://emilhvitfeldt.github.io/paletteer/
+  default_palette_descriptive: "ggthemes::few_Dark" #paletteer palettes https://emilhvitfeldt.github.io/paletteer/
 
 #PIPELINE SETTINGS - Ignore settings for pipelines not being deployed (i.e. not in pipelines_to_deploy)
 aref:
@@ -25,6 +28,10 @@ aref:
   running_ldna:
     response: "no"
   
+  #TE ANNOTATION PARAMETERS
+  fulllength_trnc_length_threshold: 95 #percent of consensus covered by an element for it to be considered full length
+  yng_old_divergence_threshold: 15  
+
   #USER PROVIDED ANNOTATIONS - CHANGE PATHS AS NEEDED
   #Be sure to follow ucsc naming conventions, e.g. chr1, chr2, ...
   starting_ref: ../genome_files/reference.ucsc.fa
@@ -46,7 +53,6 @@ aref:
   #MODULE SETTINGS
   prefix: aref
   species: human #The species name must be a valid NCBI Taxonomy Database species name and be contained in the RepeatMasker repeat database.
-  default_palette: "ggsci::default_aaas" #paletteer palettes https://emilhvitfeldt.github.io/paletteer/
 
   #PARAMETERS RELVANT IF UPDATING REFERENCE WITH LONG READ DATA, ELSE YOU CAN IGNORE
   sample_table: "conf/sample_table_aref.csv"
@@ -55,6 +61,8 @@ aref:
     - "N2102EP1"
   levels:
     - "N2102EP"
+  #if you would like snps to be incorporated into the reference? Only use if you have at least 20X long read coverage
+  patch_ref: "yes"
   update_ref_with_tldr:
     response: "no"
     #if making one ref per sample (i.e. each sample has unique inserts), then "yes", else "no"
@@ -65,6 +73,9 @@ aref:
     tldr_te_ref:
       human: resources/sequences/teref.ont.human.fa
       mouse: resources/sequences/teref.mouse.fa
+    known_nonref:
+      response: "no"
+      path: resources/genomes/hs1/annotations/nonref.collection.hs1.chr.bed.gz #if using, ensure this file is in your genome's coordinate space! Tabix index of bgzipped bed file with location of nonref insertions
 
   dorado: "/users/mkelsey/data/tools/dorado-0.5.1-linux-x64/bin/dorado"
   basecallingModel:
@@ -83,7 +94,6 @@ srna:
   peptable: "conf/peptable_srna.csv"
   per_sample_ref: "no" #yes or no
   map_to_mycoplasma: "yes" #yes or no
-  default_palette: "ggsci::default_aaas" #must be a paletteer palette: https://emilhvitfeldt.github.io/paletteer/
   samples:
     - "PRO_low_O2_1"
     - "PRO_low_O2_2"
@@ -165,10 +175,9 @@ ldna:
   ##      ANALYSIS PARAMETERES       ##
   prefix: ldna
   sample_table: "conf/sample_table_ldna.csv"
-  default_palette: "ggsci::default_aaas" #paletteer palettes https://emilhvitfeldt.github.io/paletteer/
   use_aref_basecalls: "yes"
   single_condition: "no"
-
+  map_to_mycoplasma: "yes" #yes or no
   samples:
     - "N2102EP1"
 
@@ -200,7 +209,7 @@ ldna:
   reference_annotation_dir: "aref"
   reference: "aref/extended/A.REF.fa"
   annotation: "aref/extended/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf"
-  refseq_unaltered: "aref/extended/A.REF_annotations/refseq.gff3"
+  refseq_unaltered: "aref/default/A.REF_annotations/refseq.gff3"
   refseq: "aref/default/A.REF_annotations/refseq.complete.gtf"
   cytobands: aref/extended/A.REF_annotations/cytobands.bed
   ccres: /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations3/cCREs/hs1-imr90-cCREsCuratedWithClosestGene.bed
@@ -267,7 +276,6 @@ lrna:
   prefix: "lrna"
   sample_table: "conf/sample_table_lrna.csv"
   per_sample_ref: "no"
-  default_palette: "ggsci::default_aaas" #paletteer palettes https://emilhvitfeldt.github.io/paletteer/
   samples:
     - "pro1"
     - "pro2"
@@ -353,6 +361,15 @@ lrna:
 
   rte_subfamily_read_level_analysis:
     - "L1HS_intactness_req_ALL"
-    
+
+  rte_subfamily_extra_modification_analysis:
+    - "L1HS_intactness_req_ALL"
+    - "L1HS_rte_length_req_ALL"
+    - "L1PA2_rte_length_req_ALL"
+    - "L1PA3_rte_length_req_ALL"
+    - "L1PA4_rte_length_req_ALL"
+
+  MINIMUM_COVERAGE_FOR_METHYLATION_ANALYSIS: 5
+
 integrated:
   regions_of_interest: "conf/integrated_regions_of_interest.bed"

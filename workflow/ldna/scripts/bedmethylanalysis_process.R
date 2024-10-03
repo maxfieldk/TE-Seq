@@ -1,7 +1,9 @@
 module_name <- "ldna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+confALL <- configr::read.config(file = "conf/config.yaml")
 source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
+set.seed(123)
 
 library(rtracklayer)
 library(Biostrings)
@@ -60,12 +62,12 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            bedmethlpaths = sprintf("ldna/intermediates/%s/methylation/%s_CG_bedMethyl.bed", samples, samples),
-            data = sprintf("ldna/intermediates/%s/methylation/%s_CG_m_dss.tsv", sample_table$sample_name, sample_table$sample_name),
+            bedmethlpaths = sprintf("ldna/intermediates/%s/methylation/analysis_default/%s_CG_bedMethyl.bed", samples, samples),
+            data = sprintf("ldna/intermediates/%s/methylation/analysis_default/%s_CG_m_dss.tsv", sample_table$sample_name, sample_table$sample_name),
             dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
             dmls = "ldna/results/tables/dmls.CG_m.tsv",
-            read_mods = sprintf("ldna/intermediates/%s/methylation/%s_readmods_%s_%s.tsv", samples, samples, "NoContext", conf$rte_subfamily_read_level_analysis),
-            read_mods_cg = sprintf("ldna/intermediates/%s/methylation/%s_readmods_%s_%s.tsv", samples, samples, "CpG", conf$rte_subfamily_read_level_analysis)
+            read_mods = sprintf("ldna/intermediates/%s/methylation/analysis_default/%s_readmods_%s_%s.tsv", samples, samples, "NoContext", conf$rte_subfamily_read_level_analysis),
+            read_mods_cg = sprintf("ldna/intermediates/%s/methylation/analysis_default/%s_readmods_%s_%s.tsv", samples, samples, "CpG", conf$rte_subfamily_read_level_analysis)
         ), env = globalenv())
         assign("outputs", list(outfile = "ldna/outfiles/bedmethylanalysis.txt"), env = globalenv())
     }
@@ -162,6 +164,7 @@ rm(sample_grs)
 grs <- grs[grs$cov > MINIMUMCOVERAGE]
 grsdf <- tibble(as.data.frame(grs))
 grsdf %$% seqnames %>% unique()
+dir.create("ldna/Rintermediates", recursive = TRUE)
 write_delim(grsdf %>% filter(grepl("*nonref*", seqnames)), "ldna/Rintermediates/grsdf_nonref.tsv", col_names = TRUE)
 grsdf$seqnames <- factor(grsdf$seqnames, levels = chromosomesAll)
 seqnames <- grsdf$seqnames
@@ -449,7 +452,7 @@ for (region in conf$rte_subfamily_read_level_analysis) {
         df$sample <- sample_name
         df$condition <- sample_table[sample_table$sample_name == sample_name, "condition"]
         grs <- GRanges(df %>% dplyr::rename(seqnames = chrom, start = ref_position, strand = ref_strand) %>% mutate(end = start))
-        eoi <- import(paste0("aref/A.REF_annotations/A.REF_rte_beds/", region, ".bed"))
+        eoi <- import(paste0("aref/extended/A.REF_annotations/A.REF_rte_beds/", region, ".bed"))
         mbo <- mergeByOverlaps(grs, eoi)
         df1 <- as.data.frame(mbo) %>%
             tibble() %>%
@@ -479,7 +482,7 @@ for (region in conf$rte_subfamily_read_level_analysis) {
         df$sample <- sample_name
         df$condition <- sample_table[sample_table$sample_name == sample_name, "condition"]
         grs <- GRanges(df %>% dplyr::rename(seqnames = chrom, start = ref_position, strand = ref_strand) %>% mutate(end = start))
-        eoi <- import(paste0("aref/A.REF_annotations/A.REF_rte_beds/", region, ".bed"))
+        eoi <- import(paste0("aref/extended/A.REF_annotations/A.REF_rte_beds/", region, ".bed"))
         mbo <- mergeByOverlaps(grs, eoi)
         df1 <- as.data.frame(mbo) %>%
             tibble() %>%

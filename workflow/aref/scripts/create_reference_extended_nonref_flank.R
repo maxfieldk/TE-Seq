@@ -1,9 +1,11 @@
 module_name <- "aref"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+confALL <- configr::read.config(file = "conf/config.yaml")
 source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 library(configr)
 library(Biostrings)
+set.seed(123)
 
 tryCatch(
     {
@@ -40,7 +42,7 @@ for (i in 1:length(er)) {
     emptyreadsnum <- c(emptyreadsnum, val)
 }
 
-df$emptyreadsnum <- emptyreadsnum
+df$emptyreadsnum <- emptyreadsnum %>% replace_na(0)
 df <- df %>%
     mutate(fraction_reads_count = UsedReads / (UsedReads + emptyreadsnum)) %>%
     filter(fraction_reads_count > 0.30) %>%

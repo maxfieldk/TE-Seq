@@ -1,7 +1,9 @@
 module_name <- "ldna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+confALL <- configr::read.config(file = "conf/config.yaml")
 source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
+set.seed(123)
 
 library(rtracklayer)
 library(Biostrings)

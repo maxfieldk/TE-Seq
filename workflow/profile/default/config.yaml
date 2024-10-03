@@ -1,7 +1,7 @@
 software-deployment-method: 
   - conda
   - apptainer
-singularity-args: '--bind /users/mkelsey/data,/oscar/data/jsedivy/mkelsey,/users/jsedivy/data/rkalekar/Github_2024/RTE/srna/rawdata'
+singularity-args: '--bind /users/mkelsey/data,/oscar/data/jsedivy/mkelsey,/oscar/home/jkreilin/data/vesicle_RNAseq'
 conda-frontend: mamba
 rerun-triggers: mtime
 keep-going: True
@@ -68,3 +68,8 @@ set-resources:
         mem_mb: attempt * 85000
     aref_annotate_rtes:
         mem_mb: attempt * 35000
+    aref_dorado:
+        cpus_per_task: 12
+        slurm_partition: "gpu-he"
+        mem_mb: 128000
+        slurm_extra: "--time=96:00:00 --prefer=a6000 --gres=gpu:2"

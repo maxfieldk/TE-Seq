@@ -1,5 +1,6 @@
 module_name <- "lrna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+confALL <- configr::read.config(file = "conf/config.yaml")
 source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 
@@ -129,7 +130,8 @@ pf <- mbo %>%
     dplyr::rename(`Error Profile` = readtype)
 p <- pf %>% ggplot(aes(x = readlengthgroup, y = AlignmentAccuracy, fill = `Error Profile`)) +
     geom_col(pos = "dodge") +
-    mtopen + scale_contrasts +
+    mtopen +
+    scale_contrasts +
     ggtitle(sprintf("Simulated L1HS Intact Reads")) +
     labs(y = "Mapping Accuracy", x = "Read Length") +
     anchorbar
@@ -153,7 +155,8 @@ pf <- mbo %>%
 p <- pf %>% ggplot(aes(x = readlengthgroup, y = AlignmentAccuracy, fill = `Error Profile`)) +
     geom_col(pos = "dodge") +
     facet_wrap(~mapqGroup) +
-    mtopen + scale_contrasts +
+    mtopen +
+    scale_contrasts +
     ggtitle(sprintf("Simulated L1HS Intact Reads")) +
     labs(y = "Mapping Accuracy", x = "Read Length") +
     anchorbar

@@ -1,7 +1,9 @@
 source("workflow/scripts/defaults.R")
 module_name <- "ldna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+confALL <- configr::read.config(file = "conf/config.yaml")
 source("workflow/scripts/generate_colors_to_source.R")
+set.seed(123)
 
 library(rtracklayer)
 library(Biostrings)
@@ -30,8 +32,7 @@ tryCatch(
             snpeff = sprintf("ldna/intermediates/%s/snpeff/snpeff.pass.vcf", sample_table$sample_name),
             filtered_tldr = sprintf("aref/%s_tldr/%s.table.kept_in_updated_ref.txt", sample_table$sample_name, sample_table$sample_name)
         ), env = globalenv())
-        assign("outputs", list(plots = "ldna/results/variant_analysis/variant_analysis.rds"
-), env = globalenv())
+        assign("outputs", list(plots = "ldna/results/variant_analysis/variant_analysis.rds"), env = globalenv())
     }
 )
 

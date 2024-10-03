@@ -10,10 +10,10 @@ peptable = pep.sample_table
 peptable.to_csv("conf/peptable_srna.csv", index = False, quoting=csv.QUOTE_NONNUMERIC)
 
 
-#need to use the config["samples"] and not sample_table["sample_name"], deseq order matters and is based on conf$samples
-samples = config["samples"]
-contrasts = config["contrasts"]
-counttypes = config["counttypes"]
+#need to use the config["srna"]["samples"] and not sample_table["sample_name"], deseq order matters and is based on conf$samples
+samples = config["srna"]["samples"]
+contrasts = config["srna"]["contrasts"]
+counttypes = config["srna"]["counttypes"]
 peptable = pd.read_csv("conf/peptable_srna.csv")
 
 #tag FILESTRUCTURE
@@ -23,8 +23,8 @@ paths = [
     ]
 for path in paths:
     for sample in samples:
-        for counttype in config["counttypes"]:
-            for contrast in config["contrasts"]:
+        for counttype in config["srna"]["counttypes"]:
+            for contrast in config["srna"]["contrasts"]:
                 os.makedirs(path.format(sample=sample, counttype=counttype, contrast=contrast), exist_ok = True)
 
 #tag FUNCTIONS
@@ -61,14 +61,14 @@ def getFeatureCountsStrandParam():
 def getTelescopeStrandParam():
     libraryType = inferLibraryType()
     if libraryType == "forward":
-        if config["library_type"] == "PE":
+        if config["srna"]["library_type"] == "PE":
             strandParam = "FR"
-        elif config["library_type"] == "SE":
+        elif config["srna"]["library_type"] == "SE":
             strandParam = "F"
     elif libraryType == "reverse":
-        if config["library_type"] == "PE":
+        if config["srna"]["library_type"] == "PE":
             strandParam = "RF"
-        elif config["library_type"] == "SE":
+        elif config["srna"]["library_type"] == "SE":
             strandParam = "R"
     elif libraryType == "unstranded":
         strandParam = "None"
@@ -79,14 +79,14 @@ def getTelescopeStrandParam():
 def getFpkmCountStrandParam():
     libraryType = inferLibraryType()
     if libraryType == "forward":
-        if config["library_type"] == "PE":
+        if config["srna"]["library_type"] == "PE":
             strandParam = "1++,1--,2+-,2-+"
-        elif config["library_type"] == "SE":
+        elif config["srna"]["library_type"] == "SE":
             strandParam = "++,--"
     elif libraryType == "reverse":
-        if config["library_type"] == "PE":
+        if config["srna"]["library_type"] == "PE":
             strandParam = "1+-,1-+,2++,2--"
-        elif config["library_type"] == "SE":
+        elif config["srna"]["library_type"] == "SE":
             strandParam = "+-,-+"
     elif libraryType == "unstranded":
         strandParam = "None"
@@ -95,7 +95,7 @@ def getFpkmCountStrandParam():
     return strandParam
 
 # def enforce_symlink(wildcards):
-#     if config["symlink_aref"]["response"] == "yes":
+#     if config["srna"]["symlink_aref"]["response"] == "yes":
 #         return "aref.symlinked.outfile"
 #     else:
 #         return ""
@@ -192,7 +192,7 @@ rule inferLibraryType:
     benchmark:
         "srna/benchmarks/inferLibraryType/inferLibraryType.tsv"
     params:
-        gtf = config['annotation_genes_bed12'],
+        gtf = config["srna"]['annotation_genes_bed12'],
     resources:
         mem_mb  = 30000
     conda:
@@ -205,7 +205,7 @@ infer_experiment.py -r {params.gtf} -i {input.bam} > {output.librarytype}
 rule multiqc:
     input:
         bams = expand("srna/outs/{sample}/star_output/{sample}.sorted.bam.stats.txt", sample = samples),
-        deseq = expand("srna/results/agg/deseq/{counttype}/counttablesizenormed.csv", counttype = config["counttypes"])
+        deseq = lambda w: [expand("srna/results/agg/deseq/{counttype}/counttablesizenormed.csv", counttype = config["srna"]["counttypes"]) if len(config["srna"]["levels"]) > 1 else ""][0]
     output:
         "srna/qc/multiqc/multiqc_report.html"
     benchmark:
@@ -219,6 +219,18 @@ multiqc -f -o $(dirname {output}) --export ./srna/
         """
 
 #tag ALIGNMENT
+def get_proper_ref_starindex(wildcards):
+    if config["srna"]["per_sample_ref"] == "yes":
+        if config["aref"]["patch_ref"] == "yes":
+            return "aref/default/%s.snp_patched_indeces/star_index"%(wildcards.sample)
+        else: 
+            return "aref/default/%s_indeces/star_index"%(wildcards.sample)
+    else:
+        if config["aref"]["patch_ref"] == "yes":
+            return "aref/default/A.REF.snp_patched_indeces/star_index"
+        else:
+            return "aref/default/A.REF_indeces/star_index"
+
 rule alignSTAR_PE:
     input:
         r1 = "srna/outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz",
@@ -226,7 +238,7 @@ rule alignSTAR_PE:
         aref = "aref.done.outfile"
     retries: 3
     params:
-        index = lambda wildcards: "aref/default/%s_indeces/star_index"%(wildcards.sample) if config["per_sample_ref"] == "yes" else "aref/default/A.REF_indeces/star_index"
+        index = get_proper_ref_starindex
     output:
         bam = temp("srna/outs/{sample}/star_output/Aligned.out.sam")
     benchmark:
@@ -253,7 +265,7 @@ rule featurecounts_genes_PE:
     benchmark:
         "srna/benchmarks/featurecounts_genes_PE/featurecounts_genes_PE.tsv"
     params: 
-        gtf = config['annotation_genes'],
+        gtf = config["srna"]['annotation_genes'],
         featureCountsstrandparam = getFeatureCountsStrandParam()
     conda: "omics"
     threads: 4
@@ -295,7 +307,7 @@ rule alignSTAR_SE:
         r1 = "srna/outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz"
     retries: 3
     params:
-        index = lambda wildcards: "aref/default/%s_indeces/star_index"%(wildcards.sample) if config["per_sample_ref"] == "yes" else "aref/default/A.REF_indeces/star_index"
+        index = lambda wildcards: "aref/default/%s_indeces/star_index"%(wildcards.sample) if config["srna"]["per_sample_ref"] == "yes" else "aref/default/A.REF_indeces/star_index"
     output:
         bam = temp("srna/outs/{sample}/star_output/Aligned.out.sam")
     benchmark:
@@ -323,7 +335,7 @@ rule featurecounts_genes_SE:
     benchmark:
         "srna/benchmarks/featurecounts_genes_SE/featurecounts_genes_SE.tsv"
     params: 
-        gtf = config['annotation_genes'],
+        gtf = config["srna"]['annotation_genes'],
         featureCountsstrandparam = getFeatureCountsStrandParam()
     conda:
         "omics"
@@ -403,7 +415,7 @@ rule telescope:
         libtype = "srna/qc/library_type.txt",
     params:
         strandparam = getTelescopeStrandParam(),
-        gff = lambda wildcards: "aref/default/%s_annotations/%s_repeatmasker.gff2"%(wildcards.sample, wildcards.sample) if config["per_sample_ref"] == "yes" else "aref/default/A.REF_annotations/A.REF_repeatmasker.gff2"
+        gff = lambda wildcards: "aref/default/%s_annotations/%s_repeatmasker.gff2"%(wildcards.sample, wildcards.sample) if config["srna"]["per_sample_ref"] == "yes" else "aref/default/A.REF_annotations/A.REF_repeatmasker.gff2"
     retries: 3
     output:
         counts = "srna/outs/{sample}/telescope/telescope-run_stats.tsv"
@@ -427,15 +439,39 @@ telescope assign \
 {params.gff}
         """
 
+rule tpm:
+    input:
+        counts = "srna/outs/agg/featurecounts_genes/counts.txt",
+        rte_counts = expand("srna/outs/{sample}/telescope/telescope-run_stats.tsv", sample = samples)
+    params:
+        sample_table = config["srna"]["sample_table"],
+        contrasts = config["srna"]["contrasts"],
+        levels = config["srna"]["levels"],
+        annotation_genes = config["srna"]["annotation_genes"],
+        r_annotation_fragmentsjoined = config["srna"]["r_annotation_fragmentsjoined"],
+        r_repeatmasker_annotation = config["srna"]["r_repeatmasker_annotation"],
+        counttype = lambda w: w.counttype
+    benchmark:
+        "srna/benchmarks/tpm/{counttype}.tsv"
+    resources:
+        mem_mb = 100000
+    conda: "evo2"
+    wildcard_constraints:
+        counttype="[A-Za-z0-9_]+"
+    output:
+        tpm = "srna/outs/agg/tpm/{counttype}/tpmdf.tsv"
+    script:
+        "scripts/tpm.R"
+
 rule deseq:
     input:
         counts = "srna/outs/agg/featurecounts_genes/counts.txt",
         rte_counts = expand("srna/outs/{sample}/telescope/telescope-run_stats.tsv", sample = samples)
     params:
-        sample_table = config["sample_table"],
-        contrasts = config["contrasts"],
-        levels = config["levels"],
-        paralellize_bioc = config["paralellize_bioc"],
+        sample_table = config["srna"]["sample_table"],
+        contrasts = config["srna"]["contrasts"],
+        levels = config["srna"]["levels"],
+        paralellize_bioc = config["srna"]["paralellize_bioc"],
         counttype = lambda w: w.counttype,
         outputdir =lambda w, output: os.path.dirname(os.path.dirname(output.counts_normed)),
     benchmark:
@@ -448,8 +484,8 @@ rule deseq:
     wildcard_constraints:
         counttype="[A-Za-z0-9_]+"
     output:
-        results_genes = expand("srna/results/agg/deseq/{{counttype}}/{contrast}/results_genes.csv", contrast = config["contrasts"]),
-        results_rtes = expand("srna/results/agg/deseq/{{counttype}}/{contrast}/results_rtes.csv", contrast = config["contrasts"]),
+        results_genes = expand("srna/results/agg/deseq/{{counttype}}/{contrast}/results_genes.csv", contrast = config["srna"]["contrasts"]),
+        results_rtes = expand("srna/results/agg/deseq/{{counttype}}/{contrast}/results_rtes.csv", contrast = config["srna"]["contrasts"]),
         counts_normed = "srna/results/agg/deseq/{counttype}/counttablesizenormed.csv",
         sizefactors = "srna/results/agg/deseq/{counttype}/sizefactors.csv",
         environment = "srna/results/agg/deseq/{counttype}/deseq_environment.RData",
@@ -463,8 +499,8 @@ rule deseq:
 
 rule consolidateDeseqResults:
     input:
-        results = expand("srna/results/agg/deseq/{counttype}/{contrast}/results_rtes.csv", contrast = config["contrasts"], counttype = config["counttypes"]),
-        counts_normed = expand("srna/results/agg/deseq/{counttype}/counttablesizenormed.csv", counttype = config["counttypes"])
+        results = expand("srna/results/agg/deseq/{counttype}/{contrast}/results_rtes.csv", contrast = config["srna"]["contrasts"], counttype = config["srna"]["counttypes"]),
+        counts_normed = expand("srna/results/agg/deseq/{counttype}/counttablesizenormed.csv", counttype = config["srna"]["counttypes"])
     params:
         inputdir = "srna/results/agg/deseq",
         outputdir = "srna/results/agg/deseq",
@@ -489,10 +525,10 @@ rule enrichment_analysis:
         resultsdf ="srna/results/agg/deseq/resultsdf.tsv"
     params:
         inputdir =lambda w, input: os.path.dirname(os.path.dirname(input.resultsdf)),
-        contrasts = config["contrasts"],
-        genesets_for_heatmaps = config["genesets_for_heatmaps"],
-        collections_for_gsea = config["collections_for_gsea"],
-        sample_table = config["sample_table"],
+        contrasts = config["srna"]["contrasts"],
+        genesets_for_heatmaps = config["srna"]["genesets_for_heatmaps"],
+        collections_for_gsea = config["srna"]["collections_for_gsea"],
+        sample_table = config["srna"]["sample_table"],
         outputdir =lambda w, output: os.path.dirname(output.environment),
         module_name = "srna"
     benchmark:
@@ -518,12 +554,12 @@ rule enrichment_analysis_repeats:
         resultsdf ="srna/results/agg/deseq/resultsdf.tsv",
     params:
         inputdir =lambda w, input: os.path.dirname(os.path.dirname(input.resultsdf)),
-        contrasts = config["contrasts"],
+        contrasts = config["srna"]["contrasts"],
         counttype = lambda w: w.counttype, 
-        sample_table = config["sample_table"],
+        sample_table = config["srna"]["sample_table"],
         outputdir = lambda w, output: os.path.dirname(output.environment),
-        r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
-        r_repeatmasker_annotation = config["r_repeatmasker_annotation"],
+        r_annotation_fragmentsjoined = config["srna"]["r_annotation_fragmentsjoined"],
+        r_repeatmasker_annotation = config["srna"]["r_repeatmasker_annotation"],
         module_name = "srna"
     benchmark:
         "srna/benchmarks/enrichment_analysis_repeats/{counttype}.tsv"
@@ -539,7 +575,8 @@ rule enrichment_analysis_repeats:
         report = report(
             directory("srna/results/agg/enrichment_analysis_repeats/{counttype}"),
             patterns=["std/gsea_top_{name}.pdf"],
-            category="RTE Enrichment")
+            category="RTE Enrichment {counttype}")
+
     script:
         "scripts/ea_repeats.R"
 
@@ -548,11 +585,11 @@ rule repeatanalysis_plots:
         resultsdf = "srna/results/agg/deseq/resultsdf.tsv"
     params:
         counttype = lambda w: w.counttype,
-        contrasts = config["contrasts"],
+        contrasts = config["srna"]["contrasts"],
         inputdir = lambda w, input: os.path.dirname(input.resultsdf),
         outputdir = lambda w, output: os.path.dirname(os.path.dirname(output.environment)),
-        r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
-        r_repeatmasker_annotation = config["r_repeatmasker_annotation"],
+        r_annotation_fragmentsjoined = config["srna"]["r_annotation_fragmentsjoined"],
+        r_repeatmasker_annotation = config["srna"]["r_repeatmasker_annotation"],
         module_name = "srna"
     benchmark:
         "srna/benchmarks/repeatanalysis_plots/{counttype}.tsv"
@@ -571,19 +608,51 @@ rule repeatanalysis_plots:
     script:
         "scripts/repeatanalysisPlots.R"
 
-def bigwig_sizefactor_input(wildcards):
-    sizefactor_path = "srna/results/agg/deseq/%s/sizefactors.csv"%(config["counttypes"][0])
-    if not Path(sizefactor_path).exists():
-        return "NA"
-    else:
-        return 1/float(pd.read_csv("srna/results/agg/deseq/%s/sizefactors.csv"%(config["counttypes"][0])).set_index("sample_name").loc[wildcards.sample, "sizefactor"])
+
+rule characterize_tpm:
+    input:
+        tpm = "srna/outs/agg/tpm/{counttype}/tpmdf.tsv"
+    params:
+        counttype = lambda w: w.counttype,
+        outputdir = lambda w, output: os.path.dirname(os.path.dirname(output.environment)),
+        r_annotation_fragmentsjoined = config["srna"]["r_annotation_fragmentsjoined"],
+        r_repeatmasker_annotation = config["srna"]["r_repeatmasker_annotation"],
+        refseq = config["srna"]["annotation_genes"],
+        ref = "aref/default/A.REF.fa",
+        annotation_genes = config["srna"]["annotation_genes"],
+        module_name = "srna"
+    benchmark:
+        "srna/benchmarks/repeatanalysis_plots/{counttype}.tsv"
+    conda:
+        "repeatanalysis"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 200000,
+        runtime = 500
+    output:
+        environment = "srna/results/agg/tpm_sources/{counttype}/characterize_tpm_environment.RData",
+        report = report(
+            directory("srna/results/agg/tpm_sources/{counttype}"),
+            patterns=["{group}/{restofstring}.pdf", "{group}/{restofstring}.pdf"],
+            category="TPM Characterization {counttype}",
+            subcategory="{group}")
+    script:
+        "scripts/characterize_samples.R"
+
+
+
+
+# def bigwig_sizefactor_input(wildcards):
+#     sizefactor_path = "srna/results/agg/deseq/%s/sizefactors.csv"%(config["srna"]["counttypes"][0])
+#     if not Path(sizefactor_path).exists():
+#         return "NA"
+#     else:
+#         return 1/float(pd.read_csv("srna/results/agg/deseq/%s/sizefactors.csv"%(config["srna"]["counttypes"][0])).set_index("sample_name").loc[wildcards.sample, "sizefactor"])
 
 rule getBigWigF:
     input:
-        sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.primary.bam",
-        sizefactors = expand("srna/results/agg/deseq/{counttype}/sizefactors.csv", counttype = config["counttypes"][0])
+        sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.primary.bam"
     params:
-        sample_size_factor = bigwig_sizefactor_input,
         rna_strand_param = lambda w: "reverse" if inferLibraryType() == "forward" else "forward"
     output:
         bwF = "srna/outs/{sample}/star_output/{sample}.F.bw"
@@ -607,10 +676,8 @@ rule getBigWigF:
 
 rule getBigWigR:
     input:
-        sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.primary.bam",
-        sizefactors = expand("srna/results/agg/deseq/{counttype}/sizefactors.csv",counttype = config["counttypes"][0])
+        sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.primary.bam"
     params:
-        sample_size_factor = bigwig_sizefactor_input,
         rna_strand_param = lambda w: "forward" if inferLibraryType() == "forward" else "reverse"
     output:
         bwR = "srna/outs/{sample}/star_output/{sample}.R.bw"
@@ -638,8 +705,8 @@ rule bigwigplots:
         bwR = expand("srna/outs/{sample}/star_output/{sample}.R.bw", sample = samples),
         multiqc = "srna/qc/multiqc/multiqc_report.html"
     params:
-        r_annotation_fragmentsjoined = config["r_annotation_fragmentsjoined"],
-        r_repeatmasker_annotation = config["r_repeatmasker_annotation"],
+        r_annotation_fragmentsjoined = config["srna"]["r_annotation_fragmentsjoined"],
+        r_repeatmasker_annotation = config["srna"]["r_repeatmasker_annotation"],
         txdbrefseq = "aref/default/A.REF_annotations/refseq.sqlite"
     benchmark:
         "srna/benchmarks/bigwigplots/bigwigplots.tsv"

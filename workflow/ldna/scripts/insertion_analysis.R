@@ -1,7 +1,9 @@
 module_name <- "ldna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+confALL <- configr::read.config(file = "conf/config.yaml")
 source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
+set.seed(123)
 
 library(rtracklayer)
 library(Biostrings)
@@ -112,7 +114,7 @@ p <- ann %>%
     facet_grid(~rte_subfamily, scales = "free", space = "free_x", ncol = 2) +
     geom_bar(aes(fill = rte_length_req)) +
     labs(x = "", y = "Count") +
-    paletteer::scale_fill_paletteer_d(conf$default_palette) +
+    scale_palette +
     ggtitle("Non-reference RTE Insertions") +
     anchorbar +
     mtclosedgridh +
@@ -124,7 +126,7 @@ p <- ann %>%
     facet_grid(~rte_subfamily, scales = "free", space = "free_x", ncol = 2) +
     geom_bar(aes(fill = loc_integrative_loc)) +
     labs(x = "", y = "Count") +
-    paletteer::scale_fill_paletteer_d(conf$default_palette) +
+    scale_pale +
     ggtitle("Non-reference RTE Insertions") +
     anchorbar +
     mtclosedgridh +
@@ -141,7 +143,7 @@ p <- df %>%
     theme(panel.border = element_rect(color = "black", fill = NA, size = 1)) +
     scale_y_continuous(expand = expansion(mult = c(0, .1))) +
     labs(x = "", y = "Count") +
-    paletteer::scale_fill_paletteer_d(conf$default_palette) +
+    scale_palette +
     ggtitle("Non-reference RTE Insertions")
 mysaveandstore(sprintf("%s/insertions_subfamily.pdf", outputdir), 5, 5)
 

@@ -1,5 +1,7 @@
 # TE-Seq: A Transposable Element Annotation & RNA-Seq Pipeline
 [![Snakemake](https://img.shields.io/badge/snakemake-≥8.0.0-brightgreen.svg)](https://snakemake.github.io)
+<img width="1665" alt="Screenshot 2024-08-23 at 3 23 28 PM" src="https://github.com/user-attachments/assets/a7148bf4-412a-4250-b539-ce3959e38fb0">
+[TE-SEQ_POSTER.pdf](https://github.com/user-attachments/files/16732892/MCB_RETREAT_POSTER_2024_FINAL.pdf)
 
 This project consists of a __snakemake pipeline__ to analyze transposable element (TE) sequencing data.
 
@@ -16,9 +18,6 @@ It also aims address concerns pertaining to:
 - the quality of TE annotations.
 
 This project derives from my work in the __Sedivy Lab at Brown University__, where we study transposable elements, in particular __LINE1__.
-#
-![workflow_graphic](https://github.com/user-attachments/assets/46fe2120-b7c9-46bb-84e8-a5b830a74c1d)
-
 
 ## Pipeline Overview
   This pipeline conducts an end-to-end analysis of raw sequencing data, implementing state of the art TE-minded computational methods. It produces a comprehensive analyses of repetitive element expression at both the level of an individual repetitive element as well as family groupings of these elements. It consists of 4 modules, "Annotate Referene" (AREF), short-read RNA-Seq (SRNA), long-read RNA-Seq (LRNA), and long-read DNA-Seq (LDNA). LRNA and LDNA remain in active development and will be formally released at a future date. Accordingly, this guide pertains only to the AREF and SRNA modules. 
@@ -213,6 +212,7 @@ Make sure your fastq file naming is consistent with the naming scheme set forth 
   TO
   singularity-args: '--bind /users/YOURUSERNAME/data,/oscar/data/jsedivy/YOURUSERNAME'
   ```
+  This workflow/profile/config file specifies also the default compute resources used by rules, as well as a number of rule-specific resources. If supplying nanopore DNA reads, pay particular attention to the resources specified for the dorado rule, which should if possible be run on a batch partition / system with an Nvidia GPU. Running this step solely on a CPU will take a long time... 
 ## Workflow Logic:
 ### AREF
   In the spirit of use case flexibility, the AREF module has a number of workflow modifying parameters. These live in the aref section of the config.yaml file.  
@@ -222,7 +222,8 @@ Make sure your fastq file naming is consistent with the naming scheme set forth 
   
   If you are not symlinking an existing AREF directory, you will need to specify whether you are creating an updated genome by providing long-read Nanopore DNA sequences (to call non-reference TE-Seq insertions) or not.  
   The "update_ref_with_tldr" "response" value (yes or no) turns this feature on or off. If turning it on, you can specify whether to create one custom reference which all samples will use (e.g. if you had a number of long read sequencing data on spanning several conditions in ONE cell line) or to create one custom reference per sample (e.g. if you had long read sequencing done on multiple individuals). The "per_sample" key toggles between these two modes.  
-  The "samples" , "sample_table", and "levels" keys in the aref section of the config are only relevant if creating a custom reference genome using long-read dna sequencing, and you can ignore these values if you are not using this feature. The same is true for the associated sample_table file, conf/sample_table_aref.csv, which will not be used in this case. 
+  The "samples" , "sample_table", and "levels" keys in the aref section of the config are only relevant if creating a custom reference genome using long-read dna sequencing, and you can ignore these values if you are not using this feature. The same is true for the associated sample_table file, conf/sample_table_aref.csv, which will not be used in this case.
+  Elements are denoted as full-length or truncated depending on whether they cover at least 95% (this is a tunable parameter) of their representative consensus sequence. TE subfamilies are deemed ‘young’ if the average percent divergence (as determined by RepeatMasker) of all subfamily members is less than 15%. The length and age thresholds are arbitrary hard cut-offs and are therefore tunable parameters - simply change the values of the "fulllength_trnc_length_threshold" and "yng_old_divergence_threshold" keys.
 ### SRNA
   The "per_sample_ref" key's value instructs the pipeline as to whether each sample has its own unique reference and TE annotations ("yes"; this situtaion occurs when you have nanopore DNA sequencing on all samples and wish to use custom references), or whether all samples will be using the same reference and TE annotations.  
   In order to rule out mycoplasma contamination of cultured cells, reads are mapped to a collection of mycoplasma genomes (nearly 100% of reads should then fail to map). This is done by default. Insofar as your samples are not cultured cells, you can omit this step by switching the "srna" "map_to_mycoplasma" key's value from "yes" to "no". 
@@ -249,9 +250,8 @@ CTRL F to the only occurrence of "conf$species". You will find two blocks of cod
   ```
   snakemake --profile workflow/profile/default --report report.html
   ```
-  In the event that a rule fails, all hope is not lost!
+  In the event that a rule fails, all hope is not lost! Failed jobs will be retried twice by default, increasing resource specifications at each pass. Logs are automatically kept facilitating the tracing of any persistent error.     
   I recommend familiarizing yourself with the basics of Snakemake before embarking on a complex analysis with this pipeline. For help with Snakemake, consult its highly usable and detailed docs at https://snakemake.readthedocs.io/en/stable/index.html  
-  For help with git, consult https://git-scm.com/docs/gittutorial  
   If you encounter problems, please create a new issue on the github page.  
 
 

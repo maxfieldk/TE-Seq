@@ -1,8 +1,25 @@
 import os
 import pandas as pd
 import csv
+import random
 from pathlib import Path
 from pandas.core.common import flatten
+random.seed(123)
+onstart:
+    print("""
+░▒▓████████▓▒░▒▓████████▓▒░░▒▓███████▓▒░▒▓████████▓▒░▒▓██████▓▒░  
+   ░▒▓█▓▒░   ░▒▓█▓▒░      ░▒▓█▓▒░      ░▒▓█▓▒░     ░▒▓█▓▒░░▒▓█▓▒░ 
+   ░▒▓█▓▒░   ░▒▓█▓▒░      ░▒▓█▓▒░      ░▒▓█▓▒░     ░▒▓█▓▒░░▒▓█▓▒░ 
+   ░▒▓█▓▒░   ░▒▓██████▓▒░  ░▒▓██████▓▒░░▒▓██████▓▒░░▒▓█▓▒░░▒▓█▓▒░ 
+   ░▒▓█▓▒░   ░▒▓█▓▒░             ░▒▓█▓▒░▒▓█▓▒░     ░▒▓█▓▒░░▒▓█▓▒░ 
+   ░▒▓█▓▒░   ░▒▓█▓▒░             ░▒▓█▓▒░▒▓█▓▒░     ░▒▓█▓▒░░▒▓█▓▒░ 
+   ░▒▓█▓▒░   ░▒▓████████▓▒░▒▓███████▓▒░░▒▓████████▓▒░▒▓██████▓▒░  
+                                                      ░▒▓█▓▒░     
+                                                       ░▒▓██▓▒░
+    """)
+onsuccess:
+    print("TE-Seq pipeline finished successfully!")
+
 
 configfile: "conf/config.yaml"
 
@@ -11,7 +28,7 @@ for pipeline in config["pipelines_to_deploy"]:
     if pipeline == "aref":
         module aref:
             snakefile: "aref/snakefile"
-            config: config["aref"]
+            config: config
         if config["aref"]["symlink_aref"]["response"] == "yes":
             use rule sym_link from aref as aref_*
             final_input.append("aref.done.outfile")
@@ -24,7 +41,7 @@ for pipeline in config["pipelines_to_deploy"]:
                     else: 
                         use rule * from aref exclude sym_link,copy_starting_reference,merge_rm_out_wholegenome,move_starting_reference,tldr_per_sample,get_repeatmasker_raw,process_gtf as aref_*
                 else:
-                    use rule * from aref exclude sym_link,multiqc,merge_rm_out_wholegenome,dorado,dorado_seqsummary,pycoQC,process_gtf_tldr,cleanup_updated_ref,repeatmasker,getGtfs as aref_*
+                    use rule * from aref exclude sym_link,multiqc,merge_rm_out_wholegenome,dorado,dorado_seqsummary,pycoQC,process_gtf_tldr,cleanup_updated_ref, cleanup_updated_sample_ref,cleanup_updated_ref_and_patch, cleanup_updated_sample_ref_and_patch, repeatmasker,getGtfs,merge_vcfs as aref_*
             else:
                 if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
                     if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
@@ -32,7 +49,7 @@ for pipeline in config["pipelines_to_deploy"]:
                     else: 
                         use rule * from aref exclude sym_link,copy_starting_reference,get_repeatmasker_raw_out,move_starting_reference,tldr_per_sample,get_repeatmasker_raw,process_gtf as aref_*
                 else:
-                    use rule * from aref exclude sym_link,multiqc,get_repeatmasker_raw_out,dorado,dorado_seqsummary,pycoQC,process_gtf_tldr,cleanup_updated_ref,repeatmasker,getGtfs as aref_*
+                    use rule * from aref exclude sym_link,multiqc,get_repeatmasker_raw_out,dorado,dorado_seqsummary,pycoQC,process_gtf_tldr,cleanup_updated_ref,cleanup_updated_sample_ref,cleanup_updated_ref_and_patch, cleanup_updated_sample_ref_and_patch, repeatmasker,getGtfs,merge_vcfs as aref_*
     
     if pipeline == "ldna":
         module ldna:
@@ -48,7 +65,7 @@ for pipeline in config["pipelines_to_deploy"]:
         mycoplasma = expand("ldna/qc/mycoplasma/mycoplasma{sample}.bam", sample = config["ldna"]["samples"])
         multiqc = "ldna/qc/multiqc_report.html"
         dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
-        haplotaggedbam = expand("ldna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.haplotagged.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = config["ldna"]["samples"])
+        haplo_bam = expand("ldna/intermediates/{sample_or_ref}/alignments/{rate}/{ref_genome}/{sample_or_ref}.{type}.{modification_string}.sorted.filtered.haplotagged.bam", ref_genome = "analysis_default", sample_or_ref = config["ldna"]["samples"], rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
         bedmethanalysis = "ldna/results/plots/bedmethylanalysis.rds"
         bedmethanalysis_single_sample = "ldna/outfiles/bedmethylanalysis_single_sample.txt"
         sniffles = expand("ldna/intermediates/{sample}/sniffles/sniffles.vcf", sample = config["ldna"]["samples"])
@@ -56,24 +73,27 @@ for pipeline in config["pipelines_to_deploy"]:
         methylartist = "ldna/results/plots/methylartist/locus/methylartistlocusplot_loci_of_interest.outfile"
         hg38pat = expand("ldna/results/wgbs/hg38/{sample}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample=  config["ldna"]["samples"])
         gimme = "ldna/results/gimme/gimme_plots.rds"
-        pepper_aref = expand("ldna/intermediates/{sample}/pepper/out.outfile", sample = config["ldna"]["samples"])
+        # pepper_aref = expand("ldna/intermediates/{sample}/pepper.out.outfile", sample = config["ldna"]["samples"])
         variants_aref = expand("ldna/intermediates/{sample_or_ref}/snpeff/snpeff_sml.pass.vcf", sample_or_ref = "A.REF")
         variants_per_sample = expand("ldna/intermediates/{sample_or_ref}/snpeff/snpeff_sml.pass.vcf", sample_or_ref = config["ldna"]["samples"])
         for e in list(flatten([mycoplasma, multiqc])):
             final_input.append(e)
+        if config["ldna"]["map_to_mycoplasma"] == "yes":
+            for e in list(flatten([mycoplasma])):
+                final_input.append(e)
         if config["ldna"]["single_condition"] == "yes":
             for e in list(flatten([bedmethanalysis_single_sample, methylartist])):
                 final_input.append(e)
         else:
             for e in list(flatten([bedmethanalysis,dmrs, methylartist,hg38pat])):
                 final_input.append(e)
-        if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
-            if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
-                for e in list(flatten([variants_per_sample])):
-                    final_input.append(e)
-            else:
-                for e in list(flatten([variants_aref])):
-                    final_input.append(e)
+        # if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
+        #     if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
+        #         for e in list(flatten([variants_per_sample])):
+        #             final_input.append(e)
+        #     else:
+        #         for e in list(flatten([variants_aref])):
+        #             final_input.append(e)
 
     if pipeline == "lrna":
         module lrna:
@@ -97,7 +117,7 @@ for pipeline in config["pipelines_to_deploy"]:
     if pipeline == "srna":
         module srna:
             snakefile: "srna/snakefile"
-            config: config["srna"]
+            config: config
         if config["srna"]["library_type"] == "PE":
                 use rule * from srna exclude fastp_SE,alignSTAR_SE,featurecounts_genes_SE,featurecounts_genesandrtes_SE as srna_*
         else:
@@ -115,13 +135,17 @@ for pipeline in config["pipelines_to_deploy"]:
         counttypes = config["srna"]["counttypes"]
 
         def srna_rally():
-            deseq = expand("srna/results/agg/deseq/{counttype}/{contrast}/results_genes.csv", counttype = config["srna"]["counttypes"], contrast = config["srna"]["contrasts"])
-            enrichment_analysis = "srna/results/agg/enrichment_analysis/enrichment_analysis_environment.RData"
-            enrichment_analysis_repeats = expand("srna/results/agg/enrichment_analysis_repeats/{counttype}/enrichment_analysis_repeats_environment.RData", counttype = config["srna"]["counttypes"])
-            repeatanalysisplots = expand("srna/results/agg/repeatanalysis/{counttype}/repeatanalysisplots_environment.RData", counttype = config["srna"]["counttypes"])
             bigwigs = "srna/results/agg/bigwig_plots/bigwigplots_environment.RData"
-            report_file = "srna/qc/multiqc/multiqc_report.html"
-            return list(flatten([bigwigs, deseq, enrichment_analysis, enrichment_analysis_repeats, repeatanalysisplots, report_file]))
+            mqc_report_file = "srna/qc/multiqc/multiqc_report.html"
+            tpm_characterization = expand("srna/results/agg/tpm_sources/{counttype}/characterize_tpm_environment.RData",counttype = config["srna"]["counttypes"])
+            if len(config["srna"]["levels"]) > 1:
+                deseq = expand("srna/results/agg/deseq/{counttype}/{contrast}/results_genes.csv", counttype = config["srna"]["counttypes"], contrast = config["srna"]["contrasts"])
+                enrichment_analysis = "srna/results/agg/enrichment_analysis/enrichment_analysis_environment.RData"
+                enrichment_analysis_repeats = expand("srna/results/agg/enrichment_analysis_repeats/{counttype}/enrichment_analysis_repeats_environment.RData", counttype = config["srna"]["counttypes"])
+                repeatanalysisplots = expand("srna/results/agg/repeatanalysis/{counttype}/repeatanalysisplots_environment.RData", counttype = config["srna"]["counttypes"])
+                return list(flatten([bigwigs, tpm_characterization, deseq, enrichment_analysis, enrichment_analysis_repeats, repeatanalysisplots, mqc_report_file]))
+            else:
+                return list(flatten([bigwigs,tpm_characterization, mqc_report_file]))
 
         for e in srna_rally():
             final_input.append(e)

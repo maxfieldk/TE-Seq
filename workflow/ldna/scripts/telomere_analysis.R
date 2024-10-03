@@ -1,5 +1,6 @@
 module_name <- "ldna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+confALL <- configr::read.config(file = "conf/config.yaml")
 source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 
@@ -14,6 +15,7 @@ library(GenomicRanges)
 library(configr)
 library(Biostrings)
 library(ggpubr)
+set.seed(123)
 
 samples <- conf$samples
 source("conf/sample_table_source.R")
