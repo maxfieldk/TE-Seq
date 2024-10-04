@@ -1,6 +1,5 @@
 module_name <- "aref"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
-confALL <- configr::read.config(file = "conf/config.yaml")
 source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 set.seed(123)
@@ -239,6 +238,7 @@ tryCatch(
             z_score_cutoff <- 4
             pos <- ORFik::findORFs(flss, startCodon = "ATG", longestORF = TRUE, minimumLength = 333)
             names(pos) <- names(flss[as.integer(names(pos))])
+
             orf_frame <- as.data.frame(pos) %>%
                 tibble() %>%
                 mutate(bin_10 = cut(width, breaks = seq(min(width), max(width), by = 1)))
@@ -262,6 +262,7 @@ tryCatch(
                 arrange(-average_start) %$% width
 
             element_orf_intactness_df <- tibble(gene_id = names(flss))
+            i <- 1
             for (modal_width in modal_widths) {
                 tdf <- orf_frame %>% filter(width == modal_width)
                 tss <- flss[names(flss) %in% (tdf %$% group_name)]
@@ -306,28 +307,23 @@ tryCatch(
                 # bres <- tibble(predict(bl, consensus_aa_ss, ))
 
                 tdf <- as.data.frame(d_gappedsquared)
-                colnames(tdf) <- c(paste0("orf_", modal_width))
+                colnames(tdf) <- c(paste0("orf", i))
                 tdf$gene_id <- rownames(tdf)
                 tdf <- tibble(tdf)
                 tdf <- full_join(element_orf_intactness_df, tdf) %>% filter(gene_id != "consensus")
                 element_orf_intactness_df <- tdf
+                i <- i + 1
             }
             element_info_list[[element]] <- element_orf_intactness_df
         }
+        # select all columns that start with orf and include their values in a tuple
+
         rm(intactness_ann)
         for (i in 1:length(element_info_list)) {
             tdf <- element_info_list[[i]] %>%
-                mutate(across(starts_with("orf_"), ~ replace_na(., 1))) %>%
-                mutate(orf_distance_tuple = pmap(
-                    dplyr::select(., starts_with("orf_")),
-                    function(...) {
-                        lst <- list(...)
-                        names(lst) <- names(dplyr::select(., starts_with("orf_")))
-                        return(lst)
-                    }
-                )) %>%
+                mutate(across(starts_with("orf"), ~ replace_na(., 1))) %>%
+                mutate(orf_distance_tuple = pmap(dplyr::select(., starts_with("orf")), c)) %>%
                 dplyr::select(gene_id, orf_distance_tuple)
-
             if (!exists("intactness_ann")) {
                 intactness_ann <- tdf
             } else {
@@ -337,22 +333,14 @@ tryCatch(
 
         intactness_ann <- intactness_ann %>%
             mutate(intactness_req = ifelse(sapply(orf_distance_tuple, function(x) all(x < 0.05)), "Intact", "Not Intact")) %>%
-            mutate(orf_passes_mutation_threshold = map(orf_distance_tuple, ~ {
-                # Get the indices where the values are below the threshold
+            mutate(orf_passes_distance_threshold = map(orf_distance_tuple, ~ {
                 threshold_indices <- which(.x < 0.05)
-
                 if (length(threshold_indices) == 0) {
                     "none"
                 } else {
-                    # Get the names of the corresponding elements
-                    names(.x)[threshold_indices] # Return the names instead of "orf" followed by indices
+                    paste0("orf", threshold_indices)
                 }
             }))
-        intactness_ann <- intactness_ann %>%
-            mutate(
-                orf_distance_tuple = map_chr(orf_distance_tuple, ~ paste(.x, collapse = ";")),
-                orf_passes_mutation_threshold = map_chr(orf_passes_mutation_threshold, ~ paste(.x, collapse = ";"))
-            )
     },
     error = function(e) {
         print("no elements annotated for intactness")
@@ -362,30 +350,19 @@ tryCatch(
     }
 )
 
-fulllength_trnc_length_threshold <- conf$fulllength_trnc_length_threshold
+fulllength_trnc_length_threshold <- conf$yng_old_divergence_threshold
 length_ann <- rmfragments %>%
     dplyr::select(gene_id, pctconsensuscovered) %>%
     full_join(rmfamilies %>% dplyr::select(gene_id, rte_subfamily)) %>%
     mutate(rte_length_req = ifelse(pctconsensuscovered >= fulllength_trnc_length_threshold, "FL", "Trnc"))
-
 yng_old_divergence_threshold <- conf$yng_old_divergence_threshold
-col_to_use <- names(yng_old_divergence_threshold)
-col_values <- names(yng_old_divergence_threshold[[1]])
-thresholds <- unlist(yng_old_divergence_threshold) %>% unname()
-div_tibble <- tibble(!!sym(col_to_use) := col_values, yng_div_threshold = thresholds) %>%
-    right_join(rmfamilies) %>%
-    dplyr::select(gene_id, yng_div_threshold)
-div_tibble <- div_tibble %>%
-    replace_na(list(yng_div_threshold = yng_old_divergence_threshold[[1]]$Other))
-
 divergence_ann <- rmfragments %>%
     dplyr::select(gene_id, family, pctdiv, pctconsensuscovered) %>%
     group_by(family) %>%
     mutate(family_av_pctdiv = mean(pctdiv, na.rm = TRUE), family_av_coverage = mean(pctconsensuscovered, na.rm = TRUE)) %>%
     ungroup() %>%
-    left_join(div_tibble) %>%
     mutate(divergence_age = ifelse(
-        family_av_pctdiv <= yng_div_threshold, "Yng", "Old"
+        family_av_pctdiv <= yng_old_divergence_threshold, "Yng", "Old"
     ))
 
 tryCatch(
@@ -412,6 +389,7 @@ req_annot <- req_annot %>%
     )) %>%
     mutate(req_integrative = factor(req_integrative, levels = c("Old Trnc", "Old FL", "Yng Trnc", "Yng FL", "Yng Intact")))
 
+
 # annotate LTR/Int relationship
 capture_distance <- 500
 ltrs <- rmfamilies %>%
@@ -427,9 +405,9 @@ ints <- rmfamilies %>%
     filter(grepl("-int$", family)) %>%
     left_join(rmfragments)
 intsgrs <- GRanges(ints)
-intsfl <- ints %>% filter(pctconsensuscovered >= fulllength_trnc_length_threshold)
+intsfl <- ints %>% filter(rte_length_req == "FL")
 intsflgrs <- GRanges(intsfl)
-intsnotfl <- ints %>% filter(pctconsensuscovered < fulllength_trnc_length_threshold)
+intsnotfl <- ints %>% filter(rte_length_req == "Trnc")
 intsnotflgrs <- GRanges(intsnotfl)
 
 Solo_LTR <- ltrsgrsextended %>%
