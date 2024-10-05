@@ -39,6 +39,8 @@ rmfamilies <- rmfragments %>%
         str_detect(family, "^Retroposon") ~ "Retroposon",
         str_detect(family, "^DNA") ~ "DNA",
         str_detect(family, "^Satellite") ~ "SAT",
+        str_detect(family, "^Simple_repeat") ~ "SimpleRep",
+        str_detect(family, "^Low_complexity") ~ "LowComp",
     )) %>%
     mutate(repeat_superfamily = replace_na(repeat_superfamily, "Other")) %>%
     mutate(rte_superfamily = case_when(

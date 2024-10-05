@@ -70,7 +70,6 @@ rmfragments <- read_csv(params$r_annotation_fragmentsjoined, col_names = TRUE)
 rmfamilies <- read_csv(params$r_repeatmasker_annotation, col_names = TRUE)
 rmann <- left_join(rmfragments, rmfamilies)
 
-
 tpmdf <- read_delim(inputs$tpm)
 repeats <- tpmdf %>% filter(gene_id %in% c(rmann %$% gene_id))
 genes <- tpmdf %>% filter(!(gene_id %in% c(rmann %$% gene_id)))
@@ -184,10 +183,9 @@ p <- joined %>%
     theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
 mysaveandstore(sprintf("%s/multiple_groups/gene_or_repeat.pdf", outputdir), w = 8, h = 5)
 
-
 pf <- joined %>% mutate(Class = ifelse(gene_or_te == "gene", "Gene", repeat_superfamily))
 p <- pf %>%
-    mutate(Class = factor(Class, levels = c("Gene", "Other", "Retroposon", "SAT", "DNA", "LTR", "LINE", "SINE"))) %>%
+    mutate(Class = factor(Class, levels = c("Gene", "Other", "LowComp", "SimpleRep", "Retroposon", "SAT", "DNA", "LTR", "LINE", "SINE"))) %>%
     group_by(sample, Class) %>%
     summarize(tpm = sum(tpm)) %>%
     ungroup() %>%
@@ -209,14 +207,14 @@ biotypes <- refseqdf %>%
     filter(type == "gene") %>%
     dplyr::select(gene_id, gene_biotype)
 
-biotype_levels <- c("repeat", "other", "lncRNA", "miRNA", "snRNA", "tRNA", "rRNA", "protein_coding")
+biotype_levels <- c("repeat", "Other", "lncRNA", "miRNA", "snRNA", "tRNA", "rRNA", "protein_coding")
 pf <- joined %>%
     left_join(biotypes) %>%
     mutate(Class = ifelse(gene_or_te == "repeat", "repeat", gene_biotype))
 
 pff <- pf %>% mutate(Class = case_when(
     Class %in% biotype_levels ~ Class,
-    TRUE ~ "other"
+    TRUE ~ "Other"
 ))
 pff %$% Class %>% table()
 p <- pff %>%

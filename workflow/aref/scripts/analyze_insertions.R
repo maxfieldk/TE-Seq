@@ -99,7 +99,7 @@ p1 <- nrdf %>%
     ggbarplot(x = "rte_subfamily", y = "counts", fill = "req_integrative") +
     ggtitle("Non-reference RTE Insertions") +
     labs(x = "Subfamily", y = "Counts") +
-    scale_fill_viridis_d() +
+    scale_palette +
     mtclosed + anchorbar + theme(axis.text.x = element_text(angle = 45, hjust = 1))
 mysaveandstore(pl = p1, sprintf("%s/insertions_subfamily_nofacet.pdf", outputdir), 6, 4)
 
