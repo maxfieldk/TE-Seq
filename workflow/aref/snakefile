@@ -1085,6 +1085,9 @@ awk '!/#/ {{print}}' {output.bed12}.temp | awk '{{FS="\t";OFS="\t"}} $4 < 900000
 rm {output.bed12}.temp
         """
 
+ruleorder: get_complete_refseq_select > gff_to_gtf 
+ruleorder: get_complete_refseq_select > gff_to_bed12 
+
 rule get_complete_refseq_select:
     input:
         refseq_gff3 = "aref/{default_or_extended}/{sample_or_ref}_annotations/refseq.complete.gff3",
