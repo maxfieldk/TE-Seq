@@ -90,7 +90,14 @@ p <- ggpie(repeat_lengths, "pct",
     label = "repeat_superfamily",
     lab.pos = "out", fill = "repeat_superfamily", lab.adjust = 1
 ) + scale_palette + theme(legend.position = "none")
-mysaveandstore(sprintf("%s/repeat_pie1.pdf", outputdir), w = 3, h = 3)
+mysaveandstore(sprintf("%s/repeat_pie.pdf", outputdir), w = 3, h = 3)
+
+p <- ggpie(repeat_lengths, "pct",
+    label = "repeat_superfamily",
+    lab.pos = "in", fill = "repeat_superfamily", lab.adjust = 1
+) + scale_palette
+mysaveandstore(sprintf("%s/repeat_pie1.pdf", outputdir), w = 5, h = 5)
+
 
 
 p <- rmann %>%

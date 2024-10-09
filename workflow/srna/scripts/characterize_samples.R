@@ -233,6 +233,5 @@ p <- pff %>%
 mysaveandstore(sprintf("%s/multiple_groups/gene_biotype_or_repeat.pdf", outputdir), w = 1 + 1.5 * length(conf$samples) / 2.4, h = 4)
 
 
-
 x <- tibble(OUT = "")
 write_tsv(x, file = outputs$environment)
