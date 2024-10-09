@@ -32,7 +32,6 @@ tryCatch(
     }
 )
 
-
 grs_refseq <- import(inputs$refseq)
 grs_repeatmasker <- import(inputs$repeatmasker)
 grs <- c(grs_refseq, grs_repeatmasker)

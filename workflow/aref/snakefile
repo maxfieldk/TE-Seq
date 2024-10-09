@@ -33,6 +33,10 @@ def aref_complete_input(wildcards):
         "aref/default/A.REF_Analysis/l1element_analysis.rds",
         "aref/default/A.REF_annotations/refseq.complete.gff3.gz.tbi",
         "aref/default/A.REF_annotations/refseq.complete.gtf.gz.tbi",
+        "aref/default/A.REF_annotations/refseq.complete.bed.gz.tbi",
+        "aref/default/A.REF_annotations/refseq_select.complete.gff3.gz.tbi",
+        "aref/default/A.REF_annotations/refseq_select.complete.gtf.gz.tbi",
+        "aref/default/A.REF_annotations/refseq_select.complete.bed.gz.tbi",
         expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker.complete.gff3.gz.tbi",default_or_extended = d_or_e),
         expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker.complete.gtf.gz.tbi",default_or_extended = d_or_e),
         expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf",default_or_extended = d_or_e),
@@ -1041,7 +1045,6 @@ awk '!/#/ {{print}}' {output.complete_gff3}.temp | awk '{{FS="\t";OFS="\t"}} $4 
 rm  {output.complete_gff3}.temp
         """
 
-
 rule gff_to_gtf:
     input:
         complete_gff3 = "aref/{default_or_extended}/{sample_or_ref}_annotations/{annotation}.complete.gff3",
@@ -1081,6 +1084,27 @@ agat_convert_sp_gff2bed.pl --gff {input.complete_gff3} -o {output.bed12}.temp
 awk '!/#/ {{print}}' {output.bed12}.temp | awk '{{FS="\t";OFS="\t"}} $4 < 900000000000 {{print}}' | sort -k1,1V -k2,2n -k3,3n > {output.bed12}
 rm {output.bed12}.temp
         """
+
+rule get_complete_refseq_select:
+    input:
+        refseq_gff3 = "aref/{default_or_extended}/{sample_or_ref}_annotations/refseq.complete.gff3",
+        refseq_gtf = "aref/{default_or_extended}/{sample_or_ref}_annotations/refseq.complete.gtf",
+        refseq_bed = "aref/{default_or_extended}/{sample_or_ref}_annotations/refseq.complete.bed"
+    output:
+        refseq_select_gff3 = "aref/{default_or_extended}/{sample_or_ref}_annotations/refseq_select.complete.gff3",
+        refseq_select_gtf = "aref/{default_or_extended}/{sample_or_ref}_annotations/refseq_select.complete.gtf",
+        refseq_select_bed = "aref/{default_or_extended}/{sample_or_ref}_annotations/refseq_select.complete.bed",
+    benchmark:
+        "aref/benchmarks/get_complete_refseq_select/{sample_or_ref}_{default_or_extended}.tsv"
+    conda:
+        "omics"
+    shell:
+        """
+awk '/tag=RefSeq Select/ {{print}}' {input.refseq_gff3} > {output.refseq_select_gff3}
+awk '/tag=RefSeq Select/ {{print}}' {input.refseq_bed} > {output.refseq_select_bed}
+awk '/tag=RefSeq Select/ {{print}}' {input.refseq_gtf} > {output.refseq_select_gtf}
+        """
+
 if config["aref"]["symlink_aref"]["response"] == "no":
     ruleorder: merge_genes_and_repeats_gff > complete_gff3 
 rule merge_genes_and_repeats_gff:

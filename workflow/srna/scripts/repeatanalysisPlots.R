@@ -92,7 +92,6 @@ outputdir <- params$outputdir
 contrasts <- conf$contrasts
 counttype <- params$counttype
 
-
 ## Load Data and add annotations
 resultsdf1 <- read_delim(inputs$resultsdf, delim = "\t") %>% filter(counttype == !!counttype)
 r_annotation_fragmentsjoined <- read_csv(params$r_annotation_fragmentsjoined)
