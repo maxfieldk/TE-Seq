@@ -258,7 +258,7 @@ tryCatch(
                 theme(legend.position = "none") +
                 labs(x = "ORF Length", y = "Z-Score", title = element) +
                 scale_color_manual(values = c("TRUE" = "red", "FALSE" = "black"))
-            mysave(sprintf("%s/figures/%s_orf_lengths.pdf", outputdir, element), 4, 4)
+            mysave(sprintf("%s/intactness_annotation_workdir/%s_orf_lengths.pdf", outputdir, element), 4, 4)
             modal_widths <- binwidth_df %>%
                 filter(orf_length_zscore > z_score_cutoff) %>%
                 arrange(-average_start) %$% width
@@ -277,8 +277,8 @@ tryCatch(
                 consensus_aa <- Biostrings::translate(consensus)
                 consensus_aa_ss <- AAStringSet(consensus_aa)
                 names(consensus_aa_ss) <- c("consensus")
-                orf_consensus_path <- sprintf("%s/figures/%s_orf_length_%s_consensus.fa", outputdir, element, modal_width)
-                orf_aa_consensus_path <- sprintf("%s/figures/%s_orf_length_%s_aa_consensus.fa", outputdir, element, modal_width)
+                orf_consensus_path <- sprintf("%s/intactness_annotation_workdir/%s_orf_length_%s_consensus.fa", outputdir, element, modal_width)
+                orf_aa_consensus_path <- sprintf("%s/intactness_annotation_workdir/%s_orf_length_%s_aa_consensus.fa", outputdir, element, modal_width)
                 writeXStringSet(consensus_ss, file = orf_consensus_path)
                 writeXStringSet(consensus_aa_ss, file = orf_aa_consensus_path)
 
@@ -291,7 +291,7 @@ tryCatch(
 
 
                 library(seqinr)
-                orf_fa_path <- sprintf("%s/figures/%s_orf_length_around_%s_aa.fa", outputdir, element, modal_width)
+                orf_fa_path <- sprintf("%s/intactness_annotation_workdir/%s_orf_length_around_%s_aa.fa", outputdir, element, modal_width)
                 writeXStringSet(c(Biostrings::translate(orf_ss), consensus_aa_ss), file = orf_fa_path)
                 system(sprintf("echo $(pwd); mafft --auto %s > %s.aln.fa", orf_fa_path, orf_fa_path))
                 aln <- read.alignment(sprintf("%s.aln.fa", orf_fa_path), format = "fasta")

@@ -67,7 +67,7 @@ aref:
   levels:
     - "N2102EP"
   #if you would like snps to be incorporated into the reference? Only use if you have at least 20X long read coverage
-  patch_ref: "yes"
+  patch_ref: "no"
   update_ref_with_tldr:
     response: "no"
     #if making one ref per sample (i.e. each sample has unique inserts), then "yes", else "no"

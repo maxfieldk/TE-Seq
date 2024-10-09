@@ -97,9 +97,17 @@ cytobands <- cytobandsdf %>%
     dplyr::rename(seqnames = X1, start = X2, end = X3) %>%
     GRanges()
 
-overlaps <- findOverlaps(gr_for_overlap_analysis, cytobands, select = "first")
-gr_for_overlap_analysis$cytobands <- mcols(cytobands[overlaps])$X4
+gr_for_overlap_with_cytobands <- subsetByOverlaps(gr_for_overlap_analysis, cytobands)
+gr_for_overlap_analysis_lacking_cytobands <- subsetByOverlaps(gr_for_overlap_analysis, cytobands, invert = TRUE)
 
+overlaps <- findOverlaps(gr_for_overlap_with_cytobands, cytobands, select = "first")
+gr_for_overlap_with_cytobands$cytobands <- mcols(cytobands[overlaps])$X4
+if (length(gr_for_overlap_analysis_lacking_cytobands) != 0) {
+    gr_for_overlap_analysis_lacking_cytobands$cytobands <- "NoCytobandInfo"
+    gr_for_overlap_analysis <<- c(gr_for_overlap_with_cytobands, gr_for_overlap_analysis_lacking_cytobands)
+} else {
+    gr_for_overlap_analysis <<- gr_for_overlap_with_cytobands
+}
 new_id_mapping_ref <- gr_for_overlap_analysis %>%
     as.data.frame() %>%
     tibble() %>%
