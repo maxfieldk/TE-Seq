@@ -500,7 +500,7 @@ for (ontology in c("rte_subfamily_limited", "l1_subfamily_limited", "rte_family"
 
     queryIDs <- mcols(query)$gene_id
     subjectIDs <- mcols(subject)$gene_id[hits]
-    subset$nearest_gene <- subjectIDs[queryIDs]
+    subset$nearest_gene <- subjectIDs
 
 
     te_gene_matrix_list <- list()
@@ -517,24 +517,20 @@ for (ontology in c("rte_subfamily_limited", "l1_subfamily_limited", "rte_family"
         contrast_samples <- sample_table %>%
             filter(condition %in% c(contrast_level_1, contrast_level_2)) %>%
             pull(sample_name)
-
         resultsdfwithgenes[match(subjectIDs, resultsdfwithgenes$gene_id), ] %>%
             pull(!!sym(contrast_log2FoldChange)) %>%
             length()
         te_gene_matrix <- subset %>%
-            dplyr::select(!!sym(ontology), !!sym(contrast_log2FoldChange), loc_integrative, req_integrative, rte_length_req) %>%
+            dplyr::select(gene_id, nearest_gene, !!sym(ontology), !!sym(contrast_log2FoldChange), loc_integrative, req_integrative, rte_length_req) %>%
             dplyr::rename(TE = !!sym(contrast_log2FoldChange))
         te_gene_matrix$GENE <- resultsdfwithgenes[match(subjectIDs, resultsdfwithgenes$gene_id), ] %>% pull(!!sym(contrast_log2FoldChange))
 
         te_gene_matrix <- te_gene_matrix %>% drop_na()
         te_gene_matrix_list[[contrast]] <- te_gene_matrix
-        cor.test(te_gene_matrix$TE, te_gene_matrix$GENE, method = "spearman", )$estimate
-        cor.test(te_gene_matrix$TE, te_gene_matrix$GENE, method = "spearman", )$p.value
-        te_gene_matrix <- te_gene_matrix %>% drop_na()
         tryCatch(
             {
-                cor_df <- te_gene_matrix %>%
-                    mutate(req_integrative = gsub(".*Intact.*", "Full Length", req_integrative)) %>%
+                cor_df <<- te_gene_matrix %>%
+                    mutate(req_integrative = gsub(".*Intact.*", "Yng FL", req_integrative)) %>%
                     group_by(!!sym(ontology), req_integrative, loc_integrative) %>%
                     mutate(groupN = n()) %>%
                     filter(groupN > 4) %>%
@@ -545,21 +541,20 @@ for (ontology in c("rte_subfamily_limited", "l1_subfamily_limited", "rte_family"
                     filter(loc_integrative != "Centromeric") %>%
                     complete(!!sym(ontology), req_integrative, loc_integrative)
                 p <- pf %>%
-                    mutate(genicfacet = ifelse(loc_integrative == "Intergenic", "", "Genic")) %>%
+                    mutate(loc_integrative = factor(loc_integrative, levels = c("NoncodingTxAdjacent", "NoncodingTx", "CodingTxAdjacent", "Intronic", "Exonic", "Intergenic"))) %>%
                     ggplot() +
                     geom_tile(aes(x = !!sym(ontology), y = loc_integrative, fill = cor)) +
-                    facet_grid(genicfacet ~ req_integrative, space = "free", scales = "free") +
+                    facet_grid(~req_integrative, space = "free", scales = "free") +
                     scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.8, 0, 0.8), na.value = "dark grey") +
                     mtclosed +
                     theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
                     labs(x = "", y = "")
                 mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_%s.pdf", outputdir, counttype, contrast, ontology), 6, 4)
-
                 p <- pf %>%
-                    mutate(genicfacet = ifelse(loc_integrative == "Intergenic", "", "Genic")) %>%
+                    mutate(loc_integrative = factor(loc_integrative, levels = c("NoncodingTxAdjacent", "NoncodingTx", "CodingTxAdjacent", "Intronic", "Exonic", "Intergenic"))) %>%
                     ggplot(aes(x = !!sym(ontology), y = loc_integrative)) +
                     geom_tile(aes(fill = cor)) +
-                    facet_grid(genicfacet ~ req_integrative, space = "free", scales = "free") +
+                    facet_grid(~req_integrative, space = "free", scales = "free") +
                     geom_text(aes(label = ifelse(pval < 0.05, "*", "")), size = 3) +
                     scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.8, 0, 0.8), na.value = "dark grey") +
                     mtclosed +
@@ -572,24 +567,29 @@ for (ontology in c("rte_subfamily_limited", "l1_subfamily_limited", "rte_family"
             }
         )
     }
-
-    te_gene_matrix_all <- Reduce(bind_rows, te_gene_matrix_list)
+    base_level <- conf$levels[[1]]
+    # keep only contrasts vs base level to not artificially inflate number of independent comparisons
+    te_gene_matrix_all <- Reduce(
+        bind_rows,
+        te_gene_matrix_list[grepl(sprintf("_vs_%s", base_level), names(te_gene_matrix_list))]
+    )
+    print(te_gene_matrix_all, width = Inf)
     cor_df <- te_gene_matrix_all %>%
         group_by(!!sym(ontology), req_integrative, loc_integrative, rte_length_req) %>%
         mutate(groupN = n()) %>%
         filter(groupN > 4) %>%
-        summarise(cor = cor.test(TE, GENE, method = "spearman")$estimate, pval = cor.test(TE, GENE, method = "spearman")$p.value)
+        summarise(cor = cor.test(TE, GENE, method = "spearman")$estimate, pval = cor.test(TE, GENE, method = "spearman")$p.value) %>%
+        mutate(padj = p.adjust(pval, method = "fdr"))
     cor_df %$% req_integrative %>% unique()
     pf <- cor_df %>%
         ungroup() %>%
         filter(loc_integrative != "Centromeric") %>%
-        complete(!!sym(ontology), req_integrative, loc_integrative, rte_length_req)
+        complete(!!sym(ontology), req_integrative, loc_integrative)
 
     p <- pf %>%
-        mutate(genicfacet = ifelse(loc_integrative == "Intergenic", "", "Genic")) %>%
         ggplot() +
         geom_tile(aes(x = !!sym(ontology), y = loc_integrative, fill = cor)) +
-        facet_grid(genicfacet ~ req_integrative, space = "free", scales = "free") +
+        facet_grid(~req_integrative, space = "free", scales = "free") +
         scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.8, 0, 0.8), na.value = "dark grey") +
         mtclosed +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
@@ -598,37 +598,39 @@ for (ontology in c("rte_subfamily_limited", "l1_subfamily_limited", "rte_family"
 
 
     p <- pf %>%
-        mutate(genicfacet = ifelse(loc_integrative == "Intergenic", "", "Genic")) %>%
         ggplot(aes(x = !!sym(ontology), y = loc_integrative)) +
         geom_tile(aes(fill = cor)) +
-        facet_grid(genicfacet ~ req_integrative, space = "free", scales = "free") +
-        geom_text(aes(label = ifelse(pval < 0.05, "*", "")), size = 3) +
+        facet_grid(~ req_integrative, space = "free", scales = "free") +
+        geom_text(aes(label = ifelse(padj < 0.05, "*", "")), size = 3) +
         scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.8, 0, 0.8), na.value = "dark grey") +
         mtclosed +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         labs(x = "", y = "")
     mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_pval_%s.pdf", outputdir, counttype, "pan_contrast", ontology), 10, 6)
-
+    pf %>% filter(rte_subfamily_limited == "AluY") %>% filter(req_integrative == "Old FL")
+    
     cor_df <- te_gene_matrix_all %>%
         group_by(!!sym(ontology), loc_integrative, rte_length_req) %>%
         mutate(groupN = n()) %>%
         filter(groupN > 4) %>%
-        summarise(cor = cor.test(TE, GENE, method = "spearman")$estimate, pval = cor.test(TE, GENE, method = "spearman")$p.value)
+        summarise(cor = cor.test(TE, GENE, method = "spearman")$estimate, pval = cor.test(TE, GENE, method = "spearman")$p.value) %>%
+        mutate(padj = p.adjust(pval, method = "fdr"))
+
     pf <- cor_df %>%
         ungroup() %>%
         filter(loc_integrative != "Centromeric") %>%
         complete(!!sym(ontology), loc_integrative, rte_length_req)
     p <- pf %>%
-        mutate(genicfacet = ifelse(loc_integrative == "Intergenic", "", "Genic")) %>%
+        mutate(loc_integrative = factor(loc_integrative, levels = c("NoncodingTxAdjacent", "NoncodingTx", "CodingTxAdjacent", "Intronic", "Exonic", "Intergenic"))) %>%
         ggplot(aes(x = !!sym(ontology), y = loc_integrative)) +
         geom_tile(aes(fill = cor)) +
-        facet_grid(genicfacet ~ rte_length_req, space = "free", scales = "free") +
-        geom_text(aes(label = ifelse(pval < 0.05, "*", "")), size = 3) +
+        facet_grid(~rte_length_req, space = "free", scales = "free") +
+        geom_text(aes(label = ifelse(padj < 0.05, "*", "")), size = 3) +
         scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.5, 0, 0.5), na.value = "dark grey") +
         mtclosed +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         labs(x = "", y = "")
-    mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_length_req_pval_%s.pdf", outputdir, counttype, "pan_contrast", ontology), 6.5, 5)
+    mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_length_req_pval1_%s.pdf", outputdir, counttype, "pan_contrast", ontology), 5, 4)
 }
 
 
@@ -1156,6 +1158,50 @@ for (group_var in c("repeat_superfamily", "rte_subfamily", "rte_family", "l1_sub
 
     p <- wrap_elements(grid.grabExpr(draw(hm, heatmap_legend_side = "right", annotation_legend_side = "right")))
     mysaveandstore(sprintf("%s/%s/pan_contrast/heatmap/%s_heatmap.pdf", outputdir, counttype, group_var), 0.5 + length(colnames(m)) * 0.35, 1.75 + length(rownames(m)) * 0.25)
+
+    human_subfam_ordering <- c(
+        "L1HS", "L1PA2", "L1PA3", "L1PA4", "L1PA5", "L1PA6",
+        "AluY", "HERVK_LTR", "HERVK_INT", "HERVL_LTR", "HERVL_INT",
+        "SVA_A", "SVA_B", "SVA_C", "SVA_D", "SVA_E", "SVA_F"
+    )
+    other_ordering <- resultsdfwithgenes %>%
+        filter(rte_subfamily != "Other") %>%
+        group_by(rte_family, rte_subfamily) %>%
+        summarise(family_av_pctdiv = mean(family_av_pctdiv)) %>%
+        mutate(rte_family = factor(rte_family, levels = c("L1", "Alu", "ERV", "SVA"))) %>%
+        arrange(rte_family, family_av_pctdiv) %$% rte_subfamily
+    if (confALL$aref$species != "human") {
+        subfam_ordering <<- other_ordering
+    } else {
+        subfam_ordering <<- human_subfam_ordering
+    }
+
+    m <- stat_frame %>%
+        dplyr::select(sample, !!sym(group_var), l2fc) %>%
+        pivot_wider(names_from = sample, values_from = l2fc) %>%
+        mutate(rte_subfamily = factor(rte_subfamily, levels = subfam_ordering)) %>%
+        arrange(rte_subfamily) %>%
+        column_to_rownames(group_var) %>%
+        as.matrix()
+    m <- m[!rowSums(is.na(m)), ]
+    library(patchwork)
+    hm <- m %>%
+        Heatmap(
+            name = "log2FC",
+            cluster_rows = FALSE,
+            cluster_columns = FALSE,
+            show_row_names = TRUE,
+            show_parent_dend_line = FALSE,
+            show_row_dend = FALSE,
+            show_column_names = TRUE,
+            column_names_rot = 90,
+            row_title = NULL,
+            cluster_row_slices = FALSE,
+            border_gp = gpar(col = "black")
+        )
+    p <- wrap_elements(grid.grabExpr(draw(hm, heatmap_legend_side = "right", annotation_legend_side = "right")))
+    mysaveandstore(sprintf("%s/%s/pan_contrast/heatmap/%s_heatmap_no_rowclust.pdf", outputdir, counttype, group_var), 0.5 + length(colnames(m)) * 0.35, 1.75 + length(rownames(m)) * 0.25)
+    mysaveandstore(sprintf("%s/%s/pan_contrast/heatmap/%s_heatmap_no_rowclust_compressed.pdf", outputdir, counttype, group_var), 0.5 + length(colnames(m)) * 0.275, 1.75 + length(rownames(m)) * 0.16)
 }
 
 

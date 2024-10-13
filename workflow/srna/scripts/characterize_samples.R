@@ -29,8 +29,6 @@ library(rtracklayer)
 library(ComplexUpset)
 library(patchwork)
 library(scales)
-
-
 # library(ggrastr)
 
 
@@ -199,6 +197,23 @@ p <- pf %>%
     theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
 mysaveandstore(sprintf("%s/multiple_groups/gene_or_repeat_type.pdf", outputdir), w = 1 + 1.5 * length(conf$samples) / 2.4, h = 4)
 
+p_rep_only <- pf %>%
+    mutate(Class = factor(Class, levels = c("Gene", "LowComp", "SimpleRep", "Retroposon", "SAT", "DNA", "LTR", "LINE", "SINE", "Other"))) %>%
+    group_by(sample, Class) %>%
+    summarize(tpm = sum(tpm)) %>%
+    ungroup() %>%
+    filter(Class != "Gene") %>%
+    mutate(sample = factor(sample, levels = conf$samples)) %>%
+    mutate(sample = factor(sample, levels = conf$samples)) %>%
+    ggbarplot(x = "sample", y = "tpm", fill = "Class") +
+    xlab("") +
+    ylab("TPM") +
+    scale_palette +
+    mtclosed +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+mysaveandstore(pl = p_rep_only, sprintf("%s/multiple_groups/repeat_only_type.pdf", outputdir), w = 1 + 1.5 * length(conf$samples) / 2.4, h = 4)
+
+
 refseq <- import(params$annotation_genes)
 refseqdf <- refseq %>%
     as.data.frame() %>%
@@ -231,7 +246,25 @@ p <- pff %>%
     mtclosed +
     theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
 mysaveandstore(sprintf("%s/multiple_groups/gene_biotype_or_repeat.pdf", outputdir), w = 1 + 1.5 * length(conf$samples) / 2.4, h = 4)
+p_gene_only <- pff %>%
+    mutate(Class = factor(Class, levels = biotype_levels)) %>%
+    group_by(sample, Class) %>%
+    summarize(tpm = sum(tpm)) %>%
+    ungroup() %>%
+    filter(Class != "repeat") %>%
+    mutate(sample = factor(sample, levels = conf$samples)) %>%
+    mutate(sample = factor(sample, levels = conf$samples)) %>%
+    ggbarplot(x = "sample", y = "tpm", fill = "Class") +
+    xlab("") +
+    ylab("TPM") +
+    scale_palette +
+    mtclosed +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+mysaveandstore(pl = p_gene_only, sprintf("%s/multiple_groups/gene_biotype_only.pdf", outputdir), w = 1 + 1.5 * length(conf$samples) / 2.4, h = 4)
 
+
+ptch <- p_gene_only + p_rep_only + plot_layout(nrow = 2)
+mysaveandstore(pl = ptch, sprintf("%s/multiple_groups/gene_repeat_split.pdf", outputdir), w = 1 + 1.5 * length(conf$samples) / 2.4, h = 8)
 
 x <- tibble(OUT = "")
 write_tsv(x, file = outputs$environment)

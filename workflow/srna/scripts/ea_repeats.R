@@ -190,7 +190,6 @@ for (contrast in params[["contrasts"]]) {
                         gse_df <<- rbind(gse_df, df)
                     }
 
-                    genesettheme <- theme_gray() + theme(axis.text.y = element_text(colour = "black"))
                     # p <- dotplot(gse, showCategory = 20) + ggtitle(paste("GSEA", contrast, sep = " ")) + genesettheme + mtopen
                     # mysaveandstore(sprintf("%s/%s/%s/gsea/%s/%s/dotplot.pdf", params[["outputdir"]], counttype, contrast, ontology, filter_var), w = 3, h = 4, res = 300)
 
@@ -246,6 +245,23 @@ for (test_type in c("std", "pos", "neg")) {
                 arrange(p.adjust) %>%
                 slice_head(n = 5) %$% ID %>%
                 unique()
+
+            # human_subfam_ordering <- c(
+            #     "L1HS", "L1PA2", "L1PA3", "L1PA4", "L1PA5", "L1PA6",
+            #     "AluY", "HERVK_LTR", "HERVK_INT", "HERVL_LTR", "HERVL_INT",
+            #     "SVA_A", "SVA_B", "SVA_C", "SVA_D", "SVA_E", "SVA_F"
+            # )
+            # other_ordering <- resultsdf %>%
+            #     filter(rte_subfamily != "Other") %>%
+            #     group_by(rte_family, rte_subfamily) %>%
+            #     summarise(family_av_pctdiv = mean(family_av_pctdiv)) %>%
+            #     mutate(rte_family = factor(rte_family, levels = c("L1", "Alu", "ERV", "SVA"))) %>%
+            #     arrange(rte_family, family_av_pctdiv) %$% rte_subfamily
+            # if (confALL$aref$species != "human") {
+            #     subfam_ordering <<- other_ordering
+            # } else {
+            #     subfam_ordering <<- human_subfam_ordering
+            # }
             p <- grestemp %>%
                 dplyr::filter(ID %in% sigIDs) %>%
                 mutate(sig = ifelse(p.adjust < 0.05, "*", "")) %>%
