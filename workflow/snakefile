@@ -82,7 +82,7 @@ for pipeline in config["pipelines_to_deploy"]:
             for e in list(flatten([mycoplasma])):
                 final_input.append(e)
         if config["ldna"]["single_condition"] == "yes":
-            for e in list(flatten([bedmethanalysis_single_sample, methylartist])):
+            for e in list(flatten([bedmethanalysis_single_sample])):
                 final_input.append(e)
         else:
             for e in list(flatten([bedmethanalysis,dmrs, methylartist,hg38pat])):
