@@ -948,7 +948,7 @@ rule get_merged_pat:
     params:
         inputdir = "ldna/results/wgbs",
         level1 = config["ldna"]["levels"][0],
-        level2 = config["ldna"]["levels"][1]
+        level2 = lambda wildcards: config["ldna"]["levels"][1] if len(config["ldna"]["levels"]) > 1 else None,  # Second level if exists    
     conda:
         "omics"
     output:
@@ -957,10 +957,13 @@ rule get_merged_pat:
         """
 mkdir -p $(dirname {output.outfile})
 /users/mkelsey/data/tools/wgbs_tools/wgbstools merge -p $(dirname {output.outfile})/{params.level1} --genome hs1 {params.inputdir}/{params.level1}*.pat.gz
-/users/mkelsey/data/tools/wgbs_tools/wgbstools merge -p $(dirname {output.outfile})/{params.level2} --genome hs1 {params.inputdir}/{params.level2}*.pat.gz
+
+if [ -n "{params.level2}" ]; then
+    /users/mkelsey/data/tools/wgbs_tools/wgbstools merge -p $(dirname {output.outfile})/{params.level2} --genome hs1 {params.inputdir}/{params.level2}*.pat.gz
+fi
 touch {output.outfile}
         """
-        
+
 rule pat_fig:
     input:
         outfile = "ldna/results/wgbs/analysis_default/merged/merged.outfile"
@@ -1687,3 +1690,4 @@ rule deconv:
         cpus_per_task = 4
     script:
         "scripts/deconv.R"
+
