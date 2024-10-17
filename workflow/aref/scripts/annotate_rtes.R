@@ -242,9 +242,7 @@ tryCatch(
             pos <- ORFik::findORFs(flss, startCodon = "ATG", longestORF = TRUE, minimumLength = 333)
             names(pos) <- names(flss[as.integer(names(pos))])
             orf_frame <- as.data.frame(pos) %>%
-                tibble() %>%
-                mutate(bin_10 = cut(width, breaks = seq(min(width), max(width), by = 1)))
-
+                tibble()
             binwidth_df <- orf_frame %>%
                 group_by(width) %>%
                 mutate(average_start = mean(start)) %>%
@@ -262,14 +260,16 @@ tryCatch(
             modal_widths <- binwidth_df %>%
                 filter(orf_length_zscore > z_score_cutoff) %>%
                 arrange(-average_start) %$% width
-
-            element_orf_intactness_df <- tibble(gene_id = names(flss))
+            element_orf_intactness_df <- tibble(gene_id = names(active_family_ss))
             for (modal_width in modal_widths) {
+                # first build the consensus sequence using only fl elements
                 tdf <- orf_frame %>% filter(width == modal_width)
-                tss <- flss[names(flss) %in% (tdf %$% group_name)]
-                tdf <- tdf[match(names(tss), tdf %$% group_name), ]
-                names(tss) == tdf %$% group_name
-                orf_ss <- subseq(tss, start = tdf$start, end = tdf$end)
+                orf_ss <- DNAStringSet()
+                for (i in seq(1, length(rownames(tdf)))) {
+                    row <- tdf[i, ]
+                    ss <- subseq(flss[row$group_name], start = row$start, end = row$end)
+                    orf_ss <- c(orf_ss, ss)
+                }
                 # need to remove all ambiguity prior to tranlsation
                 consensus <- chartr("N", "A", replaceAmbiguities(DNAString(consensusString(orf_ss)), new = "N"))
                 consensus_ss <- DNAStringSet(consensus)
@@ -282,53 +282,114 @@ tryCatch(
                 writeXStringSet(consensus_ss, file = orf_consensus_path)
                 writeXStringSet(consensus_aa_ss, file = orf_aa_consensus_path)
 
-                # get all orfs that are +/- 10% of the modal width
-                tdf <- orf_frame %>% filter(width > modal_width * 0.9 & width < modal_width * 1.1)
-                tss <- flss[names(flss) %in% (tdf %$% group_name)]
-                tdf <- tdf[match(names(tss), tdf %$% group_name), ]
-                names(tss) == tdf %$% group_name
-                orf_ss <- subseq(tss, start = tdf$start, end = tdf$end)
+                # next blast all ORFs from elements of all lengths
+                pos <- ORFik::findORFs(active_family_ss, startCodon = "ATG", longestORF = TRUE, minimumLength = 333)
+                names(pos) <- names(active_family_ss[as.integer(names(pos))])
+                orf_frame_all <- as.data.frame(pos) %>%
+                    tibble()
+                ###### NEW BLAST ANALYSIS
+                tdf <- orf_frame_all
+                tdf <- tdf %>% mutate(element_orf_id = paste(group_name, start, sep = ":"))
+                orf_ss_all <- DNAStringSet()
+                for (i in seq(1, length(rownames(tdf)))) {
+                    row <- tdf[i, ]
+                    ss <- subseq(active_family_ss[row$group_name], start = row$start, end = row$end)
+                    names(ss) <- c(row$element_orf_id)
+                    orf_ss_all <- c(orf_ss_all, ss)
+                }
+                orf_aa_ss_all <- Biostrings::translate(orf_ss_all)
+                library(rBLAST)
+                makeblastdb(orf_aa_consensus_path, dbtype = "prot")
+                bl <- blast(db = orf_aa_consensus_path, type = "blastp")
+                orf_aa_ss_all <- Biostrings::translate(orf_ss_all)
+                bres <- tibble(predict(bl, orf_aa_ss_all))
+                bres <- bres %>%
+                    separate_wider_delim(cols = qseqid, delim = ":", names = c("gene_id", "orf_start")) %>%
+                    mutate(gene_orf_id = paste(gene_id, orf_start, delim = ":"))
+                # get intact ORFs
+                fully_intact_orfs <- bres %>%
+                    filter(pident > 90) %>%
+                    filter(length > 0.9 * (modal_width / 3)) %>%
+                    filter(length < 1.1 * (modal_width / 3)) %>%
+                    dplyr::select(gene_id, pident) %>%
+                    dplyr::rename(!!sym(paste0("fl_orf_", modal_width)) := pident)
+                ids <- fully_intact_orfs %$% gene_id
+                # filter out duplicates, these can occur for misannotated elements which are of much greater lengths than in actuality (ie, a 90000bp long L1)
+                fully_intact_orfs <- fully_intact_orfs[!(ids %>% duplicated()), ]
 
+                # get fragments of ORFs
+                partially_intact_orfs <- bres %>%
+                    filter(!(gene_id %in% fully_intact_orfs$gene_id)) %>%
+                    filter(pident > 90) %>%
+                    filter(length > 0.9 * (modal_width / 9)) %>%
+                    dplyr::select(gene_id, pident) %>%
+                    dplyr::rename(!!sym(paste0("partial_orf_", modal_width)) := pident)
+                ids <- partially_intact_orfs %$% gene_id
+                # filter out duplicates, these can occur for misannotated elements which are of much greater lengths than in actuality (ie, a 90000bp long L1)
+                partially_intact_orfs <- partially_intact_orfs[!(ids %>% duplicated()), ]
 
-                library(seqinr)
-                orf_fa_path <- sprintf("%s/intactness_annotation_workdir/%s_orf_length_around_%s_aa.fa", outputdir, element, modal_width)
-                writeXStringSet(c(Biostrings::translate(orf_ss), consensus_aa_ss), file = orf_fa_path)
-                system(sprintf("echo $(pwd); mafft --auto %s > %s.aln.fa", orf_fa_path, orf_fa_path))
-                aln <- read.alignment(sprintf("%s.aln.fa", orf_fa_path), format = "fasta")
-                d <- dist.alignment(aln, "identity", gap = FALSE) %>% as.matrix()
-                d_gapped <- dist.alignment(aln, "identity", gap = TRUE) %>% as.matrix()
-
-                # pct identity to aa consensus
-                dsqaured <- d["consensus", ]**2
-                d_gappedsquared <- d_gapped["consensus", ]**2
-                # tgz_file <- rBLAST::blast_db_get("pdbaa.tar.gz")
-                # untar(tgz_file, exdir = "aref/blastdb/pdbaa")
-                # library(rBLAST)
-                # bl <- blast(db = "./aref/blastdb/pdbaa/pdbaa")
-                # bres <- tibble(predict(bl, consensus_aa_ss, ))
-
-                tdf <- as.data.frame(d_gappedsquared)
-                colnames(tdf) <- c(paste0("orf_", modal_width))
-                tdf$gene_id <- rownames(tdf)
-                tdf <- tibble(tdf)
-                tdf <- full_join(element_orf_intactness_df, tdf) %>% filter(gene_id != "consensus")
-                element_orf_intactness_df <- tdf
+                element_specific_orf_specific_df <- full_join(fully_intact_orfs, partially_intact_orfs)
+                element_orf_intactness_df <- left_join(element_orf_intactness_df, element_specific_orf_specific_df)
             }
             element_info_list[[element]] <- element_orf_intactness_df
+            #######
+
+            #     ### OLDER MSA analysis
+            #     # get all orfs that are +/- 10% of the modal width
+            #     tdf <- orf_frame %>% filter(width > modal_width * 0.9 & width < modal_width * 1.1)
+            #     tss <- flss[names(flss) %in% (tdf %$% group_name)]
+            #     tdf <- tdf[match(names(tss), tdf %$% group_name), ]
+            #     names(tss) == tdf %$% group_name
+            #     orf_ss <- subseq(tss, start = tdf$start, end = tdf$end)
+
+
+            #     library(seqinr)
+            #     orf_fa_path <- sprintf("%s/intactness_annotation_workdir/%s_orf_length_around_%s_aa.fa", outputdir, element, modal_width)
+            #     writeXStringSet(c(Biostrings::translate(orf_ss), consensus_aa_ss), file = orf_fa_path)
+            #     system(sprintf("echo $(pwd); mafft --auto %s > %s.aln.fa", orf_fa_path, orf_fa_path))
+            #     aln <- read.alignment(sprintf("%s.aln.fa", orf_fa_path), format = "fasta")
+            #     d <- dist.alignment(aln, "identity", gap = FALSE) %>% as.matrix()
+            #     d_gapped <- dist.alignment(aln, "identity", gap = TRUE) %>% as.matrix()
+
+            #     # pct identity to aa consensus
+            #     dsqaured <- d["consensus", ]**2
+            #     d_gappedsquared <- d_gapped["consensus", ]**2
+            #     # tgz_file <- rBLAST::blast_db_get("pdbaa.tar.gz")
+            #     # untar(tgz_file, exdir = "aref/blastdb/pdbaa")
+            #     # library(rBLAST)
+            #     # bl <- blast(db = "./aref/blastdb/pdbaa/pdbaa")
+            #     # bres <- tibble(predict(bl, consensus_aa_ss, ))
+
+            #     tdf <- as.data.frame(d_gappedsquared)
+            #     colnames(tdf) <- c(paste0("orf_", modal_width))
+            #     tdf$gene_id <- rownames(tdf)
+            #     tdf <- tibble(tdf)
+            #     tdf <- full_join(element_orf_intactness_df, tdf) %>% filter(gene_id != "consensus")
+            #     element_orf_intactness_df <- tdf
+            # }
+            # element_info_list[[element]] <- element_orf_intactness_df
         }
         rm(intactness_ann)
         for (i in 1:length(element_info_list)) {
             tdf <- element_info_list[[i]] %>%
-                mutate(across(starts_with("orf_"), ~ replace_na(., 1))) %>%
-                mutate(orf_distance_tuple = pmap(
-                    dplyr::select(., starts_with("orf_")),
+                mutate(across(starts_with("fl_orf_"), ~ replace_na(., 0))) %>%
+                mutate(fl_orf_ident_tuple = pmap(
+                    dplyr::select(., starts_with("fl_orf_")),
                     function(...) {
                         lst <- list(...)
-                        names(lst) <- names(dplyr::select(., starts_with("orf_")))
+                        names(lst) <- names(dplyr::select(., starts_with("fl_orf_")))
                         return(lst)
                     }
                 )) %>%
-                dplyr::select(gene_id, orf_distance_tuple)
+                mutate(across(starts_with("partial_orf_"), ~ replace_na(., 0))) %>%
+                mutate(partial_orf_ident_tuple = pmap(
+                    dplyr::select(., starts_with("partial_orf_")),
+                    function(...) {
+                        lst <- list(...)
+                        names(lst) <- names(dplyr::select(., starts_with("partial_orf_")))
+                        return(lst)
+                    }
+                ))
 
             if (!exists("intactness_ann")) {
                 intactness_ann <- tdf
@@ -338,10 +399,21 @@ tryCatch(
         }
 
         intactness_ann <- intactness_ann %>%
-            mutate(intactness_req = ifelse(sapply(orf_distance_tuple, function(x) all(x < 0.05)), "Intact", "Not Intact")) %>%
-            mutate(orf_passes_mutation_threshold = map(orf_distance_tuple, ~ {
+            mutate(intactness_req = ifelse(sapply(fl_orf_ident_tuple, function(x) all(x > 0.95)), "Intact", "Not Intact")) %>%
+            mutate(orf_passes_mutation_threshold = map(fl_orf_ident_tuple, ~ {
                 # Get the indices where the values are below the threshold
-                threshold_indices <- which(.x < 0.05)
+                threshold_indices <- which(.x > 0.95)
+
+                if (length(threshold_indices) == 0) {
+                    "none"
+                } else {
+                    # Get the names of the corresponding elements
+                    names(.x)[threshold_indices] # Return the names instead of "orf" followed by indices
+                }
+            })) %>%
+            mutate(partial_orf_passes_mutation_threshold = map(partial_orf_ident_tuple, ~ {
+                # Get the indices where the values are below the threshold
+                threshold_indices <- which(.x > 0.95)
 
                 if (length(threshold_indices) == 0) {
                     "none"
@@ -350,11 +422,19 @@ tryCatch(
                     names(.x)[threshold_indices] # Return the names instead of "orf" followed by indices
                 }
             }))
+
+        intactness_ann_full <- intactness_ann
+        intactness_ann_full %>%
+            save(., file = paste(dirname(outputs$rmann), "intactness_ann_full.Robj", sep = "/"))
+
         intactness_ann <- intactness_ann %>%
             mutate(
-                orf_distance_tuple = map_chr(orf_distance_tuple, ~ paste(.x, collapse = ";")),
-                orf_passes_mutation_threshold = map_chr(orf_passes_mutation_threshold, ~ paste(.x, collapse = ";"))
-            )
+                fl_orf_ident_tuple = map_chr(fl_orf_ident_tuple, ~ paste(.x, collapse = ";")),
+                orf_passes_mutation_threshold = map_chr(orf_passes_mutation_threshold, ~ paste(.x, collapse = ";")),
+                partial_orf_ident_tuple = map_chr(partial_orf_ident_tuple, ~ paste(.x, collapse = ";")),
+                partial_orf_passes_mutation_threshold = map_chr(partial_orf_passes_mutation_threshold, ~ paste(.x, collapse = ";"))
+            ) %>%
+            dplyr::select(gene_id, intactness_req, orf_passes_mutation_threshold, partial_orf_passes_mutation_threshold)
     },
     error = function(e) {
         print("no elements annotated for intactness")
@@ -364,6 +444,10 @@ tryCatch(
     }
 )
 
+aa <- intactness_ann %>% left_join(length_ann)
+aa %>%
+    filter(intactness_req == "Intact") %>%
+    filter(rte_length_req == "Trnc")
 fulllength_trnc_length_threshold <- conf$fulllength_trnc_length_threshold
 length_ann <- rmfragments %>%
     dplyr::select(gene_id, pctconsensuscovered) %>%

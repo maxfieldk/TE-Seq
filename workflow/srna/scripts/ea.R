@@ -353,7 +353,7 @@ tryCatch(
             res <- res %>% arrange(-!!sym(contrast_stat))
 
             for (collec in genecollections) {
-                gse <- gse_df %>% filter(collection == collec)
+                gse <- gse_df %>% filter(collection == collec) %>% filter(contrast == !!contrast)
                 df <- arrange(gse, -abs(NES)) %>%
                     group_by(sign(NES)) %>%
                     slice(1:n_top_sets)
@@ -361,7 +361,7 @@ tryCatch(
                 core_enrichments <- df$core_enrichment
                 core_enrichments <- str_split(core_enrichments, "/")
                 names(core_enrichments) <- ids
-                for (geneset in unique(c(names(core_enrichments), conf$genesets_for_gseaplot))) {
+                for (geneset in unique(c(names(core_enrichments)))) {
                     all_genes_in_set <- read.gmt(params[["collections_for_gsea"]][[collec]]) %>% filter(term == geneset) %$% gene
                     if (length(all_genes_in_set) == 0) {
                         next
@@ -449,7 +449,7 @@ tryCatch(
                             lgd_sig <- Legend(pch = "*", type = "points", labels = "< 0.05")
                             # these two self-defined legends are added to the plot by `annotation_legend_list`
                             p <- wrap_elements(grid.grabExpr(draw(hm, annotation_legend_list = list(lgd_pvalue_adj, lgd_sig), heatmap_legend_side = "bottom", annotation_legend_side = "bottom")))
-                            mysaveandstore(sprintf("%s/%s/gsea/%s/core_enrichments/heatmap_%s.pdf", params[["outputdir"]], contrast, collection, set_title), w = min(0.75 * dim(scaledm)[2], 12), h = min(dim(scaledm)[1], 12), res = 300)
+                            mysaveandstore(sprintf("%s/%s/gsea/%s/all_genes/heatmap_%s.pdf", params[["outputdir"]], contrast, collection, set_title), w = min(0.75 * dim(scaledm)[2], 12), h = min(dim(scaledm)[1], 12), res = 300)
 
                             # heatmap all samples
                             m <- as.matrix(heatmapprep %>% dplyr::select(sample_table$sample_name))
@@ -498,7 +498,9 @@ tryCatch(
                             lgd_sig <- Legend(pch = "*", type = "points", labels = "< 0.05")
                             # these two self-defined legends are added to the plot by `annotation_legend_list`
                             p <- wrap_elements(grid.grabExpr(draw(hm, auto_adjust = FALSE, annotation_legend_list = list(lgd_pvalue_adj, lgd_sig), heatmap_legend_side = "right", annotation_legend_side = "right")))
-                            mysaveandstore(sprintf("%s/%s/gsea/%s/core_enrichments/heatmap_%s.pdf", params[["outputdir"]], contrast, collection, set_title), w = min(0.75 * dim(scaledm)[2], 12), h = min(dim(scaledm)[1] / 7.5, 20), res = 300)
+                            mysaveandstore(sprintf("%s/%s/gsea/%s/all_genes/heatmap_%s.pdf", params[["outputdir"]], contrast, collection, set_title), w = min(0.75 * dim(scaledm)[2], 12), h = min(dim(scaledm)[1] / 7.5, 20), res = 300)
+                            
+                            rownames(scaledm)[row_order(hm)]
                         },
                         error = function(e) {
                             print(e)
@@ -654,6 +656,7 @@ tryCatch(
         gene_sets <<- msigdbr(species = "human")
     }
 )
+
 rm(gse_df)
 for (contrast in params[["contrasts"]]) {
     # PREP RESULTS FOR GSEA
