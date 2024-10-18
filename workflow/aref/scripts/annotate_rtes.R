@@ -444,10 +444,6 @@ tryCatch(
     }
 )
 
-aa <- intactness_ann %>% left_join(length_ann)
-aa %>%
-    filter(intactness_req == "Intact") %>%
-    filter(rte_length_req == "Trnc")
 fulllength_trnc_length_threshold <- conf$fulllength_trnc_length_threshold
 length_ann <- rmfragments %>%
     dplyr::select(gene_id, pctconsensuscovered) %>%
