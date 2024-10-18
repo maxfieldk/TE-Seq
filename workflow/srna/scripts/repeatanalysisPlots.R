@@ -600,15 +600,14 @@ for (ontology in c("rte_subfamily_limited", "l1_subfamily_limited", "rte_family"
     p <- pf %>%
         ggplot(aes(x = !!sym(ontology), y = loc_integrative)) +
         geom_tile(aes(fill = cor)) +
-        facet_grid(~ req_integrative, space = "free", scales = "free") +
+        facet_grid(~req_integrative, space = "free", scales = "free") +
         geom_text(aes(label = ifelse(padj < 0.05, "*", "")), size = 3) +
         scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.8, 0, 0.8), na.value = "dark grey") +
         mtclosed +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         labs(x = "", y = "")
     mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_pval_%s.pdf", outputdir, counttype, "pan_contrast", ontology), 10, 6)
-    pf %>% filter(rte_subfamily_limited == "AluY") %>% filter(req_integrative == "Old FL")
-    
+
     cor_df <- te_gene_matrix_all %>%
         group_by(!!sym(ontology), loc_integrative, rte_length_req) %>%
         mutate(groupN = n()) %>%
