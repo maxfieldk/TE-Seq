@@ -56,7 +56,17 @@ nrdf <- rmann %>%
     filter(refstatus == "NonRef") %>%
     left_join(df_filtered, by = "nonref_UUID") %>%
     mutate(zygosity = factor(ifelse(fraction_reads_count >= 0.95, "homozygous", "heterozygous"), levels = c("homozygous", "heterozygous"))) %>%
-    mutate(known_nonref = factor(ifelse(conf$known_nonref$reponse == "no", "NotCalled", ifelse(is.na(NonRef), "novel", "known")), levels = c("novel", "known", "NotCalled")))
+    mutate(known_nonref = factor(
+        ifelse(conf$update_ref_with_tldr$known_nonref$response == "no",
+            "NotCalled",
+            ifelse(
+                is.na(NonRef),
+                "novel",
+                "known"
+            )
+        ),
+        levels = c("novel", "known", "NotCalled")
+    ))
 
 p1 <- nrdf %>%
     group_by(rte_family, rte_subfamily, req_integrative) %>%
