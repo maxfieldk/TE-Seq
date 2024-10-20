@@ -20,10 +20,10 @@ aref:
   #MODULE LOGIC
   symlink_aref:
     response: "no"
-    aref_symlinkdir: "/oscar/data/jsedivy/mkelsey/ref/pipeline_annotations/hs1/RTE/aref"
+    aref_symlinkdir: "/oscar/data/jsedivy/mkelsey/REF_STABLE_ANNOTATIONS/HS1/oct_09_2024/TE-Seq/aref"
   symlink_aref_contents: #can ignore - this deals with certain niche cases where you wnat to use AND BUILD ON existing annotations.
     response: "no"
-    aref_symlinkdir: "/oscar/data/jsedivy/mkelsey/ref/pipeline_annotations/hs1/RTE/aref"
+    aref_symlinkdir: "/oscar/data/jsedivy/mkelsey/REF_STABLE_ANNOTATIONS/HS1/oct_09_2024/TE-Seq/aref"
 
   running_ldna:
     response: "no"
