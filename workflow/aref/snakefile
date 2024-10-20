@@ -114,7 +114,7 @@ rule sym_link:
         "aref.done.outfile"
     shell:
         """
-ln -s {input.aref_dir} aref
+ln -s {input.aref_dir}
 touch {output}
         """
 rule sym_link_aref_contents:
@@ -239,7 +239,7 @@ rule pycoQC:
     shell:
         """
 mkdir -p $(dirname {output})
-pycoQC --summary_file {input.seqsummary} --bam_file {input.sortedbam} --html_outfile {output.html} --json_outfile {output.json} --min_pass_qual 0
+pycoQC --summary_file {input.seqsummary} --bam_file {input.sortedbam} --html_outfile {output.html} --json_outfile {output.json} --min_pass_qual 10
         """
 
 rule multiqc:

@@ -307,7 +307,7 @@ rule alignSTAR_SE:
         r1 = "srna/outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz"
     retries: 3
     params:
-        index = lambda wildcards: "aref/default/%s_indeces/star_index"%(wildcards.sample) if config["srna"]["per_sample_ref"] == "yes" else "aref/default/A.REF_indeces/star_index"
+        index = get_proper_ref_starindex
     output:
         bam = temp("srna/outs/{sample}/star_output/Aligned.out.sam")
     benchmark:
