@@ -239,7 +239,7 @@ rule pycoQC:
     shell:
         """
 mkdir -p $(dirname {output})
-pycoQC --summary_file {input.seqsummary} --bam_file {input.sortedbam} --html_outfile {output.html} --json_outfile {output.json} --min_pass_qual 10
+pycoQC --summary_file {input.seqsummary} --bam_file {input.sortedbam} --html_outfile {output.html} --json_outfile {output.json} --min_pass_qual 0
         """
 
 rule multiqc:
