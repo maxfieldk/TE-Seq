@@ -9,5 +9,5 @@ sample_modifiers:
   derive:
     attributes: [file_path_R1, file_path_R2]
     sources:
-      source1: "/users/mkelsey/data/rnaseq_trent/RTE/srna/rawdata/{fq_sample_name}_R1_001.fastq.gz"
-      source2: "/users/mkelsey/data/rnaseq_trent/RTE/srna/rawdata/{fq_sample_name}_R2_001.fastq.gz"
+      source1: "srna/rawdata/{fq_sample_name}_R1_001.fastq.gz"
+      source2: "srna/rawdata/{fq_sample_name}_R2_001.fastq.gz"

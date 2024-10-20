@@ -282,9 +282,10 @@ mkdir -p $(dirname {output.subsampled})
 
 samtools view -b {input.bam} chr10 > {output.subsampled}
         """
-if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
-    if config["aref"]["update_ref_with_tldr"]["per_sample"] == "no":
-        ruleorder: merge_bams_when_per_sample_is_no_for_ldna_variants > sortBam 
+if config["aref"]["symlink_aref"]["response"] == "no":
+    if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
+        if config["aref"]["update_ref_with_tldr"]["per_sample"] == "no":
+            ruleorder: merge_bams_when_per_sample_is_no_for_ldna_variants > sortBam 
 rule merge_bams_when_per_sample_is_no_for_ldna_variants:
     input:
         sorted_bams = expand("aref/intermediates/{sample}/alignments/{{rate}}/{sample}.{{type}}.{{modifications_string}}.sorted.bam", sample = config["aref"]["samples"])
@@ -509,17 +510,19 @@ rule update_reference_extended_nonref_flank:
     script:
         "scripts/create_reference_extended_nonref_flank.R"
 
-if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
-    if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
-        ruleorder: copy_starting_reference > cleanup_updated_ref > cleanup_updated_ref_and_patch
+if config["aref"]["symlink_aref"]["response"] == "no":
+    if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
+        if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
+            ruleorder: copy_starting_reference > cleanup_updated_ref > cleanup_updated_ref_and_patch
 
-if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
-    if config["aref"]["patch_ref"] == "yes":
-        ruleorder: cleanup_updated_ref_and_patch > cleanup_updated_ref
-        ruleorder: cleanup_updated_sample_ref_and_patch > cleanup_updated_sample_ref
-    else:
-        ruleorder:  cleanup_updated_ref > cleanup_updated_ref_and_patch
-        ruleorder:  cleanup_updated_sample_ref > cleanup_updated_sample_ref_and_patch
+if config["aref"]["symlink_aref"]["response"] == "no":
+    if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
+        if config["aref"]["patch_ref"] == "yes":
+            ruleorder: cleanup_updated_ref_and_patch > cleanup_updated_ref
+            ruleorder: cleanup_updated_sample_ref_and_patch > cleanup_updated_sample_ref
+        else:
+            ruleorder:  cleanup_updated_ref > cleanup_updated_ref_and_patch
+            ruleorder:  cleanup_updated_sample_ref > cleanup_updated_sample_ref_and_patch
 rule copy_starting_reference:
     params:
         ref = config["aref"]["starting_ref"]
@@ -896,10 +899,10 @@ fi
 mkdir -p $(dirname {output})
 RepeatMasker -species "$species" -pa {resources.cpus_per_task} -gff {input.fasta} -dir $(dirname {output})
         """
-
-if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
-    if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
-        ruleorder: get_repeatmasker_raw > getGtfs
+if config["aref"]["symlink_aref"]["response"] == "no":
+    if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
+        if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
+            ruleorder: get_repeatmasker_raw > getGtfs
 rule getGtfs:
     input:
         rmout = "aref/{default_or_extended}/{sample_or_ref}_repeatmasker/{sample_or_ref}-pre-ins-filtering_nonrefcontigs.fa.out",
@@ -921,9 +924,10 @@ workflow/{params.module_prefix}/scripts/outToGtf.sh {input.rmref} {output.ref}
 cat {output.ref} {output.nonref} > {output.merged}
         """
 
-if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
-    if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
-        ruleorder: process_gtf > process_gtf_tldr
+if config["aref"]["symlink_aref"]["response"] == "no":
+    if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
+        if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
+            ruleorder: process_gtf > process_gtf_tldr
 rule process_gtf:
     input:
         gtf = "aref/{default_or_extended}/A.REF_repeatmasker/A.REF_repeatmasker_raw.gtf",
@@ -1084,9 +1088,9 @@ agat_convert_sp_gff2bed.pl --gff {input.complete_gff3} -o {output.bed12}.temp
 awk '!/#/ {{print}}' {output.bed12}.temp | awk '{{FS="\t";OFS="\t"}} $4 < 900000000000 {{print}}' | sort -k1,1V -k2,2n -k3,3n > {output.bed12}
 rm {output.bed12}.temp
         """
-
-ruleorder: get_complete_refseq_select > gff_to_gtf 
-ruleorder: get_complete_refseq_select > gff_to_bed12 
+if config["aref"]["symlink_aref"]["response"] == "no":
+    ruleorder: get_complete_refseq_select > gff_to_gtf 
+    ruleorder: get_complete_refseq_select > gff_to_bed12 
 
 rule get_complete_refseq_select:
     input:
@@ -1107,9 +1111,9 @@ awk '/tag=RefSeq Select/ {{print}}' {input.refseq_gff3} > {output.refseq_select_
 awk '/tag=RefSeq Select/ {{print}}' {input.refseq_bed} > {output.refseq_select_bed}
 awk '/tag=RefSeq Select/ {{print}}' {input.refseq_gtf} > {output.refseq_select_gtf}
         """
-
 if config["aref"]["symlink_aref"]["response"] == "no":
-    ruleorder: merge_genes_and_repeats_gff > complete_gff3 
+    if config["aref"]["symlink_aref"]["response"] == "no":
+        ruleorder: merge_genes_and_repeats_gff > complete_gff3 
 rule merge_genes_and_repeats_gff:
     input:
         complete_repeat_gff3 = "aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker.complete.gff3",
@@ -1152,9 +1156,10 @@ awk '!/#/ {{print}}' {input.refseq} | awk '{{FS="\t";OFS="\t"}} $4 < 90000000000
 cat {output.merged_gff3}.temp | sort -k1,1V -k4,4n -k5,5n > {output.merged_gff3}
 rm {output.merged_gff3}.temp
         """
-
+        
 if config["aref"]["symlink_aref"]["response"] == "no":
-    ruleorder: merge_genes_and_repeats_gtf > gff_to_gtf 
+    if config["aref"]["symlink_aref"]["response"] == "no":
+        ruleorder: merge_genes_and_repeats_gtf > gff_to_gtf 
 
 rule merge_genes_and_repeats_gtf:
     input:
