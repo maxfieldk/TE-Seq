@@ -1177,7 +1177,7 @@ for (group_var in c("repeat_superfamily", "rte_subfamily", "rte_family", "l1_sub
 
     m <- stat_frame %>%
         dplyr::select(sample, !!sym(group_var), l2fc) %>%
-        pivot_wider(names_from = sample, values_from = l2fc) %>%
+        pivot_wider(names_from = sample, values_from = l2fc)
         if (group_var == "rte_subfamily") {
             m <<- m %>%
                 mutate(rte_subfamily = factor(rte_subfamily, levels = subfam_ordering)) %>%
