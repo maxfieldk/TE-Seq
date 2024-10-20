@@ -302,6 +302,26 @@ for (test_type in c("std", "pos", "neg")) {
                 theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
                 coord_equal()
             mysaveandstore(sprintf("%s/%s/gsea_top_rtes_%s_%s_ALLSIGSHOWN.pdf", params[["outputdir"]], test_type, ontology, filter_var), w = 3 + .3 * (length(conf$levels) - 1), h = 3 + .3 * length(sigIDs))
+            
+            all_levels <- resultsdf[,ontology] %>% unlist() %>% unique()
+            all_levels <- all_levels[!is.na(all_levels)]
+            all_levels <- all_levels[!(all_levels == "Other")]
+            all_levels_df <- tibble(Description := all_levels)
+            p <- grestemp %>%
+                mutate(sig = ifelse(p.adjust < 0.05, "*", "")) %>%
+                mutate(ID = str_wrap(as.character(ID) %>% gsub("_", " ", .), width = 40)) %>%
+                mutate(contrast = str_wrap(as.character(contrast) %>% gsub("condition_", "", .) %>% gsub("_vs_.*", "", .), width = 40)) %>%
+                mutate(contrast = factor(contrast, levels = conf$levels)) %>%
+                ggplot(aes(x = contrast, y = ID)) +
+                geom_tile(aes(fill = NES), color = "black") +
+                theme(legend.position = "none") +
+                scale_fill_gradient2(high = "red", mid = "white", low = "blue") +
+                mtclosed +
+                theme(axis.text.x = element_text(colour = "black"), axis.text.y = element_text(colour = "black", hjust = 1)) +
+                labs(x = "", y = "", title = paste0(ontology, " ", filter_var, " ", subtitle = test_type)) +
+                theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+                coord_equal()
+            mysaveandstore(sprintf("%s/%s/gsea_top_rtes_%s_%s_ALLSHOWN.pdf", params[["outputdir"]], test_type, ontology, filter_var), w = 3 + .3 * (length(conf$levels) - 1), h = 3 + .3 * length(sigIDs))
         }
     }
 }

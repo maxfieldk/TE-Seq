@@ -1178,11 +1178,16 @@ for (group_var in c("repeat_superfamily", "rte_subfamily", "rte_family", "l1_sub
     m <- stat_frame %>%
         dplyr::select(sample, !!sym(group_var), l2fc) %>%
         pivot_wider(names_from = sample, values_from = l2fc) %>%
-        mutate(rte_subfamily = factor(rte_subfamily, levels = subfam_ordering)) %>%
-        arrange(rte_subfamily) %>%
+        if (group_var == "rte_subfamily") {
+            m <<- m %>%
+                mutate(rte_subfamily = factor(rte_subfamily, levels = subfam_ordering)) %>%
+                arrange(rte_subfamily)
+        }
+    m <- m %>%
         column_to_rownames(group_var) %>%
         as.matrix()
     m <- m[!rowSums(is.na(m)), ]
+
     library(patchwork)
     hm <- m %>%
         Heatmap(
