@@ -27,7 +27,7 @@ library(Biostrings)
 library(ggpubr)
 
 
-
+samples <- conf$samples
 sample_table <- sample_table[match(samples, sample_table$sample_name), ]
 conditions <- conf$levels
 condition1 <- conditions[1]
@@ -120,8 +120,6 @@ grss <- GRanges(grsdfs)
 RMdf <- read_delim("ldna/Rintermediates/RMdf.tsv", col_names = TRUE)
 rtedf <- read_delim("ldna/Rintermediates/rtedf.tsv", col_names = TRUE)
 perelementdf <- read_delim("ldna/Rintermediates/perelementdf.tsv", col_names = TRUE)
-flRTEpromoter <- read_delim("ldna/Rintermediates/flRTEpromoter.tsv", col_names = TRUE)
-rtedf <- read_delim("ldna/Rintermediates/rtedf.tsv", col_names = TRUE)
 flRTEpromoter <- read_delim("ldna/Rintermediates/flRTEpromoter.tsv", col_names = TRUE)
 perelementdf_promoters <- read_delim("ldna/Rintermediates/perelementdf_promoters.tsv", col_names = TRUE)
 reads <- read_delim("ldna/Rintermediates/reads_context_cpg.tsv", col_names = TRUE)

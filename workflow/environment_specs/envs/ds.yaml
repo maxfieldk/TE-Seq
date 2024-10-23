@@ -29,4 +29,5 @@ dependencies:
   - r-ggpmisc
   - r-ggpubr
   - r-ggh4x
+  - r-tidyheatmap
 prefix: ds
