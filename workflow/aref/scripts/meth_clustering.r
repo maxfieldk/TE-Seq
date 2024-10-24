@@ -134,6 +134,8 @@ cg_positions_dfs <- lapply(seq_along(alnss), function(i) {
 # Combine the individual data frames into one tidy data frame
 cg_positions_df <- bind_rows(cg_positions_dfs)
 write_csv(cg_positions_df, sprintf("%s/%s_fl_cpg_mapping_table.csv", outputdir, subfam))
+cg_positions_df <- read_csv(sprintf("%s/%s_fl_cpg_mapping_table.csv", outputdir, subfam))
+
 cg_positions_df %>%
     tibble() %$% Sequence %>%
     table()
@@ -192,30 +194,8 @@ cpg_order <- merged %$% Alignment_Position %>%
 merged <- merged %>% mutate(cpgID = factor(cpgID, levels = cpg_order))
 library(tidyHeatmap)
 
-
 p <- merged %>%
-    filter(condition == "AD1") %>%
-    complete(gene_id, cpgID) %>%
-    group_by(gene_id) %>%
-    mutate(
-        count_NA = sum(is.na(pctM)), # Count of NA values
-        count_nonNA = sum(!is.na(pctM)), # Count of non-NA values
-        .groups = "drop" # Drop the grouping
-    ) %>%
-    ungroup() %>%
-    filter(count_nonNA > 50) %>%
-    group_by(cpgID) %>%
-    mutate(
-        count_CpG_NA = sum(is.na(pctM)), # Count of NA values
-        count_CpG_nonNA = sum(!is.na(pctM)), # Count of non-NA values
-        .groups = "drop" # Drop the grouping
-    ) %>%
-    ungroup() %>%
-    filter(count_CpG_nonNA > 50) %>%
-    heatmap(gene_id, cpgID, pctM, cluster_rows = TRUE, cluster_columns = FALSE)
-
-p <- merged %>%
-    filter(sample == "AD1") %>%
+    filter(sample == "PRO1") %>%
     group_by(gene_id) %>%
     mutate(cpgs_detected_per_element = n()) %>%
     ungroup() %>%
@@ -224,6 +204,18 @@ p <- merged %>%
 
 dir.create(outputdir, recursive = TRUE)
 mysaveandstore(sprintf("%s/pro5.pdf", outputdir), w = 6, h = 6)
+
+
+p <- merged %>%
+    filter(sample == "SEN1") %>%
+    group_by(gene_id) %>%
+    mutate(cpgs_detected_per_element = n()) %>%
+    ungroup() %>%
+    filter(cpgs_detected_per_element > 50) %>%
+    heatmap(gene_id, cpgID, pctM, cluster_rows = TRUE, cluster_columns = FALSE)
+
+dir.create(outputdir, recursive = TRUE)
+mysaveandstore(sprintf("%s/sen5.pdf", outputdir), w = 6, h = 6)
 
 hms <- list()
 for (sample in conf$samples) {
@@ -240,9 +232,14 @@ for (sample in conf$samples) {
 }
 
 elements_of_interest <- c("L1HS_2p13.2_1", "L1HS_2q21.1_2")
-rmann %>%
-    filter(gene_id == elements_of_interest[2]) %>%
-    print(width = Inf)
+# resdf <- read_delim("/users/mkelsey/data/LF1/RTE/srna/results/agg/deseq/resultsdf.tsv")
+# resdf %>% filter(gene_id == "L1HS_2q21.1_2") %>% print(width = Inf)
+resultsdf <- resdf %>% left_join(rmann)
+resultsdf %>% filter(rte_subfamily == "L1HS") %>% filter(rte_length_req == "FL") %>% arrange(-LSEN2) %>% print(width = Inf)
+
+groit <- rmann %>%
+    filter(gene_id == elements_of_interest[1]) %>%
+    print(width = Inf) %>% GRanges()
 
 p <- merged %>%
     filter(condition == "SEN") %>%
