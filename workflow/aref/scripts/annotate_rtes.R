@@ -310,7 +310,7 @@ tryCatch(
                 system(sprintf("makeblastdb -in %s -dbtype 'prot'", orf_aa_consensus_path))
 
                 orf_aa_ss_all <- Biostrings::translate(orf_ss_all)
-                orf_aa_ss_all_path <- sprintf("%s/intactness_annotation_workdir/%s_all_orfs_aa.fa", outputdir, element, modal_width)
+                orf_aa_ss_all_path <- sprintf("%s/intactness_annotation_workdir/%s_all_orfs_aa.fa", outputdir, element)
                 writeXStringSet(orf_aa_ss_all,orf_aa_ss_all_path)
 
                 orf_aa_ss_all_blast_results_path <- sprintf("%s/intactness_annotation_workdir/%s_orf_length_%s_aa_blast_to_consensus_results.tsv", outputdir, element, modal_width)
