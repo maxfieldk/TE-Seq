@@ -9,6 +9,8 @@ library(GenomicFeatures)
 library(GenomicRanges)
 library(rtracklayer)
 library(ORFik)
+library(rBLAST)
+
 
 tryCatch(
     {
@@ -211,7 +213,9 @@ if (conf$species == "human") {
 fa <- Rsamtools::FaFile(inputs$ref)
 seqnames(seqinfo(fa))
 rmfragments %$% refstatus %>% unique()
-if (conf$species == "human") {
+if (conf$orf_intactness$automatically_find_subfamilies_of_interest == "no") {
+    element_to_annotate <- names(conf$orf_intactness$manual_subfamilies_of_interest)
+} else if (conf$species == "human") {
     element_to_annotate <- c("L1HS", "L1PA2")
 } else if (conf$species == "mouse") {
     element_to_annotate <- c(
@@ -238,28 +242,33 @@ tryCatch(
             flss <- active_family_ss[as.numeric(mcols(active_family_ss)$pctconsensuscovered) >= 95]
 
             # orf analysis
-            z_score_cutoff <- 4
-            pos <- ORFik::findORFs(flss, startCodon = "ATG", longestORF = TRUE, minimumLength = 333)
-            names(pos) <- names(flss[as.integer(names(pos))])
-            orf_frame <- as.data.frame(pos) %>%
-                tibble()
-            binwidth_df <- orf_frame %>%
-                group_by(width) %>%
-                mutate(average_start = mean(start)) %>%
-                summarise(n = n(), average_start = dplyr::first(average_start)) %>%
-                mutate(orf_length_zscore = (n - mean(n)) / sd(n))
+            if (conf$orf_intactness$automatically_find_subfamilies_of_interest == "yes") {
+                z_score_cutoff <- 4
+                pos <- ORFik::findORFs(flss, startCodon = "ATG", longestORF = TRUE, minimumLength = 333)
+                names(pos) <- names(flss[as.integer(names(pos))])
+                orf_frame <- as.data.frame(pos) %>%
+                    tibble()
+                binwidth_df <- orf_frame %>%
+                    group_by(width) %>%
+                    mutate(average_start = mean(start)) %>%
+                    summarise(n = n(), average_start = dplyr::first(average_start)) %>%
+                    mutate(orf_length_zscore = (n - mean(n)) / sd(n))
 
-            p <- ggplot(binwidth_df) +
-                geom_point(aes(x = width, y = orf_length_zscore, color = orf_length_zscore > z_score_cutoff)) +
-                geom_hline(yintercept = z_score_cutoff, color = "red") +
-                mtopen +
-                theme(legend.position = "none") +
-                labs(x = "ORF Length", y = "Z-Score", title = element) +
-                scale_color_manual(values = c("TRUE" = "red", "FALSE" = "black"))
-            mysave(sprintf("%s/intactness_annotation_workdir/%s_orf_lengths.pdf", outputdir, element), 4, 4)
-            modal_widths <- binwidth_df %>%
-                filter(orf_length_zscore > z_score_cutoff) %>%
-                arrange(-average_start) %$% width
+                p <- ggplot(binwidth_df) +
+                    geom_point(aes(x = width, y = orf_length_zscore, color = orf_length_zscore > z_score_cutoff)) +
+                    geom_hline(yintercept = z_score_cutoff, color = "red") +
+                    mtopen +
+                    theme(legend.position = "none") +
+                    labs(x = "ORF Length", y = "Z-Score", title = element) +
+                    scale_color_manual(values = c("TRUE" = "red", "FALSE" = "black"))
+                mysave(sprintf("%s/intactness_annotation_workdir/%s_orf_lengths.pdf", outputdir, element), 4, 4)
+                modal_widths <- binwidth_df %>%
+                    filter(orf_length_zscore > z_score_cutoff) %>%
+                    arrange(-average_start) %$% width
+            } else {
+                modal_widths <- as.numeric(conf$orf_intactness$manual_subfamilies_of_interest[[element]])
+            }
+
             element_orf_intactness_df <- tibble(gene_id = names(active_family_ss))
             for (modal_width in modal_widths) {
                 # first build the consensus sequence using only fl elements
@@ -297,15 +306,20 @@ tryCatch(
                     names(ss) <- c(row$element_orf_id)
                     orf_ss_all <- c(orf_ss_all, ss)
                 }
+                
+                system(sprintf("makeblastdb -in %s -dbtype 'prot'", orf_aa_consensus_path))
+
                 orf_aa_ss_all <- Biostrings::translate(orf_ss_all)
-                library(rBLAST)
-                makeblastdb(orf_aa_consensus_path, dbtype = "prot")
-                bl <- blast(db = orf_aa_consensus_path, type = "blastp")
-                orf_aa_ss_all <- Biostrings::translate(orf_ss_all)
-                bres <- tibble(predict(bl, orf_aa_ss_all))
+                orf_aa_ss_all_path <- sprintf("%s/intactness_annotation_workdir/%s_all_orfs_aa.fa", outputdir, element)
+                writeXStringSet(orf_aa_ss_all,orf_aa_ss_all_path)
+
+                orf_aa_ss_all_blast_results_path <- sprintf("%s/intactness_annotation_workdir/%s_orf_length_%s_aa_blast_to_consensus_results.tsv", outputdir, element, modal_width)
+                system(sprintf("blastp -db %s -query %s -out %s -outfmt 7",orf_aa_consensus_path, orf_aa_ss_all_path, orf_aa_ss_all_blast_results_path))
+                bres <- read_delim(orf_aa_ss_all_blast_results_path, comment = "#", delim = "\t", col_names = c("qseqid","sseqid",    "pident", "length", "mismatch", "gapopen", "qstart",  "qend", "sstart",  "send", "evalue", "bitscore"))
                 bres <- bres %>%
                     separate_wider_delim(cols = qseqid, delim = ":", names = c("gene_id", "orf_start")) %>%
                     mutate(gene_orf_id = paste(gene_id, orf_start, delim = ":"))
+
                 # get intact ORFs
                 fully_intact_orfs <- bres %>%
                     filter(pident > 90) %>%
@@ -332,42 +346,6 @@ tryCatch(
                 element_orf_intactness_df <- left_join(element_orf_intactness_df, element_specific_orf_specific_df)
             }
             element_info_list[[element]] <- element_orf_intactness_df
-            #######
-
-            #     ### OLDER MSA analysis
-            #     # get all orfs that are +/- 10% of the modal width
-            #     tdf <- orf_frame %>% filter(width > modal_width * 0.9 & width < modal_width * 1.1)
-            #     tss <- flss[names(flss) %in% (tdf %$% group_name)]
-            #     tdf <- tdf[match(names(tss), tdf %$% group_name), ]
-            #     names(tss) == tdf %$% group_name
-            #     orf_ss <- subseq(tss, start = tdf$start, end = tdf$end)
-
-
-            #     library(seqinr)
-            #     orf_fa_path <- sprintf("%s/intactness_annotation_workdir/%s_orf_length_around_%s_aa.fa", outputdir, element, modal_width)
-            #     writeXStringSet(c(Biostrings::translate(orf_ss), consensus_aa_ss), file = orf_fa_path)
-            #     system(sprintf("echo $(pwd); mafft --auto %s > %s.aln.fa", orf_fa_path, orf_fa_path))
-            #     aln <- read.alignment(sprintf("%s.aln.fa", orf_fa_path), format = "fasta")
-            #     d <- dist.alignment(aln, "identity", gap = FALSE) %>% as.matrix()
-            #     d_gapped <- dist.alignment(aln, "identity", gap = TRUE) %>% as.matrix()
-
-            #     # pct identity to aa consensus
-            #     dsqaured <- d["consensus", ]**2
-            #     d_gappedsquared <- d_gapped["consensus", ]**2
-            #     # tgz_file <- rBLAST::blast_db_get("pdbaa.tar.gz")
-            #     # untar(tgz_file, exdir = "aref/blastdb/pdbaa")
-            #     # library(rBLAST)
-            #     # bl <- blast(db = "./aref/blastdb/pdbaa/pdbaa")
-            #     # bres <- tibble(predict(bl, consensus_aa_ss, ))
-
-            #     tdf <- as.data.frame(d_gappedsquared)
-            #     colnames(tdf) <- c(paste0("orf_", modal_width))
-            #     tdf$gene_id <- rownames(tdf)
-            #     tdf <- tibble(tdf)
-            #     tdf <- full_join(element_orf_intactness_df, tdf) %>% filter(gene_id != "consensus")
-            #     element_orf_intactness_df <- tdf
-            # }
-            # element_info_list[[element]] <- element_orf_intactness_df
         }
         rm(intactness_ann)
         for (i in 1:length(element_info_list)) {
@@ -424,8 +402,7 @@ tryCatch(
             }))
 
         intactness_ann_full <- intactness_ann
-        intactness_ann_full %>%
-            save(., file = paste(dirname(outputs$rmann), "intactness_ann_full.Robj", sep = "/"))
+        save(intactness_ann_full, file = paste(dirname(outputs$rmann), "intactness_ann_full.Robj", sep = "/"))
 
         intactness_ann <- intactness_ann %>%
             mutate(
@@ -435,7 +412,7 @@ tryCatch(
                 partial_orf_passes_mutation_threshold = map_chr(partial_orf_passes_mutation_threshold, ~ paste(.x, collapse = ";"))
             ) %>%
             dplyr::select(gene_id, intactness_req, orf_passes_mutation_threshold, partial_orf_passes_mutation_threshold)
-    },
+            },
     error = function(e) {
         print("no elements annotated for intactness")
         intactness_ann <- rmfragments %>%
@@ -713,8 +690,8 @@ telomere <- telomeredf %>%
     dplyr::rename(seqnames = X1, start = X2, end = X3) %>%
     GRanges()
 
-getannotation <- function(to_be_annotated, regions_of_interest, property, name_in, name_out) {
-    inregions <- to_be_annotated %>% subsetByOverlaps(regions_of_interest, invert = FALSE)
+getannotation <- function(to_be_annotated, regions_of_interest, property, name_in, name_out, ignore.strand = TRUE) {
+    inregions <- to_be_annotated %>% subsetByOverlaps(regions_of_interest, invert = FALSE, ignore.strand = ignore.strand)
     tryCatch(
         {
             inregions$prop <- name_in
@@ -723,7 +700,7 @@ getannotation <- function(to_be_annotated, regions_of_interest, property, name_i
             print("")
         }
     )
-    outregions <- to_be_annotated %>% subsetByOverlaps(regions_of_interest, invert = TRUE)
+    outregions <- to_be_annotated %>% subsetByOverlaps(regions_of_interest, invert = TRUE, ignore.strand = ignore.strand)
     tryCatch(
         {
             outregions$prop <- name_out
@@ -742,33 +719,36 @@ getannotation <- function(to_be_annotated, regions_of_interest, property, name_i
     return(annot)
 }
 
-genic_annot <- getannotation(rmfragmentsgr_properinsertloc, transcripts, "genic", "Genic", "Intergenic")
-coding_tx_annot <- getannotation(rmfragmentsgr_properinsertloc, coding_transcripts, "coding_tx", "CodingTx", "NonCodingTx")
-noncoding_tx_annot <- getannotation(rmfragmentsgr_properinsertloc, noncoding_transcripts, "noncoding_tx", "NoncodingTx", "NonNonCodingTx")
-coding_tx_adjacent_annot <- getannotation(rmfragmentsgr_properinsertloc, coding_transcript_adjacent, "coding_tx_adjacent", "CodingTxAdjacent", "NonCodingTxAdjacent")
-noncoding_tx_adjacent_annot <- getannotation(rmfragmentsgr_properinsertloc, noncoding_transcript_adjacent, "noncoding_tx_adjacent", "NoncodingTxAdjacent", "NonNonCodingTxAdjacent")
-exonic_annot <- getannotation(rmfragmentsgr_properinsertloc, exons, "exonic", "Exonic", "NonExonic")
-intron_annot <- getannotation(rmfragmentsgr_properinsertloc, introns, "intronic", "Intronic", "NonIntronic")
-utr5_annot <- getannotation(rmfragmentsgr_properinsertloc, fiveUTRs, "utr5", "5UTR", "Non5UTR")
-utr3_annot <- getannotation(rmfragmentsgr_properinsertloc, threeUTRs, "utr3", "3UTR", "Non3UTR")
+genic_annot_unstranded <- getannotation(rmfragmentsgr_properinsertloc, transcripts, "genic", "Genic", "Intergenic")
+genic_annot_stranded <- getannotation(rmfragmentsgr_properinsertloc, transcripts, "genic", "Genic", "Intergenic", FALSE)
+orientation_annot <- tibble(gene_id =genic_annot_unstranded$gene_id, orientation = ifelse(genic_annot_unstranded$genic == "Intergenic", "Intergenic", ifelse(genic_annot_stranded$genic == genic_annot_unstranded$genic, "Sense", "Antisense")))
+
+coding_tx_annot_unstranded <- getannotation(rmfragmentsgr_properinsertloc, coding_transcripts, "coding_tx", "CodingTx", "NonCodingTx")
+noncoding_tx_annot_unstranded <- getannotation(rmfragmentsgr_properinsertloc, noncoding_transcripts, "noncoding_tx", "NoncodingTx", "NonNonCodingTx")
+coding_tx_adjacent_annot_unstranded <- getannotation(rmfragmentsgr_properinsertloc, coding_transcript_adjacent, "coding_tx_adjacent", "CodingTxAdjacent", "NonCodingTxAdjacent")
+noncoding_tx_adjacent_annot_unstranded <- getannotation(rmfragmentsgr_properinsertloc, noncoding_transcript_adjacent, "noncoding_tx_adjacent", "NoncodingTxAdjacent", "NonNonCodingTxAdjacent")
+exonic_annot_unstranded <- getannotation(rmfragmentsgr_properinsertloc, exons, "exonic", "Exonic", "NonExonic")
+intron_annot_unstranded <- getannotation(rmfragmentsgr_properinsertloc, introns, "intronic", "Intronic", "NonIntronic")
+utr5_annot_unstranded <- getannotation(rmfragmentsgr_properinsertloc, fiveUTRs, "utr5", "5UTR", "Non5UTR")
+utr3_annot_unstranded <- getannotation(rmfragmentsgr_properinsertloc, threeUTRs, "utr3", "3UTR", "Non3UTR")
 
 cent_annot <- getannotation(rmfragmentsgr_properinsertloc, centromere, "centromeric", "Centromeric", "NonCentromeric")
 telo_annot <- getannotation(rmfragmentsgr_properinsertloc, telomere, "telomeric", "Telomeric", "NonTelomeric")
-genic_annot %$% genic %>% table()
+genic_annot_unstranded %$% genic %>% table()
 cent_annot %$% centromeric %>% table()
 telo_annot %$% telomeric %>% table()
 
-region_annot <- full_join(genic_annot, coding_tx_annot) %>%
-    full_join(noncoding_tx_annot) %>%
-    full_join(coding_tx_adjacent_annot) %>%
-    full_join(noncoding_tx_adjacent_annot) %>%
+region_annot <- full_join(genic_annot_unstranded, orientation_annot) %>%
+    full_join(coding_tx_annot_unstranded) %>%
+    full_join(noncoding_tx_annot_unstranded) %>%
+    full_join(coding_tx_adjacent_annot_unstranded) %>%
+    full_join(noncoding_tx_adjacent_annot_unstranded) %>%
+    full_join(exonic_annot_unstranded) %>%
+    full_join(intron_annot_unstranded) %>%
+    full_join(utr5_annot_unstranded) %>%
+    full_join(utr3_annot_unstranded) %>%
     full_join(cent_annot) %>%
-    full_join(telo_annot) %>%
-    full_join(exonic_annot) %>%
-    full_join(intron_annot) %>%
-    full_join(utr5_annot) %>%
-    full_join(utr3_annot)
-
+    full_join(telo_annot)
 
 region_annot <- region_annot %>%
     mutate(loc_integrative = case_when(
@@ -792,6 +772,43 @@ region_annot <- region_annot %>%
         loc_integrative == "Exonic" ~ "Genic",
         loc_integrative == "Intronic" ~ "Genic",
         loc_integrative == "NoncodingTx" ~ "Genic",
+        loc_integrative == "NoncodingTxAdjacent" ~ "Gene Adjacent",
+        loc_integrative == "Intergenic" ~ "Intergenic",
+        loc_integrative == "Telomeric" ~ "Intergenic",
+        TRUE ~ "Other"
+    )) %>%
+    mutate(
+    loc_integrative_stranded = case_when(
+        exonic == "Exonic" & orientation == "Sense" ~ "Exonic_Sense",
+        utr5 == "5utr" & orientation == "Sense" ~ "5utr_Sense",
+        utr3 == "3utr" & orientation == "Sense" ~ "3utr_Sense",
+        intronic == "Intronic" & orientation == "Sense" ~ "Intronic_Sense",
+        exonic == "Exonic" & orientation == "Antisense" ~ "Exonic_Antisense",
+        utr5 == "5utr" & orientation == "Antisense" ~ "5utr_Antisense",
+        utr3 == "3utr" & orientation == "Antisense" ~ "3utr_Antisense",
+        intronic == "Intronic" & orientation == "Antisense" ~ "Intronic_Antisense",
+        coding_tx == "CodingTx" & orientation == "Sense" ~ "CodingTxOther_Sense",
+        noncoding_tx == "NoncodingTx" & orientation == "Sense" ~ "NoncodingTx_Sense",
+        coding_tx == "CodingTx" & orientation == "Antisense" ~ "CodingTxOther_Antisense",
+        noncoding_tx == "NoncodingTx" & orientation == "Antisense" ~ "NoncodingTx_Antisense",
+        coding_tx_adjacent == "CodingTxAdjacent" ~ "CodingTxAdjacent",
+        noncoding_tx_adjacent == "NoncodingTxAdjacent" ~ "NoncodingTxAdjacent",
+        centromeric == "Centromeric" ~ "Centromeric",
+        telomeric == "Telomeric" ~ "Telomeric",
+        genic == "Intergenic" ~ "Intergenic",
+        TRUE ~ "Other"
+    )) %>%
+    mutate(loc_lowres_integrative_stranded = case_when(
+        loc_integrative == "Centromeric" ~ "Intergenic",
+        loc_integrative == "CodingTxAdjacent" ~ "Gene Adjacent",
+        loc_integrative == "Intron" & orientation == "Antisense" ~ "Genic_Antisense",
+        loc_integrative == "Exonic" & orientation == "Antisense" ~ "Genic_Antisense",
+        loc_integrative == "Intronic" & orientation == "Antisense" ~ "Genic_Antisense",
+        loc_integrative == "NoncodingTx" & orientation == "Antisense" ~ "Genic_Antisense",
+        loc_integrative == "Intron" & orientation == "Sense" ~ "Genic_Sense",
+        loc_integrative == "Exonic" & orientation == "Sense" ~ "Genic_Sense",
+        loc_integrative == "Intronic" & orientation == "Sense" ~ "Genic_Sense",
+        loc_integrative == "NoncodingTx" & orientation == "Sense" ~ "Genic_Sense",
         loc_integrative == "NoncodingTxAdjacent" ~ "Gene Adjacent",
         loc_integrative == "Intergenic" ~ "Intergenic",
         loc_integrative == "Telomeric" ~ "Intergenic",

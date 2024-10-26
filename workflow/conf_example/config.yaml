@@ -36,6 +36,15 @@ aref:
       Alu: 8
       ERV: 12
       Other: 15 
+  orf_intactness: #specify which elements to anotate for open reading frame (ORF) intactness. By default, human is annotated for L1HS and L1PA2, and mouse is annotated for the L1MdTf, Gf, and A subfamilies. Other species will have their youngest (least diverged) 7 LINE subfamilies examined. Common ORF lengths will be automatically detected and examined.
+    automatically_find_subfamilies_of_interest: "yes" #yes or no. If "no" provide values to the "subfamilies_of_interest" key. If "yes" nothing need be provided.
+    manual_subfamilies_of_interest:
+      L1HS: #specify subfamily names to examine (must be a trailing value (everything after the last "/" character) in the aref/default/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv "family" column); e.g. "L1HS" for the "LINE/L1/L1HS" entry.
+        - 1017 #specify the ORF lengths (in nucleotides) to search for (ORFs of length +/- 10% the specified value will be considered). Multiple lengths can be provided.
+        - 3828 #specify the ORF lengths (in nucleotides) to search for (ORFs of length +/- 10% the specified value will be considered). Multiple lengths can be provided.
+      L1PA2: #specify subfamily names to examine (must be a value in the rte_subfamily column).
+        - 1017 #specify the ORF lengths (in nucleotides) to search for (ORFs of length +/- 10% the specified value will be considered). Multiple lengths can be provided.
+        - 3828 #specify the ORF lengths (in nucleotides) to search for (ORFs of length +/- 10% the specified value will be considered). Multiple lengths can be provided.
 
   #USER PROVIDED ANNOTATIONS - CHANGE PATHS AS NEEDED
   #Be sure to follow ucsc naming conventions, e.g. chr1, chr2, ...

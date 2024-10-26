@@ -1,4 +1,4 @@
-container: "docker://maxfieldkelsey/pipelinerteseq:v1.0"
+container: "docker://maxfieldkelsey/te-seq:v1.1"
 
 import os
 import pandas as pd

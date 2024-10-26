@@ -970,7 +970,7 @@ rule pat_fig:
         # pat = expand("ldna/results/wgbs/{sample}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
     params:
         # methylartist_loci_of_interest = config["ldna"]["methylartist_loci_of_interest"],
-        loci_of_interest = ["ldna/Rintermediates/dm_FL_L1HS_promoters.bed", "ldna/Rintermediates/dm_Intact_L1HS_promoters.bed"]
+        loci_of_interest = ["aref/A.REF_annotations/A.REF_rte_beds/L1HS_intactness_req_ALL.bed", "ldna/Rintermediates/audrey_element.bed", "ldna/Rintermediates/audrey_element_promoter.bed", "ldna/Rintermediates/dm_FL_L1HS_promoters.bed", "ldna/Rintermediates/dm_Intact_L1HS_promoters.bed"]
     output:
         outfile = "ldna/results/wgbs/plots/pat_fig.outfile"
         # pat_fig = "ldna/results/wgbs/plots/{region}.pat.pdf"
