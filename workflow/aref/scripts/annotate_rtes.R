@@ -32,6 +32,8 @@ tryCatch(
 )
 outputdir <- dirname(outputs$rmann)
 rmfragments <- read_csv(inputs$r_annotation_fragmentsjoined, col_names = TRUE)
+
+########################################################## SETUP GROUPING COLUMNS
 rmfamilies <- rmfragments %>%
     dplyr::select(gene_id, family) %>%
     mutate(repeat_superfamily = case_when(
@@ -209,7 +211,7 @@ if (conf$species == "human") {
         mutate(l1_subfamily = replace_na(l1_subfamily, "Other"))
 }
 
-# Annotate Intactness
+########################################################## ANNOTATE INTACTNESS
 fa <- Rsamtools::FaFile(inputs$ref)
 seqnames(seqinfo(fa))
 rmfragments %$% refstatus %>% unique()
@@ -296,7 +298,7 @@ tryCatch(
                 names(pos) <- names(active_family_ss[as.integer(names(pos))])
                 orf_frame_all <- as.data.frame(pos) %>%
                     tibble()
-                ###### NEW BLAST ANALYSIS
+                ###### BLAST ANALYSIS
                 tdf <- orf_frame_all
                 tdf <- tdf %>% mutate(element_orf_id = paste(group_name, start, sep = ":"))
                 orf_ss_all <- DNAStringSet()
@@ -421,6 +423,8 @@ tryCatch(
     }
 )
 
+########################################################## ANNOTATE LENGTH AND AGE
+
 fulllength_trnc_length_threshold <- conf$fulllength_trnc_length_threshold
 length_ann <- rmfragments %>%
     dplyr::select(gene_id, pctconsensuscovered) %>%
@@ -471,6 +475,8 @@ req_annot <- req_annot %>%
     )) %>%
     mutate(req_integrative = factor(req_integrative, levels = c("Old Trnc", "Old FL", "Yng Trnc", "Yng FL", "Yng Intact")))
 
+
+########################################################## REFINE LTR ANNOTATIONS
 # annotate LTR/Int relationship
 capture_distance <- 500
 ltrs <- rmfamilies %>%
@@ -612,7 +618,7 @@ if (length(rownames(group_frame)) == 0) {
 }
 
 
-
+########################################################## ANNOTATE ELEMENT INSERT SITE
 
 # for annotation purposes, I will have to have the location of nonreference inserts be their insertion site
 rmfragments_ref <- rmfragments %>% filter(!str_detect(seqnames, "^NI"))
@@ -656,10 +662,11 @@ if (length(coding_transcripts) == 0) { # incase ensemble annotation is used agai
 }
 transcripts <- c(coding_transcripts, noncoding_transcripts)
 
-coding_transcript_upstream <- coding_transcripts %>% flank(10000)
-noncoding_transcript_upstream <- noncoding_transcripts %>% flank(10000)
-coding_transcript_downstream <- coding_transcripts %>% flank(10000, start = FALSE)
-noncoding_transcript_downstream <- noncoding_transcripts %>% flank(10000, start = FALSE)
+gene_adjacency_threshold <- conf$gene_adjacency_threshold
+coding_transcript_upstream <- coding_transcripts %>% flank(gene_adjacency_threshold)
+noncoding_transcript_upstream <- noncoding_transcripts %>% flank(gene_adjacency_threshold)
+coding_transcript_downstream <- coding_transcripts %>% flank(gene_adjacency_threshold, start = FALSE)
+noncoding_transcript_downstream <- noncoding_transcripts %>% flank(gene_adjacency_threshold, start = FALSE)
 
 coding_transcript_adjacent <- c(coding_transcript_upstream, coding_transcript_downstream)
 noncoding_transcript_adjacent <- c(noncoding_transcript_upstream, noncoding_transcript_downstream)
@@ -745,14 +752,14 @@ getannotation <- function(to_be_annotated, regions_of_interest, property, name_i
 }
 
 genic_annot <- getannotation(rmfragmentsgr_properinsertloc, transcripts, "genic", "Genic", "Intergenic")
-coding_tx_annot <- getannotation(rmfragmentsgr_properinsertloc, coding_transcripts, "coding_tx", "CodingTx", "NotCodingTx")
-noncoding_tx_annot <- getannotation(rmfragmentsgr_properinsertloc, noncoding_transcripts, "noncoding_tx", "NoncodingTx", "NotNonCodingTx")
-coding_tx_adjacent_annot <- getannotation(rmfragmentsgr_properinsertloc, coding_transcript_adjacent, "coding_tx_adjacent", "CodingTxAdjacent", "NotCodingTxAdjacent")
-coding_tx_upstream_annot <- getannotation(rmfragmentsgr_properinsertloc, coding_transcript_upstream, "coding_tx_upstream", "CodingTxUpstream", "NotCodingTxUpstream")
-coding_tx_downstream_annot <- getannotation(rmfragmentsgr_properinsertloc, coding_transcript_downstream, "coding_tx_downstream", "CodingTxDownstream", "NotCodingTxDownstream")
-noncoding_tx_adjacent_annot <- getannotation(rmfragmentsgr_properinsertloc, noncoding_transcript_adjacent, "noncoding_tx_adjacent", "NoncodingTxAdjacent", "NotNoncodingTxAdjacent")
-noncoding_tx_upstream_annot <- getannotation(rmfragmentsgr_properinsertloc, noncoding_transcript_upstream, "noncoding_tx_upstream", "NoncodingTxUpstream", "NotNoncodingTxUpstream")
-noncoding_tx_downstream_annot <- getannotation(rmfragmentsgr_properinsertloc, noncoding_transcript_downstream, "noncoding_tx_downstream", "NoncodingTxDownstream", "NotNoncodingTxDownstream")
+coding_tx_annot <- getannotation(rmfragmentsgr_properinsertloc, coding_transcripts, "coding_tx", "CdgTx", "NotCdgTx")
+noncoding_tx_annot <- getannotation(rmfragmentsgr_properinsertloc, noncoding_transcripts, "noncoding_tx", "NoncdgTx", "NotNonCdgTx")
+coding_tx_adjacent_annot <- getannotation(rmfragmentsgr_properinsertloc, coding_transcript_adjacent, "coding_tx_adjacent", "CdgTxAdj", "NotCdgTxAdj")
+coding_tx_upstream_annot <- getannotation(rmfragmentsgr_properinsertloc, coding_transcript_upstream, "coding_tx_upstream", "CdgTxAdjUp", "NotCdgTxAdjUp")
+coding_tx_downstream_annot <- getannotation(rmfragmentsgr_properinsertloc, coding_transcript_downstream, "coding_tx_downstream", "CdgTxAdjDwn", "NotCdgTxAdjDwn")
+noncoding_tx_adjacent_annot <- getannotation(rmfragmentsgr_properinsertloc, noncoding_transcript_adjacent, "noncoding_tx_adjacent", "NoncdgTxAdj", "NotNoncdgTxAdj")
+noncoding_tx_upstream_annot <- getannotation(rmfragmentsgr_properinsertloc, noncoding_transcript_upstream, "noncoding_tx_upstream", "NoncdgTxAdjUp", "NotNoncdgTxAdjUp")
+noncoding_tx_downstream_annot <- getannotation(rmfragmentsgr_properinsertloc, noncoding_transcript_downstream, "noncoding_tx_downstream", "NoncdgTxAdjDwn", "NotNoncdgTxAdjDwn")
 exonic_annot <- getannotation(rmfragmentsgr_properinsertloc, exons, "exonic", "Exonic", "NonExonic")
 intronic_annot <- getannotation(rmfragmentsgr_properinsertloc, introns, "intronic", "Intronic", "NonIntronic")
 utr5_annot <- getannotation(rmfragmentsgr_properinsertloc, fiveUTRs, "utr5", "5UTR", "Non5UTR")
@@ -786,9 +793,9 @@ region_annot <- region_annot %>%
     mutate(loc_integrative = case_when(
         exonic == "Exonic" ~ "Exonic",
         intronic == "Intronic" ~ "Intronic",
-        noncoding_tx == "NoncodingTx" ~ "NoncodingTx",
-        coding_tx_adjacent == "CodingTxAdjacent" ~ "CodingTxAdjacent",
-        noncoding_tx_adjacent == "NoncodingTxAdjacent" ~ "NoncodingTxAdjacent",
+        noncoding_tx == "NoncdgTx" ~ "NoncdgTx",
+        coding_tx_adjacent == "CdgTxAdj" ~ "CdgTxAdj",
+        noncoding_tx_adjacent == "NoncdgTxAdj" ~ "NoncdgTxAdj",
         genic == "Intergenic" ~ "Intergenic",
         TRUE ~ "Other"
     )) %>%
@@ -797,21 +804,21 @@ region_annot <- region_annot %>%
         utr3 == "3UTR" ~ "UTR",
         exonic == "Exonic" ~ "Exonic",
         intronic == "Intronic" ~ "Intronic",
-        coding_tx == "CodingTx" ~ "CodingTxOther",
-        noncoding_tx == "NoncodingTx" ~ "NoncodingTx",
-        coding_tx_downstream == "CodingTxDownstream" ~ "CodingTxDownstream",
-        noncoding_tx_downstream == "NoncodingTxDownstream" ~ "NoncodingTxDownstream",
-        coding_tx_upstream == "CodingTxUpstream" ~ "CodingTxUpstream",
-        noncoding_tx_upstream == "NoncodingTxUpstream" ~ "NoncodingTxUpstream",
+        coding_tx == "CdgTx" ~ "CdgTxOther",
+        noncoding_tx == "NoncdgTx" ~ "NoncdgTx",
+        coding_tx_downstream == "CdgTxAdjDwn" ~ "CdgTxAdjDwn",
+        noncoding_tx_downstream == "NoncdgTxAdjDwn" ~ "NoncdgTxAdjDwn",
+        coding_tx_upstream == "CdgTxAdjUp" ~ "CdgTxAdjUp",
+        noncoding_tx_upstream == "NoncdgTxAdjUp" ~ "NoncdgTxAdjUp",
         genic == "Intergenic" ~ "Intergenic",
         TRUE ~ "Other"
     )) %>%
     mutate(loc_lowres_integrative = case_when(
         loc_integrative == "Exonic" ~ "Genic",
         loc_integrative == "Intronic" ~ "Genic",
-        loc_integrative == "NoncodingTx" ~ "Genic",
-        loc_integrative == "CodingTxAdjacent" ~ "Gene Adjacent",
-        loc_integrative == "NoncodingTxAdjacent" ~ "Gene Adjacent",
+        loc_integrative == "NoncdgTx" ~ "Genic",
+        loc_integrative == "CdgTxAdj" ~ "Gene Adj",
+        loc_integrative == "NoncdgTxAdj" ~ "Gene Adj",
         loc_integrative == "Intergenic" ~ "Intergenic",
         TRUE ~ "Other"
     )) %>%
@@ -819,16 +826,16 @@ region_annot <- region_annot %>%
     loc_integrative_stranded = case_when(
         exonic == "Exonic" & exonic_orientation == "Sense" ~ "Exonic_Sense",
         intronic == "Intronic" & intronic_orientation == "Sense" ~ "Intronic_Sense",
-        coding_tx == "CodingTx" & coding_tx_orientation == "Sense" ~ "CodingTxOther_Sense",
-        noncoding_tx == "NoncodingTx" & noncoding_tx_orientation == "Sense" ~ "NoncodingTx_Sense",
+        coding_tx == "CdgTx" & coding_tx_orientation == "Sense" ~ "CdgTxOther_Sense",
+        noncoding_tx == "NoncdgTx" & noncoding_tx_orientation == "Sense" ~ "NoncdgTx_Sense",
         exonic == "Exonic" & exonic_orientation == "Antisense" ~ "Exonic_Antisense",
         intronic == "Intronic" & intronic_orientation == "Antisense" ~ "Intronic_Antisense",
-        coding_tx == "CodingTx" & coding_tx_orientation == "Antisense" ~ "CodingTxOther_Antisense",
-        noncoding_tx == "NoncodingTx" & noncoding_tx_orientation == "Antisense" ~ "NoncodingTx_Antisense",
-        coding_tx_adjacent == "CodingTxAdjacent" & coding_tx_adjacent_orientation == "Sense" ~ "CodingTxAdjacent_Sense",
-        noncoding_tx_adjacent == "NoncodingTxAdjacent" & noncoding_tx_adjacent_orientation == "Sense" ~ "NoncodingTxAdjacent_Sense",
-        coding_tx_adjacent == "CodingTxAdjacent" & coding_tx_adjacent_orientation == "Antisense" ~ "CodingTxAdjacent_Antisense",
-        noncoding_tx_adjacent == "NoncodingTxAdjacent" & noncoding_tx_adjacent_orientation == "Antisense" ~ "NoncodingTxAdjacent_Antisense",
+        coding_tx == "CdgTx" & coding_tx_orientation == "Antisense" ~ "CdgTxOther_Antisense",
+        noncoding_tx == "NoncdgTx" & noncoding_tx_orientation == "Antisense" ~ "NoncdgTx_Antisense",
+        coding_tx_adjacent == "CdgTxAdj" & coding_tx_adjacent_orientation == "Sense" ~ "CdgTxAdj_Sense",
+        noncoding_tx_adjacent == "NoncdgTxAdj" & noncoding_tx_adjacent_orientation == "Sense" ~ "NoncdgTxAdj_Sense",
+        coding_tx_adjacent == "CdgTxAdj" & coding_tx_adjacent_orientation == "Antisense" ~ "CdgTxAdj_Antisense",
+        noncoding_tx_adjacent == "NoncdgTxAdj" & noncoding_tx_adjacent_orientation == "Antisense" ~ "NoncdgTxAdj_Antisense",
         genic == "Intergenic" ~ "Intergenic",
         TRUE ~ "Other"
     )) %>%
@@ -838,41 +845,42 @@ region_annot <- region_annot %>%
         utr3 == "3UTR" & utr3_orientation == "Sense" ~ "UTR_Sense",
         exonic == "Exonic" & exonic_orientation == "Sense" ~ "Exonic_Sense",
         intronic == "Intronic" & intronic_orientation == "Sense" ~ "Intronic_Sense",
-        coding_tx == "CodingTx" & coding_tx_orientation == "Sense" ~ "CodingTxOther_Sense",
-        noncoding_tx == "NoncodingTx" & noncoding_tx_orientation == "Sense" ~ "NoncodingTx_Sense",
+        coding_tx == "CdgTx" & coding_tx_orientation == "Sense" ~ "CdgTxOther_Sense",
+        noncoding_tx == "NoncdgTx" & noncoding_tx_orientation == "Sense" ~ "NoncdgTx_Sense",
         utr5 == "5UTR" & utr5_orientation == "Antisense" ~ "UTR_Antisense",
         utr3 == "3UTR" & utr3_orientation == "Antisense" ~ "UTR_Antisense",
         exonic == "Exonic" & exonic_orientation == "Antisense" ~ "Exonic_Antisense",
         intronic == "Intronic" & intronic_orientation == "Antisense" ~ "Intronic_Antisense",
-        coding_tx == "CodingTx" & coding_tx_orientation == "Antisense" ~ "CodingTxOther_Antisense",
-        noncoding_tx == "NoncodingTx" & noncoding_tx_orientation == "Antisense" ~ "NoncodingTx_Antisense",
-        coding_tx_downstream == "CodingTxDownstream" & coding_tx_downstream_orientation == "Sense" ~ "CodingTxDownstream_Sense",
-        noncoding_tx_downstream == "NoncodingTxDownstream" & noncoding_tx_downstream_orientation == "Sense" ~ "NoncodingTxDownstream_Sense",
-        coding_tx_upstream == "CodingTxUpstream" & coding_tx_upstream_orientation == "Sense" ~ "CodingTxUpstream_Sense",
-        noncoding_tx_upstream == "NoncodingTxUpstream" & noncoding_tx_upstream_orientation == "Sense" ~ "NoncodingTxUpstream_Sense",
-        coding_tx_downstream == "CodingTxDownstream" & coding_tx_downstream_orientation == "Antisense" ~ "CodingTxDownstream_Antisense",
-        noncoding_tx_downstream == "NoncodingTxDownstream" & noncoding_tx_downstream_orientation == "Antisense" ~ "NoncodingTxDownstream_Antisense",
-        coding_tx_upstream == "CodingTxUpstream" & coding_tx_upstream_orientation == "Antisense" ~ "CodingTxUpstream_Antisense",
-        noncoding_tx_upstream == "NoncodingTxUpstream" & noncoding_tx_upstream_orientation == "Antisense" ~ "NoncodingTxUpstream_Antisense",
+        coding_tx == "CdgTx" & coding_tx_orientation == "Antisense" ~ "CdgTxOther_Antisense",
+        noncoding_tx == "NoncdgTx" & noncoding_tx_orientation == "Antisense" ~ "NoncdgTx_Antisense",
+        coding_tx_downstream == "CdgTxAdjDwn" & coding_tx_downstream_orientation == "Sense" ~ "CdgTxAdjDwn_Sense",
+        noncoding_tx_downstream == "NoncdgTxAdjDwn" & noncoding_tx_downstream_orientation == "Sense" ~ "NoncdgTxAdjDwn_Sense",
+        coding_tx_upstream == "CdgTxAdjUp" & coding_tx_upstream_orientation == "Sense" ~ "CdgTxAdjUp_Sense",
+        noncoding_tx_upstream == "NoncdgTxAdjUp" & noncoding_tx_upstream_orientation == "Sense" ~ "NoncdgTxAdjUp_Sense",
+        coding_tx_downstream == "CdgTxAdjDwn" & coding_tx_downstream_orientation == "Antisense" ~ "CdgTxAdjDwn_Antisense",
+        noncoding_tx_downstream == "NoncdgTxAdjDwn" & noncoding_tx_downstream_orientation == "Antisense" ~ "NoncdgTxAdjDwn_Antisense",
+        coding_tx_upstream == "CdgTxAdjUp" & coding_tx_upstream_orientation == "Antisense" ~ "CdgTxAdjUp_Antisense",
+        noncoding_tx_upstream == "NoncdgTxAdjUp" & noncoding_tx_upstream_orientation == "Antisense" ~ "NoncdgTxAdjUp_Antisense",
         genic == "Intergenic" ~ "Intergenic",
         TRUE ~ "Other"
     )) %>%
     mutate(loc_lowres_integrative_stranded = case_when(
         loc_integrative == "Exonic" & exonic_orientation == "Sense" ~ "Genic_Sense",
         loc_integrative == "Intronic" & intronic_orientation == "Sense" ~ "Genic_Sense",
-        loc_integrative == "NoncodingTx" & noncoding_tx_orientation == "Sense" ~ "Genic_Sense",
+        loc_integrative == "NoncdgTx" & noncoding_tx_orientation == "Sense" ~ "Genic_Sense",
         loc_integrative == "Exonic" & exonic_orientation == "Antisense" ~ "Genic_Antisense",
         loc_integrative == "Intronic" & intronic_orientation == "Antisense" ~ "Genic_Antisense",
-        loc_integrative == "NoncodingTx" & noncoding_tx_orientation == "Antisense" ~ "Genic_Antisense",
-        loc_integrative == "CodingTxAdjacent" & coding_tx_adjacent_orientation == "Sense" ~ "Gene_Adjacent_Sense",
-        loc_integrative == "NoncodingTxAdjacent" & noncoding_tx_adjacent_orientation == "Sense" ~ "Gene_Adjacent_Sense",
-        loc_integrative == "CodingTxAdjacent" & coding_tx_adjacent_orientation == "Antisense" ~ "Gene_Adjacent_Antisense",
-        loc_integrative == "NoncodingTxAdjacent" & noncoding_tx_adjacent_orientation == "Antisense" ~ "Gene_Adjacent_Antisense",
+        loc_integrative == "NoncdgTx" & noncoding_tx_orientation == "Antisense" ~ "Genic_Antisense",
+        loc_integrative == "CdgTxAdj" & coding_tx_adjacent_orientation == "Sense" ~ "Gene_Adj_Sense",
+        loc_integrative == "NoncdgTxAdj" & noncoding_tx_adjacent_orientation == "Sense" ~ "Gene_Adj_Sense",
+        loc_integrative == "CdgTxAdj" & coding_tx_adjacent_orientation == "Antisense" ~ "Gene_Adj_Antisense",
+        loc_integrative == "NoncdgTxAdj" & noncoding_tx_adjacent_orientation == "Antisense" ~ "Gene_Adj_Antisense",
         loc_integrative == "Intergenic" ~ "Intergenic",
         TRUE ~ "Other"
     ))
 
 
+########################################################## RECORD INFORAMTION ABOUT NEAREST TRANSCRIPTS
 dist_to_nearest_coding_tx <- distanceToNearest(rmfragmentsgr_properinsertloc, coding_transcripts, ignore.strand = TRUE) %>%
     as.data.frame() %>%
     tibble()
@@ -898,6 +906,9 @@ dist_to_nearest_txs_df <- left_join(rmfamilies %>% dplyr::select(gene_id), dist_
     left_join(nearest_noncoding_tx_df) %>%
     left_join(nearest_tx_df)
 
+
+
+########################################################## PULL EVERYTHING TOEGETHER
 length(dist_to_nearest_noncoding_tx) 
 length(dist_to_nearest_coding_tx)
 length(rownames(rmfamilies))
