@@ -22,13 +22,12 @@ dir.create(outputdir)
 # Load data and prepare for model
 df <- read_csv("meth_for_bayes.csv")
 
-# Prepare data with integer indices for hierarchical model
 dat <- df %>%
     mutate(
         Nmeth = as.integer(pctM / 100 * cov),
         UTR_status = as.integer(factor(ifelse(consensus_pos < 909, "UTR", "Body"))),
         consensus_pos = factor(as.character(consensus_pos)),
-        sample = as.integer(factor(sample)),
+        sample = factor(sample),
         condition = factor(condition),
         gene_id = factor(gene_id)
     ) %>%
@@ -40,125 +39,90 @@ dat_index <- df %>%
         UTR_status = as.integer(factor(ifelse(consensus_pos < 909, "UTR", "Body"))),
         consensus_pos = as.integer(factor(as.character(consensus_pos))),
         sample = as.integer(factor(sample)),
-        condition = as.integer(factor(condition)),
+        condition = as.integer(factor(condition)) - 1,
         gene_id = as.integer(factor(gene_id))
     ) %>%
     dplyr::select(Nmeth, cov, UTR_status, consensus_pos, sample, condition, gene_id)
-dat %$% UTR_status
-# Define and fit the model
-m_var1 <- ulam(
+
+
+m_fixed <- ulam(
     alist(
         Nmeth ~ dbinom(cov, p),
-        logit(p) <- a[consensus_pos] + b[consensus_pos] * condition - 1,
-        a[consensus_pos] ~ dnorm(a_bar, a_sigma),
-        b[consensus_pos] ~ dnorm(b_bar, b_sigma),
-        a_bar ~ dnorm(0, 0.5),
-        a_sigma ~ dexp(0.5),
-        b_bar ~ dnorm(0, 0.5),
-        b_sigma ~ dexp(0.5)
+        logit(p) <- a + a_c[consensus_pos] +
+            a_g[gene_id] +
+            a_s[sample] +
+            b * (condition - 1),
+        b ~ dnorm(0, 1),
+        a ~ dnorm(0, 1),
+        a_c[consensus_pos] ~ dnorm(0, 1),
+        a_g[gene_id] ~ dnorm(0, 1),
+        a_s[sample] ~ dnorm(0, 1)
     ),
     data = dat, chains = 4, cores = 4, log_lik = FALSE
 )
 
-m_var2 <- ulam(
-    alist(
-        Nmeth ~ dbinom(cov, p),
-        logit(p) <- a_c[consensus_pos] + a_g[gene_id] + b * condition - 1,
-        a_c[consensus_pos] ~ dnorm(a_c_bar, a_c_sigma),
-        a_g[consensus_pos] ~ dnorm(a_g_bar, a_g_sigma),
-        b ~ dnorm(b_bar, b_sigma),
-        a_c_bar ~ dnorm(0, 0.5),
-        a_c_sigma ~ dexp(0.5),
-        a_g_bar ~ dnorm(0, 0.5),
-        a_g_sigma ~ dexp(0.5),
-        b ~ dnorm(0, 0.5),
-    ),
-    data = dat, chains = 4, cores = 4, log_lik = FALSE
-)
+saveRDS(m_fixed, "m_fixed.rds", compress = FALSE)
+
 
 m_var2_uncentered <- ulam(
     alist(
         Nmeth ~ dbinom(cov, p),
-        logit(p) <- a_c_bar + z_c[consensus_pos] * a_c_sigma +
+        logit(p) <- a + a_c_bar + z_c[consensus_pos] * a_c_sigma +
             a_g_bar + z_g[gene_id] * a_g_sigma +
+            a_s_bar + z_s[sample] * a_s_sigma +
             b * condition,
 
         # Non-centered parameters
         vector[consensus_pos]:z_c ~ dnorm(0, 1),
         vector[gene_id]:z_g ~ dnorm(0, 1),
+        vector[sample]:z_s ~ dnorm(0, 1),
 
         # Hyperpriors
         a_c_bar ~ dnorm(0, 1),
         a_c_sigma ~ dexp(1),
         a_g_bar ~ dnorm(0, 1),
         a_g_sigma ~ dexp(1),
-
+        a_s_bar ~ dnorm(0, 1),
+        a_s_sigma ~ dexp(1),
         # Prior for b
         b ~ dnorm(0, 1),
+        a ~ dnorm(0, 1),
 
         # Generated quantities for easier interpretation
         gq > vector[consensus_pos]:a_c <<- a_c_bar + z_c * a_c_sigma,
-        gq > vector[gene_id]:a_g <<- a_g_bar + z_g * a_g_sigma
+        gq > vector[gene_id]:a_g <<- a_g_bar + z_g * a_g_sigma,
+        gq > vector[sample]:a_s <<- a_s_bar + z_s * a_s_sigma
     ),
     data = dat_index, chains = 4, cores = 4, log_lik = FALSE
 )
 
 saveRDS(m_var2_uncentered, "m_var2_uncentered.rds", compress = FALSE)
 
-m_var2_uncentered <- readRDS("m_var2_uncentered.rds")
-
-m_var2_stratified <- ulam(
+m_var1_uncentered <- ulam(
     alist(
         Nmeth ~ dbinom(cov, p),
+        logit(p) <- a + a_s_bar + z_s[sample] * a_s_sigma +
+            b * condition,
 
-        # The logistic regression for p, now with a varying b by gene_id and consensus_pos
-        logit(p) <- a_c_bar + z_c[consensus_pos] * a_c_sigma +
-            a_g_bar + z_g[gene_id] * a_g_sigma +
-            b_bar + z_b[gene_id, consensus_pos] * b_sigma,
+        # Non-centered parameters
+        vector[sample]:z_s ~ dnorm(0, 1),
 
-        # Non-centered parameters for consensus_pos and gene_id
-        vector[consensus_pos]:z_c ~ dnorm(0, 1),
-        vector[gene_id]:z_g ~ dnorm(0, 1),
-
-        # Non-centered varying effect for b by gene_id and consensus_pos
-        matrix[gene_id, consensus_pos]:z_b ~ dnorm(0, 1),
-
-        # Hyperpriors for varying intercepts
-        a_c_bar ~ dnorm(0, 1),
-        a_c_sigma ~ dexp(1),
-        a_g_bar ~ dnorm(0, 1),
-        a_g_sigma ~ dexp(1),
-
-        # Hyperpriors for b stratified by gene_id and consensus_pos
-        b_bar ~ dnorm(0, 1),
-        b_sigma ~ dexp(1),
+        # Hyperpriors
+        a_s_bar ~ dnorm(0, 1),
+        a_s_sigma ~ dexp(1),
+        # Prior for b
+        b ~ dnorm(0, 1),
+        a ~ dnorm(0, 1),
 
         # Generated quantities for easier interpretation
-        gq > vector[consensus_pos]:a_c <<- a_c_bar + z_c * a_c_sigma,
-        gq > vector[gene_id]:a_g <<- a_g_bar + z_g * a_g_sigma,
-        gq > matrix[gene_id, consensus_pos]:b_stratified <<- b_bar + z_b * b_sigma
+        gq > vector[sample]:a_s <<- a_s_bar + z_s * a_s_sigma
     ),
     data = dat_index, chains = 4, cores = 4, log_lik = FALSE
 )
 
-saveRDS(m_var2_stratified, "m_var2_stratified.rds", compress = FALSE)
+saveRDS(m_var1_uncentered, "m_var1_uncentered.rds", compress = FALSE)
 
-# m2.3 <- ulam(
-#     alist(
-#         Nmeth ~ dbinom(cov, p),
-#         logit(p) <- a_position[consensus_pos_index] + a_gene_id[gene_id_index] + a_condition[condition_index],
-#         a_position[consensus_pos_index] ~ dnorm(a_position_bar, sigma_position),
-#         a_position_bar ~ dnorm(0, 2),
-#         sigma_position ~ dexp(0.5),
-#         a_gene_id[gene_id_index] ~ dnorm(a_gene_id_bar, sigma_gene_id),
-#         a_gene_id_bar ~ dnorm(0, 2),
-#         sigma_gene_id ~ dexp(0.5),
-#         a_condition[condition_index] ~ dnorm(a_condition_bar, sigma_condition),
-#         a_condition_bar ~ dnorm(0, 2),
-#         sigma_condition ~ dexp(0.5)
-#     ),
-#     data = df_m %>% dplyr::select(-UTR_status, -sample_index), chains = 4, cores = 4, log_lik = FALSE
-# )
+
 
 summary(m_var)
 m_var1 <- m_var1 %>%

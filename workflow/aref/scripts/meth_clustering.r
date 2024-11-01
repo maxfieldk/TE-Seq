@@ -65,7 +65,7 @@ rmann <- left_join(rmfragments, rmfamilies) %>%
 rtedf <- read_delim("ldna/Rintermediates/rtedf.tsv", col_names = TRUE)
 
 ##############################
-outputdir <- "/users/mkelsey/data/LF1/RTE/ldna/results/plots/l1_alignment_meth"
+outputdir_already_computed <- "/users/mkelsey/data/LF1/RTE/ldna/results/plots/l1_alignment_meth"
 outputdir <- "ldna/results/plots/l1_alignment_meth"
 
 subfam <- "L1HS"
@@ -166,19 +166,9 @@ align_index_long <- read_csv(sprintf("%s/%s_fl_mapping_to_alignment_table.csv", 
 write_csv(consensus_index_long, sprintf("%s/%s_fl_mapping_to_consensus_table.csv", outputdir, subfam))
 consensus_index_long <- read_csv(sprintf("%s/%s_fl_mapping_to_consensus_table.csv", outputdir, subfam))
 
-# motif analysis of consensus
-motif_pwms_path <- "/oscar/home/mkelsey/anaconda/gimme/lib/python3.10/site-packages/data/motif_databases/HOCOMOCOv11_HUMAN.pfm"
-conda_base_path <- system("conda info --base", intern = TRUE)
-motif_search_output_path <- sprintf("%s/alignments/%s_fl_consensus_with_gaps.motifs.bed", outputdir, subfam)
 
-system(
-    sprintf(
-        "source %s/etc/profile.d/conda.sh && conda activate gimme && gimme scan %s -g %s -p %s -c 0.9 -n 10 -b > %s",
-        conda_base_path, consensus_path, inputs$ref, motif_pwms_path, motif_search_output_path
-    )
-)
-
-motifs_df <- as.data.frame(rtracklayer::import(motif_search_output_path)) %>% tibble()
+consensus_index_long <- read_csv(sprintf("%s/%s_fl_mapping_to_consensus_table.csv", outputdir_already_computed, subfam))
+align_index_long <- read_csv(sprintf("%s/%s_fl_mapping_to_alignment_table.csv", outputdir_already_computed, subfam))
 
 
 # Combine the individual data frames into one tidy data frame
@@ -189,17 +179,6 @@ cg_indices <- consensus_ss %>%
     as.numeric()
 consensus_ss[[1]][5762:5763]
 cg_positions_df <- consensus_index_long %>% filter(consensus_pos %in% cg_indices)
-
-# cg_positions_df %>%
-#     filter(!is.na(sequence_pos)) %>%
-#     tibble() %$% gene_id %>%
-#     table() %>% table()
-
-# alnpos_counts <- cg_positions_df    %>% filter(!is.na(sequence_pos)) %$% consensus_pos %>% table()
-# num_elements <- cg_positions_df %$% gene_id %>% unique() %>% length()
-# alnpos_keep <- alnpos_counts[alnpos_counts > num_elements / 3] %>% names()
-# cg_positions_df <- cg_positions_df %>% filter(consensus_pos %in% alnpos_keep)
-
 
 methdf <- rtedf %>% filter(rte_subfamily == subfam)
 mdf <- methdf %>% mutate(sequence_pos = ifelse(rte_strand == "+", (start - rte_start) + 2, (rte_end - end) - 1))
@@ -242,7 +221,13 @@ cpg_order <- merged %$% consensus_pos %>%
 merged <- merged %>% mutate(consensus_pos = factor(consensus_pos, levels = cpg_order))
 library(tidyHeatmap)
 
+dat <- merged %>%
+    filter(!is.na(pctM))
 
+write_csv(dat, "meth_for_bayes.csv")
+
+
+# methylation heatmaps
 hms <- list()
 for (sample in conf$samples) {
     p <- merged %>%
@@ -257,17 +242,54 @@ for (sample in conf$samples) {
     mysaveandstore(sprintf("%s/%s_methylation_%s.pdf", outputdir, sample, subfam), w = 6, h = 6)
 }
 
-dat <- merged %>%
-    filter(!is.na(pctM))
-
-write_csv(dat, "meth_for_bayes.csv")
-
-mean_meth
 
 
+# motif analysis of consensus
+motif_pwms_path <- "/oscar/home/mkelsey/anaconda/gimme/lib/python3.10/site-packages/data/motif_databases/HOCOMOCOv11_HUMAN.pfm"
+conda_base_path <- system("conda info --base", intern = TRUE)
+motif_search_output_path <- sprintf("%s/alignments/%s_fl_consensus_with_gaps.motifs.bed", outputdir, subfam)
+
+system(
+    sprintf(
+        "source %s/etc/profile.d/conda.sh && conda activate gimme && gimme scan %s -g %s -p %s -c 0.9 -n 10 -b > %s",
+        conda_base_path, consensus_path, inputs$ref, motif_pwms_path, motif_search_output_path
+    )
+)
+
+motifs_df <- as.data.frame(rtracklayer::import(motif_search_output_path)) %>% tibble()
 
 
+# analysis of methylation by yy1 status
+yy1_pos <- motifs_df %>% filter(grepl("YY1", name))
 
+consensus_index_long %$% gene_id %>% unique()
+yy1sitesdf <- consensus_index_long %>%
+    filter(consensus_pos >= yy1_pos$start) %>%
+    filter(consensus_pos <= yy1_pos$end) %>%
+    group_by(gene_id) %>%
+    summarize(numNA = sum(is.na(sequence_pos)))
+samples_with_yy1_coord <- yy1sitesdf %>%
+    mutate(yy1status = ifelse(numNA > 1, "NoYY1", "YY1")) %>%
+    dplyr::select(gene_id, yy1status)
+
+samples_with_yy1_coord %$% yy1status %>% table()
+merged <- merged %>% left_join(samples_with_yy1_coord)
+merged
+
+hms <- list()
+for (sample in conf$samples) {
+    p <- merged %>%
+        filter(sample == !!sample) %>%
+        group_by(gene_id) %>%
+        mutate(cpgs_detected_per_element = n()) %>%
+        ungroup() %>%
+        filter(cpgs_detected_per_element > 50) %>%
+        group_by(yy1status) %>%
+        heatmap(gene_id, consensus_pos, pctM, cluster_rows = TRUE, cluster_columns = FALSE)
+    hms[[sample]] <- p
+    dir.create(outputdir, recursive = TRUE)
+    mysaveandstore(sprintf("%s/%s_methylation_%s_yy1stratified.pdf", outputdir, sample, subfam), w = 6, h = 6)
+}
 
 
 
