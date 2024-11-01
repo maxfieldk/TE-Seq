@@ -65,12 +65,12 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            bedmethlpaths = sprintf("ldna/intermediates/%s/methylation/%s_CG_bedMethyl.bed", samples, samples),
-            data = sprintf("ldna/intermediates/%s/methylation/%s_CG_m_dss.tsv", sample_table$sample_name, sample_table$sample_name),
+            bedmethlpaths = sprintf("ldna/intermediates/%s/methylation/analysis_default/%s_CG_bedMethyl.bed", samples, samples),
+            data = sprintf("ldna/intermediates/%s/methylation/analysis_default/%s_CG_m_dss.tsv", sample_table$sample_name, sample_table$sample_name),
             dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
             dmls = "ldna/results/tables/dmls.CG_m.tsv",
-            read_mods = sprintf("ldna/intermediates/%s/methylation/%s_readmods_%s_%s.tsv", samples, samples, "NoContext", conf$rte_subfamily_read_level_analysis),
-            read_mods_cg = sprintf("ldna/intermediates/%s/methylation/%s_readmods_%s_%s.tsv", samples, samples, "CpG", conf$rte_subfamily_read_level_analysis)
+            read_mods = sprintf("ldna/intermediates/%s/methylation/analysis_default/%s_readmods_%s_%s.tsv", samples, samples, "NoContext", conf$rte_subfamily_read_level_analysis),
+            read_mods_cg = sprintf("ldna/intermediates/%s/methylation/analysis_default/%s_readmods_%s_%s.tsv", samples, samples, "CpG", conf$rte_subfamily_read_level_analysis)
         ), env = globalenv())
         assign("outputs", list(outfile = "ldna/outfiles/bedmethylanalysis.txt"), env = globalenv())
     }
@@ -111,26 +111,6 @@ if (interactive()) {
         group_by(sample, seqnames, islandStatus) %>%
         slice_sample(n = 1000)
     grss <- GRanges(grsdfs)
-
-    dmrs <- read_delim(inputs$dmrs, delim = "\t", col_names = TRUE)
-    dmls <- read_delim(inputs$dmls, delim = "\t", col_names = TRUE)
-
-    dmrsgr <- GRanges(dmrs)
-    dmlsgr <- GRanges(
-        seqnames = dmls$chr,
-        ranges = IRanges(start = dmls$pos, end = dmls$pos),
-        mu_c2 = dmls$mu_c2,
-        mu_c1 = dmls$mu_c1,
-        diff_c2_minus_c1 = dmls$diff_c2_minus_c1,
-        diff_c2_minus_c1.se = dmls$diff_c2_minus_c1.se,
-        stat = dmls$stat,
-        phi_c2 = dmls$phi_c2,
-        phi_c1 = dmls$phi_c1,
-        pval = dmls$pval,
-        fdr = dmls$fdr,
-        postprob.overThreshold = dmls$postprob.overThreshold,
-        direction = dmls$direction
-    )
 }
 
 ##########################
@@ -280,7 +260,7 @@ dir.create("ldna/results/plots/rte", showWarnings = FALSE)
 ## Load Data and add annotations
 r_annotation_fragmentsjoined <- read_csv(conf$r_annotation_fragmentsjoined)
 r_repeatmasker_annotation <- read_csv(conf$r_repeatmasker_annotation)
-r_repeatmasker_annotation %$% ltr_viral_status_req %>% unique()
+r_repeatmasker_annotation %$% ltr_viral_status %>% unique()
 rmann <- left_join(r_annotation_fragmentsjoined, r_repeatmasker_annotation)
 RM <- GRanges(rmann)
 ### ONTOLOGY DEFINITION
@@ -333,7 +313,7 @@ for (rte in classes) {
     methgr$direction <- mbo$direction
     methgr$rte_length_req <- mbo$rte_length_req
     methgr$intactness_req <- mbo$intactness_req
-    methgr$ltr_viral_status_req <- mbo$ltr_viral_status_req
+    methgr$ltr_viral_status <- mbo$ltr_viral_status
     rtegrl[[rte]] <- methgr
 }
 
@@ -345,7 +325,7 @@ write_delim(rtedf, "ldna/Rintermediates/rtedf.tsv", col_names = TRUE)
 # rtedf <- read_delim("ldna/Rintermediates/rtedf.tsv", col_names = TRUE)
 perelementdf <- rtedf %>%
     filter(cov > MINIMUMCOVERAGE) %>%
-    group_by(gene_id, sample, condition, rte_length_req, type, intactness_req, ltr_viral_status_req) %>%
+    group_by(gene_id, sample, condition, rte_length_req, type, intactness_req, ltr_viral_status) %>%
     summarize(mean_meth = mean(pctM))
 
 perelementdf <- perelementdf %>% filter(!is.na(rte_length_req))
@@ -359,13 +339,13 @@ write_delim(perelementdf, "ldna/Rintermediates/perelementdf.tsv", col_names = TR
 
 # PROMOTERS
 # annotate whether full length elements promoters overlap DMRs
-rmann %$% ltr_viral_status_req %>% unique()
-flelement <- rmann %>% filter(str_detect(rte_length_req, ">"))
+rmann %$% ltr_viral_status %>% unique()
+flelement <- rmann %>% filter(rte_length_req == "FL")
 flSINE <- flelement %>% filter(rte_superfamily == "SINE")
 flLINE <- flelement %>% filter(rte_superfamily == "LINE")
 flFl_Provirus_5LTR <- flelement %>%
     filter(str_detect(gene_id, "LTR")) %>%
-    filter(ltr_viral_status_req == "Fl_Provirus_5LTR")
+    filter(ltr_viral_status == "Fl_Provirus_5LTR")
 
 flSINEgrs <- GRanges(flSINE)
 flLINE5UTRgrs <- GRanges(flLINE) %>% resize(909)
@@ -379,15 +359,14 @@ flRTEpromoter <- flRTEpromotergrs %>%
     filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS)
 flRTEpromoter %$% rte_subfamily %>% unique()
 
-classes <- flRTEpromoter$rte_length_req %>%
+classes <- flRTEpromoter$rte_subfamily %>%
     unique() %>%
     na.omit()
 classes <- classes[!str_detect(classes, "Other")]
-classes <- classes[str_detect(classes, ">")]
 rtegrl_promoters <- GRangesList()
 for (rte in classes) {
     print(rte)
-    mbo <- mergeByOverlaps(grs, GRanges(flRTEpromoter %>% filter(rte_length_req == rte)))
+    mbo <- mergeByOverlaps(grs, GRanges(flRTEpromoter %>% filter(rte_subfamily == rte) %>% filter(rte_length_req == "FL")))
     methgr <- mbo$grs
     methgr$type <- rte
     methgr$rte_family <- mbo$rte_family
@@ -401,7 +380,7 @@ for (rte in classes) {
     methgr$direction <- mbo$direction
     methgr$rte_length_req <- mbo$rte_length_req
     methgr$intactness_req <- mbo$intactness_req
-    methgr$ltr_viral_status_req <- mbo$ltr_viral_status_req
+    methgr$ltr_viral_status <- mbo$ltr_viral_status
     rtegrl_promoters[[rte]] <- methgr
 }
 
@@ -413,7 +392,7 @@ write_delim(rtedf_promoters, "ldna/Rintermediates/rtedf_promoters.tsv", col_name
 # rtedf_promoters <- read_delim("ldna/Rintermediates/rtedf.tsv", col_names = TRUE)
 perelementdf_promoters <- rtedf_promoters %>%
     filter(cov > MINIMUMCOVERAGE) %>%
-    group_by(gene_id, sample, condition, rte_length_req, type, intactness_req, ltr_viral_status_req) %>%
+    group_by(gene_id, sample, condition, rte_length_req, type, intactness_req, ltr_viral_status) %>%
     summarize(mean_meth = mean(pctM))
 
 perelementdf_promoters <- perelementdf_promoters %>% filter(!is.na(rte_length_req))
@@ -428,19 +407,19 @@ perelementdf_promoters <- read_delim("ldna/Rintermediates/perelementdf_promoters
 library(ggpubr)
 perelementdf_promoters %$% type %>% table()
 p <- perelementdf_promoters %>%
-    filter(type == "L1HS >6kb") %>%
+    filter(type == "L1HS") %>%
     gghistogram(x = "mean_meth", add = "mean", rug = TRUE)
 mysaveandstore(fn = "ldna/results/plots/rte/l1hs_density_promoters.pdf", 4, 4)
 perelementdf_promoters
 lt25methl1 <- perelementdf_promoters %>%
-    filter(type == "L1HS >6kb") %>%
+    filter(type == "L1HS") %>%
     filter(mean_meth <= 25) %>%
     dplyr::select(gene_id) %>%
     mutate(MethStatus = "demethylated") %>%
     left_join(rmann) %>%
     mutate(position_string = paste0(seqnames, ":", start, "-", end))
 mt75methl1 <- perelementdf_promoters %>%
-    filter(type == "L1HS >6kb") %>%
+    filter(type == "L1HS") %>%
     filter(mean_meth >= 75) %>%
     dplyr::select(gene_id) %>%
     mutate(MethStatus = "methylated") %>%
@@ -462,8 +441,8 @@ writeXStringSet(mt75methl1_ss, "ldna/Rintermediates/mt75methl1_ss.fa")
 
 p <- perelementdf_promoters %>%
     ggplot() +
-    geom_quasirandom(aes(x = rte_length_req, y = mean_meth, color = condition), dodge.width = 0.75) +
-    geom_boxplot(aes(x = rte_length_req, y = mean_meth, color = condition), alpha = 0.5, outlier.shape = NA) +
+    geom_quasirandom(aes(x = type, y = mean_meth, color = condition), dodge.width = 0.75) +
+    geom_boxplot(aes(x = type, y = mean_meth, color = condition), alpha = 0.5, outlier.shape = NA) +
     xlab("") +
     ylab("Average CpG Methylation Per Element") +
     ggtitle("RTE CpG Methylation") +
@@ -474,8 +453,8 @@ mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters.pdf", 14
 p <- perelementdf_promoters %>%
     filter(intactness_req != "Other") %>%
     ggplot() +
-    geom_quasirandom(aes(x = intactness_req, y = mean_meth, color = condition), dodge.width = 0.75) +
-    geom_boxplot(aes(x = intactness_req, y = mean_meth, color = condition), alpha = 0.5, outlier.shape = NA) +
+    geom_quasirandom(aes(x = type, y = mean_meth, color = condition), dodge.width = 0.75) +
+    geom_boxplot(aes(x = type, y = mean_meth, color = condition), alpha = 0.5, outlier.shape = NA) +
     xlab("") +
     ylab("Average CpG Methylation Per Element") +
     ggtitle("RTE CpG Methylation") +
@@ -668,11 +647,11 @@ for (element in elements_of_interest) {
 }
 
 
-rtedf %$% ltr_viral_status_req %>% unique()
+rtedf %$% ltr_viral_status %>% unique()
 
 
 #     LTR5Adf <- rtedf %>%
-#         filter(ltr_viral_status_req == "Fl_Provirus_5LTR") %>%
+#         filter(ltr_viral_status == "Fl_Provirus_5LTR") %>%
 #         separate(gene_id, sep = "_", into = c("element_chr", "element_start", "element_stop", "element_strand"), convert = TRUE, remove = FALSE) %>%
 #         filter(element_stop - element_start > 600) %>%
 #         filter(cov > MINIMUMCOVERAGE)
@@ -753,9 +732,7 @@ rtedf %$% ltr_viral_status_req %>% unique()
 
 
 
-# l1hsintactmethdf <- l1hsintactmethgr %>%
-#     as.data.frame() %>%
-#     tibble()
+
 # for (gene_id in l1hsintactmethdf %$% gene_id %>% unique()) {
 #     pf <- l1hsintactmethdf %>%
 #         filter(gene_id == gene_id) %>%
@@ -776,7 +753,9 @@ rtedf %$% ltr_viral_status_req %>% unique()
 #     dev.off()
 # }
 
-
+l1hsintactmethdf <- l1hsintactmethgr %>%
+    as.data.frame() %>%
+    tibble()
 
 # heatmap 5UTR
 heatmapprep <- l1hsintactmethdf %>%
@@ -859,7 +838,7 @@ for (region in conf$rte_subfamily_read_level_analysis) {
         df$sample <- sample_name
         df$condition <- sample_table[sample_table$sample_name == sample_name, "condition"]
         grs <- GRanges(df %>% dplyr::rename(seqnames = chrom, start = ref_position, strand = ref_strand) %>% mutate(end = start))
-        eoi <- import(paste0(conf$reference_annotation_dir, "/A.REF_annotations/A.REF_rte_beds/", region, ".bed"))
+        eoi <- import(paste0(conf$reference_annotation_dir, "/extended/A.REF_annotations/A.REF_rte_beds/", region, ".bed"))
         mbo <- mergeByOverlaps(grs, eoi)
         df1 <- as.data.frame(mbo) %>%
             tibble() %>%
@@ -887,7 +866,7 @@ for (region in conf$rte_subfamily_read_level_analysis) {
         df$sample <- sample_name
         df$condition <- sample_table[sample_table$sample_name == sample_name, "condition"]
         grs <- GRanges(df %>% dplyr::rename(seqnames = chrom, start = ref_position, strand = ref_strand) %>% mutate(end = start))
-        eoi <- import(paste0(conf$reference_annotation_dir, "/A.REF_annotations/A.REF_rte_beds/", region, ".bed"))
+        eoi <- import(paste0(conf$reference_annotation_dir, "/extended/A.REF_annotations/A.REF_rte_beds/", region, ".bed"))
         mbo <- mergeByOverlaps(grs, eoi)
         df1 <- as.data.frame(mbo) %>%
             tibble() %>%
