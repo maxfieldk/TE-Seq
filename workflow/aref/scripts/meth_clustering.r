@@ -65,7 +65,7 @@ rmann <- left_join(rmfragments, rmfamilies) %>%
 rtedf <- read_delim("ldna/Rintermediates/rtedf.tsv", col_names = TRUE)
 
 ##############################
-outputdir <- "/users/mkelsey/data/LF1/RTE/ldna/results/plots/l1_alignment_meth"
+outputdir_computed_already <- "/users/mkelsey/data/LF1/RTE/ldna/results/plots/l1_alignment_meth"
 outputdir <- "ldna/results/plots/l1_alignment_meth"
 
 subfam <- "L1HS"
@@ -85,8 +85,13 @@ writeXStringSet(grs_fl_ss, path)
 system(sprintf("echo $(pwd); mafft --auto %s/alignments/%s_fl.fa > %s/alignments/%s_fl.aln.fa", outputdir, subfam, outputdir, subfam))
 
 
-aln <- readDNAMultipleAlignment(sprintf("%s/alignments/%s_fl.aln.fa", outputdir, subfam))
-alnss <- readDNAStringSet(sprintf("%s/alignments/%s_fl.aln.fa", outputdir, subfam))
+# aln <- readDNAMultipleAlignment(sprintf("%s/alignments/%s_fl.aln.fa", outputdir, subfam))
+# alnss <- readDNAStringSet(sprintf("%s/alignments/%s_fl.aln.fa", outputdir, subfam))
+
+outputdir_computed_already <- "/users/mkelsey/data/LF1/RTE/ldna/results/plots/l1_alignment_meth"
+aln <- readDNAMultipleAlignment(sprintf("%s/alignments/%s_fl.aln.fa", outputdir_computed_already, subfam))
+alnss <- readDNAStringSet(sprintf("%s/alignments/%s_fl.aln.fa", outputdir_computed_already, subfam))
+
 
 # Function to get CG positions in alignment and sequence-specific positions
 get_cg_positions_df <- function(seq, seq_name) {
@@ -134,7 +139,8 @@ cg_positions_dfs <- lapply(seq_along(alnss), function(i) {
 # Combine the individual data frames into one tidy data frame
 cg_positions_df <- bind_rows(cg_positions_dfs)
 write_csv(cg_positions_df, sprintf("%s/%s_fl_cpg_mapping_table.csv", outputdir, subfam))
-cg_positions_df <- read_csv(sprintf("%s/%s_fl_cpg_mapping_table.csv", outputdir, subfam))
+# cg_positions_df <- read_csv(sprintf("%s/%s_fl_cpg_mapping_table.csv", outputdir, subfam))
+cg_positions_df <- read_csv(sprintf("%s/%s_fl_cpg_mapping_table.csv", outputdir_computed_already, subfam))
 
 cg_positions_df %>%
     tibble() %$% Sequence %>%
