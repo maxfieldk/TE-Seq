@@ -79,9 +79,9 @@ grs_fl <- rmann %>%
     GRanges()
 grs_fl_ss <- getSeq(fa, grs_fl)
 names(grs_fl_ss) <- mcols(grs_fl)$gene_id
-path <- sprintf("%s/alignments/%s_fl.fa", outputdir, subfam)
-dir.create(dirname(path), recursive = TRUE)
-writeXStringSet(grs_fl_ss, path)
+fl_fa_path <- sprintf("%s/alignments/%s_fl.fa", outputdir, subfam)
+dir.create(dirname(fl_fa_path), recursive = TRUE)
+writeXStringSet(grs_fl_ss, fl_fa_path)
 system(sprintf("echo $(pwd); mafft --auto %s/alignments/%s_fl.fa > %s/alignments/%s_fl.aln.fa", outputdir, subfam, outputdir, subfam))
 
 
@@ -133,42 +133,34 @@ getIndexMap <- function(gapped_seq_ss) {
             seq_index_vec <- c(seq_index_vec, NA)
         }
     }
-    tt <- tibble(alignment_index = alignment_index_vec, !!sym(name) := seq_index_vec)
+    tt <- tibble(alignment_pos = alignment_index_vec, gene_id = name, sequence_pos = seq_index_vec, seq = gapped_seq_split)
     return(tt)
 }
 
-index_df <- tibble(alignment_index = seq(1:length(alnss[[1]])))
-index_df <- full_join(index_df, getIndexMap(consensus_ss_with_gaps))
 for (seq_name in names(alnss)) {
     print(seq_name)
     ss <- alnss[seq_name]
     element_map <- getIndexMap(ss)
-    index_df <- full_join(index_df, element_map, by = "alignment_index")
+    if (!exists("index_df")) {
+        index_df <<- element_map
+    } else {
+        index_df <<- bind_rows(index_df, element_map)
+    }
 }
-index_df %>%
-    filter(!is.na(consensus)) %>%
-    print(width = Inf)
 
-align_index_long <- index_df %>%
-    dplyr::select(-consensus) %>%
-    pivot_longer(-alignment_index) %>%
-    arrange(name, alignment_index) %>%
-    dplyr::rename(alignment_pos = alignment_index, sequence_pos = value, gene_id = name)
+alignment_index_long <<- bind_rows(index_df, getIndexMap(consensus_ss_with_gaps))
+
+consensus_frame <- getIndexMap(consensus_ss_with_gaps) %>%
+    dplyr::rename(consensus_pos = sequence_pos, consensus_seq = seq) %>%
+    select(-gene_id)
 consensus_index_long <- index_df %>%
-    dplyr::select(-alignment_index) %>%
-    pivot_longer(-consensus) %>%
-    filter(!(is.na(value) & is.na(consensus))) %>%
-    arrange(name, alignment_index) %>%
-    dplyr::rename(consensus_pos = consensus, sequence_pos = value, gene_id = name)
+    left_join(consensus_frame) %>%
+    filter(!(is.na(sequence_pos) & is.na(consensus_pos)))
 
 write_csv(align_index_long, sprintf("%s/%s_fl_mapping_to_alignment_table.csv", outputdir, subfam))
 align_index_long <- read_csv(sprintf("%s/%s_fl_mapping_to_alignment_table.csv", outputdir, subfam))
 write_csv(consensus_index_long, sprintf("%s/%s_fl_mapping_to_consensus_table.csv", outputdir, subfam))
 consensus_index_long <- read_csv(sprintf("%s/%s_fl_mapping_to_consensus_table.csv", outputdir, subfam))
-
-
-consensus_index_long <- read_csv(sprintf("%s/%s_fl_mapping_to_consensus_table.csv", outputdir_already_computed, subfam))
-align_index_long <- read_csv(sprintf("%s/%s_fl_mapping_to_alignment_table.csv", outputdir_already_computed, subfam))
 
 
 # Combine the individual data frames into one tidy data frame
@@ -247,7 +239,7 @@ for (sample in conf$samples) {
 # motif analysis of consensus
 motif_pwms_path <- "/oscar/home/mkelsey/anaconda/gimme/lib/python3.10/site-packages/data/motif_databases/HOCOMOCOv11_HUMAN.pfm"
 conda_base_path <- system("conda info --base", intern = TRUE)
-motif_search_output_path <- sprintf("%s/alignments/%s_fl_consensus_with_gaps.motifs.bed", outputdir, subfam)
+motif_search_output_path <- sprintf("%s/alignments/%s_fl_consensus.motifs.bed", outputdir, subfam)
 
 system(
     sprintf(
@@ -255,30 +247,38 @@ system(
         conda_base_path, consensus_path, inputs$ref, motif_pwms_path, motif_search_output_path
     )
 )
-
 motifs_df <- as.data.frame(rtracklayer::import(motif_search_output_path)) %>% tibble()
 
 
+motif_search_output_path <- sprintf("%s/alignments/%s_fl.motifs.bed", outputdir, subfam)
+system(
+    sprintf(
+        "source %s/etc/profile.d/conda.sh && conda activate gimme && gimme scan %s -g %s -p %s -c 0.9 -n 10 -b > %s",
+        conda_base_path, fl_fa_path, inputs$ref, motif_pwms_path, motif_search_output_path
+    )
+)
+
+motifs_all_df <- as.data.frame(rtracklayer::import(motif_search_output_path)) %>%
+    tibble() %>%
+    dplyr::rename(gene_id = seqnames)
+motifs_all_df
+
 # analysis of methylation by yy1 status
-yy1_pos <- motifs_df %>% filter(grepl("YY1", name))
+yy1_pos_consensus <- motifs_df %>% filter(grepl("YY1", name))
+yy1_pos <- motifs_all_df %>% filter(grepl("YY1", name))
 
-consensus_index_long %$% gene_id %>% unique()
-yy1sitesdf <- consensus_index_long %>%
-    filter(consensus_pos >= yy1_pos$start) %>%
-    filter(consensus_pos <= yy1_pos$end) %>%
-    group_by(gene_id) %>%
-    summarize(numNA = sum(is.na(sequence_pos)))
-samples_with_yy1_coord <- yy1sitesdf %>%
-    mutate(yy1status = ifelse(numNA > 1, "NoYY1", "YY1")) %>%
-    dplyr::select(gene_id, yy1status)
+yy1sitesdf <- tibble(gene_id = yy1_pos$gene_id %>% unique(), yy1status = TRUE)
+yy1sitesdf <- tibble(gene_id = merged$gene_id %>% unique()) %>%
+    left_join(yy1sitesdf) %>%
+    mutate(yy1status = replace_na(yy1status, FALSE))
 
-samples_with_yy1_coord %$% yy1status %>% table()
-merged <- merged %>% left_join(samples_with_yy1_coord)
-merged
+
+merged1 <- merged %>% left_join(yy1sitesdf)
+merged1 %$% yy1status %>% table()
 
 hms <- list()
 for (sample in conf$samples) {
-    p <- merged %>%
+    p <- merged1 %>%
         filter(sample == !!sample) %>%
         group_by(gene_id) %>%
         mutate(cpgs_detected_per_element = n()) %>%
@@ -291,27 +291,13 @@ for (sample in conf$samples) {
     mysaveandstore(sprintf("%s/%s_methylation_%s_yy1stratified.pdf", outputdir, sample, subfam), w = 6, h = 6)
 }
 
-
-
-
-# elements_of_interest <- c("L1HS_2p13.2_1", "L1HS_2q21.1_2")
-# # resdf <- read_delim("/users/mkelsey/data/LF1/RTE/srna/results/agg/deseq/resultsdf.tsv")
-# # resdf %>% filter(gene_id == "L1HS_2q21.1_2") %>% print(width = Inf)
-# resultsdf <- resdf %>% left_join(rmann)
-# resultsdf %>% filter(rte_subfamily == "L1HS") %>% filter(rte_length_req == "FL") %>% arrange(-LSEN2) %>% print(width = Inf)
-
-# groit <- rmann %>%
-#     filter(gene_id == elements_of_interest[1]) %>%
-#     print(width = Inf) %>% GRanges()
-
-# p <- merged %>%
-#     filter(condition == "SEN") %>%
-#     group_by(consensus_pos) %>%
-#     mutate(nCPG = n()) %>%
-#     ungroup() %>%
-#     filter(nCPG > 50) %>%
-#     heatmap(gene_id, consensus_pos, pctM, cluster_rows = TRUE, cluster_columns = FALSE)
-
-# outputdir <- "ldna/results/plots/l1_alignment_meth"
-# dir.create(outputdir, recursive = TRUE)
-# mysaveandstore(sprintf("%s/sen.pdf", outputdir), w = 6, h = 6)
+merged1 %>%
+    filter(!is.na(sample)) %>%
+    mutate(consensus_pos = as.integer(as.character(consensus_pos))) %>%
+    mutate(UTR = ifelse((consensus_pos) < 909, TRUE, FALSE)) %>%
+    mutate(UTRcpgisland = ifelse((consensus_pos) < 500, TRUE, FALSE)) %>%
+    filter(UTRcpgisland == TRUE) %>%
+    group_by(gene_id, sample, condition, yy1status) %>%
+    summarise(pctM = mean(pctM)) %>%
+    group_by(condition, yy1status) %>%
+    summarise(pctM = mean(pctM))
