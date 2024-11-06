@@ -76,13 +76,13 @@ for pipeline in config["pipelines_to_deploy"]:
         # pepper_aref = expand("ldna/intermediates/{sample}/pepper.out.outfile", sample = config["ldna"]["samples"])
         variants_aref = expand("ldna/intermediates/{sample_or_ref}/snpeff/snpeff_sml.pass.vcf", sample_or_ref = "A.REF")
         variants_per_sample = expand("ldna/intermediates/{sample_or_ref}/snpeff/snpeff_sml.pass.vcf", sample_or_ref = config["ldna"]["samples"])
-        for e in list(flatten([mycoplasma, multiqc])):
+        for e in list(flatten([mycoplasma, multiqc, bedmethanalysis])):
             final_input.append(e)
         if config["ldna"]["map_to_mycoplasma"] == "yes":
             for e in list(flatten([mycoplasma])):
                 final_input.append(e)
         if config["ldna"]["single_condition"] == "yes":
-            for e in list(flatten([bedmethanalysis_single_sample])):
+            for e in list(flatten([])):
                 final_input.append(e)
         else:
             for e in list(flatten([bedmethanalysis,dmrs, methylartist,hg38pat])):

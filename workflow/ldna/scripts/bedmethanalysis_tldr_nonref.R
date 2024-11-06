@@ -75,7 +75,7 @@ grsdf <- read_delim("ldna/Rintermediates/grsdf_nonref.tsv", col_names = TRUE)
 ########
 l1s <- ann %>%
     filter(rte_subfamily == "L1HS") %>%
-    filter(str_detect(intactness_req, "Intact"))
+    filter(intactness_req == "Intact")
 
 
 
@@ -98,7 +98,7 @@ rtedf <- read_delim("ldna/Rintermediates/rtedf.tsv", col_names = TRUE)
 
 l1hsintactmethpromotersdf <- rtedf_promoters %>%
     filter(rte_subfamily == "L1HS") %>%
-    filter(str_detect(intactness_req, "Intact"))
+    filter(intactness_req == "Intact")
 
 nonref <- df %>%
     filter(case_when(
@@ -155,7 +155,7 @@ nonref <- df %>%
 
 l1hsintactmethdf <- rtedf %>%
     filter(rte_subfamily == "L1HS") %>%
-    filter(str_detect(intactness_req, "Intact"))
+    filter(intactness_req == "Intact")
 
 ref <- l1hsintactmethdf %>%
     group_by(gene_id, sample, condition) %>%
