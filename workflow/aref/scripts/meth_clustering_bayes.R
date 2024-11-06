@@ -21,6 +21,9 @@ options(mc.cores = parallel::detectCores())
 
 outputdir <- "bayes"
 dir.create(outputdir)
+stan_workdir <- sprintf("%s/stan_workdir", outputdir)
+dir.create(stan_workdir, recursive = TRUE)
+
 # Load data and prepare for model
 df <- read_csv("meth_for_bayes.csv")
 
@@ -64,6 +67,40 @@ datindexs %>%
 datindexs %>%
     pull(consensus_pos) %>%
     unique()
+
+
+model_name <- "mv2"
+mv2 <- ulam(
+    alist(
+        Nmeth ~ dbinom(cov, p),
+        logit(p) <- a + z_c[consensus_pos] * a_c_sigma +
+            z_g[gene_id] * a_g_sigma +
+            z_s[sample] * a_s_sigma +
+            b * condition,
+
+        # Non-centered parameters
+        vector[consensus_pos]:z_c ~ dnorm(0, 1),
+        vector[gene_id]:z_g ~ dnorm(0, 1),
+        vector[sample]:z_s ~ dnorm(0, 1),
+
+        # Hyperpriors
+        a_c_sigma ~ dexp(1),
+        a_g_sigma ~ dexp(1),
+        a_s_sigma ~ dexp(1),
+        # Prior for b
+        b ~ dnorm(0, 0.5),
+        a ~ dnorm(0, 1),
+
+        # Generated quantities for easier interpretation
+        gq > vector[consensus_pos]:a_c <<- z_c * a_c_sigma,
+        gq > vector[gene_id]:a_g <<- z_g * a_g_sigma,
+        gq > vector[sample]:a_s <<- z_s * a_s_sigma
+    ),
+    data = dat_index, chains = 4, cores = 4, log_lik = FALSE,
+    file = sprintf("%s/%s", outputdir, model_name),
+    output_dir = stan_workdir
+)
+
 
 mf1 <- ulam(
     alist(
@@ -280,8 +317,19 @@ dsim_space <- sf %>%
     rowwise() %>%
     ungroup()
 
-sampled_dsim_space <- dsim_space %>% sample_n(2000, replace = TRUE)
+reapply_bind_rows <- function(data, times) {
+    result <- data
+    for (i in seq_len(times)) {
+        result <- bind_rows(result, data)
+    }
+    result
+}
 
+
+
+sampled_dsim_space <- dsim_space %>% sample_n(500, replace = TRUE)
+# Apply `bind_rows` to `dsim_space` 3 times
+sampled_dsim_space <- reapply_bind_rows(dsim_space, 1)
 dsim <- sampled_dsim_space %>%
     rowwise() %>%
     mutate(Nmeth = sum(rbinom(cov, 1, p))) %>%
@@ -292,91 +340,6 @@ dsim_for_model %>%
     group_by(condition) %>%
     summarise(meanmeth = mean(pctM))
 
-
-
-# mf0sim <- ulam(
-#     alist(
-#         Nmeth ~ dbinom(cov, p),
-#         logit(p) <- a +
-#             a_s[sample] +
-#             b * condition,
-#         b ~ dnorm(0, 0.2),
-#         a ~ dnorm(0, 0.2),
-#         a_s[sample] ~ dnorm(0, 0.2)
-#     ),
-#     data = dsim_for_model, chains = 4, cores = 4, log_lik = FALSE
-# )
-
-# mf1sim <- ulam(
-#     alist(
-#         Nmeth ~ dbinom(cov, p),
-#         logit(p) <- a + a_c[consensus_pos] +
-#             a_g[gene_id] +
-#             a_s[sample] +
-#             b * condition,
-#         b ~ dnorm(0, 0.2),
-#         a ~ dnorm(0, 0.2),
-#         a_c[consensus_pos] ~ dnorm(0, .2),
-#         a_g[gene_id] ~ dnorm(0, 0.2),
-#         a_s[sample] ~ dnorm(0, 0.2)
-#     ),
-#     data = dsim_for_model, chains = 4, cores = 4, log_lik = FALSE
-# )
-
-
-# mv1sim <- ulam(
-#     alist(
-#         Nmeth ~ dbinom(cov, p),
-#         logit(p) <- a + a_s_bar + z_s[sample] * a_s_sigma +
-#             b * condition,
-
-#         # Non-centered parameters
-#         vector[sample]:z_s ~ dnorm(0, 1),
-
-#         # Hyperpriors
-#         a_s_bar ~ dnorm(0, 0.2),
-#         a_s_sigma ~ dexp(1),
-#         # Prior for b
-#         b ~ dnorm(0, 0.3),
-#         a ~ dnorm(0, 0.3),
-
-#         # Generated quantities for easier interpretation
-#         gq > vector[sample]:a_s <<- a_s_bar + z_s * a_s_sigma
-#     ),
-#     data = dsim_for_model, chains = 4, cores = 4, log_lik = FALSE
-# )
-
-# mv2sim <- ulam(
-#     alist(
-#         Nmeth ~ dbinom(cov, p),
-#         logit(p) <- a + a_c_bar + z_c[consensus_pos] * a_c_sigma +
-#             a_g_bar + z_g[gene_id] * a_g_sigma +
-#             a_s_bar + z_s[sample] * a_s_sigma +
-#             b * condition,
-
-#         # Non-centered parameters
-#         vector[consensus_pos]:z_c ~ dnorm(0, 1),
-#         vector[gene_id]:z_g ~ dnorm(0, 1),
-#         vector[sample]:z_s ~ dnorm(0, 1),
-
-#         # Hyperpriors
-#         a_c_bar ~ dnorm(0, 0.4),
-#         a_c_sigma ~ dexp(1),
-#         a_g_bar ~ dnorm(0, 0.4),
-#         a_g_sigma ~ dexp(1),
-#         a_s_bar ~ dnorm(0, 0.4),
-#         a_s_sigma ~ dexp(1),
-#         # Prior for b
-#         b ~ dnorm(0, 0.4),
-#         a ~ dnorm(0, 0.4),
-
-#         # Generated quantities for easier interpretation
-#         gq > vector[consensus_pos]:a_c <<- a_c_bar + z_c * a_c_sigma,
-#         gq > vector[gene_id]:a_g <<- a_g_bar + z_g * a_g_sigma,
-#         gq > vector[sample]:a_s <<- a_s_bar + z_s * a_s_sigma
-#     ),
-#     data = dsim_for_model, chains = 4, cores = 4, log_lik = FALSE
-# )
 
 mv2sim_prior <- ulam(
     alist(
@@ -410,7 +373,7 @@ mv2sim_prior <- ulam(
     data = dsim_for_model, chains = 4, cores = 4, log_lik = FALSE, sample_prior = TRUE
 )
 
-model <- mv2sim_prior
+model <- mv2sim1
 model_name <- "mv2sim_prior"
 precis(model %>%
     spread_draws(a, b, a_c[consensus_pos], a_g[gene_id], a_s[sample]))
@@ -425,8 +388,6 @@ p <- model %>%
 mysaveandstore(sprintf("%s/%s/summary.pdf", outputdir, model_name), 10, 4)
 
 
-dsim
-
 # lin pred
 lin_pred_draws <- dsim_for_model %>%
     data_grid(consensus_pos, condition, gene_id, sample) %>%
@@ -434,6 +395,8 @@ lin_pred_draws <- dsim_for_model %>%
 p <- lin_pred_draws %>% ggplot(aes(x = .linpred)) +
     geom_density()
 mysaveandstore(sprintf("%s/%s/linpred.pdf", outputdir, model_name), 10, 4)
+
+
 
 # posterior predictions
 post_pred_draws <- dsim_for_model %>%
@@ -454,66 +417,78 @@ p <- post_pred_draws %>%
 mysaveandstore(sprintf("%s/%s/postpred.pdf", outputdir, model_name), 10, 4)
 
 ### prior looks good now sample
-mv2sim <- ulam(
+mfsimprior <- ulam(
     alist(
         Nmeth ~ dbinom(cov, p),
-        logit(p) <- a + a_c_bar + z_c[consensus_pos] * a_c_sigma +
-            a_g_bar + z_g[gene_id] * a_g_sigma +
-            a_s_bar + z_s[sample] * a_s_sigma +
+        logit(p) <- a +
+            a_c[consensus_pos] +
+            a_g[gene_id] +
+            a_s[sample] +
             b * condition,
-
-        # Non-centered parameters
-        vector[consensus_pos]:z_c ~ dnorm(0, 1),
-        vector[gene_id]:z_g ~ dnorm(0, 1),
-        vector[sample]:z_s ~ dnorm(0, 1),
-
-        # Hyperpriors
-        a_c_bar ~ dnorm(0, 0.5),
-        a_c_sigma ~ dexp(1),
-        a_g_bar ~ dnorm(0, 0.5),
-        a_g_sigma ~ dexp(1),
-        a_s_bar ~ dnorm(0, 0.5),
-        a_s_sigma ~ dexp(1),
-        # Prior for b
+        vector[consensus_pos]:a_c ~ dnorm(0, 0.5),
+        vector[gene_id]:a_g ~ dnorm(0, 0.5),
+        vector[sample]:a_s ~ dnorm(0, 0.5),
         b ~ dnorm(0, 0.5),
-        a ~ dnorm(0, 1),
-
-        # Generated quantities for easier interpretation
-        gq > vector[consensus_pos]:a_c <<- a_c_bar + z_c * a_c_sigma,
-        gq > vector[gene_id]:a_g <<- a_g_bar + z_g * a_g_sigma,
-        gq > vector[sample]:a_s <<- a_s_bar + z_s * a_s_sigma
+        a ~ dnorm(0, 1)
+    ),
+    data = dsim_for_model, chains = 4, cores = 4, log_lik = FALSE, sample_prior = TRUE
+)
+mfsim <- ulam(
+    alist(
+        Nmeth ~ dbinom(cov, p),
+        logit(p) <- a +
+            a_c[consensus_pos] +
+            a_g[gene_id] +
+            a_s[sample] +
+            b * condition,
+        vector[consensus_pos]:a_c ~ dnorm(0, 0.5),
+        vector[gene_id]:a_g ~ dnorm(0, 0.5),
+        vector[sample]:a_s ~ dnorm(0, 0.5),
+        b ~ dnorm(0, 0.5),
+        a ~ dnorm(0, 1)
     ),
     data = dsim_for_model, chains = 4, cores = 4, log_lik = FALSE
 )
 
 
-model <- mv2sim
-modelprior <- mv2sim_prior
-model_name <- "mv2sim"
+
+model <- mv2sim1
+modelprior <- mv2sim1
+model_name <- "mv2"
 precis(model %>%
-    spread_draws(a, b, a_c_bar, a_c[consensus_pos], a_g_bar, a_g[gene_id], a_s_bar, a_s[sample]))
+    spread_draws(a, b, a_c[consensus_pos], a_g[gene_id], a_s[sample]))
 
 model %<>% recover_types(dsim_for_model)
 
+ttestdf <- dsim_for_model %>%
+    mutate(pmeth = Nmeth / cov) %>%
+    group_by(sample, condition) %>%
+    summarize(pmeth = mean(pmeth)) %>%
+    mutate(logodsmeth = logit(pmeth))
+t.test(pmeth ~ condition, data = ttestdf, var.equal = TRUE)
+t.test(logodsmeth ~ condition, data = ttestdf, var.equal = TRUE)
+
+
+
 draws_spread <- model %>%
-    spread_draws(a, b, a_c_bar, a_c_sigma, a_c[consensus_pos], a_g_bar, a_g_sigma, a_g[gene_id], a_s_bar, a_s_sigma, a_s[sample]) %>%
+    spread_draws(a, b, a_c[consensus_pos], a_g[gene_id], a_s[sample]) %>%
     mutate(consensus_pos = as.factor(consensus_pos)) %>%
     mutate(gene_id = as.factor(gene_id)) %>%
     mutate(sample = as.factor(sample))
 draws_gathered <- model %>%
-    gather_draws(a, b, a_c_bar, a_c_sigma, a_c[consensus_pos], a_g_bar, a_g_sigma, a_g[gene_id], a_s_bar, a_s_sigma, a_s[sample]) %>%
+    gather_draws(a, b, a_c[consensus_pos], a_g[gene_id], a_s[sample]) %>%
     mutate(consensus_pos = as.factor(consensus_pos)) %>%
     mutate(gene_id = as.factor(gene_id)) %>%
     mutate(sample = as.factor(sample))
 
 
 draws_spread_prior <- modelprior %>%
-    spread_draws(a, b, a_c_bar, a_c_sigma, a_c[consensus_pos], a_g_bar, a_g_sigma, a_g[gene_id], a_s_bar, a_s_sigma, a_s[sample]) %>%
+    spread_draws(a, b, a_c[consensus_pos], a_g[gene_id], a_s[sample]) %>%
     mutate(consensus_pos = as.factor(consensus_pos)) %>%
     mutate(gene_id = as.factor(gene_id)) %>%
     mutate(sample = as.factor(sample))
 draws_gathered_prior <- modelprior %>%
-    gather_draws(a, b, a_c_bar, a_c_sigma, a_c[consensus_pos], a_g_bar, a_g_sigma, a_g[gene_id], a_s_bar, a_s_sigma, a_s[sample]) %>%
+    gather_draws(a, b, a_c[consensus_pos], a_g[gene_id], a_s[sample]) %>%
     mutate(consensus_pos = as.factor(consensus_pos)) %>%
     mutate(gene_id = as.factor(gene_id)) %>%
     mutate(sample = as.factor(sample))
@@ -559,6 +534,218 @@ p <- draws_spread %>%
     mtclosed
 mysaveandstore(sprintf("%s/%s/summary_b.pdf", outputdir, model_name), 4, 4)
 
+
+# lin pred
+lin_pred_draws <- dsim_for_model %>%
+    data_grid(consensus_pos, condition, gene_id, sample) %>%
+    add_linpred_draws(model)
+p <- lin_pred_draws %>% ggplot(aes(x = .linpred)) +
+    stat_halfeye()
+mysaveandstore(sprintf("%s/%s/linpred.pdf", outputdir, model_name), 10, 4)
+
+p <- lin_pred_draws %>% ggplot(aes(y = as.factor(condition), x = .linpred)) +
+    stat_halfeye()
+mysaveandstore(sprintf("%s/%s/linpred_bycondition.pdf", outputdir, model_name), 10, 4)
+
+# posterior predictions
+post_pred_draws <- dsim_for_model %>%
+    data_grid(consensus_pos, condition, gene_id, sample) %>%
+    mutate(cov = 30) %>%
+    add_predicted_draws(model) %>%
+    mutate(.prediction = .prediction / 30)
+p <- post_pred_draws %>% ggplot(aes(x = .prediction)) +
+    stat_halfeye()
+mysaveandstore(sprintf("%s/%s/pred.pdf", outputdir, model_name), 10, 4)
+
+p <- post_pred_draws %>% ggplot(aes(y = as.factor(condition), x = .prediction)) +
+    stat_halfeye()
+mysaveandstore(sprintf("%s/%s/pred_condition.pdf", outputdir, model_name), 10, 4)
+
+
+p <- post_pred_draws %>%
+    mutate(consensus_pos = as.integer(as.character(consensus_pos))) %>%
+    ggplot(aes(x = consensus_pos, y = .prediction)) +
+    stat_interval(.width = c(.50, .80, .95, .99)) +
+    scale_color_brewer() +
+    mtclosed
+mysaveandstore(sprintf("%s/%s/postpred.pdf", outputdir, model_name), 10, 4)
+
+
+
+####
+mv2sim1prior <- ulam(
+    alist(
+        Nmeth ~ dbinom(cov, p),
+        logit(p) <- a + z_c[consensus_pos] * a_c_sigma +
+            z_g[gene_id] * a_g_sigma +
+            z_s[sample] * a_s_sigma +
+            b * condition,
+
+        # Non-centered parameters
+        vector[consensus_pos]:z_c ~ dnorm(0, 1),
+        vector[gene_id]:z_g ~ dnorm(0, 1),
+        vector[sample]:z_s ~ dnorm(0, 1),
+
+        # Hyperpriors
+        a_c_sigma ~ dexp(1),
+        a_g_sigma ~ dexp(1),
+        a_s_sigma ~ dexp(1),
+        # Prior for b
+        b ~ dnorm(0, 0.5),
+        a ~ dnorm(0, 1),
+
+        # Generated quantities for easier interpretation
+        gq > vector[consensus_pos]:a_c <<- z_c * a_c_sigma,
+        gq > vector[gene_id]:a_g <<- z_g * a_g_sigma,
+        gq > vector[sample]:a_s <<- z_s * a_s_sigma
+    ),
+    data = dsim_for_model, chains = 4, cores = 4, log_lik = FALSE, sample_prior = TRUE
+)
+
+model_name <- "mv2sim1"
+mv2sim1 <- ulam(
+    alist(
+        Nmeth ~ dbinom(cov, p),
+        logit(p) <- a + z_c[consensus_pos] * a_c_sigma +
+            z_g[gene_id] * a_g_sigma +
+            z_s[sample] * a_s_sigma +
+            b * condition,
+
+        # Non-centered parameters
+        vector[consensus_pos]:z_c ~ dnorm(0, 1),
+        vector[gene_id]:z_g ~ dnorm(0, 1),
+        vector[sample]:z_s ~ dnorm(0, 1),
+
+        # Hyperpriors
+        a_c_sigma ~ dexp(1),
+        a_g_sigma ~ dexp(1),
+        a_s_sigma ~ dexp(1),
+        # Prior for b
+        b ~ dnorm(0, 0.5),
+        a ~ dnorm(0, 1),
+
+        # Generated quantities for easier interpretation
+        gq > vector[consensus_pos]:a_c <<- z_c * a_c_sigma,
+        gq > vector[gene_id]:a_g <<- z_g * a_g_sigma,
+        gq > vector[sample]:a_s <<- z_s * a_s_sigma
+    ),
+    data = dsim_for_model, chains = 4, cores = 4, log_lik = FALSE,
+    file = sprintf("%s/%s", outputdir, model_name),
+    output_dir = stan_workdir
+)
+
+
+# THIS MODEL EFFECTIVELY INCLUDED BOTH LEFT AND RIGHT LEG PREDICTORS - CAN'T HAVE MULTIPLE A BARS.
+# mv2sim <- ulam(
+#     alist(
+#         Nmeth ~ dbinom(cov, p),
+#         logit(p) <- a + a_c_bar + z_c[consensus_pos] * a_c_sigma +
+#             a_g_bar + z_g[gene_id] * a_g_sigma +
+#             a_s_bar + z_s[sample] * a_s_sigma +
+#             b * condition,
+
+#         # Non-centered parameters
+#         vector[consensus_pos]:z_c ~ dnorm(0, 1),
+#         vector[gene_id]:z_g ~ dnorm(0, 1),
+#         vector[sample]:z_s ~ dnorm(0, 1),
+
+#         # Hyperpriors
+#         a_c_bar ~ dnorm(0, 0.5),
+#         a_c_sigma ~ dexp(1),
+#         a_g_bar ~ dnorm(0, 0.5),
+#         a_g_sigma ~ dexp(1),
+#         a_s_bar ~ dnorm(0, 0.5),
+#         a_s_sigma ~ dexp(1),
+#         # Prior for b
+#         b ~ dnorm(0, 0.5),
+#         a ~ dnorm(0, 1),
+
+#         # Generated quantities for easier interpretation
+#         gq > vector[consensus_pos]:a_c <<- a_c_bar + z_c * a_c_sigma,
+#         gq > vector[gene_id]:a_g <<- a_g_bar + z_g * a_g_sigma,
+#         gq > vector[sample]:a_s <<- a_s_bar + z_s * a_s_sigma
+#     ),
+#     data = dsim_for_model, chains = 4, cores = 4, log_lik = FALSE
+# )
+
+
+model <- mv2sim1
+modelprior <- mv2sim1prior
+model_name <- "mv2sim1"
+precis(model %>%
+    spread_draws(a, b, a_c[consensus_pos], a_g[gene_id], a_s[sample]))
+
+model %<>% recover_types(dsim_for_model)
+
+draws_spread <- model %>%
+    spread_draws(a, b, a_c_sigma, a_c[consensus_pos], a_g_sigma, a_g[gene_id], a_s_sigma, a_s[sample]) %>%
+    mutate(consensus_pos = as.factor(consensus_pos)) %>%
+    mutate(gene_id = as.factor(gene_id)) %>%
+    mutate(sample = as.factor(sample))
+draws_gathered <- model %>%
+    gather_draws(a, b, a_c_sigma, a_c[consensus_pos], a_g_sigma, a_g[gene_id], a_s_sigma, a_s[sample]) %>%
+    mutate(consensus_pos = as.factor(consensus_pos)) %>%
+    mutate(gene_id = as.factor(gene_id)) %>%
+    mutate(sample = as.factor(sample))
+
+
+draws_spread_prior <- modelprior %>%
+    spread_draws(a, b, a_c_sigma, a_c[consensus_pos], a_g_sigma, a_g[gene_id], a_s_sigma, a_s[sample]) %>%
+    mutate(consensus_pos = as.factor(consensus_pos)) %>%
+    mutate(gene_id = as.factor(gene_id)) %>%
+    mutate(sample = as.factor(sample))
+draws_gathered_prior <- modelprior %>%
+    gather_draws(a, b, a_c_sigma, a_c[consensus_pos], a_g_sigma, a_g[gene_id], a_s_sigma, a_s[sample]) %>%
+    mutate(consensus_pos = as.factor(consensus_pos)) %>%
+    mutate(gene_id = as.factor(gene_id)) %>%
+    mutate(sample = as.factor(sample))
+p <- draws_gathered %>%
+    ggplot(aes(y = .variable, x = .value)) +
+    stat_halfeye() +
+    mtclosed +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+mysaveandstore(sprintf("%s/%s/summary.pdf", outputdir, model_name), 10, 4)
+
+p <- draws_spread %>%
+    ggplot(aes(y = consensus_pos, x = a_c)) +
+    stat_halfeye() +
+    geom_point(aes(x = consensus_pos_effect), data = dsim %>% mutate(consesus_pos = as.factor(consensus_pos)), color = "red") +
+    stat_halfeye(data = draws_spread_prior, alpha = 0.2, color = "blue") +
+    lims(x = c(-1, 1))
+mysaveandstore(sprintf("%s/%s/summary_ac.pdf", outputdir, model_name), 4, 4)
+
+p <- draws_spread %>%
+    ggplot(aes(y = sample, x = a_s)) +
+    stat_halfeye() +
+    geom_point(aes(x = sample_effect), data = dsim %>% mutate(sample = as.factor(sample)), color = "red") +
+    stat_halfeye(data = draws_spread_prior, alpha = 0.2, color = "blue") +
+    lims(x = c(-1, 1)) +
+    mtclosed
+mysaveandstore(sprintf("%s/%s/summary_as.pdf", outputdir, model_name), 4, 4)
+
+p <- draws_spread %>%
+    ggplot(aes(y = gene_id, x = a_g)) +
+    stat_halfeye() +
+    geom_point(aes(x = gene_id_effect), data = dsim %>% mutate(gene_id = as.factor(gene_id)), color = "red") +
+    stat_halfeye(data = draws_spread_prior, alpha = 0.2, color = "blue") +
+    lims(x = c(-1, 1)) +
+    mtclosed
+mysaveandstore(sprintf("%s/%s/summary_ag.pdf", outputdir, model_name), 4, 4)
+
+p <- draws_spread %>%
+    ggplot(aes(y = "condition", x = b)) +
+    stat_halfeye() +
+    geom_point(aes(x = condition_effect), data = dsim %>% filter(condition == 1), color = "red") +
+    stat_halfeye(data = draws_spread_prior, alpha = 0.2, color = "blue") +
+    lims(x = c(-1, 1)) +
+    mtclosed
+mysaveandstore(sprintf("%s/%s/summary_b.pdf", outputdir, model_name), 4, 4)
+
+
+b_samples <- draws_spread %>% pull(b)
+left_tail <- mean(b_samples < 0)
+right_tail <- mean(b_samples > 0)
+two_tailed_p_value_alt <- 2 * min(left_tail, right_tail)
 
 # lin pred
 lin_pred_draws <- dsim_for_model %>%

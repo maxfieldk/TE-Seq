@@ -65,7 +65,6 @@ rmann <- left_join(rmfragments, rmfamilies) %>%
 rtedf <- read_delim("ldna/Rintermediates/rtedf.tsv", col_names = TRUE)
 
 ##############################
-outputdir_already_computed <- "/users/mkelsey/data/LF1/RTE/ldna/results/plots/l1_alignment_meth"
 outputdir <- "ldna/results/plots/l1_alignment_meth"
 
 subfam <- "L1HS"
@@ -157,8 +156,8 @@ consensus_index_long <- index_df %>%
     left_join(consensus_frame) %>%
     filter(!(is.na(sequence_pos) & is.na(consensus_pos)))
 
-write_csv(align_index_long, sprintf("%s/%s_fl_mapping_to_alignment_table.csv", outputdir, subfam))
-align_index_long <- read_csv(sprintf("%s/%s_fl_mapping_to_alignment_table.csv", outputdir, subfam))
+write_csv(alignment_index_long, sprintf("%s/%s_fl_mapping_to_alignment_table.csv", outputdir, subfam))
+alignment_index_long <- read_csv(sprintf("%s/%s_fl_mapping_to_alignment_table.csv", outputdir, subfam))
 write_csv(consensus_index_long, sprintf("%s/%s_fl_mapping_to_consensus_table.csv", outputdir, subfam))
 consensus_index_long <- read_csv(sprintf("%s/%s_fl_mapping_to_consensus_table.csv", outputdir, subfam))
 
@@ -174,7 +173,6 @@ cg_positions_df <- consensus_index_long %>% filter(consensus_pos %in% cg_indices
 
 methdf <- rtedf %>% filter(rte_subfamily == subfam)
 mdf <- methdf %>% mutate(sequence_pos = ifelse(rte_strand == "+", (start - rte_start) + 2, (rte_end - end) - 1))
-
 
 senseelement <- mdf %>%
     filter(rte_strand == "+") %$% gene_id %>%
@@ -211,6 +209,20 @@ cpg_order <- merged %$% consensus_pos %>%
     unique() %>%
     sort()
 merged <- merged %>% mutate(consensus_pos = factor(consensus_pos, levels = cpg_order))
+
+
+merged %$% gene_id %>% unique()
+merged %>%
+    filter(sample == "AD1") %>%
+    select(consensus_pos, islandStatus) %>%
+    group_by(consensus_pos) %>%
+    mutate(istatus = ifelse(islandStatus == "island", 1, 0)) %>%
+    summarise(mean(istatus)) %>%
+    print(n = Inf)
+
+merged
+
+
 library(tidyHeatmap)
 
 dat <- merged %>%
