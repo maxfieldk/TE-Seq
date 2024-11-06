@@ -60,7 +60,6 @@ rmann <- read_csv(conf$rmann) %>%
 rtedf <- read_delim("ldna/Rintermediates/rtedf.tsv", col_names = TRUE)
 
 ##############################
-outputdir_already_computed <- "/users/mkelsey/data/LF1/RTE/ldna/results/plots/l1_alignment_meth"
 outputdir <- "ldna/results/plots/l1_alignment_meth"
 
 subfam <- "L1HS"
@@ -206,6 +205,20 @@ cpg_order <- merged %$% consensus_pos %>%
     unique() %>%
     sort()
 merged <- merged %>% mutate(consensus_pos = factor(consensus_pos, levels = cpg_order))
+
+
+merged %$% gene_id %>% unique()
+merged %>%
+    filter(sample == "AD1") %>%
+    select(consensus_pos, islandStatus) %>%
+    group_by(consensus_pos) %>%
+    mutate(istatus = ifelse(islandStatus == "island", 1, 0)) %>%
+    summarise(mean(istatus)) %>%
+    print(n = Inf)
+
+merged
+
+
 library(tidyHeatmap)
 
 dat <- merged %>%
