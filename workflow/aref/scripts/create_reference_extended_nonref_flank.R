@@ -18,12 +18,13 @@ tryCatch(
             reference = "../genome_files/reference.ucsc.fa"
         ), env = globalenv())
         assign("outputs", list(
-            updated_reference = "aref/default/A.REF-pre-ins-filtering.fa",
-            non_ref_contigs = "aref/default/A.REF-pre-ins-filtering_nonrefcontigs.fa"
+            updated_reference_plusflank = "aref/extended/A.REF-pre-ins-filtering.fa",
+            non_ref_contigs_plusflank = "aref/extended/A.REF-pre-ins-filtering_nonrefcontigs.fa"
         ), env = globalenv())
     }
 )
 
+tldr_output_dir <- gsub(".table.txt", "", inputs$tldroutput)
 df <- read_delim(inputs$tldroutput)
 er <- df %$% EmptyReads %>% str_extract_all("\\|[0-9]+")
 
@@ -57,27 +58,17 @@ df <- df %>%
 
 df <- df[!(df %$% faName %>% duplicated()), ]
 
-df <- df %>%
-    mutate(Consensus_lower = str_extract_all(Consensus, pattern = "[:lower:]+")) %>%
-    rowwise() %>%
-    mutate(insLenMatch = which(as.vector((nchar(Consensus_lower))) == LengthIns)) %>%
-    mutate(ins_consensus_noflank = Consensus_lower[insLenMatch]) %>%
-    mutate(ins_consensus_30flank = str_sub(Consensus, str_locate(Consensus, ins_consensus_noflank)[1] - 30, str_locate(Consensus, ins_consensus_noflank)[2] + 30))
-
-
 # fasta
-ss <- DNAStringSet(df %>% dplyr::arrange(faName) %$% ins_consensus_30flank)
-names(ss) <- df %>% dplyr::arrange(faName) %$% faName
-writeXStringSet(ss, outputs$non_ref_contigs, append = FALSE, format = "fasta")
+ss_plusflank <- DNAStringSet()
+for (i in 1:nrow(df)) {
+    UUID <- df[i, ]$UUID
+    ss <- readDNAStringSet(sprintf("%s/%s.cons.ref.fa", tldr_output_dir, UUID))
+    names(ss) <- df[i, ]$faName
+    ss_plusflank <- c(ss_plusflank, ss)
+}
 
-ss_plusflank <- DNAStringSet(df %>% dplyr::arrange(faName) %$% Consensus)
-names(ss_plusflank) <- df %>% dplyr::arrange(faName) %$% faName
+dir.create(dirname(outputs$non_ref_contigs_plusflank), recursive = TRUE)
 writeXStringSet(ss_plusflank, outputs$non_ref_contigs_plusflank, append = FALSE, format = "fasta")
-
-dir.create(dirname(outputs$updated_reference), recursive = TRUE, showWarnings = FALSE)
-system(sprintf("cp %s %s", inputs$reference, outputs$updated_reference))
-writeXStringSet(ss, outputs$updated_reference, append = TRUE, format = "fasta")
-system(sprintf("samtools faidx %s", outputs$updated_reference))
 
 system(sprintf("cp %s %s", inputs$reference, outputs$updated_reference_plusflank))
 writeXStringSet(ss_plusflank, outputs$updated_reference_plusflank, append = TRUE, format = "fasta")

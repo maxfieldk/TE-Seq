@@ -62,7 +62,7 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            bedmethlpaths = sprintf("ldna/intermediates/%s/methylation/analysis_default/%s_CG_bedMethyl.bed", samples, samples),
+            bedmethylpaths = sprintf("ldna/intermediates/%s/methylation/analysis_default/%s_CG_bedMethyl.bed", samples, samples),
             data = sprintf("ldna/intermediates/%s/methylation/analysis_default/%s_CG_m_dss.tsv", sample_table$sample_name, sample_table$sample_name),
             dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
             dmls = "ldna/results/tables/dmls.CG_m.tsv",
@@ -80,70 +80,11 @@ ref_annotation_dir <- conf$reference_annotation_dir
 rte_subfamily_read_level_analysis <- conf$rte_subfamily_read_level_analysis
 
 
-####
-# # RUN IF RESUMING
-# if (interactive()) {
-#     conditions <- conf$levels
-#     condition1 <- conditions[1]
-#     condition2 <- conditions[2]
-#     condition1samples <- sample_table[sample_table$condition == conditions[1], ]$sample_name
-#     condition2samples <- sample_table[sample_table$condition == conditions[2], ]$sample_name
-
-#     grsdf <- read_delim("ldna/Rintermediates/grsdf.tsv", col_names = TRUE)
-#     grsdf %$% sample %>% unique()
-#     grsdf$seqnames <- factor(grsdf$seqnames, levels = chromosomesAll)
-#     grs <- GRanges(grsdf)
-#     cpg_islands <- rtracklayer::import(conf$cpg_islands)
-#     cpgi_shores <- rtracklayer::import(conf$cpgi_shores)
-#     cpgi_shelves <- rtracklayer::import(conf$cpgi_shelves)
-#     cpgi_features <- c(cpg_islands, cpgi_shelves, cpgi_shores)
-#     grs_cpg_islands <- grs %>% subsetByOverlaps(cpg_islands)
-#     grs_cpg_islands$islandStatus <- "island"
-#     grs_cpgi_shelves <- grs %>% subsetByOverlaps(cpgi_shelves)
-#     grs_cpgi_shelves$islandStatus <- "shelf"
-#     grs_cpgi_shores <- grs %>% subsetByOverlaps(cpgi_shores)
-#     grs_cpgi_shores$islandStatus <- "shore"
-#     grs_cpg_opensea <- grs %>% subsetByOverlaps(cpgi_features, invert = TRUE)
-#     grs_cpg_opensea$islandStatus <- "opensea"
-#     # SETTING UP SOME SUBSETS FOR EXPLORATION
-#     set.seed(75)
-#     grsdfs <- grsdf %>%
-#         group_by(sample, seqnames, islandStatus) %>%
-#         slice_sample(n = 1000)
-#     grss <- GRanges(grsdfs)
-
-#     dmrs <- read_delim(inputs$dmrs, delim = "\t", col_names = TRUE)
-#     dmls <- read_delim(inputs$dmls, delim = "\t", col_names = TRUE)
-
-#     dmrsgr <- GRanges(dmrs)
-#     dmlsgr <- GRanges(
-#         seqnames = dmls$chr,
-#         ranges = IRanges(start = dmls$pos, end = dmls$pos),
-#         mu_c2 = dmls$mu_c2,
-#         mu_c1 = dmls$mu_c1,
-#         diff_c2_minus_c1 = dmls$diff_c2_minus_c1,
-#         diff_c2_minus_c1.se = dmls$diff_c2_minus_c1.se,
-#         stat = dmls$stat,
-#         phi_c2 = dmls$phi_c2,
-#         phi_c1 = dmls$phi_c1,
-#         pval = dmls$pval,
-#         fdr = dmls$fdr,
-#         postprob.overThreshold = dmls$postprob.overThreshold,
-#         direction = dmls$direction
-#     )
-# }
-
 ##########################
 # PREP DATA FOR ANALYSIS
-conditions <- conf$levels
-condition1 <- conditions[1]
-condition2 <- conditions[2]
-condition1samples <- sample_table[sample_table$condition == conditions[1], ]$sample_name
-condition2samples <- sample_table[sample_table$condition == conditions[2], ]$sample_name
-
 sample_grs <- list()
 for (sample_name in samples) {
-    df <- read_table(grep(sprintf("/%s/", sample_name), inputs$bedmethlpaths, value = TRUE), col_names = FALSE)
+    df <- read_table(grep(sprintf("/%s/", sample_name), inputs$bedmethylpaths, value = TRUE), col_names = FALSE)
     df_m <- df %>% filter(X4 == "m")
     df_h <- df %>% filter(X4 == "h")
     rm(df)
@@ -165,7 +106,7 @@ grs <- grs[grs$cov > MINIMUMCOVERAGE]
 grsdf <- tibble(as.data.frame(grs))
 grsdf %$% seqnames %>% unique()
 dir.create("ldna/Rintermediates", recursive = TRUE)
-write_delim(grsdf %>% filter(grepl("*nonref*", seqnames)), "ldna/Rintermediates/grsdf_nonref.tsv", col_names = TRUE)
+write_delim(grsdf %>% filter(grepl("^NI", seqnames)), "ldna/Rintermediates/grsdf_nonref.tsv", col_names = TRUE)
 grsdf$seqnames <- factor(grsdf$seqnames, levels = chromosomesAll)
 seqnames <- grsdf$seqnames
 start <- grsdf$start
@@ -215,7 +156,6 @@ grsdfs <- grsdf %>%
     slice_sample(n = 1000)
 grss <- GRanges(grsdfs)
 write_delim(grsdfs, "ldna/Rintermediates/grsdfsmall.tsv", col_names = TRUE)
-
 
 if (conf$single_condition == "no") {
     dmrs <- read_delim(inputs$dmrs, delim = "\t", col_names = TRUE)
@@ -274,6 +214,9 @@ RM <- GRanges(rmann)
 # annotate whether repeats overlap DMRs
 
 if (conf$single_condition == "no") {
+    conditions <- conf$levels
+    condition1 <- conditions[1]
+    condition2 <- conditions[2]
     mbo <- mergeByOverlaps(RM, dmrsgr)
     mergeddf <- tibble(as.data.frame(mbo))
     mm <- mergeddf %>%
@@ -306,6 +249,7 @@ if (conf$single_condition == "no") {
 write_delim(RMdf, "ldna/Rintermediates/RMdf.tsv", col_names = TRUE)
 # RMdf <- read_delim("ldna/Rintermediates/RMdf.tsv", col_names = TRUE)
 
+
 grouping_var <- "rte_subfamily"
 rte_frame <- GRanges(RMdf %>% filter(!!sym(grouping_var) != "Other") %>% filter(rte_length_req == "FL"))
 mbo <- mergeByOverlaps(grs, rte_frame)
@@ -319,11 +263,16 @@ rte_only_frame <- mbo$rte_frame %>%
 rtedf <- bind_cols(methdf, rte_only_frame)
 write_delim(rtedf, "ldna/Rintermediates/rtedf.tsv", col_names = TRUE)
 # rtedf <- read_delim("ldna/Rintermediates/rtedf.tsv", col_names = TRUE)
+if ("width" %in% colnames(RMdf)) {
+    joinframe <<- RMdf %>% dplyr::rename(rte_seqnames = seqnames, rte_start = start, rte_end = end, rte_strand = strand, rte_width = width)
+} else {
+    joinframe <<- RMdf %>% dplyr::rename(rte_seqnames = seqnames, rte_start = start, rte_end = end, rte_strand = strand)
+}
 perelementdf <- rtedf %>%
     filter(cov > MINIMUMCOVERAGE) %>%
     group_by(gene_id, sample, condition) %>%
     summarize(mean_meth = mean(pctM)) %>%
-    left_join(RMdf %>% dplyr::rename(rte_seqnames = seqnames, rte_start = start, rte_end = end, rte_strand = strand, rte_width = width))
+    left_join(joinframe)
 
 perelementdf <- perelementdf %>% filter(!is.na(rte_length_req))
 

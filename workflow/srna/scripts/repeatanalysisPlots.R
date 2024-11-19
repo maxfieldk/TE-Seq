@@ -99,10 +99,10 @@ resultsdfwithgenes <- resultsdf1 %>%
     full_join(r_annotation_fragmentsjoined) %>%
     full_join(r_repeatmasker_annotation)
 resultsdfwithgenes <- resultsdfwithgenes %>%
-  mutate(across(all_of(conf$samples), ~ replace_na(., 0))) %>%
-  mutate(across(matches(paste0("log2FoldChange_", conf$contrasts)), ~ replace_na(., 0))) %>%
-  mutate(across(matches(paste0("padj_", conf$contrasts)), ~ replace_na(., 1))) %>%
-  replace_na(list(gene_or_te = "repeat"))
+    mutate(across(all_of(conf$samples), ~ replace_na(., 0))) %>%
+    mutate(across(matches(paste0("log2FoldChange_", conf$contrasts)), ~ replace_na(., 0))) %>%
+    mutate(across(matches(paste0("padj_", conf$contrasts)), ~ replace_na(., 1))) %>%
+    replace_na(list(gene_or_te = "repeat"))
 
 resultsdf <- resultsdfwithgenes %>% filter(gene_or_te != "gene")
 
@@ -144,12 +144,12 @@ resultsdf <- resultsdfwithgenes %>% filter(gene_or_te != "gene")
             mutate(cfam = substr(gene_id, 1, 3)) %>%
             group_by(cfam) %>%
             mutate(n_whole_group = n()) %>%
-            ungroup() 
-            
-            padj_columns <- select(mf, starts_with("padj"))
-            mf$broad_significance <- apply(padj_columns, 1, function(x) min(x, na.rm = TRUE))
+            ungroup()
 
-            mf <- mf %>%
+        padj_columns <- select(mf, starts_with("padj"))
+        mf$broad_significance <- apply(padj_columns, 1, function(x) min(x, na.rm = TRUE))
+
+        mf <- mf %>%
             filter(broad_significance < 0.05) %>%
             group_by(cfam) %>%
             mutate(n_de_group = n()) %>%
@@ -175,6 +175,8 @@ resultsdf <- resultsdfwithgenes %>% filter(gene_or_te != "gene")
             quantile(probs = c(0, .25, .50, .90)) %>%
             round()
         color_breaks_log <- c(0, 10, 100, 1000)
+        condition_vec <- sample_table$condition
+        topAnn <- HeatmapAnnotation(Condition = condition_vec, col = list(Condition = unlist(condition_palette[condition_vec])))
 
         p <- Heatmap(
             m,
@@ -187,9 +189,11 @@ resultsdf <- resultsdfwithgenes %>% filter(gene_or_te != "gene")
             raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
             row_split = splitby,
             column_title = "DE L1s",
-            show_row_names = FALSE
+            show_row_names = FALSE,
+            top_annotation = topAnn
         )
-        mysaveandstore(sprintf("%s/%s/%s/heatmap/l1s_de.pdf", outputdir, counttype, "pan_contrast"), 5, 10)
+        mysaveandstore(sprintf("%s/%s/%s/heatmap/l1s_de.pdf", outputdir, counttype, "pan_contrast"), 7.5, 10)
+
         p <- Heatmap(
             m,
             col = circlize::colorRamp2(color_breaks_quantile, c("white", "#FCE61F", "#1E908C", "#443A84")),
@@ -201,9 +205,10 @@ resultsdf <- resultsdfwithgenes %>% filter(gene_or_te != "gene")
             raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
             row_split = splitby,
             column_title = "DE L1s",
-            show_row_names = FALSE
+            show_row_names = FALSE,
+            top_annotation = topAnn
         )
-        mysaveandstore(sprintf("%s/%s/%s/heatmap/l1s_de_col_clust.pdf", outputdir, counttype, "pan_contrast"), 5, 10)
+        mysaveandstore(sprintf("%s/%s/%s/heatmap/l1s_de_col_clust.pdf", outputdir, counttype, "pan_contrast"), 7.5, 10)
 
         p <- Heatmap(
             m,
@@ -216,9 +221,10 @@ resultsdf <- resultsdfwithgenes %>% filter(gene_or_te != "gene")
             raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
             row_split = splitby,
             column_title = "DE L1s",
-            show_row_names = FALSE
+            show_row_names = FALSE,
+            top_annotation = topAnn
         )
-        mysaveandstore(sprintf("%s/%s/%s/heatmap/l1s_de_breaks2.pdf", outputdir, counttype, "pan_contrast"), 5, 10)
+        mysaveandstore(sprintf("%s/%s/%s/heatmap/l1s_de_breaks2.pdf", outputdir, counttype, "pan_contrast"), 7.5, 10)
         p <- Heatmap(
             m,
             col = circlize::colorRamp2(color_breaks_log, c("white", "#FCE61F", "#1E908C", "#443A84")),
@@ -230,12 +236,12 @@ resultsdf <- resultsdfwithgenes %>% filter(gene_or_te != "gene")
             raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
             row_split = splitby,
             column_title = "DE L1s",
-            show_row_names = FALSE
+            show_row_names = FALSE,
+            top_annotation = topAnn
         )
-        mysaveandstore(sprintf("%s/%s/%s/heatmap/l1s_de_col_clust_break2.pdf", outputdir, counttype, "pan_contrast"), 5, 10)
+        mysaveandstore(sprintf("%s/%s/%s/heatmap/l1s_de_col_clust_break2.pdf", outputdir, counttype, "pan_contrast"), 7.5, 10)
     }
 
-    # split by rte_subfamily
     for (rte_family_ in (resultsdf %$% rte_family %>% unique())) {
         if (rte_family_ == "Other") {
             next()
@@ -246,27 +252,30 @@ resultsdf <- resultsdfwithgenes %>% filter(gene_or_te != "gene")
             group_by(rte_subfamily) %>%
             mutate(n_whole_group = n()) %>%
             ungroup()
-            
-            padj_columns <- select(mf, starts_with("padj"))
-            mf$broad_significance <- apply(padj_columns, 1, function(x) min(x, na.rm = TRUE))
 
-            mf <- mf %>%
+        padj_columns <- select(mf, starts_with("padj"))
+        mf$broad_significance <- apply(padj_columns, 1, function(x) min(x, na.rm = TRUE))
+
+        mf <- mf %>%
             filter(broad_significance < 0.05) %>%
             group_by(rte_subfamily) %>%
             mutate(n_de_group = n()) %>%
             ungroup() %>%
             filter(!grepl("X9_|MAR", rte_subfamily))
-            
+
         m <- mf %>%
             dplyr::select(sample_table$sample_name) %>%
             as.matrix()
+
+        condition_vec <- sample_table$condition
+        topAnn <- HeatmapAnnotation(Condition = condition_vec, col = list(Condition = unlist(condition_palette[condition_vec])))
+
         rownames(m) <- mf %$% gene_id
         ms <- t(scale(t(m))) %>% na.omit()
         color_breaks_quantile <- m %>%
             quantile(probs = c(0, .25, .50, .90)) %>%
             round()
         color_breaks_log <- c(0, 10, 100, 1000)
-
 
         tryCatch(
             {
@@ -280,11 +289,12 @@ resultsdf <- resultsdfwithgenes %>% filter(gene_or_te != "gene")
                     cluster_row_slices = FALSE,
                     raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
                     column_title = sprintf("DE %s", rte_family_),
-                    show_row_names = FALSE
+                    show_row_names = FALSE,
+                    top_annotation = topAnn
                 )
                 tryCatch(
                     {
-                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de.pdf", outputdir, counttype, "pan_contrast", rte_family_), 5, 10)
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de.pdf", outputdir, counttype, "pan_contrast", rte_family_), 7.5, 10)
                     },
                     error = function(e) {
                         mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de.pdf", outputdir, counttype, "pan_contrast", rte_family_), 10, 20)
@@ -300,11 +310,12 @@ resultsdf <- resultsdfwithgenes %>% filter(gene_or_te != "gene")
                     cluster_row_slices = FALSE,
                     raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
                     column_title = sprintf("DE %s", rte_family_),
-                    show_row_names = FALSE
+                    show_row_names = FALSE,
+                    top_annotation = topAnn
                 )
                 tryCatch(
                     {
-                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_col_clust.pdf", outputdir, counttype, "pan_contrast", rte_family_), 5, 10)
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_col_clust.pdf", outputdir, counttype, "pan_contrast", rte_family_), 7.5, 10)
                     },
                     error = function(e) {
                         mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_col_clust.pdf", outputdir, counttype, "pan_contrast", rte_family_), 10, 20)
@@ -320,11 +331,12 @@ resultsdf <- resultsdfwithgenes %>% filter(gene_or_te != "gene")
                     cluster_row_slices = FALSE,
                     raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
                     column_title = sprintf("DE %s", rte_family_),
-                    show_row_names = FALSE
+                    show_row_names = FALSE,
+                    top_annotation = topAnn
                 )
                 tryCatch(
                     {
-                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_breaks2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 5, 10)
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_breaks2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 7.5, 10)
                     },
                     error = function(e) {
                         mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_breaks2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 10, 20)
@@ -340,11 +352,12 @@ resultsdf <- resultsdfwithgenes %>% filter(gene_or_te != "gene")
                     cluster_row_slices = FALSE,
                     raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
                     column_title = sprintf("DE %s", rte_family_),
-                    show_row_names = FALSE
+                    show_row_names = FALSE,
+                    top_annotation = topAnn
                 )
                 tryCatch(
                     {
-                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_col_clust_break2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 5, 10)
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_col_clust_break2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 7.5, 10)
                     },
                     error = function(e) {
                         mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_col_clust_break2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 10, 20)
@@ -367,11 +380,11 @@ resultsdf <- resultsdfwithgenes %>% filter(gene_or_te != "gene")
             group_by(req_integrative) %>%
             mutate(n_whole_group = n()) %>%
             ungroup()
-        
+
         padj_columns <- select(mf, starts_with("padj"))
         mf$broad_significance <- apply(padj_columns, 1, function(x) min(x, na.rm = TRUE))
 
-        mf <- mf %>% 
+        mf <- mf %>%
             filter(broad_significance < 0.05) %>%
             group_by(req_integrative) %>%
             mutate(n_de_group = n()) %>%
@@ -393,6 +406,9 @@ resultsdf <- resultsdfwithgenes %>% filter(gene_or_te != "gene")
         m <- mf %>%
             dplyr::select(sample_table$sample_name) %>%
             as.matrix()
+        condition_vec <- sample_table$condition
+        topAnn <- HeatmapAnnotation(Condition = condition_vec, col = list(Condition = unlist(condition_palette[condition_vec])))
+
         rownames(m) <- mf %$% gene_id
         color_breaks_quantile <- m %>%
             quantile(probs = c(0, .25, .50, .90)) %>%
@@ -413,11 +429,12 @@ resultsdf <- resultsdfwithgenes %>% filter(gene_or_te != "gene")
                     raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
                     row_split = splitby,
                     column_title = sprintf("DE %s", rte_family_),
-                    show_row_names = FALSE
+                    show_row_names = FALSE,
+                    top_annotation = topAnn
                 )
                 tryCatch(
                     {
-                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_split2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 5, 10)
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_split2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 7.5, 10)
                     },
                     error = function(e) {
                         mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_split2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 10, 20)
@@ -434,11 +451,12 @@ resultsdf <- resultsdfwithgenes %>% filter(gene_or_te != "gene")
                     raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
                     row_split = splitby,
                     column_title = sprintf("DE %s", rte_family_),
-                    show_row_names = FALSE
+                    show_row_names = FALSE,
+                    top_annotation = topAnn
                 )
                 tryCatch(
                     {
-                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_col_clust_split2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 5, 10)
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_col_clust_split2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 7.5, 10)
                     },
                     error = function(e) {
                         mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_col_clust_split2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 10, 20)
@@ -455,11 +473,12 @@ resultsdf <- resultsdfwithgenes %>% filter(gene_or_te != "gene")
                     raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
                     row_split = splitby,
                     column_title = sprintf("DE %s", rte_family_),
-                    show_row_names = FALSE
+                    show_row_names = FALSE,
+                    top_annotation = topAnn
                 )
                 tryCatch(
                     {
-                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_breaks2_split2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 5, 10)
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_breaks2_split2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 7.5, 10)
                     },
                     error = function(e) {
                         mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_breaks2_split2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 10, 20)
@@ -476,11 +495,12 @@ resultsdf <- resultsdfwithgenes %>% filter(gene_or_te != "gene")
                     raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
                     row_split = splitby,
                     column_title = sprintf("DE %s", rte_family_),
-                    show_row_names = FALSE
+                    show_row_names = FALSE,
+                    top_annotation = topAnn
                 )
                 tryCatch(
                     {
-                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_col_clust_break2_split2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 5, 10)
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_col_clust_break2_split2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 7.5, 10)
                     },
                     error = function(e) {
                         mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_col_clust_break2_split2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 10, 20)
@@ -662,19 +682,28 @@ for (ontology in c("rte_subfamily_limited", "l1_subfamily_limited", "rte_family"
 
 
     if (grepl("subfamily", ontology)) {
-
-        cross_frame <- te_gene_matrix_all%>%
+        cross_frame <- te_gene_matrix_all %>%
             select(rte_subfamily, loc_lowres_integrative_stranded, rte_length_req) %>%
             crossing()
         for (i in seq(1:length(rownames(cross_frame)))) {
-            row <- cross_frame[i,]
+            row <- cross_frame[i, ]
             a <- row$rte_subfamily
             b <- row$rte_length_req
-            c <-  row$loc_lowres_integrative_stranded
-            p <- te_gene_matrix_all %>% filter(rte_subfamily == a) %>% filter(rte_length_req == b) %>% filter(loc_lowres_integrative_stranded == c) %>% dplyr::select(TE, GENE, cor_contrast) %>% ggplot(aes(x = TE, y = GENE, color = cor_contrast)) + theme(aspect.ratio = 1) + geom_point(alpha = 0.3) + labs(x = "TE L2FC", y = "GENE L2FC") + ggtitle(sprintf("%s %s\n%s", a, c, b)) + scale_contrasts + mtclosed
-            mysaveandstore(pl = p, fn = sprintf("%s/%s/%s/rte_gene_cor/scatter_gene_te_corr/%s_%s_%s.pdf", outputdir, counttype, "pan_contrast", a,b,c), 6,4)
+            c <- row$loc_lowres_integrative_stranded
+            p <- te_gene_matrix_all %>%
+                filter(rte_subfamily == a) %>%
+                filter(rte_length_req == b) %>%
+                filter(loc_lowres_integrative_stranded == c) %>%
+                dplyr::select(TE, GENE, cor_contrast) %>%
+                ggplot(aes(x = TE, y = GENE, color = cor_contrast)) +
+                theme(aspect.ratio = 1) +
+                geom_point(alpha = 0.3) +
+                labs(x = "TE L2FC", y = "GENE L2FC") +
+                ggtitle(sprintf("%s %s\n%s", a, c, b)) +
+                scale_contrasts +
+                mtclosed
+            mysaveandstore(pl = p, fn = sprintf("%s/%s/%s/rte_gene_cor/scatter_gene_te_corr/%s_%s_%s.pdf", outputdir, counttype, "pan_contrast", a, b, c), 6, 4)
         }
-        
     }
 }
 
@@ -760,9 +789,7 @@ pvp <- function(df, facet_var = "ALL", filter_var = "ALL", labels = "no", scale_
     }
     return(p)
 }
-# df <- tidydf %>% filter(rte_subfamily == "L1HS")
-# p <- pvp(tidydf %>% filter(rte_subfamily == "L1HS"), filter_var = "ALL", facet_var = "genic_loc", scale_log2 = "yes") + ggtitle("L1HS")
-# mysave("temp1.pdf", 8, 8)
+
 
 dep <- function(df, facet_var = "ALL", filter_var = "ALL") {
     if (filter_var != "ALL") {
@@ -807,12 +834,6 @@ dep <- function(df, facet_var = "ALL", filter_var = "ALL") {
     }
     return(p)
 }
-
-# need to wrap functions cALLs in try catch since filtering and checking for DE status can mean there are zero elements
-# p <- dep(tidydf %>% filter(rte_subfamily == "L1HS"), filter_var = "rte_length_req", facet_var = "genic_loc") + ggtitle("L1HS")
-# mysave("temp1.pdf")
-# p <- dep(tidydf %>% filter(rte_subfamily == "L1HS"), filter_var = "rte_length_req") + ggtitle("L1HS")
-# mysave("temp1.pdf")
 
 stripp <- function(df, stats = "no", extraGGoptions = NULL, facet_var = "ALL", filter_var = "ALL") {
     if (filter_var != "ALL") {
@@ -866,11 +887,6 @@ stripp <- function(df, stats = "no", extraGGoptions = NULL, facet_var = "ALL", f
     }
     return(p)
 }
-
-# df <- tidydf %>% filter(rte_subfamily == "L1HS")
-# p <- stripp(tidydf %>% filter(rte_subfamily == "L1HS"), filter_var = "ALL", facet_var = "genic_loc", stats = "yes") + ggtitle("L1HS")
-# mysave("temp1.pdf")
-
 
 myheatmap <- function(df, facet_var = "ALL", filter_var = "ALL", DEvar = "ALL", scaled = "notscaled", contrast_samples, condition_vec) {
     set_title <- group
@@ -1211,11 +1227,11 @@ for (group_var in c("repeat_superfamily", "rte_subfamily", "rte_family", "l1_sub
     m <- stat_frame %>%
         dplyr::select(sample, !!sym(group_var), l2fc) %>%
         pivot_wider(names_from = sample, values_from = l2fc)
-        if (group_var == "rte_subfamily") {
-            m <<- m %>%
-                mutate(rte_subfamily = factor(rte_subfamily, levels = subfam_ordering)) %>%
-                arrange(rte_subfamily)
-        }
+    if (group_var == "rte_subfamily") {
+        m <<- m %>%
+            mutate(rte_subfamily = factor(rte_subfamily, levels = subfam_ordering)) %>%
+            arrange(rte_subfamily)
+    }
     m <- m %>%
         column_to_rownames(group_var) %>%
         as.matrix()
@@ -1244,21 +1260,25 @@ for (group_var in c("repeat_superfamily", "rte_subfamily", "rte_family", "l1_sub
 
 # pan contrast
 pancontrastbarplots <- function(ontology_column = "rte_subfamily", ontology_column_value = "L1HS", facetvars = c("req_integrative", "genic_loc"), refstatus_to_include = c("Ref", "NonRef")) {
-    #Generated many variants of a simple grouped barplot with and without various statistics
+    # Generated many variants of a simple grouped barplot with and without various statistics
     facetvarsstring <- paste(facetvars, collapse = "_")
     refstatusstring <- paste(refstatus_to_include, collapse = "_")
-    nconditions = length(conf$levels)
-    nhorizontalfacets <- tidydf[[facetvars[2]]] %>% unique() %>% length()
-    width <- 4 * 1/3 * nconditions * 1/2 * nhorizontalfacets
+    nconditions <- length(conf$levels)
+    nhorizontalfacets <- tidydf[[facetvars[2]]] %>%
+        unique() %>%
+        length()
+    width <- 4 * 1 / 3 * nconditions * 1 / 2 * nhorizontalfacets
     height <- 8
     # Apply filters and transformations
     df <- tidydf %>%
         filter(!!sym(ontology_column) == ontology_column_value) %>%
-        mutate(refstatus = as.character(refstatus))  # Convert refstatus to character if it's a factor
-resultsdf %>% filter(rte_subfamily == "L1HS")
-df %>%
+        mutate(refstatus = as.character(refstatus)) # Convert refstatus to character if it's a factor
+    resultsdf %>% filter(rte_subfamily == "L1HS")
+    df %>%
         group_by(sample, condition, across(all_of(facetvars))) %>%
-        summarise(sample_sum = sum(counts), condition = dplyr::first(condition), n = n()) %>% filter(sample == "ESEN1") %$% n %>% sum()
+        summarise(sample_sum = sum(counts), condition = dplyr::first(condition), n = n()) %>%
+        filter(sample == "ESEN1") %$% n %>%
+        sum()
 
     # Perform filtering
     pf <- df %>%
@@ -1322,13 +1342,13 @@ rte_subfams <- tidydf %$% rte_subfamily %>%
     na.omit()
 rte_subfams <- rte_subfams[rte_subfams != "Other"]
 for (rte_subfam in rte_subfams) {
-    pancontrastbarplots(ontology_column = "rte_subfamily", ontology_column_value = rte_subfam, facetvars = c("req_integrative", "genic_loc"), refstatus_to_include = c("Ref", "NonRef")) 
-    pancontrastbarplots(ontology_column = "rte_subfamily", ontology_column_value = rte_subfam, facetvars = c("req_integrative", "genic_loc"), refstatus_to_include = c("NonRef")) 
-    pancontrastbarplots(ontology_column = "rte_subfamily", ontology_column_value = rte_subfam, facetvars = c("req_integrative", "loc_highres_integrative_stranded"), refstatus_to_include = c("Ref", "NonRef")) 
-    pancontrastbarplots(ontology_column = "rte_subfamily", ontology_column_value = rte_subfam, facetvars = c("req_integrative", "loc_lowres_integrative_stranded"), refstatus_to_include = c("Ref", "NonRef")) 
+    pancontrastbarplots(ontology_column = "rte_subfamily", ontology_column_value = rte_subfam, facetvars = c("req_integrative", "genic_loc"), refstatus_to_include = c("Ref", "NonRef"))
+    pancontrastbarplots(ontology_column = "rte_subfamily", ontology_column_value = rte_subfam, facetvars = c("req_integrative", "genic_loc"), refstatus_to_include = c("NonRef"))
+    pancontrastbarplots(ontology_column = "rte_subfamily", ontology_column_value = rte_subfam, facetvars = c("req_integrative", "loc_highres_integrative_stranded"), refstatus_to_include = c("Ref", "NonRef"))
+    pancontrastbarplots(ontology_column = "rte_subfamily", ontology_column_value = rte_subfam, facetvars = c("req_integrative", "loc_lowres_integrative_stranded"), refstatus_to_include = c("Ref", "NonRef"))
     if (tidydf %>% filter(rte_subfamily == rte_subfam) %$% rte_superfamily %>% unique() == "LTR") {
-        pancontrastbarplots(ontology_column = "rte_subfamily", ontology_column_value = rte_subfam, facetvars = c("ltr_viral_status", "genic_loc"), refstatus_to_include = c("Ref", "NonRef")) 
-        }
+        pancontrastbarplots(ontology_column = "rte_subfamily", ontology_column_value = rte_subfam, facetvars = c("ltr_viral_status", "genic_loc"), refstatus_to_include = c("Ref", "NonRef"))
+    }
 }
 
 rte_fams <- tidydf %$% rte_family %>%
@@ -1336,13 +1356,13 @@ rte_fams <- tidydf %$% rte_family %>%
     na.omit()
 rte_fams <- rte_fams[rte_fams != "Other"]
 for (rte_fam in rte_fams) {
-    pancontrastbarplots(ontology_column = "rte_family", ontology_column_value = rte_fam, facetvars = c("req_integrative", "genic_loc"), refstatus_to_include = c("Ref", "NonRef")) 
-    pancontrastbarplots(ontology_column = "rte_family", ontology_column_value = rte_fam, facetvars = c("req_integrative", "genic_loc"), refstatus_to_include = c("NonRef")) 
-    pancontrastbarplots(ontology_column = "rte_family", ontology_column_value = rte_fam, facetvars = c("req_integrative", "loc_highres_integrative_stranded"), refstatus_to_include = c("Ref", "NonRef")) 
-    pancontrastbarplots(ontology_column = "rte_family", ontology_column_value = rte_fam, facetvars = c("req_integrative", "loc_lowres_integrative_stranded"), refstatus_to_include = c("Ref", "NonRef")) 
+    pancontrastbarplots(ontology_column = "rte_family", ontology_column_value = rte_fam, facetvars = c("req_integrative", "genic_loc"), refstatus_to_include = c("Ref", "NonRef"))
+    pancontrastbarplots(ontology_column = "rte_family", ontology_column_value = rte_fam, facetvars = c("req_integrative", "genic_loc"), refstatus_to_include = c("NonRef"))
+    pancontrastbarplots(ontology_column = "rte_family", ontology_column_value = rte_fam, facetvars = c("req_integrative", "loc_highres_integrative_stranded"), refstatus_to_include = c("Ref", "NonRef"))
+    pancontrastbarplots(ontology_column = "rte_family", ontology_column_value = rte_fam, facetvars = c("req_integrative", "loc_lowres_integrative_stranded"), refstatus_to_include = c("Ref", "NonRef"))
     if (tidydf %>% filter(rte_family == rte_fam) %$% rte_superfamily %>% unique() == "LTR") {
-        pancontrastbarplots(ontology_column = "rte_family", ontology_column_value = rte_fam, facetvars = c("ltr_viral_status", "genic_loc"), refstatus_to_include = c("Ref", "NonRef")) 
-        }
+        pancontrastbarplots(ontology_column = "rte_family", ontology_column_value = rte_fam, facetvars = c("ltr_viral_status", "genic_loc"), refstatus_to_include = c("Ref", "NonRef"))
+    }
 }
 
 

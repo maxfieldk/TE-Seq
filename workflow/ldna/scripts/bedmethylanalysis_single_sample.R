@@ -65,7 +65,7 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            bedmethlpaths = sprintf("ldna/intermediates/%s/methylation/analysis_default/%s_CG_bedMethyl.bed", samples, samples),
+            bedmethylpaths = sprintf("ldna/intermediates/%s/methylation/analysis_default/%s_CG_bedMethyl.bed", samples, samples),
             data = sprintf("ldna/intermediates/%s/methylation/analysis_default/%s_CG_m_dss.tsv", sample_table$sample_name, sample_table$sample_name),
             dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
             dmls = "ldna/results/tables/dmls.CG_m.tsv",
@@ -117,7 +117,7 @@ if (interactive()) {
 if (!interactive()) {
     sample_grs <- list()
     for (sample_name in samples) {
-        df <- read_table(grep(sprintf("/%s/", sample_name), inputs$bedmethlpaths, value = TRUE), col_names = FALSE)
+        df <- read_table(grep(sprintf("/%s/", sample_name), inputs$bedmethylpaths, value = TRUE), col_names = FALSE)
         df_m <- df %>% filter(X4 == "m")
         df_h <- df %>% filter(X4 == "h")
         rm(df)
@@ -464,9 +464,8 @@ mysaveandstore(fn = "ldna/results/plots/rte/l1_intact_boxplot_promoters.pdf", 14
 
 #################
 
-
 l1hsintactmethgr <- rtedf %>%
-    filter(str_detect(intactness_req, "Intact")) %>%
+    filter(intactness_req == "Intact") %>%
     left_join(r_annotation_fragmentsjoined %>% dplyr::select(gene_id, start, end, strand) %>% dplyr::rename(element_strand = strand, element_start = start, element_end = end))
 l1hsintactmethgr <- l1hsintactmethgr %>%
     mutate(rel_start = start - element_start) %>%
@@ -546,7 +545,7 @@ dev.off()
 # chr4_83273990_83280141_+
 # chr6_44705376_44711532_+
 # for the fig
-element_anatomy <- read_delim("aref/A.REF_Analysis/intact_l1_anatomy_coordinates.tsv")
+element_anatomy <- read_delim("aref/default/A.REF_Analysis/intact_l1_anatomy_coordinates.tsv")
 
 elements_of_interest <- c("L1HS_3q23_1", "L1HS_5p13.1_1")
 ### nice L1 annot
@@ -646,8 +645,6 @@ for (element in elements_of_interest) {
     mysaveandstore(sprintf("ldna/results/plots/rte/%s_methylation.pdf", element), 5, 5)
 }
 
-
-rtedf %$% ltr_viral_status %>% unique()
 
 
 #     LTR5Adf <- rtedf %>%
@@ -787,10 +784,7 @@ genic_locs <- l1hsintactdf %>%
     arrange(gene_id) %>%
     filter(gene_id %in% rownames(m)) %$% genic_loc
 row_ha <- rowAnnotation(genic_loc = genic_locs, col = list(genic_loc = c("Genic" = "brown", "Intergenic" = "tan")))
-conditions <- c(sample_table %>% filter(condition == condition1) %$% condition, sample_table %>% filter(condition == condition2) %$% condition)
 
-conditions <- sample_table[match(colnames(m), sample_table$sample_name), ]$condition
-topAnn <- ComplexHeatmap::HeatmapAnnotation(Condition = conditions, col = list(Condition = condition_palette))
 library(circlize)
 col_fun <- colorRamp2(c(0, 50, 100), c("red", "white", "blue"))
 col_fun(seq(0, 100, by = 12.5))
@@ -803,7 +797,6 @@ heatmapL1UTR <- m %>%
         show_column_names = TRUE,
         column_names_rot = 45,
         col = col_fun,
-        top_annotation = topAnn,
         right_annotation = row_ha,
         row_title = "Intact L1HS"
     )

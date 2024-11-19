@@ -40,6 +40,7 @@ ann <- r_annotation_fragmentsjoined %>%
     annot_colnames <- colnames(r_repeatmasker_annotation)
     annot_colnames_good <- annot_colnames[!(annot_colnames %in% c("gene_id", "family"))]
     ontologies <- annot_colnames_good[str_detect(annot_colnames_good, "_.*family")]
+    ontologies <- ontologies[ontologies != "l1_subfamily"]
     small_ontologies <- ontologies[grepl("subfamily", ontologies)]
 
     big_ontologies <- ontologies[!grepl("subfamily", ontologies)]
@@ -68,7 +69,7 @@ for (ontology in ontologies) {
             groups_that_have_been_run <- c(groups_that_have_been_run, group)
             groupframe <- ann %>% filter(!!sym(ontology) == group)
             eligible_modifiers <- c()
-            for (modifier in modifiers) {
+            for (modifier in element_req_modifiers) {
                 values_present <- ann %>%
                     filter(!!sym(ontology) == group) %>%
                     pull(!!sym(modifier)) %>%

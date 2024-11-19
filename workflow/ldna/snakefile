@@ -740,6 +740,11 @@ rule genomewide_meth:
     script:
         "scripts/bedmethylanalysis.R"
 
+
+if config["ldna"]["single_condition"] == "yes":
+    ruleorder: bedmethylanalysis_process_single_condition > bedmethylanalysis_process
+else:
+    ruleorder:  bedmethylanalysis_process > bedmethylanalysis_process_single_condition
 rule bedmethylanalysis_process:
     input:
         dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
@@ -757,17 +762,12 @@ rule bedmethylanalysis_process:
     script:
         "scripts/bedmethylanalysis_process.R"
 
-rule bedmethylanalysis_plot:
+rule bedmethylanalysis_process_single_condition:
     input:
-        dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
-        dmls = "ldna/results/tables/dmls.CG_m.tsv",
-        grsdf = "ldna/Rintermediates/grsdf.tsv"
-        # read_mods = expand('ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_readmods_{context}_{region}.tsv', sample = samples, region = config["ldna"]["rte_subfamily_read_level_analysis"], context = ["CpG", "NoContext"])
+        bedmethylpaths = expand("ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_bedMethyl.bed", sample = samples, ref_genome = "analysis_default"),
+        read_mods = expand('ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_readmods_{context}_{region}.tsv', sample = samples, ref_genome = "analysis_default", region = config["ldna"]["rte_subfamily_read_level_analysis"], context = ["CpG", "NoContext"])
     output:
-        plots = "ldna/results/plots/bedmethylanalysis.rds",
-        promoters_bed = "ldna/Rintermediates/promoters.bed",
-        dmrpromoterhyper_bed = "ldna/Rintermediates/promoters_dmhyperregions.bed",
-        dmrpromoterhypo_bed = "ldna/Rintermediates/promoters_dmhyporegions.bed",
+        grsdf = "ldna/Rintermediates/grsdf.tsv"
     resources:
         cpus_per_task =10,
         mem_mb = 200000,
@@ -777,13 +777,19 @@ rule bedmethylanalysis_plot:
     script:
         "scripts/bedmethylanalysis_process.R"
 
-rule bedmethylanalysis_single_sample:
+
+rule bedmethylanalysis_plot:
     input:
-        bedmethylpaths = expand("ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_bedMethyl.bed", sample = samples, ref_genome = "analysis_default"),
-        read_mods = expand('ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_readmods_{context}_{region}.tsv', sample = samples, ref_genome = "analysis_default", region = config["ldna"]["rte_subfamily_read_level_analysis"], context = ["CpG", "NoContext"])
+        grsdf = "ldna/Rintermediates/grsdf.tsv"
+        # read_mods = expand('ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_readmods_{context}_{region}.tsv', sample = samples, region = config["ldna"]["rte_subfamily_read_level_analysis"], context = ["CpG", "NoContext"])
+    params:
+        dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
+        dmls = "ldna/results/tables/dmls.CG_m.tsv"
     output:
-        outfile = "ldna/outfiles/bedmethylanalysis_single_sample.txt",
-        promoters_bed = "ldna/Rintermediates/promoters.bed"
+        plots = "ldna/results/plots/bedmethylanalysis.rds",
+        promoters_bed = "ldna/Rintermediates/promoters.bed",
+        dmrpromoterhyper_bed = "ldna/Rintermediates/promoters_dmhyperregions.bed",
+        dmrpromoterhypo_bed = "ldna/Rintermediates/promoters_dmhyporegions.bed"
     resources:
         cpus_per_task =10,
         mem_mb = 200000,
@@ -791,8 +797,7 @@ rule bedmethylanalysis_single_sample:
     conda:
         "ds"
     script:
-        "scripts/bedmethylanalysis_single_sample.R"
-
+        "scripts/bedmethylanalysis_plot.R"
 
 
 rule insertion_analysis:
