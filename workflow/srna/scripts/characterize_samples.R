@@ -102,6 +102,10 @@ for (g_var in c("rte_family", "rte_subfamily")) {
             group_by(sample, req_integrative, genic_loc) %>%
             summarise(sample_sum = sum(tpm)) %>%
             ungroup()
+        nsamples <- pf %$% sample %>%
+            unique() %>%
+            length()
+
         p <- pf %>%
             mutate(req_integrative = factor(req_integrative, levels = c("Old Trnc", "Old FL", "Yng Trnc", "Yng FL", "Yng Intact"))) %>%
             mutate(sample = factor(sample, levels = sample_table$sample_name)) %>%
@@ -112,7 +116,8 @@ for (g_var in c("rte_family", "rte_subfamily")) {
             scale_samples +
             scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
             theme(axis.text.x = element_text(angle = 45, hjust = 1))
-        mysaveandstore(sprintf("%s/single_group/%s_bar.pdf", outputdir, group), width, height)
+        mysaveandstore(sprintf("%s/single_group/%s_bar.pdf", outputdir, group), 1 + nsamples / 2.5, height)
+
 
         p <- pf %>%
             arrange(req_integrative) %>%
@@ -122,7 +127,7 @@ for (g_var in c("rte_family", "rte_subfamily")) {
             scale_palette +
             scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
             theme(axis.text.x = element_text(angle = 45, hjust = 1))
-        mysaveandstore(sprintf("%s/single_group/%s_bar_reqintegrative.pdf", outputdir, group), 10, 5)
+        mysaveandstore(sprintf("%s/single_group/%s_bar_reqintegrative.pdf", outputdir, group), 1 + nsamples / 2.5, 5)
 
         p <- pf %>%
             arrange(req_integrative) %>%
@@ -132,7 +137,7 @@ for (g_var in c("rte_family", "rte_subfamily")) {
             scale_palette +
             scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
             theme(axis.text.x = element_text(angle = 45, hjust = 1))
-        mysaveandstore(sprintf("%s/single_group/%s_bar_reqintegrative_same_scale.pdf", outputdir, group), 10, 5)
+        mysaveandstore(sprintf("%s/single_group/%s_bar_reqintegrative_same_scale.pdf", outputdir, group), 1 + nsamples / 2.5, 5)
 
         pff <- df %>%
             group_by(sample, req_integrative) %>%
@@ -146,7 +151,24 @@ for (g_var in c("rte_family", "rte_subfamily")) {
             scale_palette +
             scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
             theme(axis.text.x = element_text(angle = 45, hjust = 1))
-        mysaveandstore(sprintf("%s/single_group/%s_bar_reqintegrative_nofacet.pdf", outputdir, group), 6, 5)
+        mysaveandstore(sprintf("%s/single_group/%s_bar_reqintegrative_nofacet.pdf", outputdir, group), 1 + nsamples / 2.5, 5)
+
+
+        pff <- df %>%
+            group_by(sample, req_integrative) %>%
+            summarise(sample_sum = sum(tpm)) %>%
+            ungroup() %>%
+            filter(grepl("total", sample))
+        p <- pff %>%
+            arrange(req_integrative) %>%
+            ggbarplot(x = "sample", y = "sample_sum", fill = "req_integrative") +
+            labs(x = "", y = "TPM", subtitle = counttype_label, title = group) +
+            mtclosedgridh +
+            scale_palette +
+            scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
+            theme(axis.text.x = element_text(angle = 45, hjust = 1))
+        mysaveandstore(sprintf("%s/single_group/%s_bar_reqintegrative_nofacet_fl.pdf", outputdir, group), 1 + 15 / 2.5, 5)
+
 
         if (df %$% rte_superfamily %>% unique() == "LTR") {
             pf <- df %>%

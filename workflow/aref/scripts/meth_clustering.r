@@ -60,6 +60,7 @@ rmann <- read_csv(conf$rmann) %>%
 rtedf <- read_delim("ldna/Rintermediates/rtedf.tsv", col_names = TRUE)
 
 ##############################
+outputdir_already_computed <- "/users/mkelsey/data/LF1/RTE/ldna/results/plots/l1_alignment_meth"
 outputdir <- "ldna/results/plots/l1_alignment_meth"
 
 subfam <- "L1HS"
@@ -205,20 +206,6 @@ cpg_order <- merged %$% consensus_pos %>%
     unique() %>%
     sort()
 merged <- merged %>% mutate(consensus_pos = factor(consensus_pos, levels = cpg_order))
-
-
-merged %$% gene_id %>% unique()
-merged %>%
-    filter(sample == "AD1") %>%
-    select(consensus_pos, islandStatus) %>%
-    group_by(consensus_pos) %>%
-    mutate(istatus = ifelse(islandStatus == "island", 1, 0)) %>%
-    summarise(mean(istatus)) %>%
-    print(n = Inf)
-
-merged
-
-
 library(tidyHeatmap)
 
 dat <- merged %>%
@@ -281,8 +268,21 @@ yy1sitesdf <- tibble(gene_id = merged$gene_id %>% unique()) %>%
     mutate(yy1status = replace_na(yy1status, FALSE))
 
 
-merged1 <- merged %>% left_join(yy1sitesdf)
+yy1sitesdfbasedonconsensus <- consensus_index_long %>%
+    filter(consensus_pos < yy1_pos_consensus$end) %>%
+    filter(consensus_pos > yy1_pos_consensus$start) %>%
+    group_by(gene_id) %>%
+    mutate(seq_pos_void = ifelse(is.na(sequence_pos), 1, 0)) %>%
+    summarise(sumna = sum(seq_pos_void)) %>%
+    mutate(yy1status_by_consensus = ifelse(sumna > 2, FALSE, TRUE)) %>%
+    dplyr::select(-sumna)
+
+
+merged1 <- merged %>%
+    left_join(yy1sitesdf) %>%
+    left_join(yy1sitesdfbasedonconsensus)
 merged1 %$% yy1status %>% table()
+merged1 %$% yy1status_by_consensus %>% table()
 
 hms <- list()
 for (sample in conf$samples) {
@@ -297,6 +297,18 @@ for (sample in conf$samples) {
     hms[[sample]] <- p
     dir.create(outputdir, recursive = TRUE)
     mysaveandstore(sprintf("%s/%s_methylation_%s_yy1stratified.pdf", outputdir, sample, subfam), w = 6, h = 6)
+
+    p <- merged1 %>%
+        filter(sample == !!sample) %>%
+        group_by(gene_id) %>%
+        mutate(cpgs_detected_per_element = n()) %>%
+        ungroup() %>%
+        filter(cpgs_detected_per_element > 50) %>%
+        group_by(yy1status_by_consensus) %>%
+        heatmap(gene_id, consensus_pos, pctM, cluster_rows = TRUE, cluster_columns = FALSE)
+    hms[[sample]] <- p
+    dir.create(outputdir, recursive = TRUE)
+    mysaveandstore(sprintf("%s/%s_methylation_%s_yy1consensusstratified.pdf", outputdir, sample, subfam), w = 6, h = 6)
 }
 
 
@@ -361,18 +373,61 @@ for (sample in conf$samples) {
     mysaveandstore(sprintf("%s/%s_methylation_%s_cluster_stratified.pdf", outputdir, sample, subfam), w = 6, h = 6)
 }
 
+
+# L1HS_10p15.1_2 why all NA??
+# CLUSTER ANALYSIS TOSSING OUT ELEMENTS WITH MORE than 25% missing values.
+gene_ids_to_keep <- merged1 %>%
+    dplyr::select(consensus_pos, gene_id, pctM) %>%
+    group_by(gene_id) %>%
+    summarise(prop_cpg_no_data = sum(is.na(pctM) / n()))
+gene_ids_to_keep %$% prop_cpg_no_data %>% table()
+matdf <- merged1 %>%
+    left_join(gene_ids_to_keep) %>%
+    filter(number_cpg_no_data < 0.3) %>%
+    dplyr::select(consensus_pos, gene_id, pctM) %>%
+    pivot_wider(names_from = consensus_pos, values_from = pctM)
+rownames(matdf) <- matdf$gene_id
+mat <- as.matrix(matdf %>% dplyr::select(-gene_id))
+rownames(mat) <- matdf$gene_id
+
+library(impute)
+# Impute missing values in pctM (default is K-nearest neighbors)
+imputed_data <- impute.knn(mat)$data
+# Create a distance matrix from the imputed data
+distance_matrix <- dist(imputed_data, method = "euclidean")
+# Perform clustering
+clusters <- hclust(distance_matrix, method = "ward.D2")
+cluster_group <- cutree(clusters, k = 3)
+clusterdf <- tibble(gene_id = names(cluster_group), cluster = cluster_group)
+clusterdf %>% print(n = 1000)
+
+
+for (sample in conf$samples) {
+    p <- clusterdf %>%
+        left_join(merged1) %>%
+        filter(sample == !!sample) %>%
+        group_by(gene_id) %>%
+        mutate(cpgs_detected_per_element = n()) %>%
+        ungroup() %>%
+        filter(cpgs_detected_per_element > 50) %>%
+        group_by(cluster) %>%
+        heatmap(gene_id, consensus_pos, pctM, cluster_rows = TRUE, cluster_columns = FALSE)
+    hms[[sample]] <- p
+    dir.create(outputdir, recursive = TRUE)
+    mysaveandstore(sprintf("%s/%s_methylation_%s_cluster_stratified_only_elements_used_in_DE_TF_analysis.pdf", outputdir, sample, subfam), w = 6, h = 6)
+}
+
+
 clustergrs <- clusterdf %>%
     left_join(rmann) %>%
     GRanges()
-cluster_for_gimme_maelstrom %>%
-    filter(cluster == "1") %>%
-    print(n = 200)
 cluster_for_gimme_maelstrom <- as.data.frame(promoters(clustergrs, upstream = 300, downstream = 909)) %>%
     tibble() %>%
     mutate(position_string = paste0(seqnames, ":", start, "-", end)) %>%
     dplyr::select(position_string, cluster) %>%
     dplyr::rename(loc = position_string, cluster = cluster)
 
+cluster_for_homer <- promoters(clustergrs, upstream = 300, downstream = 909)
 ## promoters is giving negative ranges
 comb_mat <- combn(cluster_for_gimme_maelstrom$cluster %>% unique(), 2)
 for (i in 1:ncol(comb_mat)) {
@@ -387,15 +442,43 @@ for (i in 1:ncol(comb_mat)) {
     outputdir_clusters <- "ldna/results/cluster_analysis"
     # motif analysis of consensus
     conda_base_path <- system("conda info --base", intern = TRUE)
-    cluster_tf_enrichment_outputdir_path <- sprintf("%s/cluster_analysis_%s_%s", outputdir_clusters, cluster1, cluster2)
-    dir.create(cluster_tf_enrichment_outputdir_path, recursive = TRUE)
+    cluster_tf_enrichment_outputdir_path_gimme <- sprintf("%s/cluster_analysis_%s_%s/gimme", outputdir_clusters, cluster1, cluster2)
+    cluster_tf_enrichment_outputdir_path_homer <- sprintf("%s/cluster_analysis_%s_%s/homer", outputdir_clusters, cluster1, cluster2)
+
+    dir.create(cluster_tf_enrichment_outputdir_path_gimme, recursive = TRUE)
+    dir.create(cluster_tf_enrichment_outputdir_path_homer, recursive = TRUE)
+
     motif_pwms_path <- "/oscar/home/mkelsey/anaconda/gimme/lib/python3.10/site-packages/data/motif_databases/HOCOMOCOv11_HUMAN.pfm"
 
     system(
         sprintf(
             "source %s/etc/profile.d/conda.sh && conda activate gimme && gimme maelstrom  --nthreads 16  %s %s %s -p %s",
-            conda_base_path, cluster_path, inputs$ref, cluster_tf_enrichment_outputdir_path, motif_pwms_path
+            conda_base_path, cluster_path, inputs$ref, cluster_tf_enrichment_outputdir_path_gimme, motif_pwms_path
         )
     )
-    results <- read_table()
+    # results <- read_table(sprintf("%s/"))
+    c1fapath <- sprintf("%s/cluster%s.fa", cluster_tf_enrichment_outputdir_path_homer, cluster1)
+    c2fapath <- sprintf("%s/cluster%s.fa", cluster_tf_enrichment_outputdir_path_homer, cluster2)
+    writeXStringSet(
+        getSeq(fa, cluster_for_homer[mcols(cluster_for_homer)$cluster == cluster1]),
+        c1fapath
+    )
+    writeXStringSet(
+        getSeq(fa, cluster_for_homer[mcols(cluster_for_homer)$cluster == cluster2]),
+        c2fapath
+    )
+
+
+    system(
+        sprintf(
+            "findMotifs.pl %s fasta %s -fasta %s > %s",
+            c1fapath, sprintf("%s/foreground%s_background%s", cluster_tf_enrichment_outputdir_path_homer, cluster1, cluster2), c2fapath, sprintf("%s/outputfile.txt", cluster_tf_enrichment_outputdir_path_homer)
+        )
+    )
+    system(
+        sprintf(
+            "findMotifs.pl %s fasta %s -fasta %s > %s",
+            c2fapath, sprintf("%s/foreground%s_background%s", cluster_tf_enrichment_outputdir_path_homer, cluster2, cluster1), c1fapath, sprintf("%s/outputfile.txt", cluster_tf_enrichment_outputdir_path_homer)
+        )
+    )
 }
