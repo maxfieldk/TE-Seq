@@ -1502,3 +1502,159 @@ rule call_read_extractions:
         alndata = expand("aref/intermediates/{sample}/translocation_analysis/read_clipping_lengths.tsv", sample = config["aref"]["samples"]),
         alndata1 = expand("aref/intermediates/{sample}/translocation_analysis/putative_trans_reads.tsv", sample = config["aref"]["samples"])
     
+
+
+
+
+#terex genome prep
+rule lastdb_index:
+    input:
+        genome= config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"]
+    output:
+        db="aref/terex/gdb.prj"
+    threads: 8
+    conda: "last"
+    shell:
+        """
+mkdir -p $(dirname {output.db})
+db={output.db}
+lastdb -P{threads} -uRY4 ${{db%.*}} {input.genome}
+        """
+
+rule download_repeats:
+    output:
+        "aref/terex/prep/reps.fa"
+    params:
+        terexbindir = "/users/mkelsey/data/tools/te-rex/bin"
+    shell:
+        """
+mkdir -p $(dirname {output})
+{params.terexbindir}/dfam-fasta -c9606 -x'root;Interspersed_Repeat' > {output}
+        """
+
+rule make_repdb:
+    input:
+        "aref/terex/prep/reps.fa"
+    output:
+        outfile = "aref/terex/prep/outfile.txt"
+    resources:
+        cpus_per_task = 24,
+        mem_mb = 100000,
+        runtime = 300
+    conda: "last"
+    shell:
+        """
+mkdir -p $(dirname {output.outfile})
+lastdb -uMAM8 -S2 -P24 $(dirname {output.outfile})/repdb {input}
+touch {output.outfile}
+        """
+
+rule train_genome_to_reps:
+    input:
+        outfile = "aref/terex/prep/outfile.txt",
+        genome= config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"]
+    output:
+        "aref/terex/prep/rep.train"
+    conda: "last"
+    resources:
+        cpus_per_task = 24,
+        mem_mb = 100000,
+        runtime = 300
+    shell:
+        "last-train -P24 --revsym -X1 --pid=70 $(dirname {input.outfile})/repdb {input.genome} > {output}"
+
+rule genome_to_reps:
+    input:
+        outfile = "aref/terex/prep/outfile.txt",
+        train="aref/terex/prep/rep.train",
+        genome= config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"]
+    output:
+        "aref/terex/prep/genome-to-reps.maf"
+    conda: "last"
+    resources:
+        cpus_per_task = 24,
+        mem_mb = 200000,
+        runtime = 300
+    shell:
+        """
+lastal -P12 -p {input.train} -D1e7 --split $(dirname {input.outfile})/repdb {input.genome} | last-postmask > {output}
+        """
+
+rule reps_to_reps:
+    input:
+        repeats="aref/terex/prep/reps.fa"
+    output:
+        "aref/terex/prep/reps-to-reps.tab"
+    params:
+        terexbindir = "/users/mkelsey/data/tools/te-rex/bin"
+    conda: "last"
+    resources:
+        cpus_per_task = 24,
+        mem_mb = 100000,
+        runtime = 300
+    shell:
+        """
+{params.terexbindir}/te-self-align {params.terexbindir}/hg38-calJac3.train {input.repeats} > {output}
+        """
+#terex on my reads
+rule last_train:
+    input:
+        db="aref/terex/gdb.prj",
+        reads= expand("ldna/intermediates/{agivensample}/fastqs/{agivensample}.fq", agivensample = config["aref"]["samples"][1])
+    output:
+        params="aref/terex/reads.train"
+    resources:
+        cpus_per_task = 24,
+        mem_mb = 100000,
+        runtime = 300
+    conda: "last"
+    shell:
+        """
+db={input.db}
+last-train -P24 -Q0 ${{db%.*}} {input.reads} > {output.params}
+        """
+
+rule lastal_align:
+    input:
+        db="aref/terex/gdb.prj",
+        reads= "ldna/intermediates/{sample}/fastqs/{sample}.fq",
+        params="aref/terex/reads.train"
+    output:
+        aligned="aref/terex/{sample}/{sample}.maf"
+    conda: "last"
+    resources:
+        cpus_per_task = 14,
+        mem_mb = 240000,
+        runtime = 1200
+    shell:
+        """
+mkdir -p $(dirname {output.aligned})
+db={input.db}
+lastal -P10 -p {input.params} -D1e9 --split ${{db%.*}} {input.reads} | last-postmask > {output.aligned}
+        """
+
+#pull everything together
+rule te_rex:
+    input:
+        genome_to_reps="aref/terex/prep/genome-to-reps.maf",
+        reps_to_reps="aref/terex/prep/reps-to-reps.tab",
+        reads_maf="aref/terex/{sample}/{sample}.maf"
+    params:
+        terexbindir = "/users/mkelsey/data/tools/te-rex/bin"
+    output:
+        recomb_tsv="aref/terex/{sample}/{sample}-out-recomb.tsv",
+        recomb_maf="aref/terex/{sample}/{sample}-out-recomb.maf",
+        insert_maf="aref/terex/{sample}/{sample}-out-insert.maf"
+    resources:
+        cpus_per_task = 24,
+        mem_mb = 100000,
+        runtime = 500
+    conda: "last"
+    shell:
+        """
+outfile={output.insert_maf}
+{params.terexbindir}/te-rex {input.genome_to_reps} {input.reps_to_reps} {input.reads_maf} ${{outfile%-*}}
+        """
+rule call_te_rex:
+    input:
+        expand("aref/terex/{sample}/{sample}-out-insert.maf", sample = config["aref"]["samples"])

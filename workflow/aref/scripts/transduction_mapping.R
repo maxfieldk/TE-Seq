@@ -111,7 +111,7 @@ tryCatch(
             filter(pident == max(pident)) %>%
             filter(gapopen == min(gapopen)) %>%
             filter(length == max(length)) %>%
-            filter(nrow(.) == 1) %>%
+            filter(row_number() == 1) %>%
             ungroup()
 
         join_df <- rmann %>%
