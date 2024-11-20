@@ -53,7 +53,7 @@ tryCatch(
             } else {
                 rep(sprintf("aref/default/%s.table.kept_in_updated_ref.txt", "A.REF"), length(sample_table$sample_name))
             },
-            bam = sprintf("aref/intermediates/%s/alignments/5khz/%s.hac.5mCG_5hmCG.sorted.bam", sample_table$sample_name, sample_table$sample_name),
+            bam = sprintf("aref/intermediates/%s/alignments/%s/%s.%s.%s.sorted.bam", sample_table$sample_name, conf$rate, sample_table$sample_name, conf$type, conf$modification_string),
             r_annotation_fragmentsjoined = "aref/default/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
             r_repeatmasker_annotation = "aref/default/A.REF_annotations/A.REF_repeatmasker_annotation.csv"
         ), env = globalenv())
@@ -195,8 +195,7 @@ if (conf$update_ref_with_tldr$per_sample == "yes") {
         mutate(sample_name = str_extract(SampleReads, paste(conf$samples, collapse = "|")))
 }
 
-somatic %$% sample_name
-somatic_all %$% sample_name
+
 
 somatic_all_not_read_filtered <- GRanges(somatic_all1) %>%
     subsetByOverlaps(centromere, invert = TRUE) %>%
@@ -343,73 +342,100 @@ for (element_type in somatic %$% Subfamily %>% unique()) {
 
 #### transduction mapping
 # overall it seems like the transductions are just more duplicated adjacent genomic sequence - perhaps it had too many consequtive mismatches to be called in the TSD.
-get_promising_transduction <- function(insertdf) {
+get_promising_transduction <- function(sf_with_trsd, sample_or_aref) {
     promising_transductions <- list()
-    for (sample in conf$samples) {
-        sf_with_trsd <- insertdf %>%
-            filter(sample_name == sample) %>%
-            filter(nchar(Transduction_3p) > 20)
-        if (nrow(sf_with_trsd) == 0) {
-            next
-        }
+    if (nrow(sf_with_trsd) == 0) {
+        return(NULL)
+    }
 
-        trsd_ss <- DNAStringSet(sf_with_trsd$Transduction_3p)
-        names(trsd_ss) <- sf_with_trsd$UUID
+    trsd_ss <- DNAStringSet(sf_with_trsd$Transduction_3p)
+    names(trsd_ss) <- sf_with_trsd$UUID
 
 
-        at_content <- letterFrequency(trsd_ss, letters = "AT", as.prob = TRUE)
+    at_content <- letterFrequency(trsd_ss, letters = "AT", as.prob = TRUE)
 
-        trsd_ss_for_blast <- trsd_ss[which(at_content < 0.9)]
+    trsd_ss_for_blast <- trsd_ss[which(at_content < 0.9)]
 
 
-        bl <- blast(db = sub("\\.[^.]*$", "", grep(sample, inputs$blast_njs, value = TRUE)))
-        bres <- tibble(predict(bl, trsd_ss_for_blast))
-        if (nrow(bres) == 0) {
-            next
-        }
-        bres1 <- bres %>% left_join(sf_with_trsd, by = c("qseqid" = "UUID"))
+    bl <- blast(db = sub("\\.[^.]*$", "", grep(sample_or_aref, inputs$blast_njs, value = TRUE)))
+    bres <- tibble(predict(bl, trsd_ss_for_blast))
+    if (nrow(bres) == 0) {
+        break
+    }
+    bres1 <- bres %>% left_join(sf_with_trsd, by = c("qseqid" = "UUID"))
 
-        bres_hits <- bres1 %>%
-            group_by(qseqid) %>%
-            filter(bitscore == max(bitscore)) %>%
-            filter(pident == max(pident)) %>%
-            filter(gapopen == min(gapopen)) %>%
-            filter(length == max(length)) %>%
-            ungroup()
+    bres_hits <- bres1 %>%
+        group_by(qseqid) %>%
+        filter(bitscore == max(bitscore)) %>%
+        filter(pident == max(pident)) %>%
+        filter(gapopen == min(gapopen)) %>%
+        filter(length == max(length)) %>%
+        ungroup()
 
-        bres_hits_other_loc <- bres_hits %>% filter(!((sseqid == seqnames) & (abs(sstart - start) < 2000)))
+    bres_hits_other_loc <- bres_hits %>% filter(!((sseqid == seqnames) & (abs(sstart - start) < 2000)))
 
-        relevant_subfamilies <- bres_hits_other_loc %$% Subfamily %>% unique()
+    hitlist <- list()
+    for (qseqid in bres_hits_other_loc$qseqid) {
+        hitgrs <- bres_hits_other_loc[bres_hits_other_loc$qseqid == qseqid, ]
+
+        relevant_subfamilies <- hitgrs %$% Subfamily %>% unique()
         relevant_subfamilies_grs <- GRanges(rmann %>% filter(grepl(paste(relevant_subfamilies, sep = "|", colapse = TRUE), rte_subfamily)))
 
-        bresgrs <- GRanges(bres_hits_other_loc)
-        # extend by 500 bp on either side
-        bresgrs <- resize(bresgrs, width = width(bresgrs) + 500, fix = "center")
+        bresgrs <- GRanges(
+            seqnames = hitgrs$sseqid,
+            ranges = IRanges(
+                start = min(hitgrs$sstart, hitgrs$send),
+                end = max(hitgrs$sstart, hitgrs$send)
+            )
+        )
+        mcols(bresgrs)$UUID <- hitgrs$qseqid
+        hits <- as.data.frame(distanceToNearest(bresgrs, relevant_subfamilies_grs)) %>% tibble()
+        trsd_adjacent_rte <- tibble(
+            UUID = bresgrs[hits$queryHits, ]$UUID,
+            gene_id = relevant_subfamilies_grs[hits$subjectHits, ]$gene_id,
+            distance = hits$distance
+        ) %>% mutate(adjacent = ifelse(distance < 100, TRUE, FALSE))
 
-        trsd_adjacent_rte <- subsetByOverlaps(bresgrs, relevant_subfamilies_grs) %>%
-            as.data.frame() %>%
-            tibble()
-        promising_transductions[[sample]] <- trsd_adjacent_rte
-        if (length(trsd_adjacent_rte) > 0) {
-            print("promising_ids")
-            trsd_adjacent_rte %$% qseqid
-            print("end_promising_hits")
-        }
+        hitlist[[qseqid]] <- trsd_adjacent_rte
     }
-    return(promising_transductions)
+
+    transductions <- purrr::reduce(hitlist, bind_rows) %>%
+        full_join(tibble(UUID = bres_hits_other_loc$qseqid)) %>%
+        left_join(rmann) %>%
+        relocate(UUID)
 }
 
-somatic_repregion_filt_promosing_transductions <- get_promising_transduction(somatic_repregion_filt)
+if (conf$update_ref_with_tldr$per_sample == "yes") {
+    transductions_list <- list()
+    for (sample in conf$samples) {
+        sf_with_trsd <- somatic_filt %>%
+            filter(sample_name == sample) %>%
+            filter(nchar(Transduction_3p) > 10)
+        transductions_list[[sample]] <- get_promising_transduction(sf_with_trsd, sample) %>%
+            mutate(sample_name = sample)
+    }
+    transductions_df <- reduce(transductions_list, bind_rows)
+} else {
+    sf_with_trsd <- somatic_filt %>%
+        filter(nchar(Transduction_3p) > 10)
+    transductions_df <- get_promising_transduction(sf_with_trsd, "A.REF") %>%
+        mutate(sample_name = "A.REF")
+}
+
+write_csv(transductions_df, sprintf("%s/promising_transductions.csv", outputdir))
+
+
+# somatic_repregion_filt_promosing_transductions <- get_promising_transduction(somatic_repregion_filt)
 
 ######
 
-# somatic
-# nice inserts
-insert_id <- "8a2116c5-6b9a-44ee-ba15-b3940511a048"
-insert_id <- "49a6f96f-d10a-413d-8627-526aefbc1904"
-# odd insert
-insert_id <- "1d4c8f79-de32-492b-9ac1-d6b6e5d192db"
-# first only elements which pass all filters
+# # somatic
+# # nice inserts
+# insert_id <- "8a2116c5-6b9a-44ee-ba15-b3940511a048"
+# insert_id <- "49a6f96f-d10a-413d-8627-526aefbc1904"
+# # odd insert
+# insert_id <- "1d4c8f79-de32-492b-9ac1-d6b6e5d192db"
+# # first only elements which pass all filters
 
 
 
@@ -481,15 +507,17 @@ analyze_insert <- function(group_frame, insert_id, insert_outputdir) {
             # pdf(sprintf("%s/dotplot.pdf", insert_outputdir))
             # dotPlot(read_seq_split, insert_site_split, wsize = 10, nmatch = 9)
             # dev.off()
-            pdf(sprintf("%s/dotplot_consensussmall_vs_consensussmall.pdf", insert_outputdir))
-            dotPlot(consensus_small_split, consensus_small_split, wsize = 10, nmatch = 9)
-            dev.off()
-            pdf(sprintf("%s/dotplot_insertsite_vs_insertsite.pdf", insert_outputdir))
-            dotPlot(insert_site_split, insert_site_split, wsize = 10, nmatch = 9)
-            dev.off()
-            pdf(sprintf("%s/dotplot_consensussmall_vs_insertsite.pdf", insert_outputdir))
-            dotPlot(consensus_small_split, insert_site_split, wsize = 10, nmatch = 9)
-            dev.off()
+            if (length(consensus_small_split) < 2000) {
+                pdf(sprintf("%s/dotplot_consensussmall_vs_consensussmall.pdf", insert_outputdir))
+                dotPlot(consensus_small_split, consensus_small_split, wsize = 10, nmatch = 9)
+                dev.off()
+                pdf(sprintf("%s/dotplot_insertsite_vs_insertsite.pdf", insert_outputdir))
+                dotPlot(insert_site_split, insert_site_split, wsize = 10, nmatch = 9)
+                dev.off()
+                pdf(sprintf("%s/dotplot_consensussmall_vs_insertsite.pdf", insert_outputdir))
+                dotPlot(consensus_small_split, insert_site_split, wsize = 10, nmatch = 9)
+                dev.off()
+            }
             writeXStringSet(insert_site_sense, sprintf("%s/insert_site.fa", insert_outputdir))
             # writeXStringSet(read_seq_sense_1001_window, sprintf("%s/supporting_read_1000_window.fa", insert_outputdir))
             # writeXStringSet(read_seq_sense, sprintf("%s/supporting_read.fa", insert_outputdir))
