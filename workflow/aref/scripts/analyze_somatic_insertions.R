@@ -125,8 +125,6 @@ germline_insert_df <- GRanges(germline) %>%
     tibble()
 
 
-
-
 # load all TLDR insertions
 library(BSgenome)
 fa <- Rsamtools::FaFile(conf$ref)
@@ -146,78 +144,50 @@ if (conf$update_ref_with_tldr$per_sample == "yes") {
     dfall <- do.call(bind_rows, dflist) %>%
         left_join(sample_sequencing_data) %>%
         left_join(sample_table)
-    somatic <- dfall %>%
-        separate_wider_delim(EmptyReads, delim = "|", names = c("bamname", "emptyreadsnum")) %>%
-        mutate(fraction_reads_count = UsedReads / (UsedReads + as.numeric(emptyreadsnum))) %>%
-        filter(fraction_reads_count < 0.1) %>%
-        filter(MedianMapQ >= 60) %>%
-        filter(UsedReads == 1) %>%
-        filter(SpanReads == 1) %>%
-        filter(Filter == "PASS") %>%
-        filter(!is.na(TSD))
-
-    somatic_all <- dfall %>%
-        separate_wider_delim(EmptyReads, delim = "|", names = c("bamname", "emptyreadsnum")) %>%
-        mutate(fraction_reads_count = UsedReads / (UsedReads + as.numeric(emptyreadsnum))) %>%
-        filter(fraction_reads_count < 0.1) %>%
-        filter(MedianMapQ >= 60) %>%
-        filter(UsedReads == 1) %>%
-        filter(SpanReads == 1)
 } else {
     dfall <- read.table("aref/A.REF_tldr/A.REF.table.txt", header = TRUE) %>%
         mutate(faName = paste0("NI_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>%
         tibble()
-
-    somatic1 <- dfall %>%
-        filter(!is.na(EmptyReads)) %>%
-        rowwise() %>%
-        mutate(emptyreadsnum = sum(as.numeric(gsub("\\|", "", unlist(str_extract_all(EmptyReads, pattern = "\\|[0-9]+")))))) %>%
-        ungroup() %>%
-        mutate(fraction_reads_count = UsedReads / (UsedReads + as.numeric(emptyreadsnum))) %>%
-        filter(fraction_reads_count < 0.1) %>%
-        filter(MedianMapQ >= 60) %>%
-        filter(UsedReads == 1) %>%
-        filter(SpanReads == 1) %>%
-        filter(Filter == "PASS") %>%
-        filter(!is.na(TSD)) %>%
-        mutate(sample_name = str_extract(SampleReads, paste(conf$samples, collapse = "|")))
-
-    somatic_all1 <- dfall %>%
-        filter(!is.na(EmptyReads)) %>%
-        rowwise() %>%
-        mutate(emptyreadsnum = sum(as.numeric(gsub("\\|", "", unlist(str_extract_all(EmptyReads, pattern = "\\|[0-9]+")))))) %>%
-        ungroup() %>%
-        mutate(fraction_reads_count = UsedReads / (UsedReads + as.numeric(emptyreadsnum))) %>%
-        filter(fraction_reads_count < 0.1) %>%
-        filter(MedianMapQ >= 60) %>%
-        filter(UsedReads == 1) %>%
-        filter(SpanReads == 1) %>%
-        mutate(sample_name = str_extract(SampleReads, paste(conf$samples, collapse = "|")))
 }
 
+somatic_alpha <- dfall %>%
+    filter(!is.na(EmptyReads)) %>%
+    rowwise() %>%
+    mutate(emptyreadsnum = sum(as.numeric(gsub("\\|", "", unlist(str_extract_all(EmptyReads, pattern = "\\|[0-9]+")))))) %>%
+    ungroup() %>%
+    mutate(fraction_reads_count = UsedReads / (UsedReads + as.numeric(emptyreadsnum))) %>%
+    filter(fraction_reads_count < 0.1) %>%
+    filter(MedianMapQ >= 60) %>%
+    filter(Filter == "PASS") %>%
+    filter(!is.na(TSD)) %>%
+    mutate(sample_name = gsub("\\..*", "", str_extract(SampleReads, paste(conf$samples, collapse = "|")))) %>%
+    filter(UsedReads < 4) %>%
+    filter(SpanReads > 0) %>%
+    mutate(TSD_OK = ifelse(nchar(TSD) < 21, TRUE, FALSE))
+somatic_alpha %>%
+    group_by(UsedReads, SpanReads, TSD_OK) %>%
+    summarize(n = n())
 
 
-somatic_all_not_read_filtered <- GRanges(somatic_all1) %>%
-    subsetByOverlaps(centromere, invert = TRUE) %>%
-    subsetByOverlaps(telomere, invert = TRUE) %>%
-    subsetByOverlaps(segdups, invert = TRUE) %>%
-    subsetByOverlaps(mappability) %>%
-    as.data.frame() %>%
-    tibble()
-somatic_not_read_filtered <- GRanges(somatic1) %>%
-    subsetByOverlaps(centromere, invert = TRUE) %>%
-    subsetByOverlaps(telomere, invert = TRUE) %>%
-    subsetByOverlaps(segdups, invert = TRUE) %>%
-    subsetByOverlaps(mappability) %>%
-    as.data.frame() %>%
-    tibble()
-
-somatic_repregion_not_read_filtered <- GRanges(somatic1) %>%
-    subsetByOverlaps(c(centromere, telomere, segdups)) %>%
-    subsetByOverlaps(mappability) %>%
-    as.data.frame() %>%
-    tibble()
-
+filter_by_mappability <- function(insert_df) {
+    df1 <- insert_df %>%
+        GRanges() %>%
+        subsetByOverlaps(centromere, invert = TRUE) %>%
+        subsetByOverlaps(telomere, invert = TRUE) %>%
+        subsetByOverlaps(segdups, invert = TRUE) %>%
+        subsetByOverlaps(mappability) %>%
+        as.data.frame() %>%
+        tibble()
+    df1$inrepregion <- FALSE
+    df2 <- insert_df %>%
+        GRanges() %>%
+        subsetByOverlaps(c(centromere, telomere, segdups)) %>%
+        subsetByOverlaps(mappability) %>%
+        as.data.frame() %>%
+        tibble()
+    df2$inrepregion <- TRUE
+    return(full_join(df1, df2))
+}
 
 filter_by_read_metadata <- function(insertdf) {
     flag <- scanBamFlag(
@@ -244,7 +214,6 @@ filter_by_read_metadata <- function(insertdf) {
                 tibble()
             mean_mapq <- alndf$mapq %>% mean()
             insert_mean_mapqs[[insert_id]] <- mean_mapq
-
             # insert fails if it was captured in a read which has supplementary alignments
             if (conf$update_ref_with_tldr$per_sample == "yes") {
                 tldr_df <- read_delim(sprintf("aref/%s_tldr/%s/%s.detail.out", sample, sample, insert_id))
@@ -252,25 +221,32 @@ filter_by_read_metadata <- function(insertdf) {
                 tldr_df <- read_delim(sprintf("aref/%s_tldr/%s/%s.detail.out", "A.REF", "A.REF", insert_id))
             }
             read_name <- tldr_df %>% filter(Useable == TRUE & IsSpanRead == TRUE) %$% ReadName
-            read_of_interest <- alndf %>% filter(qname == read_name)
-            insert_supplementary_status[[insert_id]] <- ifelse(is.na(read_of_interest$SA), "PASS", "FAIL")
+            read_of_interest <- alndf %>% filter(qname %in% read_name)
+            insert_supplementary_status[[insert_id]] <- ifelse(all(is.na(read_of_interest$SA)), TRUE, FALSE)
 
             # insert fails if it was captured in a read which has extensive indels or clipping
-            inserts <- str_extract_all(read_of_interest$cigar, "[0-9]+I") %>%
-                unlist() %>%
-                gsub("I", "", .) %>%
-                as.numeric()
-            deletions <- str_extract_all(read_of_interest$cigar, "[0-9]+D") %>%
-                unlist() %>%
-                gsub("D", "", .) %>%
-                as.numeric()
-            clips <- str_extract_all(read_of_interest$cigar, "([0-9]+S)|([0-9]+H)") %>%
-                unlist() %>%
-                gsub("S|H", "", .) %>%
-                as.numeric()
-            insert_indel_and_clipping_status[[insert_id]] <- ifelse((sum(inserts > 50) > 1) | (sum(deletions > 50) > 0) | (sum(clips > 50) > 0), "FAIL", "PASS")
+            indelclip <- list()
+            for (read_index in 1:nrow(read_of_interest)) {
+                read <- read_of_interest[read_index, ]
+
+                inserts <- str_extract_all(read_of_interest$cigar, "[0-9]+I") %>%
+                    unlist() %>%
+                    gsub("I", "", .) %>%
+                    as.numeric()
+                deletions <- str_extract_all(read_of_interest$cigar, "[0-9]+D") %>%
+                    unlist() %>%
+                    gsub("D", "", .) %>%
+                    as.numeric()
+                clips <- str_extract_all(read_of_interest$cigar, "([0-9]+S)|([0-9]+H)") %>%
+                    unlist() %>%
+                    gsub("S|H", "", .) %>%
+                    as.numeric()
+                indelclip[[read_index]] <- ifelse((sum(inserts > 50) > 1) | (sum(deletions > 50) > 0) | (sum(clips > 50) > 0), FALSE, TRUE)
+            }
+            insert_indel_and_clipping_status[[insert_id]] <- any(unlist(indelclip))
         }
     }
+
     mean_mapq_filter <- tibble(UUID = names(insert_mean_mapqs), insert_mean_mapqs = unname(insert_mean_mapqs) %>% unlist())
     supplementary_alignment_filter <- tibble(UUID = names(insert_supplementary_status), insert_supplementary_status = unname(insert_supplementary_status) %>% map(~ .x[1]) %>% unlist())
     indel_and_clipping_filter <- tibble(UUID = names(insert_indel_and_clipping_status), insert_indel_and_clipping_status = unname(insert_indel_and_clipping_status) %>% unlist())
@@ -281,8 +257,8 @@ filter_by_read_metadata <- function(insertdf) {
         left_join(indel_and_clipping_filter)
     insertdf <- insertdf %>%
         filter(insert_mean_mapqs > 55) %>%
-        filter(insert_supplementary_status == "PASS") %>%
-        filter(insert_indel_and_clipping_status == "PASS")
+        filter(insert_supplementary_status == TRUE) %>%
+        filter(insert_indel_and_clipping_status == TRUE)
     return(insertdf)
 }
 
@@ -296,149 +272,6 @@ filter_by_teend <- function(insertdf) {
         return(insertdf)
 }
 
-somatic <- filter_by_read_metadata(somatic_not_read_filtered)
-somatic %>%
-    write_delim(sprintf("%s/somatic_inserts_read_level_filters_passed.tsv", outputdir), delim = "\t")
-somatic <- read_delim(sprintf("%s/somatic_inserts_read_level_filters_passed.tsv", outputdir), delim = "\t")
-
-somatic_filt <- filter_by_teend(somatic)
-somatic_filt %>%
-    write_delim(sprintf("%s/somatic_filt_inserts_read_level_filters_passed.tsv", outputdir), delim = "\t")
-somatic_filt <- read_delim(sprintf("%s/somatic_filt_inserts_read_level_filters_passed.tsv", outputdir), delim = "\t")
-
-somatic_repregion <- filter_by_read_metadata(somatic_repregion_not_read_filtered)
-somatic_repregion %>%
-    write_delim(sprintf("%s/somatic_repregion_inserts_read_level_filters_passed.tsv", outputdir), delim = "\t")
-somatic_repregion <- read_delim(sprintf("%s/somatic_repregion_inserts_read_level_filters_passed.tsv", outputdir), delim = "\t")
-
-somatic_repregion_filt <- filter_by_teend(somatic_repregion)
-somatic_repregion_filt %>%
-    write_delim(sprintf("%s/somatic_repregion_filt_inserts_read_level_filters_passed.tsv", outputdir), delim = "\t")
-somatic_repregion_filt <- read_delim(sprintf("%s/somatic_repregion_filt_inserts_read_level_filters_passed.tsv", outputdir), delim = "\t")
-
-
-# ADDTIONAL FILTERS
-# I think these are overly restrictive - not applying these
-germline_insert_characteristics <- tibble(germline_tsd_95 = numeric(), germline_trsd3_95 = numeric(), germline_trsd5_95 = numeric(), germline_endte_05 = numeric(), Subfamily = character())
-for (element_type in somatic %$% Subfamily %>% unique()) {
-    germlinetemp <- germline %>% filter(Subfamily == element_type)
-    germline_tsd_95 <- germlinetemp %$% TSD %>%
-        nchar() %>%
-        replace_na(0) %>%
-        quantile(0.95, na.rm = TRUE)
-    germline_trsd3_95 <- germlinetemp %$% Transduction_3p %>%
-        nchar() %>%
-        replace_na(0) %>%
-        quantile(0.95, na.rm = TRUE)
-    germline_trsd5_95 <- germlinetemp %$% Transduction_5p %>%
-        nchar() %>%
-        replace_na(0) %>%
-        quantile(0.95, na.rm = TRUE)
-    germline_endte_05 <- germlinetemp %$% EndTE %>%
-        quantile(0.05, na.rm = TRUE) %>%
-        unname()
-    germline_insert_characteristics <- germline_insert_characteristics %>% add_row(germline_tsd_95 = germline_tsd_95, germline_trsd3_95 = germline_trsd3_95, germline_trsd5_95 = germline_trsd5_95, germline_endte_05 = germline_endte_05, Subfamily = element_type)
-}
-
-#### transduction mapping
-# overall it seems like the transductions are just more duplicated adjacent genomic sequence - perhaps it had too many consequtive mismatches to be called in the TSD.
-get_promising_transduction <- function(sf_with_trsd, sample_or_aref) {
-    promising_transductions <- list()
-    if (nrow(sf_with_trsd) == 0) {
-        return(NULL)
-    }
-
-    trsd_ss <- DNAStringSet(sf_with_trsd$Transduction_3p)
-    names(trsd_ss) <- sf_with_trsd$UUID
-
-
-    at_content <- letterFrequency(trsd_ss, letters = "AT", as.prob = TRUE)
-
-    trsd_ss_for_blast <- trsd_ss[which(at_content < 0.9)]
-
-
-    bl <- blast(db = sub("\\.[^.]*$", "", grep(sample_or_aref, inputs$blast_njs, value = TRUE)))
-    bres <- tibble(predict(bl, trsd_ss_for_blast))
-    if (nrow(bres) == 0) {
-        break
-    }
-    bres1 <- bres %>% left_join(sf_with_trsd, by = c("qseqid" = "UUID"))
-
-    bres_hits <- bres1 %>%
-        group_by(qseqid) %>%
-        filter(bitscore == max(bitscore)) %>%
-        filter(pident == max(pident)) %>%
-        filter(gapopen == min(gapopen)) %>%
-        filter(length == max(length)) %>%
-        ungroup()
-
-    bres_hits_other_loc <- bres_hits %>% filter(!((sseqid == seqnames) & (abs(sstart - start) < 2000)))
-
-    hitlist <- list()
-    for (qseqid in bres_hits_other_loc$qseqid) {
-        hitgrs <- bres_hits_other_loc[bres_hits_other_loc$qseqid == qseqid, ]
-
-        relevant_subfamilies <- hitgrs %$% Subfamily %>% unique()
-        relevant_subfamilies_grs <- GRanges(rmann %>% filter(grepl(paste(relevant_subfamilies, sep = "|", colapse = TRUE), rte_subfamily)))
-
-        bresgrs <- GRanges(
-            seqnames = hitgrs$sseqid,
-            ranges = IRanges(
-                start = min(hitgrs$sstart, hitgrs$send),
-                end = max(hitgrs$sstart, hitgrs$send)
-            )
-        )
-        mcols(bresgrs)$UUID <- hitgrs$qseqid
-        hits <- as.data.frame(distanceToNearest(bresgrs, relevant_subfamilies_grs)) %>% tibble()
-        trsd_adjacent_rte <- tibble(
-            UUID = bresgrs[hits$queryHits, ]$UUID,
-            gene_id = relevant_subfamilies_grs[hits$subjectHits, ]$gene_id,
-            distance = hits$distance
-        ) %>% mutate(adjacent = ifelse(distance < 100, TRUE, FALSE))
-
-        hitlist[[qseqid]] <- trsd_adjacent_rte
-    }
-
-    transductions <- purrr::reduce(hitlist, bind_rows) %>%
-        full_join(tibble(UUID = bres_hits_other_loc$qseqid)) %>%
-        left_join(rmann) %>%
-        relocate(UUID)
-}
-
-if (conf$update_ref_with_tldr$per_sample == "yes") {
-    transductions_list <- list()
-    for (sample in conf$samples) {
-        sf_with_trsd <- somatic_filt %>%
-            filter(sample_name == sample) %>%
-            filter(nchar(Transduction_3p) > 10)
-        transductions_list[[sample]] <- get_promising_transduction(sf_with_trsd, sample) %>%
-            mutate(sample_name = sample)
-    }
-    transductions_df <- reduce(transductions_list, bind_rows)
-} else {
-    sf_with_trsd <- somatic_filt %>%
-        filter(nchar(Transduction_3p) > 10)
-    transductions_df <- get_promising_transduction(sf_with_trsd, "A.REF") %>%
-        mutate(sample_name = "A.REF")
-}
-
-write_csv(transductions_df, sprintf("%s/promising_transductions.csv", outputdir))
-
-
-# somatic_repregion_filt_promosing_transductions <- get_promising_transduction(somatic_repregion_filt)
-
-######
-
-# # somatic
-# # nice inserts
-# insert_id <- "8a2116c5-6b9a-44ee-ba15-b3940511a048"
-# insert_id <- "49a6f96f-d10a-413d-8627-526aefbc1904"
-# # odd insert
-# insert_id <- "1d4c8f79-de32-492b-9ac1-d6b6e5d192db"
-# # first only elements which pass all filters
-
-
-
 analyze_insert <- function(group_frame, insert_id, insert_outputdir) {
     tryCatch(
         {
@@ -449,53 +282,12 @@ analyze_insert <- function(group_frame, insert_id, insert_outputdir) {
             trsd3_length <- nchar(insert_row$Transduction_3p)
             sample <- insert_row$sample_name
 
-            # making a folder with info to assess this insertion
             dir.create(insert_outputdir, recursive = TRUE)
             insert_row %>% write_delim(sprintf("%s/insert_info.tsv", insert_outputdir), delim = "\t")
 
             # # Creating dot plot of read vs insert site
             bampath <- grep(sample, inputs$bam, value = TRUE)
             whichgr <- GRanges(group_frame %>% filter(sample_name == sample) %>% filter(UUID == insert_id))
-            # flag <- scanBamFlag(
-            #     isUnmappedQuery = NA,
-            #     isSecondaryAlignment = NA, isNotPassingQualityControls = NA,
-            #     isDuplicate = NA, isSupplementaryAlignment = NA
-            # )
-            # aln1 <- readGAlignments(bampath, param = ScanBamParam(which = whichgr, what = scanBamWhat(), tag = c("SA"), flag = flag))
-            # alndf <- as.data.frame(aln1) %>%
-            #     tibble()
-
-            # if (conf$update_ref_with_tldr$per_sample == "yes") {
-            #     tldr_df <- read_delim(sprintf("aref/%s_tldr/%s/%s.detail.out", sample, sample, insert_id))
-            # } else {
-            #     tldr_df <- read_delim(sprintf("aref/%s_tldr/%s/%s.detail.out", "A.REF", "A.REF", insert_id))
-            # }
-            # read_name <- tldr_df %>% filter(Useable == TRUE & IsSpanRead == TRUE) %$% ReadName
-            # read_of_interest <- alndf %>% filter(qname == read_name)
-            # read_length <- read_of_interest$seq %>% nchar()
-            # cigar <- read_of_interest$cigar
-
-            # inserts <- str_extract_all(read_of_interest$cigar, "[0-9]+I") %>%
-            #     unlist() %>%
-            #     gsub("I", "", .) %>%
-            #     as.numeric()
-            # insert_start_in_read <- str_split(cigar, paste0(inserts[inserts > 50], "I"))[[1]][1] %>%
-            #     str_split(., pattern = "[a-zA-Z]") %>%
-            #     unlist() %>%
-            #     as.numeric() %>%
-            #     sum(na.rm = TRUE)
-
-            # read_seq_sense <- DNAStringSet(read_of_interest$seq)
-            # tryCatch(
-            #     {
-            #         read_seq_sense_1001_window <<- subseq(read_seq_sense, start = insert_start_in_read - 500, end = insert_start_in_read + 500)
-            #     },
-            #     error = function(e) {
-            #         read_seq_sense_1001_window <<- subseq(read_seq_sense, start = insert_start_in_read - 200, end = insert_start_in_read + 400)
-            #     }
-            # )
-
-            # read_seq_split <- unlist(strsplit(unname(as.character(read_seq_sense_1001_window)), split = ""))
             consensus_small_split <- toupper(unlist(strsplit(unname(as.character(insert_row$Consensus)), split = "")))
             if (insert_row$strand == "+") {
                 insert_site_sense <- getSeq(fa, whichgr + round((length(consensus_small_split) - width(whichgr)) / 2))
@@ -508,12 +300,12 @@ analyze_insert <- function(group_frame, insert_id, insert_outputdir) {
             # dotPlot(read_seq_split, insert_site_split, wsize = 10, nmatch = 9)
             # dev.off()
             if (length(consensus_small_split) < 2000) {
-                pdf(sprintf("%s/dotplot_consensussmall_vs_consensussmall.pdf", insert_outputdir))
-                dotPlot(consensus_small_split, consensus_small_split, wsize = 10, nmatch = 9)
-                dev.off()
-                pdf(sprintf("%s/dotplot_insertsite_vs_insertsite.pdf", insert_outputdir))
-                dotPlot(insert_site_split, insert_site_split, wsize = 10, nmatch = 9)
-                dev.off()
+                # pdf(sprintf("%s/dotplot_consensussmall_vs_consensussmall.pdf", insert_outputdir))
+                # dotPlot(consensus_small_split, consensus_small_split, wsize = 10, nmatch = 9)
+                # dev.off()
+                # pdf(sprintf("%s/dotplot_insertsite_vs_insertsite.pdf", insert_outputdir))
+                # dotPlot(insert_site_split, insert_site_split, wsize = 10, nmatch = 9)
+                # dev.off()
                 pdf(sprintf("%s/dotplot_consensussmall_vs_insertsite.pdf", insert_outputdir))
                 dotPlot(consensus_small_split, insert_site_split, wsize = 10, nmatch = 9)
                 dev.off()
@@ -554,37 +346,36 @@ analyze_insert <- function(group_frame, insert_id, insert_outputdir) {
                     # allowing no mismatches
                     nomismatch <- vmatchPattern(insert_row$TSD, insert_cons_ss, max.mismatch = 0)[[1]]
                     if (length(nomismatch) > 0) {
-                        tsd_grs_no_mismatch <- GRanges(seqnames = insert_row$UUID, nomismatch, name = "tsd_no_mismatch")
+                        tsd_grs <- GRanges(seqnames = insert_row$UUID, nomismatch, name = "tsd_no_mismatch")
                     } else {
-                        tsd_grs_no_mismatch <- GRanges()
-                    }
-                    # allowing some mismatches for nanopore error
-                    max_mismatch <- 0
-                    twomatchingregions <- FALSE
-                    while (twomatchingregions == FALSE) {
-                        maybe_mismatch <- vmatchPattern(insert_row$TSD, insert_cons_ss, max.mismatch = max_mismatch)[[1]]
-                        if (length(maybe_mismatch) > 1) {
-                            tsd_grs_maybe_mismatch <<- GRanges(seqnames = insert_row$UUID, maybe_mismatch, name = sprintf("tsd_up_to_%s_mismatch", max_mismatch))
-                            twomatchingregions <- TRUE
-                        } else {
-                            max_mismatch <- max_mismatch + 1
+                        # allowing some mismatches for nanopore error
+                        max_mismatch <- 1
+                        twomatchingregions <- FALSE
+                        while (twomatchingregions == FALSE) {
+                            maybe_mismatch <- vmatchPattern(insert_row$TSD, insert_cons_ss, max.mismatch = max_mismatch)[[1]]
+                            if (length(maybe_mismatch) > 1) {
+                                tsd_grs <<- GRanges(seqnames = insert_row$UUID, maybe_mismatch, name = sprintf("tsd_up_to_%s_mismatch", max_mismatch))
+                                twomatchingregions <- TRUE
+                            } else {
+                                max_mismatch <- max_mismatch + 1
+                            }
+                            if (max_mismatch > 10) {
+                                twomatchingregions <- TRUE
+                                tsd_grs <- GRanges()
+                            }
                         }
-                        if (max_mismatch > 30) {
-                            twomatchingregions <- TRUE
-                        }
                     }
-                    tsd_grs <- c(tsd_grs_no_mismatch, tsd_grs_maybe_mismatch)
 
                     grs <- c(insert_grs, tsd_grs)
                     # trd annot
                     if (!is.na(insert_row$Transduction_5p)) {
-                        if (length(insert_row$Transduction_5p) > 7) {
+                        if (nchar(insert_row$Transduction_5p) > 7) {
                             trd5_grs <- GRanges(seqnames = insert_row$UUID, vmatchPattern(insert_row$Transduction_5p, insert_cons_ss, max.mismatch = 0)[[1]], name = "trd5")
                             grs <- c(grs, trd5_grs)
                         }
                     }
                     if (!is.na(insert_row$Transduction_3p)) {
-                        if (length(insert_row$Transduction_3p) > 7) {
+                        if (nchar(insert_row$Transduction_3p) > 7) {
                             trd3_grs <- GRanges(seqnames = insert_row$UUID, vmatchPattern(insert_row$Transduction_3p, insert_cons_ss, max.mismatch = 0)[[1]], name = "trd3")
                             grs <- c(grs, trd3_grs)
                         }
@@ -659,6 +450,7 @@ extractRMperID <- function(group_frame, insert_id, insert_outputdir) {
     )
 }
 
+
 analyze_inserts <- function(group_frame, element_group_name) {
     print(element_group_name)
     for (insert_id in group_frame$UUID) {
@@ -677,23 +469,168 @@ analyze_inserts <- function(group_frame, element_group_name) {
         insert_outputdir <- sprintf("%s/unique_insert_data/%s/%s", outputdir, element_group_name, insert_id)
         extractRMperID(group_frame, insert_id, insert_outputdir)
     }
+
+    insert_suspicion_level <- list()
+    for (insert_id in group_frame$UUID) {
+        insert_outputdir <- sprintf("%s/unique_insert_data/%s/%s", outputdir, element_group_name, insert_id)
+
+        insert_row <- read_tsv(sprintf("%s/insert_info.tsv", insert_outputdir))
+        insert_annot <- import(sprintf("%s/insert_structure_annot.gtf", insert_outputdir))
+        rm_annot <- import(sprintf("%s/rm_%s.good.gtf", insert_outputdir, insert_id))
+        rm_annot
+        rm_intersect_insert <- pintersect(rm_annot, insert_annot[insert_annot$name == "insert"])
+        likely_insert <- rm_intersect_insert[width(rm_intersect_insert) == max(width(rm_intersect_insert))]
+        extended_insert <- resize(insert_annot[insert_annot$name == "insert"],
+            width = width(insert_annot[insert_annot$name == "insert"]) + 600, fix = "center"
+        )
+        rms_near_insert <- subsetByOverlaps(rm_annot, extended_insert)
+        if (grepl("Alu", insert_row$Family, ignore.case = TRUE)) {
+            if (any(table(grep(likely_insert$name, rms_near_insert$name, ignore.case = TRUE, value = TRUE)) > 1)) {
+                insert_suspicion_level[[insert_id]] <- "suspicious"
+            } else {
+                insert_suspicion_level[[insert_id]] <- "ok"
+            }
+        } else if (grepl("L1", insert_row$Family, ignore.case = TRUE)) {
+            if (length(grep(likely_insert$name, rms_near_insert$name, ignore.case = TRUE, value = TRUE)) > 1) {
+                insert_suspicion_level[[insert_id]] <- "suspicious"
+            } else {
+                insert_suspicion_level[[insert_id]] <- "ok"
+            }
+        } else {
+            insert_suspicion_level[[insert_id]] <- "suspicious"
+        }
+    }
+    susdf <- tibble(UUID = names(insert_suspicion_level), insert_te_adjacent_to_same_subfam_te = unlist(insert_suspicion_level))
+    susdf <- susdf %>% left_join(group_frame %>% dplyr::select(UUID, TEMatch))
+    write_csv(susdf, sprintf("%s/suspicion_level.csv", rm_outputdir))
 }
 
-tsd_pass_elements <- somatic_filt %>% filter(nchar(TSD) < 20)
-tsd_nonpass_elements <- somatic_filt %>% filter(nchar(TSD) >= 20)
+
+
+somatic_mappable <- filter_by_mappability(somatic_alpha)
+somatic_mappable_readfiltered <- filter_by_read_metadata(somatic_mappable)
+somatic_mappable_readfiltered_teendfiltered <- filter_by_teend(somatic_mappable_readfiltered)
+tsdpass <- somatic_mappable_readfiltered_teendfiltered %>% filter(TSD_OK == TRUE)
+tsdfail <- somatic_mappable_readfiltered_teendfiltered %>% filter(TSD_OK == FALSE)
 
 insert_frames <- list(
-    "tsd_pass" = tsd_pass_elements,
-    "inrepregion" = somatic_repregion_filt
+    "tsd_pass1.1" = tsdpass %>% filter(UsedReads == 1),
+    "tsd_pass2.1" = tsdpass %>% filter(UsedReads == 2) %>% filter(SpanReads == 1),
+    "tsd_pass2.2" = tsdpass %>% filter(UsedReads == 2) %>% filter(SpanReads == 2),
+    "tsd_pass3.1" = tsdpass %>% filter(UsedReads == 3) %>% filter(SpanReads == 1),
+    "tsd_pass3.2" = tsdpass %>% filter(UsedReads == 3) %>% filter(SpanReads == 2),
+    "tsd_pass3.2" = tsdpass %>% filter(UsedReads == 3) %>% filter(SpanReads == 3),
+    "tsd_fail1.1" = tsdfail %>% filter(UsedReads == 1),
+    "tsd_fail2.1" = tsdfail %>% filter(UsedReads == 2) %>% filter(SpanReads == 1),
+    "tsd_fail2.2" = tsdfail %>% filter(UsedReads == 2) %>% filter(SpanReads == 2),
+    "tsd_fail3.1" = tsdfail %>% filter(UsedReads == 3) %>% filter(SpanReads == 1),
+    "tsd_fail3.2" = tsdfail %>% filter(UsedReads == 3) %>% filter(SpanReads == 2),
+    "tsd_fail3.2" = tsdfail %>% filter(UsedReads == 3) %>% filter(SpanReads == 3)
 )
 
 imap(insert_frames, ~ analyze_inserts(.x, .y))
+
+insert_frames[["tsd_pass1.1"]] %>% filter(Family != "SVA")
 
 insert_frames <- list(
     "germline" = germline_insert_df[1:20, ] %>% filter(Family == "ALU")
 )
 
 imap(insert_frames, ~ analyze_inserts(.x, .y))
+
+
+#### transduction mapping
+# overall it seems like the transductions are just more duplicated adjacent genomic sequence - perhaps it had too many consequtive mismatches to be called in the TSD.
+get_promising_transduction <- function(sf_with_trsd, sample_or_aref) {
+    print(sample_or_aref)
+    promising_transductions <- list()
+    if (nrow(sf_with_trsd) == 0) {
+        return(tibble())
+    }
+
+    trsd_ss <- DNAStringSet(sf_with_trsd$Transduction_3p)
+    names(trsd_ss) <- sf_with_trsd$UUID
+
+
+    at_content <- letterFrequency(trsd_ss, letters = "AT", as.prob = TRUE)
+
+    trsd_ss_for_blast <- trsd_ss[which(at_content < 0.9)]
+
+
+    bl <- blast(db = sub("\\.[^.]*$", "", grep(sample_or_aref, inputs$blast_njs, value = TRUE)))
+    bres <- tibble(predict(bl, trsd_ss_for_blast))
+    if (nrow(bres) == 0) {
+        return(tibble())
+    }
+    bres1 <- bres %>% left_join(sf_with_trsd, by = c("qseqid" = "UUID"))
+
+    bres_hits <- bres1 %>%
+        group_by(qseqid) %>%
+        filter(bitscore == max(bitscore)) %>%
+        filter(pident == max(pident)) %>%
+        filter(gapopen == min(gapopen)) %>%
+        filter(length == max(length)) %>%
+        ungroup()
+
+    bres_hits_other_loc <- bres_hits %>% filter(!((sseqid == seqnames) & (abs(sstart - start) < 2000)))
+
+    hitlist <- list()
+    for (qseqid in bres_hits_other_loc$qseqid) {
+        hitgrs <- bres_hits_other_loc[bres_hits_other_loc$qseqid == qseqid, ]
+
+        relevant_subfamilies <- hitgrs %$% Subfamily %>% unique()
+        relevant_subfamilies_grs <- GRanges(rmann %>% filter(grepl(paste(relevant_subfamilies, sep = "|", colapse = TRUE), rte_subfamily)))
+
+        bresgrs <- GRanges(
+            seqnames = hitgrs$sseqid,
+            ranges = IRanges(
+                start = min(hitgrs$sstart, hitgrs$send),
+                end = max(hitgrs$sstart, hitgrs$send)
+            )
+        )
+        mcols(bresgrs)$UUID <- hitgrs$qseqid
+        hits <- as.data.frame(distanceToNearest(bresgrs, relevant_subfamilies_grs)) %>% tibble()
+        trsd_adjacent_rte <- tibble(
+            UUID = bresgrs[hits$queryHits, ]$UUID,
+            gene_id = relevant_subfamilies_grs[hits$subjectHits, ]$gene_id,
+            distance = hits$distance
+        ) %>% mutate(adjacent = ifelse(distance < 100, TRUE, FALSE))
+
+        hitlist[[qseqid]] <- trsd_adjacent_rte
+    }
+    if (length(hitlist) != 0) {
+        transductions <- purrr::reduce(hitlist, bind_rows) %>%
+            full_join(tibble(UUID = bres_hits_other_loc$qseqid)) %>%
+            left_join(rmann) %>%
+            relocate(UUID)
+    } else {
+        transductions <- tibble()
+    }
+}
+
+if (conf$update_ref_with_tldr$per_sample == "yes") {
+    transductions_list <- list()
+    for (sample in conf$samples) {
+        sf_with_trsd <- somatic_filt %>%
+            filter(sample_name == sample) %>%
+            filter(nchar(Transduction_3p) > 10)
+        transductions_list[[sample]] <- get_promising_transduction(sf_with_trsd, sample) %>%
+            mutate(sample_name = sample)
+    }
+    transductions_df <- purrr::reduce(transductions_list, bind_rows) %>%
+        group_by(UUID) %>%
+        filter(row_number() == 1)
+} else {
+    sf_with_trsd <- somatic_filt %>%
+        filter(nchar(Transduction_3p) > 10)
+    transductions_df <- get_promising_transduction(sf_with_trsd, "A.REF") %>%
+        mutate(sample_name = "A.REF") %>%
+        group_by(UUID) %>%
+        filter(row_number() == 1)
+}
+write_csv(transductions_df %>% filter(adjacent == TRUE), sprintf("%s/promising_transductions.csv", outputdir))
+
+
 ### learned features from elements that passed manual curation
 curation_df <- tibble(UUID = c(
     "996b0eb6-2629-4e8f-94b3-ea1e9befe22d",
@@ -721,7 +658,7 @@ tsd_pass_elements %>%
 # also all "SVA" observed were just stretches of poly A
 tsd_nonpass_elements %>%
     filter(Family == "ALU") %>%
-    mutate(startcheck = ifelse(StartTE > 5, FALSE, TRUE)) %$% startcheck %>%
+    mutate(startcheck = ifelse(StartTE > 10, FALSE, TRUE)) %$% startcheck %>%
     table()
 tsd_nonpass_elements %>%
     filter(Family == "ALU") %>%
@@ -731,7 +668,7 @@ tsd_nonpass_elements %>%
 tsd_nonpass_start_match_pass <- tsd_nonpass_elements %>%
     filter(Family == "ALU") %>%
     filter(LengthIns > 290) %>%
-    mutate(startcheck = ifelse(StartTE < 5, TRUE, FALSE)) %>%
+    mutate(startcheck = ifelse(StartTE < 10, TRUE, FALSE)) %>%
     mutate(matchcheck = ifelse(TEMatch > 90, TRUE, FALSE)) %>%
     mutate(both = matchcheck & startcheck) %>%
     filter(both == TRUE)
@@ -1293,3 +1230,29 @@ somatic_filt %>%
     print(width = Inf)
 somatic_filt_out
 # ctrl6
+
+
+
+
+# # ADDTIONAL FILTERS
+# # I think these are overly restrictive - not applying these
+# germline_insert_characteristics <- tibble(germline_tsd_95 = numeric(), germline_trsd3_95 = numeric(), germline_trsd5_95 = numeric(), germline_endte_05 = numeric(), Subfamily = character())
+# for (element_type in somatic %$% Subfamily %>% unique()) {
+#     germlinetemp <- germline %>% filter(Subfamily == element_type)
+#     germline_tsd_95 <- germlinetemp %$% TSD %>%
+#         nchar() %>%
+#         replace_na(0) %>%
+#         quantile(0.95, na.rm = TRUE)
+#     germline_trsd3_95 <- germlinetemp %$% Transduction_3p %>%
+#         nchar() %>%
+#         replace_na(0) %>%
+#         quantile(0.95, na.rm = TRUE)
+#     germline_trsd5_95 <- germlinetemp %$% Transduction_5p %>%
+#         nchar() %>%
+#         replace_na(0) %>%
+#         quantile(0.95, na.rm = TRUE)
+#     germline_endte_05 <- germlinetemp %$% EndTE %>%
+#         quantile(0.05, na.rm = TRUE) %>%
+#         unname()
+#     germline_insert_characteristics <- germline_insert_characteristics %>% add_row(germline_tsd_95 = germline_tsd_95, germline_trsd3_95 = germline_trsd3_95, germline_trsd5_95 = germline_trsd5_95, germline_endte_05 = germline_endte_05, Subfamily = element_type)
+# }

@@ -951,7 +951,7 @@ rule get_merged_pat:
     input:
         pat = expand("ldna/results/wgbs/analysis_default/{sample}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
     params:
-        inputdir = "ldna/results/wgbs",
+        inputdir = "ldna/results/wgbs/analysis_default",
         level1 = config["ldna"]["levels"][0],
         level2 = lambda wildcards: config["ldna"]["levels"][1] if len(config["ldna"]["levels"]) > 1 else None,  # Second level if exists    
     conda:
