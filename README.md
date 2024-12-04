@@ -59,7 +59,7 @@ https://www.neb.com/en-us/products/e6310-nebnext-rrna-depletion-kit-human-mouse-
   Many steps require a substantial amount of RAM (north of 20 GB) to be available on your system, else they will fail and give you OOM (out-of-memory) errors.  This pipeline will likely fail if run on a personal computer without at least 64 GB of RAM.
 # Installation
 ## Create a Snakemake containing Conda environment
-  Create a Snakemake Conda environment from which you can run the Snakemake pipeline, and install the required Snakemake executor plugins in your Snamemake Conda environment.  
+  Create a Snakemake Conda environment from which you can run the Snakemake pipeline. If your computer / compute cluster uses a workload manager (e.g. slurm) install any workload manager specific Snakemake executor plugins in this environment (e.g. the snakemake-executor-plugin-slurm if your system uses slurm. A full listing of the availible plugins is availible at https://snakemake.github.io/snakemake-plugin-catalog/ )  
   ```
     conda create --name snakemake snakemake snakemake-executor-plugin-slurm
   ```
@@ -215,7 +215,8 @@ Make sure your fastq file naming is consistent with the naming scheme set forth 
   TO
   singularity-args: '--bind /users/YOURUSERNAME/data,/oscar/data/jsedivy/YOURUSERNAME'
   ```
-  This workflow/profile/config file specifies also the default compute resources used by rules, as well as a number of rule-specific resources. If supplying nanopore DNA reads, pay particular attention to the resources specified for the dorado rule, which should if possible be run on a batch partition / system with an Nvidia GPU. Running this step solely on a CPU will take a long time...
+  Next change the executor key value as needed. If you are not using a workload manager such as slurm, you should delete this key-value pair.
+  This workflow/profile/config file also specifies the default compute resources used by rules, as well as a number of rule-specific resources. If supplying nanopore DNA reads, pay particular attention to the resources specified for the dorado rule, which should if possible be run on a batch partition / system with an Nvidia GPU. Running this step solely on a CPU will take a long time...
  
 ## Workflow Logic:
 ### AREF
