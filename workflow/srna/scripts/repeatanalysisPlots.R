@@ -1168,7 +1168,7 @@ for (group_var in c("repeat_superfamily", "rte_subfamily", "rte_family", "l1_sub
         group_by(rte_family, rte_subfamily) %>%
         summarise(family_av_pctdiv = mean(family_av_pctdiv)) %>%
         mutate(rte_family = factor(rte_family, levels = c("L1", "Alu", "ERV", "SVA"))) %>%
-        arrange(rte_family, family_av_pctdiv) %$% rte_subfamily
+        arrange(rte_family, family_av_pctdiv) %$% rte_subfamily %>% unique()
     if (confALL$aref$species != "human") {
         subfam_ordering <<- other_ordering
     } else {
