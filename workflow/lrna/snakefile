@@ -243,7 +243,7 @@ rule dorado:
         aref = "aref.done.outfile"
     params:
         dorado = config["lrna"]["dorado"],
-        reference = lambda wildcards: "aref/%s.fa"%(wildcards.sample) if config["lrna"]["per_sample_ref"] == "yes" else "aref/A.REF.fa"
+        reference = lambda wildcards: "aref/default/%s.fa"%(wildcards.sample) if config["lrna"]["per_sample_ref"] == "yes" else "aref/default/A.REF.fa"
     output:
         "lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.bam"
     benchmark:
@@ -293,7 +293,7 @@ rule dorado_fastq:
         aref = "aref.done.outfile"
     params:
         dorado = config["lrna"]["dorado"],
-        reference = lambda wildcards: "aref/%s.fa"%(wildcards.sample) if config["lrna"]["per_sample_ref"] == "yes" else "aref/A.REF.fa"
+        reference = lambda wildcards: "aref/default/%s.fa"%(wildcards.sample) if config["lrna"]["per_sample_ref"] == "yes" else "aref/default/A.REF.fa"
     output:
         "lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.doradofastqderived.bam"
     benchmark:
@@ -534,7 +534,7 @@ rule fc_relaxed:
         "lrna/benchmarks/fc_relaxed/{sample}.tsv"
     params: 
         featureCountsstrandparam = getFeatureCountsStrandParam(),
-        annotation_genesandrtes = lambda wildcards: "aref/%s_annotations/%s_repeatmasker_refseq.complete.gtf"%(wildcards.sample, wildcards.sample) if config["lrna"]["per_sample_ref"] == "yes" else "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf"
+        annotation_genesandrtes = lambda wildcards: "aref/default/%s_annotations/%s_repeatmasker_refseq.complete.gtf"%(wildcards.sample, wildcards.sample) if config["lrna"]["per_sample_ref"] == "yes" else "aref/default/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf"
     conda:
         "subread"
     resources:
@@ -559,7 +559,7 @@ rule fc_relaxed_unstranded:
     benchmark:
         "lrna/benchmarks/fc_relaxed_unstranded/{sample}.tsv"
     params: 
-        annotation_genesandrtes = lambda wildcards: "aref/%s_annotations/%s_repeatmasker_refseq.complete.gtf"%(wildcards.sample, wildcards.sample) if config["lrna"]["per_sample_ref"] == "yes" else "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf"
+        annotation_genesandrtes = lambda wildcards: "aref/default/%s_annotations/%s_repeatmasker_refseq.complete.gtf"%(wildcards.sample, wildcards.sample) if config["lrna"]["per_sample_ref"] == "yes" else "aref/default/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf"
     conda:
         "subread"
     resources:
@@ -584,7 +584,7 @@ rule fc_relaxedunstrandedmapped:
     benchmark:
         "lrna/benchmarks/fc_relaxedunstrandedmapped/{sample}.tsv"
     params: 
-        annotation_genesandrtes = lambda wildcards: "aref/%s_annotations/%s_repeatmasker_refseq.complete.gtf"%(wildcards.sample, wildcards.sample) if config["lrna"]["per_sample_ref"] == "yes" else "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf"
+        annotation_genesandrtes = lambda wildcards: "aref/default/%s_annotations/%s_repeatmasker_refseq.complete.gtf"%(wildcards.sample, wildcards.sample) if config["lrna"]["per_sample_ref"] == "yes" else "aref/default/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf"
     conda:
         "subread"
     resources:
@@ -610,7 +610,7 @@ rule fc_stringent:
         "lrna/benchmarks/fc_stringent/{sample}.tsv"
     params: 
         featureCountsstrandparam = getFeatureCountsStrandParam(),
-        annotation_genesandrtes = lambda wildcards: "aref/%s_annotations/%s_repeatmasker_refseq.complete.gtf"%(wildcards.sample, wildcards.sample) if config["lrna"]["per_sample_ref"] == "yes" else "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf"
+        annotation_genesandrtes = lambda wildcards: "aref/default/%s_annotations/%s_repeatmasker_refseq.complete.gtf"%(wildcards.sample, wildcards.sample) if config["lrna"]["per_sample_ref"] == "yes" else "aref/default/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf"
     conda:
         "omics"
     resources:
@@ -743,20 +743,20 @@ rule enrichment_analysis_repeats:
 rule repeatanalysis_plots:
     input:
         resultsdf = "lrna/results/agg/deseq/resultsdf.tsv",
-        r_annotation_fragmentsjoined = config["lrna"]["r_annotation_fragmentsjoined"],
-        r_repeatmasker_annotation = config["lrna"]["r_repeatmasker_annotation"]
     params:
         counttype = lambda w: w.counttype,
         contrasts = config["lrna"]["contrasts"],
         inputdir = lambda w, input: os.path.dirname(input.resultsdf),
         outputdir = lambda w, output: os.path.dirname(output.environment),
-        module_name = "lrna"
+        module_name = "lrna",
+        r_annotation_fragmentsjoined = config["lrna"]["r_annotation_fragmentsjoined"],
+        r_repeatmasker_annotation = config["lrna"]["r_repeatmasker_annotation"]
     conda:
         "repeatanalysis"
     resources:
         cpus_per_task =10,
         mem_mb = 164000,
-        runtime = 300
+        runtime = 600
     output:
         environment = "lrna/results/agg/repeatanalysis/{counttype}/repeatanalysisplots_environment.RData", 
         report = report(
@@ -926,7 +926,7 @@ rule realign:
     input:
         fastq = expand("lrna/intermediates/{{sample}}/fastqs/{rate}/{{sample}}.{type}.{modification_string}.doradofastqderived.fq.gz", rate = config["lrna"]["rate"], type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"])
     params:
-        reference = lambda wildcards: "aref/%s.fa"%(wildcards.sample) if config["lrna"]["per_sample_ref"] == "yes" else "aref/A.REF.fa"
+        reference = lambda wildcards: "aref/default/%s.fa"%(wildcards.sample) if config["lrna"]["per_sample_ref"] == "yes" else "aref/default/A.REF.fa"
     output:
         bam = protected(expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.doradofastqderived.sorted.bam", rate = config["lrna"]["rate"], type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"]))
     benchmark:
@@ -948,7 +948,7 @@ rule realign_only_mapped:
     input:
         fastq = expand("lrna/intermediates/{{sample}}/fastqs/{rate}/{{sample}}.{type}.{modification_string}.fq.gz", rate = config["lrna"]["rate"], type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"])
     params:
-        reference = lambda wildcards: "aref/%s.fa"%(wildcards.sample) if config["lrna"]["per_sample_ref"] == "yes" else "aref/A.REF.fa"
+        reference = lambda wildcards: "aref/default/%s.fa"%(wildcards.sample) if config["lrna"]["per_sample_ref"] == "yes" else "aref/default/A.REF.fa"
     output:
         bam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.doradofastqderived.mapped.sorted.bam", rate = config["lrna"]["rate"], type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"])
     benchmark:
@@ -1210,7 +1210,7 @@ rule modbamtobed:
         sortedbam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["lrna"]["rate"], type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"]),
         sortedbamindex = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam.bai", rate = config["lrna"]["rate"], type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"]),
     params:
-        ref = lambda wildcards: "aref/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF.fa"
+        ref = lambda wildcards: "aref/default/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/default/A.REF.fa"
     resources:
         cpus_per_task = 36,
         mem_mb = 128000
@@ -1235,10 +1235,10 @@ rule extractmods:
         read_mods = 'lrna/intermediates/{sample}/methylation/{sample}_readmods_NoContext_{region}.tsv'
     params:
         ref = config["lrna"]["reference"],
-        region = lambda wildcards: "aref/%s_annotations/%s_rte_beds/outfile.txt"%(wildcards.sample, wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF_annotations/A.REF_rte_beds/outfile.txt"
+        region = lambda wildcards: "aref/default/%s_annotations/%s_rte_beds/outfile.txt"%(wildcards.sample, wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/default/A.REF_annotations/A.REF_rte_beds/outfile.txt"
     resources:
         cpus_per_task = 8,
-        mem_mb = 80000
+        mem_mb = 160000
     conda:
         "omics"
     shell: 
@@ -1258,8 +1258,6 @@ mkdir -p $(dirname {output})
 
 rule bedmethylanalysis:
     input:
-        dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
-        dmls = "ldna/results/tables/dmls.CG_m.tsv",
         bedmethylpaths = expand("lrna/intermediates/{sample}/methylation/{sample}_m6a_bedMethyl.bed", sample = samples),
         read_mods = expand('lrna/intermediates/{sample}/methylation/{sample}_readmods_{context}_{region}.tsv', sample = samples, region = config["lrna"]["rte_subfamily_read_level_analysis"], context = ["NoContext"])
     output:

@@ -1,9 +1,11 @@
 module_name <- "aref"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+confALL <- configr::read.config(file = "conf/config.yaml")
 source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 library(configr)
 library(Biostrings)
+set.seed(123)
 
 tryCatch(
     {
@@ -16,8 +18,8 @@ tryCatch(
             reference = "../genome_files/reference.ucsc.fa"
         ), env = globalenv())
         assign("outputs", list(
-            updated_reference = "aref/A.REF-pre-ins-filtering.fa",
-            non_ref_contigs = "aref/A.REF-pre-ins-filtering_nonrefcontigs.fa"
+            updated_reference = "aref/default/A.REF-pre-ins-filtering.fa",
+            non_ref_contigs = "aref/default/A.REF-pre-ins-filtering_nonrefcontigs.fa"
         ), env = globalenv())
     }
 )
@@ -40,19 +42,30 @@ for (i in 1:length(er)) {
     emptyreadsnum <- c(emptyreadsnum, val)
 }
 
-df$emptyreadsnum <- emptyreadsnum
+df$emptyreadsnum <- emptyreadsnum %>% replace_na(0)
 df <- df %>%
     mutate(fraction_reads_count = UsedReads / (UsedReads + emptyreadsnum)) %>%
-    filter(fraction_reads_count > 0.20) %>%
+    filter(fraction_reads_count > 0.30) %>%
+    filter(SpanReads > 3) %>%
+    filter(UsedReads > 10) %>%
     mutate(faName = paste0("NI_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>%
     filter(!is.na(Family)) %>%
     filter(!is.na(StartTE)) %>%
-    filter(Filter == "PASS")
+    filter(Filter == "PASS") %>%
+    filter(!is.na(TSD)) %>%
+    filter(MedianMapQ == 60)
 
 df <- df[!(df %$% faName %>% duplicated()), ]
 
+df <- df %>%
+    mutate(Consensus_lower = str_extract_all(Consensus, pattern = "[:lower:]+")) %>%
+    rowwise() %>%
+    mutate(insLenMatch = which(as.vector((nchar(Consensus_lower))) == LengthIns)) %>%
+    mutate(ins_consensus_noflank = Consensus_lower[insLenMatch]) %>%
+    mutate(ins_consensus_30flank = str_sub(Consensus, str_locate(Consensus, ins_consensus_noflank)[1] - 30, str_locate(Consensus, ins_consensus_noflank)[2] + 30))
+
 # fasta
-ss <- DNAStringSet(df %>% dplyr::arrange(faName) %$% Consensus)
+ss <- DNAStringSet(df %>% dplyr::arrange(faName) %$% ins_consensus_30flank)
 names(ss) <- df %>% dplyr::arrange(faName) %$% faName
 writeXStringSet(ss, outputs$non_ref_contigs, append = FALSE, format = "fasta")
 

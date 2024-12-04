@@ -6,10 +6,11 @@ library("magrittr")
 library("purrr")
 library("tibble")
 library(readr)
-
+set.seed(123)
 
 module_name <- "ldna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+confALL <- configr::read.config(file = "conf/config.yaml")
 sample_table <- read_csv(sprintf("conf/sample_table_%s.csv", conf$prefix))
 sample_table <- sample_table[match(conf$samples, sample_table$sample_name), ]
 
@@ -25,8 +26,8 @@ tryCatch(
     error = function(e) {
         print("not sourced snake variables")
         assign("inputs", list(
-        dmrs = sprintf("ldna/results/tables/dmrs.%s.CG_m.tsv", chr = chrom_to_keep),
-        dmls = sprintf("ldna/results/tables/dmls.%s.CG_m.tsv", chr = chrom_to_keep)
+            dmrs = sprintf("ldna/results/tables/dmrs.%s.CG_m.tsv", chr = chrom_to_keep),
+            dmls = sprintf("ldna/results/tables/dmls.%s.CG_m.tsv", chr = chrom_to_keep)
         ), env = globalenv())
         assign("outputs", list(
             dmls_unfiltered = "ldna/results/tables/dmls.CG_m.unfiltered.tsv",

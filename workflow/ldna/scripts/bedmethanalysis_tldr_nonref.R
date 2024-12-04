@@ -1,7 +1,9 @@
 module_name <- "ldna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+confALL <- configr::read.config(file = "conf/config.yaml")
 source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
+set.seed(123)
 
 library(rtracklayer)
 library(Biostrings)
@@ -31,7 +33,7 @@ tryCatch(
     error = function(e) {
         assign("inputs", list(
             r_annotation_fragmentsjoined = sprintf("aref/%s_annotations/%s_repeatmasker.gtf.rformatted.fragmentsjoined.csv", sample_table$sample_name, sample_table$sample_name),
-            r_repeatmasker_annotation = sprintf("aref/%s_annotations/%s_repeatmasker_annotation.csv",sample_table$sample_name, sample_table$sample_name),
+            r_repeatmasker_annotation = sprintf("aref/%s_annotations/%s_repeatmasker_annotation.csv", sample_table$sample_name, sample_table$sample_name),
             sample_refs = sprintf("aref/%s.fa", sample_table$sample_name),
             blast_njs = sprintf("aref/%s.njs", sample_table$sample_name)
         ), env = globalenv())
@@ -60,7 +62,9 @@ for (sample in sample_table$sample_name) {
     df1 <- read_csv(grep(sprintf("%s_annotations", sample), inputs$r_annotation_fragmentsjoined, value = TRUE))
     df1$sample_name <- sample
     df2 <- read_csv(grep(sprintf("%s_annotations", sample), inputs$r_repeatmasker_annotation, value = TRUE))
-    df <- df1 %>% left_join(sample_table) %>% left_join(df2) 
+    df <- df1 %>%
+        left_join(sample_table) %>%
+        left_join(df2)
     anns[[sample]] <- df
 }
 rmann <- bind_rows(anns)
@@ -69,12 +73,15 @@ grsdf <- read_delim("ldna/Rintermediates/grsdf_nonref.tsv", col_names = TRUE)
 
 
 ########
-l1s <- ann %>% filter(rte_subfamily == "L1HS") %>% filter(str_detect(intactness_req, "Intact"))
+l1s <- ann %>%
+    filter(rte_subfamily == "L1HS") %>%
+    filter(intactness_req == "Intact")
 
 
 
 df <- grsdf %>% left_join(l1s, by = c("seqnames", "sample" = "sample_name", "condition"))
-df <- df %>% dplyr::select(-element_start, -element_end) %>%
+df <- df %>%
+    dplyr::select(-element_start, -element_end) %>%
     dplyr::rename(start = start.x, stop = end.x, strand = strand.x, element_start = start.y, element_stop = end.y, element_strand = strand.y, uid = seqnames) %>%
     mutate(element_length = element_stop - element_start)
 
@@ -89,7 +96,9 @@ rtedf <- read_delim("ldna/Rintermediates/rtedf.tsv", col_names = TRUE)
 # l1hs_fl_ref <- l1hs_ref %>% filter(element_length > 6000)
 # l1hs_fl_ref %$% uid %>% unique()
 
-l1hsintactmethpromotersdf <- rtedf_promoters %>% filter(rte_subfamily == "L1HS") %>% filter(str_detect(intactness_req, "Intact"))
+l1hsintactmethpromotersdf <- rtedf_promoters %>%
+    filter(rte_subfamily == "L1HS") %>%
+    filter(intactness_req == "Intact")
 
 nonref <- df %>%
     filter(case_when(
@@ -109,7 +118,8 @@ p <- rbind(nonref, ref) %>% ggplot() +
     theme(panel.grid.major.y = element_blank(), panel.grid.minor.y = element_blank()) +
     labs(x = "", y = "Mean element methylation") +
     ggtitle("Reference vs Non-reference L1HS") +
-    mtopen + scale_conditions
+    mtopen +
+    scale_conditions
 mysave("ldna/results/plots/tldr/beeswarm_5utr.png", 6, 4)
 
 
@@ -119,7 +129,8 @@ p <- rbind(nonref, ref) %>% ggplot() +
     theme(panel.grid.major.y = element_blank(), panel.grid.minor.y = element_blank()) +
     labs(x = "", y = "Mean element methylation") +
     ggtitle("Reference vs Non-reference L1HS") +
-    mtopen + scale_conditions
+    mtopen +
+    scale_conditions
 mysave("ldna/results/plots/tldr/box_hideoutliers_5utr.png", 6, 4)
 
 p <- rbind(nonref, ref) %>% ggplot() +
@@ -127,7 +138,8 @@ p <- rbind(nonref, ref) %>% ggplot() +
     theme(panel.grid.major.y = element_blank(), panel.grid.minor.y = element_blank()) +
     labs(x = "", y = "Mean element methylation") +
     ggtitle("Reference vs Non-reference L1HS") +
-    mtopen + scale_conditions
+    mtopen +
+    scale_conditions
 mysave("ldna/results/plots/tldr/box_5utr.png", 6, 4)
 
 
@@ -141,20 +153,23 @@ nonref <- df %>%
     summarise(mean = mean(pctM)) %>%
     mutate(refstatus = "NonRef")
 
-l1hsintactmethdf <- rtedf %>% filter(rte_subfamily == "L1HS") %>% filter(str_detect(intactness_req, "Intact"))
+l1hsintactmethdf <- rtedf %>%
+    filter(rte_subfamily == "L1HS") %>%
+    filter(intactness_req == "Intact")
 
 ref <- l1hsintactmethdf %>%
     group_by(gene_id, sample, condition) %>%
     summarise(mean = mean(pctM)) %>%
     mutate(refstatus = "Ref")
-    
+
 p <- rbind(nonref, ref) %>% ggplot() +
     geom_beeswarm(aes(x = refstatus, y = mean, color = condition), alpha = 0.5, cex = 1.3) +
     stat_summary(aes(x = refstatus, y = mean), fun = mean, geom = "point", cex = 2) +
     theme(panel.grid.major.y = element_blank(), panel.grid.minor.y = element_blank()) +
     labs(x = "", y = "Mean element methylation") +
     ggtitle("Reference vs Non-reference L1HS") +
-    mtopen + scale_conditions
+    mtopen +
+    scale_conditions
 mysaveandstore("ldna/results/plots/tldr/beeswarm.pdf", 6, 4)
 
 p <- rbind(nonref, ref) %>% ggplot() +
@@ -162,7 +177,8 @@ p <- rbind(nonref, ref) %>% ggplot() +
     theme(panel.grid.major.y = element_blank(), panel.grid.minor.y = element_blank()) +
     labs(x = "", y = "Mean element methylation") +
     ggtitle("Reference vs Non-reference L1HS") +
-    mtopen + scale_conditions
+    mtopen +
+    scale_conditions
 mysaveandstore("ldna/results/plots/tldr/box_hideoutliers.pdf", 6, 4)
 
 p <- rbind(nonref, ref) %>% ggplot() +
@@ -170,7 +186,8 @@ p <- rbind(nonref, ref) %>% ggplot() +
     theme(panel.grid.major.y = element_blank(), panel.grid.minor.y = element_blank()) +
     labs(x = "", y = "Mean element methylation") +
     ggtitle("Reference vs Non-reference L1HS") +
-    mtopen + scale_conditions
+    mtopen +
+    scale_conditions
 
 mysaveandstore("ldna/results/plots/tldr/box.pdf", 6, 4)
 

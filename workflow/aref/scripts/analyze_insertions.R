@@ -1,7 +1,9 @@
 module_name <- "aref"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+confALL <- configr::read.config(file = "conf/config.yaml")
 source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
+set.seed(123)
 
 library(readr)
 library(magrittr)
@@ -30,14 +32,14 @@ tryCatch(
     error = function(e) {
         assign("inputs", list(
             tldroutput = "aref/A.REF_tldr/A.REF.table.txt",
-            r_annotation_fragmentsjoined = "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
-            r_repeatmasker_annotation = "aref/A.REF_annotations/A.REF_repeatmasker_annotation.csv",
-            ref = "aref/ref_pre_ins_filtering.fa",
-            contigs_to_keep = "aref/contigs_to_keep.txt",
-            filtered_tldr = "aref/A.REF_tldr/A.REF.table.kept_in_updated_ref.txt"
+            r_annotation_fragmentsjoined = "aref/default/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
+            r_repeatmasker_annotation = "aref/default/A.REF_annotations/A.REF_repeatmasker_annotation.csv",
+            ref = "aref/default/ref_pre_ins_filtering.fa",
+            contigs_to_keep = "aref/default/contigs_to_keep.txt",
+            filtered_tldr = "aref/default/A.REF.table.kept_in_updated_ref.txt"
         ), env = globalenv())
         assign("outputs", list(
-            plots = "aref/A.REF_Analysis/tldr_plots/tldr_plots.rds"
+            plots = "aref/default/A.REF_Analysis/tldr_plots/tldr_plots.rds"
         ), env = globalenv())
     }
 )
@@ -48,9 +50,23 @@ dir.create(outputdir, recursive = TRUE, showWarnings = FALSE)
 rmfragments <- read_csv(inputs$r_annotation_fragmentsjoined, col_names = TRUE)
 rmfamilies <- read_csv(inputs$r_repeatmasker_annotation, col_names = TRUE)
 rmann <- left_join(rmfragments, rmfamilies)
+df_filtered <- read_delim(inputs$filtered_tldr) %>% dplyr::rename(nonref_UUID = UUID)
 
-nrdf <- rmann %>% filter(refstatus == "NonRef")
-nrdf %$% family %>% table()
+nrdf <- rmann %>%
+    filter(refstatus == "NonRef") %>%
+    left_join(df_filtered, by = "nonref_UUID") %>%
+    mutate(zygosity = factor(ifelse(fraction_reads_count >= 0.95, "homozygous", "heterozygous"), levels = c("homozygous", "heterozygous"))) %>%
+    mutate(known_nonref = factor(
+        ifelse(conf$update_ref_with_tldr$known_nonref$response == "no",
+            "NotCalled",
+            ifelse(
+                is.na(NonRef),
+                "novel",
+                "known"
+            )
+        ),
+        levels = c("novel", "known", "NotCalled")
+    ))
 
 p1 <- nrdf %>%
     group_by(rte_family, rte_subfamily, req_integrative) %>%
@@ -62,8 +78,88 @@ p1 <- nrdf %>%
     labs(x = "Subfamily", y = "Counts") +
     scale_palette +
     mtclosed + anchorbar + theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
 mysaveandstore(pl = p1, sprintf("%s/insertions_subfamily.pdf", outputdir), 6, 4)
+
+p1 <- nrdf %>%
+    group_by(rte_family, rte_subfamily, known_nonref) %>%
+    summarise(count = n()) %>%
+    mutate(counts = count) %>%
+    ggbarplot(x = "rte_subfamily", y = "counts", fill = "known_nonref") +
+    ggtitle("Non-reference RTE Insertions") +
+    labs(x = "Subfamily", y = "Counts") +
+    scale_palette +
+    mtclosed + anchorbar + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+mysaveandstore(pl = p1, sprintf("%s/insertions_subfamily_nofacet_known.pdf", outputdir), 6, 4)
+
+p1 <- nrdf %>%
+    group_by(rte_family, rte_subfamily, zygosity) %>%
+    summarise(count = n()) %>%
+    mutate(counts = count) %>%
+    ggbarplot(x = "rte_subfamily", y = "counts", fill = "zygosity") +
+    ggtitle("Non-reference RTE Insertions") +
+    labs(x = "Subfamily", y = "Counts") +
+    scale_palette +
+    mtclosed + anchorbar + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+mysaveandstore(pl = p1, sprintf("%s/insertions_subfamily_nofacet_zygosity.pdf", outputdir), 6, 4)
+
+p1 <- nrdf %>%
+    group_by(rte_family, rte_subfamily, req_integrative) %>%
+    summarise(count = n()) %>%
+    mutate(counts = count) %>%
+    ggbarplot(x = "rte_subfamily", y = "counts", fill = "req_integrative") +
+    ggtitle("Non-reference RTE Insertions") +
+    labs(x = "Subfamily", y = "Counts") +
+    scale_palette +
+    mtclosed + anchorbar + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+mysaveandstore(pl = p1, sprintf("%s/insertions_subfamily_nofacet.pdf", outputdir), 6, 4)
+
+
+novel_frac_df <- nrdf %>%
+    group_by(rte_subfamily, known_nonref, .drop = FALSE) %>%
+    summarise(n = n()) %>%
+    ungroup() %>%
+    group_by(rte_subfamily) %>%
+    mutate(family_n = sum(n)) %>%
+    mutate(frac_total = n / family_n) %>%
+    ungroup() %>%
+    dplyr::filter(known_nonref == "novel") %>%
+    mutate(frac_novel = frac_total, frac_known = 1 - frac_total)
+
+homozyg_frac_df <- nrdf %>%
+    group_by(rte_subfamily, zygosity, .drop = FALSE) %>%
+    summarise(n = n()) %>%
+    ungroup() %>%
+    group_by(rte_subfamily) %>%
+    mutate(family_n = sum(n)) %>%
+    mutate(frac_total = n / family_n) %>%
+    ungroup() %>%
+    dplyr::filter(zygosity == "heterozygous") %>%
+    mutate(frac_heterozygous = frac_total, frac_homozygous = 1 - frac_total)
+
+hp <- homozyg_frac_df %>%
+    pivot_longer(cols = c(frac_heterozygous, frac_homozygous)) %>%
+    ggbarplot(x = "rte_subfamily", y = "value", fill = "name") +
+    mtclosed + theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    scale_fill_manual(values = c("tan", "lightblue")) +
+    labs(x = "Subfamily")
+np <- novel_frac_df %>%
+    pivot_longer(cols = c(frac_novel, frac_known)) %>%
+    ggbarplot(x = "rte_subfamily", y = "value", fill = "name") +
+    mtclosed + theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    scale_fill_manual(values = c("brown", "grey")) +
+    labs(x = "Subfamily")
+ptch <- p1 / np / hp + plot_layout(heights = c(0.4, 0.4, 0.4), axis_titles = "collect")
+mysaveandstore(pl = ptch, sprintf("%s/insertions_subfamily_patch.pdf", outputdir), 6, 6)
+
+for (rte in homozyg_frac_df %$% rte_subfamily) {
+    pf <- homozyg_frac_df %>%
+        filter(rte_subfamily == rte) %>%
+        pivot_longer(cols = c(frac_heterozygous, frac_homozygous), names_to = "label")
+
+    p <- ggpie(pf, "value", "label", fill = "label") +
+        scale_fill_manual(values = c("yellow", "blue"))
+    mysaveandstore(sprintf("%s/%s_zygosity_pie.pdf", outputdir, rte), 3, 3)
+}
 
 
 
@@ -85,103 +181,18 @@ p <- p1 + p2 + plot_layout(widths = c(1, 1), guides = "collect")
 mysaveandstore(sprintf("%s/insertions_sub_fig.pdf", outputdir), 12, 5)
 
 
-df <- read_delim(inputs$tldroutput) %>%
-    mutate(faName = paste0("NI_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>%
-    filter(!is.na(Family)) %>%
-    filter(!is.na(StartTE)) %>%
-    filter(Filter == "PASS")
-
-df_filtered <- read_delim(inputs$filtered_tldr)
-
-
-df %$% Subfamily %>% table()
-df %$% Filter %>% table()
-p <- df %>%
-    filter(Family != "NA") %>%
-    ggplot(aes(x = Family)) +
-    geom_bar(color = "black") +
-    labs(x = "", y = "Count") +
-    paletteer::scale_fill_paletteer_d(conf$default_palette) +
-    ggtitle("Non-reference RTE Insertions") +
-    mtopen +
-    anchorbar
-mysaveandstore(sprintf("%s/insertions.pdf", outputdir), 5, 5)
-
-
-p <- df %>%
-    filter(Family != "NA") %>%
-    ggplot(aes(x = Subfamily)) +
-    facet_grid(~Family, scales = "free", space = "free_x") +
-    geom_bar(color = "black") +
-    labs(x = "", y = "Count") +
-    paletteer::scale_fill_paletteer_d(conf$default_palette) +
-    ggtitle("Non-reference RTE Insertions") +
-    mtclosed +
-    anchorbar +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1))
-mysaveandstore(sprintf("%s/insertions_subfamily.pdf", outputdir), 5, 5)
-
-p <- df %>%
-    filter(Subfamily == "L1Ta") %>%
+p <- nrdf %>%
+    filter(rte_subfamily == "L1HS") %>%
     ggplot() +
     geom_histogram(aes(x = LengthIns)) +
     geom_vline(xintercept = 6000, color = "red", linetype = 2) +
     ggtitle("L1HS Insertion Lengths") +
     labs(x = "Length (bp)", y = "Count") +
     mtopen +
-    anchorbar
-mysaveandstore(sprintf("%s/l1hs_length.pdf", outputdir), 5, 5)
-
-
-# only insertions that are in the updated reference
-df_filtered %$% Subfamily %>% table()
-df_filtered %$% Filter %>% table()
-p <- df_filtered %>%
-    filter(Family != "NA") %>%
-    ggplot(aes(x = Family)) +
-    geom_bar(color = "black") +
-    labs(x = "", y = "Count") +
-    paletteer::scale_fill_paletteer_d(conf$default_palette) +
-    ggtitle("Non-reference RTE Insertions") +
-    mtopen +
-    anchorbar
-
-mysaveandstore(sprintf("%s/insertions_in_updated_ref.pdf", outputdir), 3, 4)
-
-
-p <- df_filtered %>%
-    filter(Family != "NA") %>%
-    ggplot(aes(x = Subfamily)) +
-    facet_grid(~Family, scales = "free", space = "free_x") +
-    geom_bar(color = "black") +
-    labs(x = "", y = "Count") +
-    paletteer::scale_fill_paletteer_d(conf$default_palette) +
-    ggtitle("Non-reference RTE Insertions") +
-    mtclosed +
-    anchorbar +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1))
-mysaveandstore(sprintf("%s/insertions_subfamily_in_updated_ref.pdf", outputdir), 6, 4)
-
-p <- df_filtered %>%
-    filter(Subfamily == "L1Ta") %>%
-    ggplot() +
-    geom_histogram(aes(x = LengthIns)) +
-    geom_vline(xintercept = 6000, color = "red", linetype = 2) +
-    ggtitle("L1HS Insertion Lengths") +
-    labs(x = "Length (bp)", y = "Count") +
-    mtopen +
-    paletteer::scale_fill_paletteer_d(conf$default_palette) +
+    scale_palette +
     anchorbar
 mysaveandstore(sprintf("%s/l1hs_length_in_updated_ref.pdf", outputdir), 5, 5)
 
-###############
 
-trsd <- df_filtered %>%
-    filter(Subfamily == "L1Ta") %>%
-    mutate(TransductionLen = nchar(Transduction_3p)) %>%
-    filter(TransductionLen > 29)
-trsd %>% head(n = 4) %$% Transduction_3p
-
-trsd %$% TransductionLen %>% summary()
-
-save(mysaveandstoreplots, file = outputs$plots)
+x <- tibble(OUT = "")
+write_tsv(x, file = outputs$plots)

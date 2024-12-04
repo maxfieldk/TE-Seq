@@ -37,4 +37,5 @@ dependencies:
   - r-configr
   - r-circlize
   - bioconductor-complexheatmap
+  - r-magick
 prefix: repeatanalysis

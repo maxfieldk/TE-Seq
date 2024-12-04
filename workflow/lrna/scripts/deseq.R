@@ -1,5 +1,6 @@
 module_name <- "lrna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
+confALL <- configr::read.config(file = "conf/config.yaml")
 source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 
@@ -375,12 +376,8 @@ for (batchnormed in c("yes", "no")) {
 save(ddsrteslist, file = paste(outputdir, counttype, "dds_rtes.RData", sep = "/"))
 save(ddsgeneslist, file = paste(outputdir, counttype, "dds_genes.RData", sep = "/"))
 
-if (conf$store_env_as_rds == "yes") {
-    save.image(file = outputs$environment)
-} else {
-    x <- tibble(Env_file = "Opted not to store environment. If this is not desired, change 'store_plots_as_rds' to 'yes' in the relevant config file and rerun this rule.")
-    write_tsv(x, file = outputs$environment)
-}
+x <- tibble(OUT = "")
+write_tsv(x, file = outputs$environment)
 
 # figures: modify plot compositions at will!
 # load(outputs$environment)

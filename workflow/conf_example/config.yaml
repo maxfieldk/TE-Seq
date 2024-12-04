@@ -8,27 +8,51 @@
 #uncomment pipelines to deploy
 pipelines_to_deploy:
   - aref
-  # - srna
-  - ldna
+  - srna
+  # - ldna
   # - lrna
+shared:
+  default_palette_condition: "ggsci::default_aaas" #palette must be at least as long as the number of biological conditions you model; paletteer palettes https://emilhvitfeldt.github.io/paletteer/
+  default_palette_descriptive: "ggthemes::few_Dark" #paletteer palettes https://emilhvitfeldt.github.io/paletteer/
 
 #PIPELINE SETTINGS - Ignore settings for pipelines not being deployed (i.e. not in pipelines_to_deploy)
 aref:
   #MODULE LOGIC
   symlink_aref:
     response: "no"
-    aref_symlinkdir: "/oscar/data/jsedivy/mkelsey/ref/pipeline_annotations/hs1/RTE/aref"
-  symlink_aref_contents:
+    aref_symlinkdir: "/oscar/data/jsedivy/mkelsey/REF_STABLE_ANNOTATIONS/HS1/oct_09_2024/TE-Seq/aref"
+  symlink_aref_contents: #can ignore - this deals with certain niche cases where you wnat to use AND BUILD ON existing annotations.
     response: "no"
+    aref_symlinkdir: "/oscar/data/jsedivy/mkelsey/REF_STABLE_ANNOTATIONS/HS1/oct_09_2024/TE-Seq/aref"
+
   running_ldna:
     response: "no"
-  store_plots_as_rds: "yes" #yes or no
-  store_env_as_rds: "no" #yes or no
   
+  #TE ANNOTATION PARAMETERS
+  fulllength_trnc_length_threshold: 95 #percent of consensus covered by an element for it to be considered full length
+  yng_old_divergence_threshold:
+    rte_family: #specify a column name (one of repeat_superfamily, rte_superfamily, rte_family, or rte_subfamily)
+      L1: 3 #specify values in the above specified column and their specific yng/old divergence threshold
+      Alu: 8
+      ERV: 12
+      Other: 15 
+  gene_adjacency_threshold: 10000 #capture region around genes to be annotated as "gene adjacent"; value in bp. Default is 10kb
+  orf_intactness: #specify which elements to anotate for open reading frame (ORF) intactness. By default, human is annotated for L1HS and L1PA2, and mouse is annotated for the L1MdTf, Gf, and A subfamilies. Other species will have their youngest (least diverged) 7 LINE subfamilies examined. Common ORF lengths will be automatically detected and examined.
+    automatically_find_subfamilies_of_interest: "yes" #yes or no. If "no" provide values to the "subfamilies_of_interest" key. If "yes" nothing need be provided.
+    manual_subfamilies_of_interest:
+      L1HS: #specify subfamily names to examine (must be a trailing value (everything after the last "/" character) in the aref/default/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv "family" column); e.g. "L1HS" for the "LINE/L1/L1HS" entry.
+        - 1017 #specify the ORF lengths (in nucleotides) to search for (ORFs of length +/- 10% the specified value will be considered). Multiple lengths can be provided.
+        - 3828 #specify the ORF lengths (in nucleotides) to search for (ORFs of length +/- 10% the specified value will be considered). Multiple lengths can be provided.
+      L1PA2: #specify subfamily names to examine (must be a value in the rte_subfamily column).
+        - 1017 #specify the ORF lengths (in nucleotides) to search for (ORFs of length +/- 10% the specified value will be considered). Multiple lengths can be provided.
+        - 3828 #specify the ORF lengths (in nucleotides) to search for (ORFs of length +/- 10% the specified value will be considered). Multiple lengths can be provided.
+
   #USER PROVIDED ANNOTATIONS - CHANGE PATHS AS NEEDED
   #Be sure to follow ucsc naming conventions, e.g. chr1, chr2, ...
   starting_ref: ../genome_files/reference.ucsc.fa
-  starting_ref_repeatmasker: ../genome_files/repeatmasker.ucsc.out
+  run_repeatmasker: #controls whether to run repeatmasker from scratch or to use the "starting_ref_repeatmasker" repeatmasker.out file 
+    response: "no"
+    starting_ref_repeatmasker: ../genome_files/repeatmasker.ucsc.out
   ref_refseq_gtf: ../genome_files/refseq.sorted.ucsc.gtf
   ref_refseq_gff3: ../genome_files/refseq.sorted.ucsc.gff3
 
@@ -38,13 +62,12 @@ aref:
   ref_cpgislands: resources/genomes/hs1/annotations/cpgislands.tsv
   l13fasta: resources/sequences/l1.3.fa
   #PATHS TO FILES WHICH WILL BE CREATED
-  ref: aref/A.REF.fa
-  ref_index: aref/A.REF.fa.fai
+  ref: aref/default/A.REF.fa
+  ref_index: aref/default/A.REF.fa.fai
 
   #MODULE SETTINGS
   prefix: aref
   species: human #The species name must be a valid NCBI Taxonomy Database species name and be contained in the RepeatMasker repeat database.
-  default_palette: "ggsci::default_aaas" #paletteer palettes https://emilhvitfeldt.github.io/paletteer/
 
   #PARAMETERS RELVANT IF UPDATING REFERENCE WITH LONG READ DATA, ELSE YOU CAN IGNORE
   sample_table: "conf/sample_table_aref.csv"
@@ -53,24 +76,23 @@ aref:
     - "N2102EP1"
   levels:
     - "N2102EP"
+  #if you would like snps to be incorporated into the reference? Only use if you have at least 20X long read coverage
+  patch_ref: "no"
   update_ref_with_tldr:
     response: "no"
     #if making one ref per sample (i.e. each sample has unique inserts), then "yes", else "no"
     per_sample: "no"
     #IF updating reference with tldr inserts; else NULL
-    tldr_input_bam_ref: /users/mkelsey/data/ref/pipeline_annotations/hs1/RTE/aref/A.REF.fa
+    tldr_input_bam_ref: ../genome_files/reference.ucsc.fa
     #ensure tldr_input_bams are a full path, not relative paths
     tldr_te_ref:
       human: resources/sequences/teref.ont.human.fa
       mouse: resources/sequences/teref.mouse.fa
+    known_nonref:
+      response: "no"
+      path: resources/genomes/hs1/annotations/nonref.collection.hs1.chr.bed.gz #if using, ensure this file is in your genome's coordinate space! Tabix index of bgzipped bed file with location of nonref insertions
 
   dorado: "/users/mkelsey/data/tools/dorado-0.5.1-linux-x64/bin/dorado"
-  basecallingModel:
-    4khz:
-      hac: "/users/mkelsey/data/tools/dorado-0.5.1-linux-x64/models/dna_r10.4.1_e8.2_400bps_hac@v4.1.0"
-      sup: "/oscar/data/jsedivy/mkelsey/tools/rerio/dorado_models/res_dna_r10.4.1_e8.2_400bps_sup@v4.0.1"
-    5khz:
-      hac: "/users/mkelsey/data/tools/dorado-0.5.1-linux-x64/models/dna_r10.4.1_e8.2_400bps_hac@v4.2.0"
   rate: "5khz"
   type: "hac"
   modification_string: "5mCG_5hmCG" #note separete modifications with dashes
@@ -79,8 +101,8 @@ srna:
   prefix: "srna"
   sample_table: "conf/sample_table_srna.csv"
   peptable: "conf/peptable_srna.csv"
-  per_sample_ref: "no"
-  default_palette: "ggsci::default_aaas" #paletteer palettes https://emilhvitfeldt.github.io/paletteer/
+  per_sample_ref: "no" #yes or no
+  map_to_mycoplasma: "yes" #yes or no
   samples:
     - "PRO_low_O2_1"
     - "PRO_low_O2_2"
@@ -116,7 +138,7 @@ srna:
     - "PRO_normoxic"
     - "DDIS_8w_low_O2"
 
-  contrasts:
+  contrasts: #follows the syntax: condition_ + level from "levels" + _vs_ + level from "levels"
     - "condition_RS_0w_low_O2_vs_PRO_low_O2"
     - "condition_RS_4w_low_O2_vs_PRO_low_O2"
     - "condition_RS_8w_low_O2_vs_PRO_low_O2"
@@ -124,13 +146,11 @@ srna:
     - "condition_PRO_normoxic_vs_PRO_low_O2"
     - "condition_DDIS_8w_low_O2_vs_PRO_low_O2"
 
+
   paralellize_bioc: 8
-  counttypes:
+  counttypes: #For TEs, whether to consider unique + multi mapping reads OR only unique mappers. Default is to run the pipeline for both.
     - "telescope_multi"
     - "telescope_unique"
-
-  store_plots_as_rds: "yes" #yes or no
-  store_env_as_rds: "no" #yes or no
 
   downsample_for_test:
     response: "no" #yes or no
@@ -150,22 +170,23 @@ srna:
     Senescence: resources/genesets/human/mycustom/senescence.txt
     InflammatoryGenes: resources/genesets/human/mycustom/inflammatory.txt
 
-  annotation_genes: "aref/A.REF_annotations/refseq.gtf"
-  annotation_genes_bed12: "aref/A.REF_annotations/refseq.bed"
+  annotation_genes: "aref/default/A.REF_annotations/refseq.gtf"
+  annotation_genes_bed12: "aref/default/A.REF_annotations/refseq.bed"
 
-  r_annotation_fragmentsjoined: "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv"
-  r_repeatmasker_annotation: "aref/A.REF_annotations/A.REF_repeatmasker_annotation.csv"
+  gtf_id_mapping: #in the event that gene_id in annotation genes is not symbol, you can pass a df with gene_id and gene_name cols, and gene_id will be swapped for gene_name in during enrichment analysis 
+    response: "no"
+    path: "/users/mkelsey/data/elif3/TE-Seq/aref/A.REF_annotations/refseq_id_mapping.tsv"
+    
+  r_annotation_fragmentsjoined: "aref/default/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv"
+  r_repeatmasker_annotation: "aref/default/A.REF_annotations/A.REF_repeatmasker_annotation.csv"
 
 ldna:
   ##      ANALYSIS PARAMETERES       ##
   prefix: ldna
   sample_table: "conf/sample_table_ldna.csv"
-  default_palette: "ggsci::default_aaas" #paletteer palettes https://emilhvitfeldt.github.io/paletteer/
   use_aref_basecalls: "yes"
   single_condition: "no"
-  store_plots_as_rds: "yes" #yes or no
-  store_env_as_rds: "no" #yes or no
-
+  map_to_mycoplasma: "yes" #yes or no
   samples:
     - "N2102EP1"
 
@@ -195,31 +216,31 @@ ldna:
   MINIMUM_COVERAGE_FOR_METHYLATION_ANALYSIS: 7
   SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS: ""
   reference_annotation_dir: "aref"
-  reference: "aref/A.REF.fa"
-  annotation: "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf"
-  refseq_unaltered: "aref/A.REF_annotations/refseq.gff3"
-  refseq: "aref/A.REF_annotations/refseq.complete.gtf"
-  cytobands: aref/A.REF_annotations/cytobands.bed
+  reference: "aref/extended/A.REF.fa"
+  annotation: "aref/extended/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf"
+  refseq_unaltered: "aref/default/A.REF_annotations/refseq.gff3"
+  refseq: "aref/default/A.REF_annotations/refseq.complete.gtf"
+  cytobands: aref/extended/A.REF_annotations/cytobands.bed
   ccres: /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations3/cCREs/hs1-imr90-cCREsCuratedWithClosestGene.bed
-  telomere: aref/A.REF_annotations/telomeres.bed
+  telomere: aref/extended/A.REF_annotations/telomeres.bed
   censat: /users/mkelsey/data/ref/genomes/hs1/annotations7/chm13v2.0_censat_v2.0.bed
   chromHMM: /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/annotations7/ENCFF965JOC_lungfibroblast_chromHMM_hs1.bed
 
-  refseqbgz: "aref/A.REF_annotations/refseq.complete.gff3.gz"
-  repeatmasker: "aref/A.REF_annotations/A.REF_repeatmasker.complete.gtf"
-  repeatmaskerbgz: "aref/A.REF_annotations/A.REF_repeatmasker.complete.gff3.gz"
-  ref_cytobands: "aref/A.REF_annotations/cytobands.bed"
-  cpg_islands: aref/A.REF_annotations/cpg_islands.bed
-  cpgi_shores: aref/A.REF_annotations/cpgi_shores.bed
-  cpgi_shelves: aref/A.REF_annotations/cpgi_shelves.bed
-  clinvar_bgz: aref/A.REF_annotations/clinvar.vcf.gz
-  clinvar_tbi: aref/A.REF_annotations/clinvar.vcf.tbi
+  refseqbgz: "aref/default/A.REF_annotations/refseq.complete.gff3.gz"
+  repeatmasker: "aref/extended/A.REF_annotations/A.REF_repeatmasker.complete.gtf"
+  repeatmaskerbgz: "aref/extended/A.REF_annotations/A.REF_repeatmasker.complete.gff3.gz"
+  ref_cytobands: "aref/extended/A.REF_annotations/cytobands.bed"
+  cpg_islands: aref/extended/A.REF_annotations/cpg_islands.bed
+  cpgi_shores: aref/extended/A.REF_annotations/cpgi_shores.bed
+  cpgi_shelves: aref/extended/A.REF_annotations/cpgi_shelves.bed
+  clinvar_bgz: aref/extended/A.REF_annotations/clinvar.vcf.gz
+  clinvar_tbi: aref/extended/A.REF_annotations/clinvar.vcf.tbi
   vcfanno_clinvar_toml: conf/clinvar.vcfanno.toml
-  intact_l1_anatomy_coordinates: aref/intact_l1_anatomy_coordinates.tsv
-  r_annotation_fragmentsjoined: "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv"
-  r_repeatmasker_annotation: "aref/A.REF_annotations/A.REF_repeatmasker_annotation.csv"
-  rmann: "aref/A.REF_annotations/A.REF_rmann.csv"
-  l1hsintact: "aref/A.REF_annotations/l1hsintact.bed"
+  intact_l1_anatomy_coordinates: aref/extended/A.REF_analysis/intact_l1_anatomy_coordinates.tsv
+  r_annotation_fragmentsjoined: "aref/extended/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv"
+  r_repeatmasker_annotation: "aref/extended/A.REF_annotations/A.REF_repeatmasker_annotation.csv"
+  rmann: "aref/extended/A.REF_annotations/A.REF_rmann.csv"
+  l1hsintact: "aref/extended/A.REF_annotations/l1hsintact.bed"
   methylartist_loci_of_interest: "conf/ldna_methylartist_loci_of_interest.bed"
   methylartist_bam_config: "conf/ldna_methylartist_bam_config.txt"
   l13orfs: "/users/mkelsey/data/ref/sequences/l1.3.orfs.txt"
@@ -264,7 +285,6 @@ lrna:
   prefix: "lrna"
   sample_table: "conf/sample_table_lrna.csv"
   per_sample_ref: "no"
-  default_palette: "ggsci::default_aaas" #paletteer palettes https://emilhvitfeldt.github.io/paletteer/
   samples:
     - "pro1"
     - "pro2"
@@ -279,8 +299,6 @@ lrna:
   counttypes:
     - "relaxed"
     - "stringent"
-  store_plots_as_rds: "yes" #yes or no
-  store_env_as_rds: "no" #yes or no
 
   rate: "4khz"
   type: "sup"
@@ -299,6 +317,9 @@ lrna:
   condition_colors:
     SEN: "#F39B7FFF"
     PRO: "#3C5488FF"
+
+  repeat_ontologies_to_scrutinize: #leave empty for all ontologies to be included; options: "repeat_superfamily"     "rte_superfamily"        "rte_family"             "rte_subfamily"          "rte_subfamily_limited"  "l1_subfamily_limited"   "l1_subfamily"           "herv_subfamily_limited"
+    - "rte_subfamily_limited"
 
   collections_for_gsea:
     msigdbH: resources/genesets/human/msigdb/h.all.v2023.2.Hs.symbols.gmt
@@ -320,28 +341,44 @@ lrna:
 
   paralellize_bioc: 8
 
-  dorado: "/users/mkelsey/data/tools/dorado-0.6.2-linux-x64/bin/dorado"
+  dorado: "/users/mkelsey/data/tools/dorado-0.7.2-linux-x64/bin/dorado"
   guppy: "/oscar/data/jsedivy/mkelsey/tools/ont-guppy/bin/guppy_basecaller"
   guppy_config: "/oscar/data/jsedivy/mkelsey/tools/ont-guppy/data/rna_r9.4.1_70bps_sup.cfg"
 
-  reference: "aref/A.REF.fa"
-  rtes_genes_gtf: "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf"
+  reference: "aref/default/A.REF.fa"
+  rtes_genes_gtf: "aref/default/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf"
 
   junctionbed: "/users/mkelsey/data/ref/genomes/hs1/refseq_2023_10/GCF_009914755.1_T2T-CHM13v2.0_genomic.ucscnames.bed"
   referencetranscriptome: "/oscar/data/jsedivy/mkelsey/ref/transcriptome/GRCh38_latest_rna_andRCS.fna"
 
   ## new additions
-  annotation_genes: "aref/A.REF_annotations/refseq.gtf"
+  annotation_genes: "aref/default/A.REF_annotations/refseq.gtf"
   annotation_genes_bed12: "/oscar/data/jsedivy/mkelsey/ref/genomes/hs1/refseq_2023_10/GCF_009914755.1_T2T-CHM13v2.0_genomic.ucscnames.bed"
-  annotation_genesandrtes: "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf"
-  annotation_rtes: "aref/A.REF_annotations/A.REF_repeatmasker.gff2"
-  annotation_genesandrtes_fasta: "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.fa"
+  annotation_genesandrtes: "aref/default/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf"
+  annotation_rtes: "aref/default/A.REF_annotations/A.REF_repeatmasker.gff2"
+  annotation_genesandrtes_fasta: "aref/default/A.REF_annotations/A.REF_repeatmasker_refseq.complete.fa"
 
-  r_annotation_fragmentsjoined: "aref/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv"
-  r_repeatmasker_annotation: "aref/A.REF_annotations/A.REF_repeatmasker_annotation.csv"
-  txdb: "aref/A.REF_annotations/A.REF_repeatmasker_refseq.complete.sqlite"
-  cytobands: "aref/A.REF_annotations/cytobands.bed"
+  gtf_id_mapping: #in the event that gene_id in annotation genes is not symbol, you can pass a df with gene_id and gene_name cols, and gene_id will be swapped for gene_name in during enrichment analysis 
+    response: "no"
+    path: "/users/mkelsey/data/elif3/TE-Seq/aref/A.REF_annotations/refseq_id_mapping.tsv"
+    
+  r_annotation_fragmentsjoined: "aref/default/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv"
+  r_repeatmasker_annotation: "aref/default/A.REF_annotations/A.REF_repeatmasker_annotation.csv"
+  txdb: "aref/default/A.REF_annotations/A.REF_repeatmasker_refseq.complete.sqlite"
+  cytobands: "aref/default/A.REF_annotations/cytobands.bed"
   mycoplasma: "/users/mkelsey/data/ref/genomes/mycoplasma/mycoplasma.fa"
+
+  rte_subfamily_read_level_analysis:
+    - "L1HS_intactness_req_ALL"
+
+  rte_subfamily_extra_modification_analysis:
+    - "L1HS_intactness_req_ALL"
+    - "L1HS_rte_length_req_ALL"
+    - "L1PA2_rte_length_req_ALL"
+    - "L1PA3_rte_length_req_ALL"
+    - "L1PA4_rte_length_req_ALL"
+
+  MINIMUM_COVERAGE_FOR_METHYLATION_ANALYSIS: 5
 
 integrated:
   regions_of_interest: "conf/integrated_regions_of_interest.bed"

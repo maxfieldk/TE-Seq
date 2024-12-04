@@ -1,7 +1,7 @@
 software-deployment-method: 
   - conda
   - apptainer
-singularity-args: '--bind /users/mkelsey/data,/oscar/data/jsedivy/mkelsey'
+singularity-args: '--bind /users/mkelsey/data,/users/jsedivy/data/mkelsey,/oscar/data/jsedivy/mkelsey,/oscar/home/jkreilin/data/vesicle_RNAseq,/users/jsedivy/data/rkalekar/Github_2024/RTE/srna'
 conda-frontend: mamba
 rerun-triggers: mtime
 keep-going: True
@@ -23,13 +23,14 @@ set-resources:
         mem_mb: attempt * 35000
         runtime: attempt * 140
     srna_repeatanalysis_plots:
-        mem_mb: attempt * 100000
+        mem_mb: attempt * 125000
+        runtime: attempt * 400
     srna_enrichment_analysis_repeats:
         mem_mb: attempt * 35000
     srna_enrichment_analysis:
         mem_mb: attempt * 35000
     srna_deseq:
-        mem_mb: attempt * 35000
+        mem_mb: attempt * 60000
     srna_bigwigplots:
         mem_mb: attempt * 65000
     srna_common_sortIndexBam:
@@ -43,25 +44,32 @@ set-resources:
         runtime: attempt * 200
     aref_process_gtf_tldr:
         mem_mb: attempt * 35000
+    aref_process_gtf:
+        mem_mb: attempt * 35000
     aref_merge_genes_and_repeats_gtf:
         mem_mb: attempt * 120000
-        runtime: attempt * 140
+        runtime: attempt * 300
     aref_merge_genes_and_repeats_gff:
         mem_mb: attempt * 120000
-        runtime: attempt * 200
+        runtime: attempt * 300
     aref_makeTxDB:
         mem_mb: attempt * 60000
     aref_make_star_index:
         mem_mb: attempt * 60000
     aref_gff_to_gtf:
         mem_mb: attempt * 85000
-        runtime: attempt * 140
+        runtime: attempt * 200
     aref_gff_to_bed12:
         mem_mb: attempt * 85000
-        runtime: attempt * 140
+        runtime: attempt * 200
     aref_getRTEbeds:
         mem_mb: attempt * 35000
     aref_complete_gff3:
         mem_mb: attempt * 85000
     aref_annotate_rtes:
         mem_mb: attempt * 35000
+    aref_dorado:
+        cpus_per_task: 12
+        slurm_partition: "gpu-he"
+        mem_mb: 128000
+        slurm_extra: "--time=96:00:00 --prefer=a6000 --gres=gpu:2"
