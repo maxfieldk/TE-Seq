@@ -70,6 +70,7 @@ for (sample_name in samples) {
 grs <- Reduce(c, sample_grs)
 rm(sample_grs)
 # filter out low coverage and ensure that all samples have the same cpgs
+MINIMUMCOVERAGE <- conf$MINIMUM_COVERAGE_FOR_METHYLATION_ANALYSIS
 grs <- grs[grs$cov > MINIMUMCOVERAGE]
 grsdf <- tibble(as.data.frame(grs))
 grsdf %$% seqnames %>% unique()

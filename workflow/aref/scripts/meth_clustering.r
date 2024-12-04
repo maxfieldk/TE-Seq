@@ -223,13 +223,17 @@ for (sample in conf$samples) {
         mutate(cpgs_detected_per_element = n()) %>%
         ungroup() %>%
         filter(cpgs_detected_per_element > 50) %>%
-        heatmap(gene_id, consensus_pos, pctM, cluster_rows = TRUE, cluster_columns = FALSE)
+        heatmap(gene_id, consensus_pos, pctM, cluster_rows = TRUE, cluster_columns = FALSE) %>%
+        as_ComplexHeatmap()
     hms[[sample]] <- p
     dir.create(outputdir, recursive = TRUE)
     mysaveandstore(sprintf("%s/%s_methylation_%s.pdf", outputdir, sample, subfam), w = 6, h = 6)
 }
-
-
+# Generate the expression as a string and parse it
+p <- base::eval(base::parse(text = paste0("hms[['", conf$samples, "']]", collapse = " + ")))
+mysaveandstore(sprintf("%s/%s_methylation_%s1.pdf", outputdir, "all", subfam), w = 36, h = 6)
+rm(p)
+p <- Reduce(`+`, hms) # Add all elements in the list
 
 # motif analysis of consensus
 motif_pwms_path <- "/oscar/home/mkelsey/anaconda/gimme/lib/python3.10/site-packages/data/motif_databases/HOCOMOCOv11_HUMAN.pfm"
