@@ -951,7 +951,7 @@ rule get_merged_pat:
     input:
         pat = expand("ldna/results/wgbs/analysis_default/{sample}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
     params:
-        inputdir = "ldna/results/wgbs",
+        inputdir = "ldna/results/wgbs/analysis_default",
         level1 = config["ldna"]["levels"][0],
         level2 = lambda wildcards: config["ldna"]["levels"][1] if len(config["ldna"]["levels"]) > 1 else None,  # Second level if exists    
     conda:
@@ -1020,8 +1020,8 @@ rule pat_fig_rtes:
     conda: "omics"
     shell:
         """
-coords=$(awk '{{print $1":"$2"-"$3}}' <<< $(grep "L1HS" {params.fl_rte} | grep "L1HS_3q25.32_3\\|L1HS_1p22.3_2\\|L1HS_7q31.1_6" | head))
-rte_name=$(awk '{{print $6}}' <<< $(grep "L1HS" {params.fl_rte} | head -))
+coords=$(awk '{{print $1":"$2"-"$3}}' <<< $(grep "L1HS" {params.fl_rte}))
+rte_name=$(awk '{{print $6}}' <<< $(grep "L1HS" {params.fl_rte}))
 mapfile -t coords_array <<< "$coords"
 mapfile -t rte_name_array <<< "$rte_name"
 for (( i=0; i<${{#coords_array[@]}}; i++ ))
@@ -1037,6 +1037,42 @@ done
 touch {output.outfile}
         """
 
+rule pat_fig_rtes_by_sample:
+    input:
+        outfile = "ldna/results/wgbs/analysis_default/merged/merged.outfile"
+        # pat = expand("ldna/results/wgbs/{sample}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
+    params:
+        fl_rte = "/users/mkelsey/data/Nanopore/alz/RTE/ldna/Rintermediates/flRTEpromoter.tsv"
+    output:
+        outfile = "ldna/results/wgbs/plots/l1hs/by_sample/l1hs_fl_by_sample.outfile"
+        # pat_fig = "ldna/results/wgbs/plots/{region}.pat.pdf"
+    resources:
+        runtime = 30,
+        mem_mb = 10000,
+        cpus_per_task = 4
+    conda: "omics"
+    shell:
+        """
+coords_array=()
+rte_name_array=()
+
+while read -r line; do
+    coords_array+=("$(awk '{{print $1":"$2"-"$3}}' <<< "$line")")
+    rte_name_array+=("$(awk '{{print $6}}' <<< "$line")")
+done < <(grep "L1HS" {params.fl_rte})
+
+
+for (( i=1; i<((${{#coords_array[@]}} + 1)); i++ ))
+do
+coord=${{coords_array[$i]}}
+rte_name=${{rte_name_array[$i]}}
+coordfnsafe=$(echo $coord | sed 's/:/-/')
+/users/mkelsey/data/tools/wgbs_tools/wgbstools pat_fig --nanopore --shuffle --line_width 0.5 --col_wrap 1 --font_size 3 --meth_color "beige" --unmeth_color "black"  -o $(dirname {output.outfile})/${{rte_name}}_1col.pdf -r $coord --title $rte_name --strict --genome hs1 $(dirname $(dirname {input.outfile}))/*.pat.gz
+/users/mkelsey/data/tools/wgbs_tools/wgbstools pat_fig --nanopore --shuffle --line_width 0.5 --col_wrap 6 --font_size 3 --meth_color "beige" --unmeth_color "black"  -o $(dirname {output.outfile})/${{rte_name}}_6col.pdf -r $coord --title $rte_name --strict --genome hs1 $(dirname $(dirname {input.outfile}))/*.pat.gz
+
+done
+touch {output.outfile}
+        """
 
 rule methylartistlocusplot_loci_of_interest:
     input:
@@ -1594,38 +1630,6 @@ flye --nano-raw {input.fq} --out-dir $(dirname {output.outfile}) --threads 30
 
 # touch {output.outfile}
 #         """
-
-
-
-rule snpeff_build_db:
-    input:
-        ref = config["ldna"]["reference"],
-        refseq = config["aref"]["ref_refseq_gtf"]
-    output:
-        outfile = "ldna/intermediates/snpeff/db.outfile"
-    resources:
-        runtime = 1000,
-        mem_mb = 128000,
-        cpus_per_task = 12
-    conda: "snpeff"
-    shell:
-        """
-configfile=$(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.config
-echo '# Human genome, version hs1
-hs1.genome : Human' >> $configfile
-mkdir -p $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/data/hs1
-cp {input.refseq} $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/data/hs1/genes.gtf
-cp {input.ref} $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/data/hs1/sequences.fa
-
-java -Xmx60g -jar $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.jar build -gtf22 -v hs1 -noCheckCds -noCheckProtein
-mkdir -p $(dirname {output.outfile})
-touch {output.outfile}
-        """
-
-
-
-
-
 rule bedmethyl_to_illumina450k_probe_id:
     input:
         bedmethylpaths = expand("ldna/intermediates/{sample}/methylation/hg38/{sample}_CG_bedMethyl.bed", sample = samples)
