@@ -65,7 +65,7 @@ outputdir <- dirname(outputs$plots)
 dir.create(outputdir, recursive = TRUE, showWarnings = FALSE)
 
 rmann %>%
-    filter(str_detect(intactness_req, "Intact")) %>%
+    filter(intactness_req == "Intact") %>%
     head() %>%
     write_delim(sprintf("%s/rmann_head.csv", outputdir), delim = "\t", col_names = TRUE)
 rmann %$% intactness_req %>% table()

@@ -6,7 +6,6 @@ library("ggplot2")
 library("RColorBrewer")
 library("magrittr")
 library("cowplot")
-library("org.Hs.eg.db")
 library("ggrepel")
 library("grid")
 library("readr")
@@ -41,9 +40,9 @@ tryCatch(
         assign("params", list(
             "outputdir" = "integrated/genomebrowserplots/dorado",
             "regions_of_interest" = "conf/integrated_regions_of_interest.bed",
-            "r_annotation_fragmentsjoined" = conf[["lrna"]]$r_annotation_fragmentsjoined,
-            "r_repeatmasker_annotation" = conf[["lrna"]]$r_repeatmasker_annotation,
-            "txdb" = conf[["lrna"]]$txdb
+            "r_annotation_fragmentsjoined" = conf[["srna"]]$r_annotation_fragmentsjoined,
+            "r_repeatmasker_annotation" = conf[["srna"]]$r_repeatmasker_annotation,
+            "txdb" = conf[["srna"]]$txdb
         ), env = globalenv())
         assign("inputs", list(
             "srna_results" = "srna/results/agg/deseq/resultsdf.tsv",
@@ -166,7 +165,7 @@ pergenedf_tidy <- pivot_longer(pergenedf, cols = -gene_id, names_to = "sample_na
 if (pergenedf_tidy %$% sample_name %>% unique() %>% length() == 1) {
     pergenedf_tidy <- pergenedf_tidy %>% dplyr::select(-sample_name)
 }
-
+rteprommeth %>% filter(rte_subfamily == "L1HS") %$% rte_length_req
 rteprommeth <- read_delim(inputs$rteprommeth)
 perrepeatdf <- rteprommeth %>%
     group_by(gene_id, condition) %>%
@@ -185,7 +184,7 @@ methdf_tidy <- bind_rows(pergenedf_tidy %>% mutate(gene_or_te = "gene"), perrepe
 
 if ("srna" %in% modules_run) {
     srna_gene_expression_tidy <- srna_df %>%
-        select(gene_id, paste0("srna_", srna_samples)) %>%
+        dplyr::select(gene_id, paste0("srna_", srna_samples)) %>%
         pivot_longer(cols = -gene_id, names_to = "sample_name", values_to = "srna_expression") %>%
         mutate(sample_name = gsub("srna_", "", sample_name))
     # if (conf$ldna$single_condition == "yes") {

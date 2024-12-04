@@ -34,7 +34,7 @@ ADD envs/repeatanalysis.yaml /tmp/repeatanalysis.yaml
 RUN mamba env create -f /tmp/repeatanalysis.yaml && conda run --no-capture-output -n repeatanalysis R -e "devtools::install_github('BIMSBbioinfo/genomation',build_vignettes=FALSE)" && conda run --no-capture-output -n repeatanalysis R -e "devtools::install_github('krassowski/complex-upset')" && mamba clean --all --yes 
 
 ADD envs/evo2.yaml /tmp/evo2.yaml 
-RUN mamba env create -f /tmp/evo2.yaml  && mamba clean --all --yes 
+RUN mamba env create -f /tmp/evo2.yaml && conda run --no-capture-output -n repeatanalysis R -e "if (!require('BiocManager', quietly = TRUE)) {install.packages('BiocManager')}; BiocManager::install('rBLAST')"  && mamba clean --all --yes 
 
 ADD envs/ds.yaml /tmp/ds.yaml 
 RUN mamba env create -f /tmp/ds.yaml && mamba clean --all --yes 

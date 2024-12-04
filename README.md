@@ -52,7 +52,7 @@ https://www.neb.com/en-us/products/e6310-nebnext-rrna-depletion-kit-human-mouse-
 ## Computational Requirements
   This pipeline uses the Snakemake workflow manager, and consists of several parts: a main "snakefile" which can deploy a number of module level snakefiles, which in turn contain the rules which specify each step of the analysis. These rules are like functions, they take in inputs and produce outputs.  
 ### Software Requirements
-  All software dependencies are packaged into a Docker container which will automatically be built and used by the Snakemake pipeline at the time of execution. Docker or singularity must be available in order to have Snakemake deploy containers. Users are free to alternatively choose to manually build the several Conda environments required by the pipeline using the provided yaml environment specifications, though this alternative is likely to result in greater overall frustration. Snakemake itself is installed in a Conda environment, and so users will need to have Conda available regardless https://conda.io/projects/conda/en/latest/user-guide/getting-started.html.  
+  Software dependencies are packaged into a Docker containers which will automatically be built and used by the Snakemake pipeline at the time of execution. Docker or singularity must be available in order to have Snakemake deploy containers.These containers contain all dependencies except for the Dorado basecaller, which will need to be installed manually if you are using long Nanopore DNA reads. Users are free to alternatively choose to manually build the several Conda environments required by the pipeline using the provided yaml environment specifications, though this alternative is likely to result in greater overall frustration. Snakemake itself is installed in a Conda environment, and so users will need to have Conda available regardless https://conda.io/projects/conda/en/latest/user-guide/getting-started.html.  
   This pipeline was primarily developed on a compute cluster running a RedHat Linux OS and which uses the SLURM workload manager. Nevertheless the use of docker containers should enable users on other operating systems to run the pipeline without difficulty.  
 ### Hardware Requirements
   This pipeline allows for the parallel execution of many jobs which can occur simultaneously. Consequently, it is highly recommended to execute this pipeline on a compute cluster to take advantage of the corresponding diminishment of total runtime afforded by parallelization. Snakemake is designed to work with many commonly-used cluster workload managers such as SLURM.  
@@ -73,6 +73,9 @@ https://www.neb.com/en-us/products/e6310-nebnext-rrna-depletion-kit-human-mouse-
   ```
    mamba env create --file envs/rseqc.yaml
   ```
+
+  If you are providing long Nanopore DNA reads (optional), you will have to install the Dorado basecaller locally. To do so please visit https://github.com/nanoporetech/dorado and follow their installation instructions.
+  
 ## Setup your project directory
   Create a project directory
   ```
@@ -212,7 +215,8 @@ Make sure your fastq file naming is consistent with the naming scheme set forth 
   TO
   singularity-args: '--bind /users/YOURUSERNAME/data,/oscar/data/jsedivy/YOURUSERNAME'
   ```
-  This workflow/profile/config file specifies also the default compute resources used by rules, as well as a number of rule-specific resources. If supplying nanopore DNA reads, pay particular attention to the resources specified for the dorado rule, which should if possible be run on a batch partition / system with an Nvidia GPU. Running this step solely on a CPU will take a long time... 
+  This workflow/profile/config file specifies also the default compute resources used by rules, as well as a number of rule-specific resources. If supplying nanopore DNA reads, pay particular attention to the resources specified for the dorado rule, which should if possible be run on a batch partition / system with an Nvidia GPU. Running this step solely on a CPU will take a long time...
+ 
 ## Workflow Logic:
 ### AREF
   In the spirit of use case flexibility, the AREF module has a number of workflow modifying parameters. These live in the aref section of the config.yaml file.  
@@ -224,6 +228,9 @@ Make sure your fastq file naming is consistent with the naming scheme set forth 
   The "update_ref_with_tldr" "response" value (yes or no) turns this feature on or off. If turning it on, you can specify whether to create one custom reference which all samples will use (e.g. if you had a number of long read sequencing data on spanning several conditions in ONE cell line) or to create one custom reference per sample (e.g. if you had long read sequencing done on multiple individuals). The "per_sample" key toggles between these two modes.  
   The "samples" , "sample_table", and "levels" keys in the aref section of the config are only relevant if creating a custom reference genome using long-read dna sequencing, and you can ignore these values if you are not using this feature. The same is true for the associated sample_table file, conf/sample_table_aref.csv, which will not be used in this case.
   Elements are denoted as full-length or truncated depending on whether they cover at least 95% (this is a tunable parameter) of their representative consensus sequence. TE subfamilies are deemed ‘young’ if the average percent divergence (as determined by RepeatMasker) of all subfamily members is less than 15%. The length and age thresholds are arbitrary hard cut-offs and are therefore tunable parameters - simply change the values of the "fulllength_trnc_length_threshold" and "yng_old_divergence_threshold" keys.
+  
+#### If supplying long Nanopore DNA reads (optional)
+  First install the Dorado basecaller (https://github.com/nanoporetech/dorado). Next provide the full path to the dorado executable by modifying the "aref" "dorado" key's value. Now you will need to configure various aspects of basecalling pertaining to the basecalling model used. There are three parameters to set: basecalling rate (4khz (older flow cells) or 5khz (for current day models)), basecalling type (fast, hac, sup), and a modification string which contains any DNA modifications to call, separated by underscores (e.g. 5mCG_5hmCG). For instance, if you are interested in calling DNA CpG methylation, you might set these parameters to 5khz, sup, 5mCG. The dorado github page has detailed instructions for determining which combination of these parameters is right for you following the DNA Models header (https://github.com/nanoporetech/dorado). 
 ### SRNA
   The "per_sample_ref" key's value instructs the pipeline as to whether each sample has its own unique reference and TE annotations ("yes"; this situtaion occurs when you have nanopore DNA sequencing on all samples and wish to use custom references), or whether all samples will be using the same reference and TE annotations.  
   In order to rule out mycoplasma contamination of cultured cells, reads are mapped to a collection of mycoplasma genomes (nearly 100% of reads should then fail to map). This is done by default. Insofar as your samples are not cultured cells, you can omit this step by switching the "srna" "map_to_mycoplasma" key's value from "yes" to "no". 

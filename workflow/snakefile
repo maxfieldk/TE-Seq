@@ -73,16 +73,18 @@ for pipeline in config["pipelines_to_deploy"]:
         methylartist = "ldna/results/plots/methylartist/locus/methylartistlocusplot_loci_of_interest.outfile"
         hg38pat = expand("ldna/results/wgbs/hg38/{sample}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample=  config["ldna"]["samples"])
         gimme = "ldna/results/gimme/gimme_plots.rds"
+        read_level_meth_plots = ["ldna/results/wgbs/plots/l1hs/l1hs_fl.outfile"]
+        aging_clock = "ldna/results/plots/clocks/pyaging_clock_plots.outfile"
         # pepper_aref = expand("ldna/intermediates/{sample}/pepper.out.outfile", sample = config["ldna"]["samples"])
         variants_aref = expand("ldna/intermediates/{sample_or_ref}/snpeff/snpeff_sml.pass.vcf", sample_or_ref = "A.REF")
         variants_per_sample = expand("ldna/intermediates/{sample_or_ref}/snpeff/snpeff_sml.pass.vcf", sample_or_ref = config["ldna"]["samples"])
-        for e in list(flatten([mycoplasma, multiqc])):
+        for e in list(flatten([mycoplasma, multiqc, bedmethanalysis, read_level_meth_plots, aging_clock])):
             final_input.append(e)
         if config["ldna"]["map_to_mycoplasma"] == "yes":
             for e in list(flatten([mycoplasma])):
                 final_input.append(e)
         if config["ldna"]["single_condition"] == "yes":
-            for e in list(flatten([bedmethanalysis_single_sample])):
+            for e in list(flatten([gimme])):
                 final_input.append(e)
         else:
             for e in list(flatten([bedmethanalysis,dmrs, methylartist,hg38pat])):

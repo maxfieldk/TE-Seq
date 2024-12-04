@@ -23,6 +23,12 @@ rm2granges <- function(regex, rm, filter = c("length > 0", "length > 0")) {
     return(gr)
 }
 
+pw <- function(to_be_printed) {
+    print(to_be_printed, width = Inf)
+}
+pm <- function(to_be_printed) {
+    print(to_be_printed, n = 200)
+}
 mysave <- function(fn = "ztmp.pdf", w = 5, h = 5, res = 600, pl = p, store = store_var, raster = FALSE) {
     dn <- dirname(fn)
     dir.create(dn, showWarnings = FALSE, recursive = TRUE)
