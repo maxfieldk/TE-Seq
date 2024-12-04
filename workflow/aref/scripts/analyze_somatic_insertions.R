@@ -51,7 +51,7 @@ tryCatch(
             filtered_tldr = if (conf$update_ref_with_tldr$per_sample == "yes") {
                 paste0("aref/default/", sample_table$sample_name, ".table.kept_in_updated_ref.txt")
             } else {
-                rep(sprintf("aref/default/%s.table.kept_in_updated_ref.txt", "A.REF"), length(sample_table$sample_name))
+                sprintf("aref/default/%s.table.kept_in_updated_ref.txt", "A.REF")
             },
             bam = sprintf("aref/intermediates/%s/alignments/5khz/%s.hac.5mCG_5hmCG.sorted.bam", sample_table$sample_name, sample_table$sample_name),
             r_annotation_fragmentsjoined = "aref/default/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
@@ -105,17 +105,17 @@ for (sample in sample_table$sample_name) {
 }
 
 # load tldr germinline tldr insertions that wind up in reference
-dfs_filtered <- list()
 if (conf$update_ref_with_tldr$per_sample == "yes") {
+    dfs_filtered <- list()
     for (sample in sample_table$sample_name) {
         df <- read.table(grep(sprintf("%s.table", sample), inputs$filtered_tldr, value = TRUE), header = TRUE)
         df$sample_name <- sample
         df <- df %>% left_join(sample_table)
         dfs_filtered[[sample]] <- df
+    }
         germline <- do.call(rbind, dfs_filtered) %>%
             tibble() %>%
             left_join(sample_sequencing_data)
-    }
 } else {
     germline <- read.table(inputs$filtered_tldr, header = TRUE) %>%
         tibble()
@@ -146,7 +146,7 @@ if (conf$update_ref_with_tldr$per_sample == "yes") {
     dfall <- do.call(bind_rows, dflist) %>%
         left_join(sample_sequencing_data) %>%
         left_join(sample_table)
-    somatic <- dfall %>%
+    somatic1 <- dfall %>%
         separate_wider_delim(EmptyReads, delim = "|", names = c("bamname", "emptyreadsnum")) %>%
         mutate(fraction_reads_count = UsedReads / (UsedReads + as.numeric(emptyreadsnum))) %>%
         filter(fraction_reads_count < 0.1) %>%
@@ -156,7 +156,7 @@ if (conf$update_ref_with_tldr$per_sample == "yes") {
         filter(Filter == "PASS") %>%
         filter(!is.na(TSD))
 
-    somatic_all <- dfall %>%
+    somatic_all1 <- dfall %>%
         separate_wider_delim(EmptyReads, delim = "|", names = c("bamname", "emptyreadsnum")) %>%
         mutate(fraction_reads_count = UsedReads / (UsedReads + as.numeric(emptyreadsnum))) %>%
         filter(fraction_reads_count < 0.1) %>%
@@ -195,8 +195,8 @@ if (conf$update_ref_with_tldr$per_sample == "yes") {
         mutate(sample_name = str_extract(SampleReads, paste(conf$samples, collapse = "|")))
 }
 
-somatic %$% sample_name
-somatic_all %$% sample_name
+somatic1 %$% sample_name
+somatic_all1 %$% sample_name
 
 somatic_all_not_read_filtered <- GRanges(somatic_all1) %>%
     subsetByOverlaps(centromere, invert = TRUE) %>%
@@ -399,17 +399,17 @@ get_promising_transduction <- function(insertdf) {
     return(promising_transductions)
 }
 
-somatic_repregion_filt_promosing_transductions <- get_promising_transduction(somatic_repregion_filt)
+somatic_repregion_filt_promosing_transductions <- get_promising_transduction(somatic_filt)
 
 ######
 
-# somatic
-# nice inserts
-insert_id <- "8a2116c5-6b9a-44ee-ba15-b3940511a048"
-insert_id <- "49a6f96f-d10a-413d-8627-526aefbc1904"
-# odd insert
-insert_id <- "1d4c8f79-de32-492b-9ac1-d6b6e5d192db"
-# first only elements which pass all filters
+# # somatic
+# # nice inserts
+# insert_id <- "8a2116c5-6b9a-44ee-ba15-b3940511a048"
+# insert_id <- "49a6f96f-d10a-413d-8627-526aefbc1904"
+# # odd insert
+# insert_id <- "1d4c8f79-de32-492b-9ac1-d6b6e5d192db"
+# # first only elements which pass all filters
 
 
 
@@ -667,27 +667,27 @@ insert_frames <- list(
 
 imap(insert_frames, ~ analyze_inserts(.x, .y))
 ### learned features from elements that passed manual curation
-curation_df <- tibble(UUID = c(
-    "996b0eb6-2629-4e8f-94b3-ea1e9befe22d",
-    "8a2116c5-6b9a-44ee-ba15-b3940511a048",
-    "8ca0fd30-d707-4292-af43-cccc1c264aa4",
-    "712ac624-a5d1-44c3-a49e-97c9149cf041",
-    "99739fc6-95f2-4e2f-8855-fc3628579e7c",
-    "ce5013f1-5000-45ab-9091-bb89b1cad6ce",
-    "d5413498-68a1-447e-aae9-10fa564c5197",
-    "edba26cc-ae66-49d7-b94c-a7a47dd97aa0"
-), pass_curation = TRUE)
+# curation_df <- tibble(UUID = c(
+#     "996b0eb6-2629-4e8f-94b3-ea1e9befe22d",
+#     "8a2116c5-6b9a-44ee-ba15-b3940511a048",
+#     "8ca0fd30-d707-4292-af43-cccc1c264aa4",
+#     "712ac624-a5d1-44c3-a49e-97c9149cf041",
+#     "99739fc6-95f2-4e2f-8855-fc3628579e7c",
+#     "ce5013f1-5000-45ab-9091-bb89b1cad6ce",
+#     "d5413498-68a1-447e-aae9-10fa564c5197",
+#     "edba26cc-ae66-49d7-b94c-a7a47dd97aa0"
+# ), pass_curation = TRUE)
 
-tsd_pass_elements %>%
-    left_join(curation_df) %>%
-    filter(Family != "SVA") %>%
-    filter(pass_curation == TRUE) %>%
-    dplyr::select(width, strand, StartTE, EndTE, Inversion, UnmapCover, TEMatch, Remappable, Filter)
-tsd_pass_elements %>%
-    left_join(curation_df) %>%
-    filter(Family != "SVA") %>%
-    filter(is.na(pass_curation)) %>%
-    dplyr::select(width, strand, StartTE, EndTE, Inversion, UnmapCover, TEMatch, Remappable, Filter)
+# tsd_pass_elements %>%
+#     left_join(curation_df) %>%
+#     filter(Family != "SVA") %>%
+#     filter(pass_curation == TRUE) %>%
+#     dplyr::select(width, strand, StartTE, EndTE, Inversion, UnmapCover, TEMatch, Remappable, Filter)
+# tsd_pass_elements %>%
+#     left_join(curation_df) %>%
+#     filter(Family != "SVA") %>%
+#     filter(is.na(pass_curation)) %>%
+#     dplyr::select(width, strand, StartTE, EndTE, Inversion, UnmapCover, TEMatch, Remappable, Filter)
 
 # lessons are that an Alu should completely span StartTE - EndTE, and that TEmatch should be over 90
 # also all "SVA" observed were just stretches of poly A
@@ -710,6 +710,7 @@ tsd_nonpass_start_match_pass <- tsd_nonpass_elements %>%
 
 analyze_inserts(tsd_nonpass_start_match_pass, "tsd_nonpass")
 
+analyze_inserts(tsd_nonpass_elements, "tsd_nonpass_nonstart_match")
 
 
 # all elements that passed scrutiny:
