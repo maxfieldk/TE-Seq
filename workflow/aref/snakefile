@@ -86,6 +86,10 @@ def aref_complete_input(wildcards):
 
     if config["aref"]["running_ldna"]["response"] == "yes":
         paths.append("aref/extended/A.REF_annotations/cpg_islands.bed")
+        if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes":
+            paths.append(expand("aref/intermediates/{sample_or_ref}/snpeff/snpeff_sml.pass.vcf", sample_or_ref = config["aref"]["samples"]))
+        else:
+            paths.append(expand("aref/intermediates/{sample_or_ref}/snpeff/snpeff_sml.pass.vcf", sample_or_ref = "A.REF"))
     
     for path in list(flatten(paths)):
         final_input.append(path)
@@ -628,6 +632,7 @@ rule sniffles:
         mem_mb = 128000,
         cpus_per_task = 32
     conda: "sniffles"
+    container: None
     shell:
         """
 mkdir -p $(dirname {output})
@@ -669,6 +674,158 @@ run_pepper_margin_deepvariant call_variant \
 --ont_r10_q20
         """
 
+rule get_reference_gatk_dict:
+    params:
+        ref = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"],
+        refdict = lambda w: "%s.dict"%config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"]
+    output:
+        "aref/intermediates/ref_gatk_dict.outfile"
+    container:
+        "docker://broadinstitute/gatk:4.6.1.0"
+    shell:
+        """
+gatk CreateSequenceDictionary \
+    -R {params.ref} \
+    -O {params.refdict}
+mkdir -p $(dirname {output})
+touch {output}
+        """
+
+
+rule liftover_dbsnp:
+    input:
+        refdict = lambda w: "%s.dict"%config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"]
+    params:
+        vcf = "/oscar/data/jsedivy/mkelsey/REF_STABLE_ANNOTATIONS/HS1/downloaded_annotaions/GCF_000001405.40.ucsc.vcf",
+        chain = "/oscar/data/jsedivy/mkelsey/ref/genomes/hs1/liftOver/hg38-chm13v2.over.chain",
+        ref = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"],
+        ref_gatk_dict = "aref/intermediates/ref_gatk_dict.outfile"
+    output:
+        "/oscar/data/jsedivy/mkelsey/REF_STABLE_ANNOTATIONS/HS1/downloaded_annotaions/hs1_GCF_000001405.40.ucsc.vcf"
+    container:
+        "docker://broadinstitute/gatk:4.6.1.0"
+    priority: 100
+    resources:
+        cpus_per_task =1,
+        runtime = 600,
+        mem_mb = 80000
+    shell:
+        """
+gatk LiftoverVcf -I {params.vcf} -C {params.chain} -O {output} -R {params.ref} --REJECT {output}.rejected.vcf
+        """
+
+
+# rule pepper_hg38:
+#     input:
+#         sortedbam = ancient(expand("ldna/intermediates/{{sample_or_ref}}/alignments/{rate}/hg38/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"])),
+#         sortedbamindex = ancient(expand("ldna/intermediates/{{sample_or_ref}}/alignments/{rate}/hg38/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]))
+#     params:
+#         ref = "/oscar/data/jsedivy/mkelsey/ref/genomes/hg38/hg38.p13.sorted.fa",
+#     output:
+#         outfile = "aref/intermediates/{sample_or_ref}/pepper/hg38/{chr}/pepper.out.outfile",
+#         vcf = "aref/intermediates/{sample_or_ref}/pepper/hg38/{chr}/PEPPER_MARGIN_DEEPVARIANT_FINAL_OUTPUT.vcf.gz"
+#     resources:
+#         cpus_per_task =20,
+#         runtime = 600,
+#         mem_mb = 50000
+#     container:
+#         "docker://kishwars/pepper_deepvariant:r0.8"
+#     shell:	
+#         """
+# mkdir -p $(dirname {output.outfile})
+# touch {output.outfile}
+
+# run_pepper_margin_deepvariant --help
+# run_pepper_margin_deepvariant call_variant \
+# -b {input.sortedbam} \
+# -f {params.ref} \
+# -o $(dirname {output.outfile}) \
+# -t {resources.cpus_per_task} \
+# -r {wildcards.chr} \
+# --pepper_min_mapq 30 \
+# --pepper_snp_p_value 0.2 \
+# --pepper_insert_p_value 0.3 \
+# --pepper_delete_p_value 0.3 \
+# --ont_r10_q20
+#         """
+
+
+# rule merge_vcfs_hg38:
+#     input:
+#         vcfs = [expand("aref/intermediates/{{sample_or_ref}}/pepper/hg38/{chromosome}/PEPPER_MARGIN_DEEPVARIANT_FINAL_OUTPUT.vcf.gz", chromosome = [e for e in pd.read_table(config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"] + ".fai", header = None).iloc[:,0] if e != "chrM"]) if config["aref"]["update_ref_with_tldr"]["response"] == "yes" else ""] #this used to thrown an error if the tldr_input_bam_ref fai did not exist - even if you weren't running the tldr
+#     output:
+#         vcf = "aref/intermediates/{sample_or_ref}/pepper/hg38/merged.vcf.gz"
+#     conda:
+#         "omics"
+#     shell:
+#         """
+# bcftools concat --naive {input.vcfs} > {output.vcf}.temp
+# bcftools sort {output.vcf}.temp > {output.vcf}.temp.sorted
+# bgzip -c {output.vcf}.temp.sorted > {output.vcf}.temp.gz
+# mv {output.vcf}.temp.gz {output.vcf}
+# tabix {output.vcf}
+# rm {output.vcf}.temp
+# rm {output.vcf}.temp.sorted
+#         """
+
+
+# rule extract_highquality_snps_hg38:
+#     input:
+#         vcf = "aref/intermediates/{sample_or_ref}/pepper/hg38/merged.vcf.gz"
+#     output:
+#         hq_snps = "aref/intermediates/{sample_or_ref}/pepper/hg38/hq_snps.vcf.gz"
+#     conda:
+#         "omics"
+#     shell:
+#         """
+# bcftools filter -i 'TYPE="snp" && MIN(DP)>10 && QUAL>20 && FILTER="PASS"' {input.vcf} > {output.hq_snps}
+# bgzip {output.hq_snps}
+# mv {output.hq_snps}.gz {output.hq_snps}
+# tabix {output.hq_snps}
+#         """
+
+# rule snpeff_smv_snps_hg38:
+#     input: 
+#         vcf = "aref/intermediates/{sample_or_ref}/pepper/hg38/merged.vcf.gz"
+#     resources:
+#         runtime = 1000,
+#         mem_mb = 128000,
+#         cpus_per_task = 12
+#     conda: "snpeff"
+#     container: None
+#     output:
+#         outfile = "aref/intermediates/{sample_or_ref}/snpeff/hg38/snpeff_smv.outfile",
+#         vcf = "aref/intermediates/{sample_or_ref}/snpeff/hg38/snpeff_sml.vcf"
+#     shell:
+#         """
+# zcat {input.vcf} | java -Xmx60g -jar $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.jar hg38 -v -c $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.config -chr 'chr' -csvStats aref/intermediates/{wildcards.sample_or_ref}/snpeff/csvStats_sml.csv -htmlStats aref/intermediates/{wildcards.sample_or_ref}/snpeff/snpeffStats_sml.html - > {output.vcf}
+# mkdir -p $(dirname {output.outfile})
+# touch {output.outfile}
+# exit 0
+#         """
+
+# rule snpeff_sv_hg38:
+#     input: 
+#         vcf = "aref/intermediates/{sample_or_ref}/sniffles/sniffles.vcf"
+#     resources:
+#         runtime = 1000,
+#         mem_mb = 128000,
+#         cpus_per_task = 12
+#     conda: "snpeff"
+#     container: None
+#     output:
+#         outfile = "aref/intermediates/{sample_or_ref}/snpeff/hg38/snpeff_sv.outfile",
+#         vcf = "aref/intermediates/{sample_or_ref}/snpeff/hg38/snpeff_sv.vcf"
+#     shell:
+#         """
+# cat {input.vcf} | java -Xmx60g -jar $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.jar hs1 -v -c $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.config -chr 'chr' -csvStats aref/intermediates/{wildcards.sample_or_ref}/snpeff/csvStats_sv.csv -htmlStats aref/intermediates/{wildcards.sample_or_ref}/snpeff/snpeffStats_sv.html {input.vcf} > {output.vcf}
+# mkdir -p $(dirname {output.outfile})
+# touch {output.outfile}
+# exit 0
+#         """
+
+######### 
+
 rule merge_vcfs:
     input:
         vcfs = [expand("aref/intermediates/{{sample_or_ref}}/pepper/{chromosome}/PEPPER_MARGIN_DEEPVARIANT_FINAL_OUTPUT.vcf.gz", chromosome = [e for e in pd.read_table(config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"] + ".fai", header = None).iloc[:,0] if e != "chrM"]) if config["aref"]["update_ref_with_tldr"]["response"] == "yes" else ""] #this used to thrown an error if the tldr_input_bam_ref fai did not exist - even if you weren't running the tldr
@@ -703,6 +860,33 @@ mv {output.hq_snps}.gz {output.hq_snps}
 tabix {output.hq_snps}
         """
 
+
+rule snpeff_build_db:
+    input:
+        ref = config["ldna"]["reference"],
+        refseq = config["aref"]["ref_refseq_gtf"]
+    output:
+        outfile = "aref/intermediates/snpeff/db.outfile"
+    resources:
+        runtime = 1000,
+        mem_mb = 128000,
+        cpus_per_task = 12
+    conda: "snpeff"
+    container: None
+    shell:
+        """
+configfile=$(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.config
+echo '# Human genome, version hs1
+hs1.genome : Human' >> $configfile
+mkdir -p $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/data/hs1
+cp {input.refseq} $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/data/hs1/genes.gtf
+cp {input.ref} $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/data/hs1/sequences.fa
+
+java -Xmx60g -jar $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.jar build -gtf22 -v hs1 -noCheckCds -noCheckProtein
+mkdir -p $(dirname {output.outfile})
+touch {output.outfile}
+        """
+
 rule snpeff_smv:
     input: 
         vcf = "aref/intermediates/{sample_or_ref}/pepper/merged.vcf.gz",
@@ -712,6 +896,7 @@ rule snpeff_smv:
         mem_mb = 128000,
         cpus_per_task = 12
     conda: "snpeff"
+    container: None
     output:
         outfile = "aref/intermediates/{sample_or_ref}/snpeff/snpeff_smv.outfile",
         vcf = "aref/intermediates/{sample_or_ref}/snpeff/snpeff_sml.vcf"
@@ -732,13 +917,14 @@ rule snpeff_sv:
         mem_mb = 128000,
         cpus_per_task = 12
     conda: "snpeff"
+    container: None
     output:
         outfile = "aref/intermediates/{sample_or_ref}/snpeff/snpeff_sv.outfile",
         vcf = "aref/intermediates/{sample_or_ref}/snpeff/snpeff_sv.vcf"
     shell:
         """
-cat {input.vcf} | java -Xmx60g -jar $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.jar hs1 -v -c $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.config -chr 'chr' -csvStats aref/intermediates/{wildcards.sample_or_ref}/snpeff/csvStats_sv.csv -htmlStats aref/intermediates/{wildcards.sample_or_ref}/snpeff/snpeffStats_sv.html {input.vcf} > {output.vcf}
 mkdir -p $(dirname {output.outfile})
+java -Xmx60g -jar $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.jar hs1 -v -c $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.config -chr 'chr' -csvStats aref/intermediates/{wildcards.sample_or_ref}/snpeff/csvStats_sv.csv -htmlStats aref/intermediates/{wildcards.sample_or_ref}/snpeff/snpeffStats_sv.html {input.vcf} > {output.vcf}
 touch {output.outfile}
 exit 0
         """
@@ -757,6 +943,53 @@ rule pass_vcf:
 bcftools view -f 'PASS' {input.vcf_sml} > {output.vcf_sml}
 bcftools view -f 'PASS' {input.vcf_sv} > {output.vcf_sv}
         """
+
+
+rule annotate_vcf_with_dbsnp:
+    input:
+        vcf_sml = "aref/intermediates/{sample_or_ref}/snpeff/snpeff_sml.pass.vcf"
+    output:
+        annvcf = "aref/intermediates/{sample_or_ref}/snpeff/snpeff_sml.pass.ann.vcf.gz",
+    params:
+        dbsnp = "/oscar/data/jsedivy/mkelsey/REF_STABLE_ANNOTATIONS/HS1/downloaded_annotaions/chm13v2.0_dbSNPv155.vcf.gz",
+        dbsnpindex = "/oscar/data/jsedivy/mkelsey/REF_STABLE_ANNOTATIONS/HS1/downloaded_annotaions/chm13v2.0_dbSNPv155.vcf.gz.tbi"
+    conda:
+        "omics"
+    shell:
+        """
+if [ ! -f {input.vcf_sml}.gz ]; then
+    bgzip {input.vcf_sml}
+fi
+if [ ! -f {input.vcf_sml}.gz.tbi ]; then
+    tabix -p vcf {input.vcf_sml}.gz
+fi
+vcfout={output.annvcf}
+bcftools annotate -a {params.dbsnp} -c ID -o ${{vcfout%.*}} -O v {input.vcf_sml}.gz
+bgzip $output
+tabix -p vcf $output
+        """
+
+rule getstuff:
+    input:
+        [
+        expand("aref/intermediates/{sample_or_ref}/snpeff/snpeff_sml.pass.ann.vcf.gz", sample_or_ref = config["aref"]["samples"])
+        ]
+
+
+rule vcf_to_table:
+    input:
+        vcf_sml = "aref/intermediates/{sample_or_ref}/snpeff/snpeff_sml.pass.vcf",
+        vcf_sv = "aref/intermediates/{sample_or_ref}/snpeff/snpeff_sv.pass.vcf"
+    output:
+
+    container:
+        "docker://broadinstitute/gatk:3.8"
+    shell:
+        """
+bcftools view -f 'PASS' {input.vcf_sml} > {output.vcf_sml}
+bcftools view -f 'PASS' {input.vcf_sv} > {output.vcf_sv}
+        """
+
 
 ####
 
