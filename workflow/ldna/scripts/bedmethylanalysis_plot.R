@@ -95,36 +95,18 @@ rte_subfamily_read_level_analysis <- conf$rte_subfamily_read_level_analysis
 r_annotation_fragmentsjoined <- read_csv(conf$r_annotation_fragmentsjoined)
 r_repeatmasker_annotation <- read_csv(conf$r_repeatmasker_annotation)
 rmann <- left_join(r_annotation_fragmentsjoined, r_repeatmasker_annotation)
-
-grsdf <- read_delim("ldna/Rintermediates/grsdf.tsv", col_names = TRUE)
-grsdf %$% sample %>% unique()
-grsdf$seqnames <- factor(grsdf$seqnames, levels = chromosomesAll)
-grs <- GRanges(grsdf)
-cpg_islands <- rtracklayer::import(conf$cpg_islands)
-cpgi_shores <- rtracklayer::import(conf$cpgi_shores)
-cpgi_shelves <- rtracklayer::import(conf$cpgi_shelves)
-cpgi_features <- c(cpg_islands, cpgi_shelves, cpgi_shores)
-grs_cpg_islands <- grs %>% subsetByOverlaps(cpg_islands)
-grs_cpg_islands$islandStatus <- "island"
-grs_cpgi_shelves <- grs %>% subsetByOverlaps(cpgi_shelves)
-grs_cpgi_shelves$islandStatus <- "shelf"
-grs_cpgi_shores <- grs %>% subsetByOverlaps(cpgi_shores)
-grs_cpgi_shores$islandStatus <- "shore"
-grs_cpg_opensea <- grs %>% subsetByOverlaps(cpgi_features, invert = TRUE)
-grs_cpg_opensea$islandStatus <- "opensea"
-# SETTING UP SOME SUBSETS FOR EXPLORATION
-set.seed(75)
-grsdfs <- grsdf %>%
-    group_by(sample, seqnames, islandStatus) %>%
-    slice_sample(n = 1000)
-grss <- GRanges(grsdfs)
+flRTEpromoter <- read_delim("ldna/Rintermediates/flRTEpromoter.tsv", col_names = TRUE)
 
 RMdf <- read_delim("ldna/Rintermediates/RMdf.tsv", col_names = TRUE)
 rtedf <- read_delim("ldna/Rintermediates/rtedf.tsv", col_names = TRUE)
+rtedf_promoters <- read_delim("ldna/Rintermediates/rtedf_promoters.tsv", col_names = TRUE)
+l1hs_intrautr <- read_delim("ldna/Rintermediates/l1hs_intrautr.tsv", col_names = TRUE)
+
+
 perelementdf <- read_delim("ldna/Rintermediates/perelementdf.tsv", col_names = TRUE)
-flRTEpromoter <- read_delim("ldna/Rintermediates/flRTEpromoter.tsv", col_names = TRUE)
 perelementdf_promoters <- read_delim("ldna/Rintermediates/perelementdf_promoters.tsv", col_names = TRUE)
-reads <- read_delim("ldna/Rintermediates/reads_context_cpg.tsv", col_names = TRUE)
+perl1hs_5utr_region <- read_delim("ldna/Rintermediates/perl1hs_5utr_region.tsv", col_names = TRUE) %>% mutate(region = ordered(region, levels = c("328", "500", "909")))
+
 readscg <- read_delim("ldna/Rintermediates/reads_context_cpg.tsv", col_names = TRUE)
 
 if (conf$single_condition == "no") {
@@ -148,32 +130,6 @@ if (conf$single_condition == "no") {
         direction = dmls$direction
     )
 }
-
-############
-# GLOBAL
-dir.create("ldna/results/plots/genomewide", showWarnings = FALSE)
-a <- grsdf %>%
-    group_by(sample) %>%
-    summarize(mean = mean(pctM), sd = sd(pctM), n = n())
-# t.test(pctM ~ condition, data = grsdf, var.equal = TRUE)
-# t.test(pctM ~ condition, data = grsdf %>% filter(seqnames %in% chromosomesNoX), var.equal = TRUE)
-
-p <- grsdfs %>% ggplot() +
-    geom_boxplot(aes(x = islandStatus, y = pctM, fill = condition)) +
-    mtopen +
-    scale_conditions
-mysaveandstore(fn = "ldna/results/plots/genomewide/cpgislandstatusbox.pdf", w = 6, h = 5, res = 300, pl = p)
-
-
-p <- grsdfs %>%
-    group_by(islandStatus, condition) %>%
-    summarize(pctM = mean(pctM)) %>%
-    ggplot() +
-    geom_col(aes(x = islandStatus, y = pctM, fill = condition), position = "dodge", color = "black") +
-    mtopen +
-    scale_conditions +
-    anchorbar
-mysaveandstore(fn = "ldna/results/plots/genomewide/cpgislandstatusbar_1000.pdf", w = 4, h = 4, res = 300, pl = p)
 
 ##################################### DMR analysis
 if (conf$single_condition == "no") {
@@ -407,15 +363,16 @@ if (conf$single_condition == "no") {
     mysaveandstore(sprintf("ldna/results/plots/rte/dmfl%s_promoter.pdf", "all"), 12, 4)
 }
 
+
+
+perl1hs_5utr_region
 pf <- perelementdf_promoters
+
 p <- pf %>%
-    group_by(rte_subfamily) %>%
-    mutate(n = n()) %>%
-    mutate(rte_subfamily_n = paste0(rte_subfamily, "\nn=", n)) %>%
-    ungroup() %>%
+    group_by(rte_subfamily, sample) %>%
     ggplot() +
-    geom_quasirandom(aes(x = rte_subfamily_n, y = mean_meth, color = condition), dodge.width = 0.75) +
-    geom_boxplot(aes(x = rte_subfamily_n, y = mean_meth, color = condition), alpha = 0.5, outlier.shape = NA) +
+    geom_quasirandom(aes(x = rte_subfamily, y = mean_meth, color = condition), dodge.width = 0.75) +
+    geom_boxplot(aes(x = rte_subfamily, y = mean_meth, color = condition), alpha = 0.5, outlier.shape = NA) +
     xlab("") +
     ylab("Average CpG Methylation Per Element") +
     ggtitle("RTE CpG Methylation") +
@@ -426,7 +383,7 @@ if (conf$single_condition == "no") {
         group_by(sample, condition, rte_subfamily) %>%
         summarise(mean_meth = mean(mean_meth)) %>%
         ungroup() %>%
-        compare_means(mean_meth ~ condition, data = ., group.by = "rte_subfamily", p.adjust.method = "fdr")
+        compare_means(mean_meth ~ condition, data = ., method = "t.test", group.by = "rte_subfamily", p.adjust.method = "fdr")
     mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters.pdf", 14, 6, sf = stats)
     mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters.pdf", raster = TRUE, 14, 6)
 } else {
@@ -434,14 +391,11 @@ if (conf$single_condition == "no") {
 }
 
 p <- pf %>%
-    filter(!grepl("HERVL", rte_subfamily)) %>%
+    filter(!grepl("HERV", rte_subfamily)) %>%
     group_by(rte_subfamily) %>%
-    mutate(n = n()) %>%
-    mutate(rte_subfamily_n = paste0(rte_subfamily, "\nn=", n)) %>%
-    ungroup() %>%
     ggplot() +
-    geom_quasirandom(aes(x = rte_subfamily_n, y = mean_meth, color = condition), dodge.width = 0.75) +
-    geom_boxplot(aes(x = rte_subfamily_n, y = mean_meth, color = condition), alpha = 0.5, outlier.shape = NA) +
+    geom_quasirandom(aes(x = rte_subfamily, y = mean_meth, color = condition), dodge.width = 0.75) +
+    geom_boxplot(aes(x = rte_subfamily, y = mean_meth, color = condition), alpha = 0.5, outlier.shape = NA) +
     xlab("") +
     ylab("Average CpG Methylation Per Element") +
     ggtitle("RTE CpG Methylation") +
@@ -452,7 +406,7 @@ if (conf$single_condition == "no") {
         group_by(sample, condition, rte_subfamily) %>%
         summarise(mean_meth = mean(mean_meth)) %>%
         ungroup() %>%
-        compare_means(mean_meth ~ condition, data = ., group.by = "rte_subfamily", p.adjust.method = "fdr")
+        compare_means(mean_meth ~ condition, data = ., method = "t.test", group.by = "rte_subfamily", p.adjust.method = "fdr")
     mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters_1.pdf", 14, 6, sf = stats)
     mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters_1.pdf", raster = TRUE, 14, 6)
 } else {
@@ -462,23 +416,21 @@ if (conf$single_condition == "no") {
 p <- pf %>%
     filter(grepl("^L1", rte_subfamily)) %>%
     group_by(rte_subfamily) %>%
-    mutate(n = n()) %>%
-    mutate(rte_subfamily_n = paste0(rte_subfamily, "\nn=", n)) %>%
-    ungroup() %>%
-    ggplot(aes(x = rte_subfamily_n, y = mean_meth, color = condition)) +
+    ggplot(aes(x = rte_subfamily, y = mean_meth, color = condition)) +
     geom_quasirandom(dodge.width = 0.75) +
     geom_boxplot(alpha = 0.5, outlier.shape = NA) +
     xlab("") +
     ylab("Average CpG Methylation Per Element") +
-    ggtitle("RTE CpG Methylation") +
+    ggtitle("L1 CpG Methylation") +
     mtopen +
     scale_conditions
 if (conf$single_condition == "no") {
     stats <- pf %>%
+        filter(grepl("^L1", rte_subfamily)) %>%
         group_by(sample, condition, rte_subfamily) %>%
         summarise(mean_meth = mean(mean_meth)) %>%
         ungroup() %>%
-        compare_means(mean_meth ~ condition, data = ., group.by = "rte_subfamily", p.adjust.method = "fdr")
+        compare_means(mean_meth ~ condition, data = ., method = "t.test", group.by = "rte_subfamily", p.adjust.method = "fdr")
     mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters_L1s.pdf", 14, 6, sf = stats)
     mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters_L1s.pdf", raster = TRUE, 12, 4)
 } else {
@@ -489,25 +441,34 @@ if (conf$single_condition == "no") {
 p <- pf %>%
     filter(grepl("^L1HS", rte_subfamily)) %>%
     group_by(rte_subfamily) %>%
-    mutate(n = n()) %>%
-    mutate(rte_subfamily_n = paste0(rte_subfamily, "\nn=", n)) %>%
-    ungroup() %>%
     ggplot(aes(x = sample, y = mean_meth, color = condition)) +
     geom_quasirandom(dodge.width = 0.75) +
     geom_boxplot(alpha = 0.5, outlier.shape = NA) +
     xlab("") +
     ylab("Average CpG Methylation Per Element") +
-    ggtitle("RTE CpG Methylation") +
+    ggtitle("L1HS CpG Methylation") +
     mtopen +
     scale_conditions
 if (conf$single_condition == "no") {
     stats <- pf %>%
-        compare_means(mean_meth ~ condition, data = ., group.by = "rte_subfamily", p.adjust.method = "fdr")
-    mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters_by_sample_L1s.pdf", 10, 6, sf = stats)
-    mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters_by_sample_L1s.pdf", raster = TRUE, 12, 4)
+        filter(grepl("^L1HS", rte_subfamily)) %>%
+        group_by(sample, condition, rte_subfamily) %>%
+        summarise(mean_meth = mean(mean_meth)) %>%
+        ungroup() %>%
+        compare_means(mean_meth ~ condition, data = ., method = "t.test", group.by = "rte_subfamily", p.adjust.method = "fdr")
+    mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters_by_sample_L1HS.pdf", 10, 6, sf = stats)
+    mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters_by_sample_L1HS.pdf", raster = TRUE, 12, 4)
 } else {
-    mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters_by_sample_L1s.pdf", raster = TRUE, 12, 4)
+    mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters_by_sample_L1HS.pdf", raster = TRUE, 12, 4)
 }
+
+rtedf %>%
+    filter(grepl("^L1HS", rte_subfamily)) %>%
+    group_by(sample, condition, rte_subfamily) %>%
+    summarise(mean_meth = mean(pctM)) %>%
+    ungroup() %>%
+    compare_means(mean_meth ~ condition, data = ., method = "t.test", group.by = "rte_subfamily", p.adjust.method = "fdr")
+
 
 p <- pf %>%
     filter(grepl("^L1HS", rte_subfamily)) %>%
@@ -521,16 +482,21 @@ p <- pf %>%
     geom_boxplot(alpha = 0.5, outlier.shape = NA) +
     xlab("") +
     ylab("Average CpG Methylation Per Element") +
-    ggtitle("RTE CpG Methylation") +
+    ggtitle("Intact L1HS CpG Methylation") +
     mtopen +
     scale_conditions
 if (conf$single_condition == "no") {
     stats <- pf %>%
-        compare_means(mean_meth ~ condition, data = ., group.by = "rte_subfamily", p.adjust.method = "fdr")
+        filter(grepl("^L1HS", rte_subfamily)) %>%
+        filter(intactness_req == "Intact") %>%
+        group_by(sample, condition, rte_subfamily) %>%
+        summarise(mean_meth = mean(mean_meth)) %>%
+        ungroup() %>%
+        compare_means(mean_meth ~ condition, data = ., method = "t.test", group.by = "rte_subfamily", p.adjust.method = "fdr")
     mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters_by_sample_intactL1s.pdf", 10, 6, sf = stats)
-    mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters_by_sample_L1s.pdf", raster = TRUE, 12, 4)
+    mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters_by_sample_intactL1s.pdf", raster = TRUE, 12, 4)
 } else {
-    mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters_by_sample_L1s.pdf", raster = TRUE, 12, 4)
+    mysaveandstore(fn = "ldna/results/plots/rte/repmasker_boxplot_promoters_by_sample_intactL1s.pdf", raster = TRUE, 12, 4)
 }
 
 
@@ -687,6 +653,31 @@ if (conf$single_condition == "no") {
         }
     )
 }
+
+
+pf <- perl1hs_5utr_region
+p <- pf %>%
+    ggplot(aes(x = region, y = mean_meth, color = condition)) +
+    geom_quasirandom(dodge.width = 0.75) +
+    geom_boxplot(alpha = 0.5, outlier.shape = NA) +
+    xlab("") +
+    ylab("Average CpG Methylation Per Element") +
+    ggtitle("L1HS CpG Methylation") +
+    mtopen +
+    scale_conditions
+tryCatch(
+    {
+        stats <- pf %>%
+            group_by(sample, condition, region) %>%
+            summarise(mean_meth = mean(mean_meth)) %>%
+            ungroup() %>%
+            compare_means(mean_meth ~ condition, group.by = "region", data = ., method = "t.test", p.adjust.method = "fdr")
+        mysaveandstore(fn = "ldna/results/plots/rte/l1hs_boxplot_5utr_regions.pdf", 5, 4, sf = stats)
+    },
+    error = function(e) {
+        mysaveandstore(fn = "ldna/results/plots/rte/l1hs_boxplot_5utr_regions.pdf", 5, 4)
+    }
+)
 
 # split_frame <- pf %>% group_by(sample, condition, rte_subfamily) %>%
 #     summarise(mean_meth = mean(mean_meth)) %>%
@@ -1164,18 +1155,22 @@ mysaveandstore("ldna/results/plots/l1intactheatmap_5utr_fullrange.pdf", 7, 14)
 # plots[["l1intactheatmap_5utr"]] <- plgrob
 
 
-
 read_analysis <- function(
     readsdf,
     region = "L1HS_intactness_req_ALL",
     mod_code_var = "m",
+    distance_from_start_to_probe = 909,
+    consider_reads_spanning_fraction = 0.7,
+    fraction_meth_threshold = 0.5,
     context = "CG") {
     readsdf1 <- readsdf %>% left_join(r_annotation_fragmentsjoined %>% dplyr::select(gene_id, start, end, strand) %>% dplyr::rename(element_strand = strand, element_start = start, element_end = end))
+    readsdf1 %$% region %>% unique()
+
     utr1 <- readsdf1 %>%
         filter(mod_code == mod_code_var) %>%
         filter(case_when(
-            element_strand == "+" ~ (start > element_start) & (start < element_start + 909),
-            element_strand == "-" ~ (start > element_end - 909) & (start < element_end)
+            element_strand == "+" ~ (start > element_start) & (start < element_start + distance_from_start_to_probe),
+            element_strand == "-" ~ (start > element_end - distance_from_start_to_probe) & (start < element_end)
         )) %>%
         dplyr::mutate(mod_indicator = ifelse(mod_qual > 0.5, 1, 0))
 
@@ -1191,15 +1186,7 @@ read_analysis <- function(
         group_by(gene_id, read_id, condition) %>%
         summarise(read_span = max(start) - min(start), num_cpgs_in_read = n(), fraction_meth = mean(mod_indicator))
 
-    write_delim(utr, sprintf("ldna/Rintermediates/%s_%s_%s_reads.tsv", region, mod_code_var, context), delim = "\t")
-
-    p <- utr %>% ggplot() +
-        geom_density(aes(x = mod_qual, fill = condition), alpha = 0.3) +
-        facet_wrap(vars(region)) +
-        mtclosed +
-        scale_conditions
-    mysaveandstore(sprintf("ldna/results/plots/reads/modbase_score_dist_%s_%s_%s.pdf", region, mod_code_var, context), 12, 4, pl = p)
-
+    write_delim(utr, sprintf("ldna/Rintermediates/%s_to_%s_considering_reads_%s_fraction_%s_%s_%s_reads.tsv", region, distance_from_start_to_probe, consider_reads_spanning_fraction, fraction_meth_threshold, mod_code_var, context), delim = "\t")
 
     p <- utr %>%
         group_by(gene_id, read_id, condition, region) %>%
@@ -1209,7 +1196,7 @@ read_analysis <- function(
         facet_wrap(vars(region)) +
         mtclosed +
         scale_conditions
-    mysaveandstore(sprintf("ldna/results/plots/reads/read_span_distribution_%s_%s_%s.pdf", region, mod_code_var, context), 5, 5, pl = p)
+    mysaveandstore(sprintf("ldna/results/plots/reads/read_span_distribution_%s_to_%s_considering_reads_%s_fraction_%s_%s_%s.pdf", region, distance_from_start_to_probe, consider_reads_spanning_fraction, fraction_meth_threshold, mod_code_var, context), 5, 5, pl = p)
 
 
     p <- utr %>%
@@ -1221,7 +1208,7 @@ read_analysis <- function(
         facet_wrap(vars(region)) +
         mtclosed +
         scale_conditions
-    mysaveandstore(sprintf("ldna/results/plots/reads/read_num_cpg_distribution_%s_%s_%s.pdf", region, mod_code_var, context), 5, 5, pl = p)
+    mysaveandstore(sprintf("ldna/results/plots/reads/read_num_cpg_distribution_%s_to_%s_considering_reads_%s_fraction_%s_%s_%s.pdf", region, distance_from_start_to_probe, consider_reads_spanning_fraction, fraction_meth_threshold, mod_code_var, context), 5, 5, pl = p)
 
 
 
@@ -1234,17 +1221,26 @@ read_analysis <- function(
         facet_wrap(vars(region)) +
         mtclosed +
         scale_conditions
-    mysaveandstore(sprintf("ldna/results/plots/reads/fraction_meth_distribution_%s_%s_%s.pdf", region, mod_code_var, context), 5, 5, pl = p)
+    mysaveandstore(sprintf("ldna/results/plots/reads/fraction_meth_distribution_%s_to_%s_considering_reads_%s_fraction_%s_%s_%s.pdf", region, distance_from_start_to_probe, consider_reads_spanning_fraction, fraction_meth_threshold, mod_code_var, context), 5, 5, pl = p)
 
 
     aa <- utr %>%
-        filter(read_span > 600) %>%
+        filter(read_span > distance_from_start_to_probe * consider_reads_spanning_fraction) %>%
         group_by(read_id, sample, condition, region) %>%
         summarise(fraction_meth = dplyr::first(fraction_meth), read_span = max(read_span), strand = dplyr::first(element_strand)) %>%
         ungroup()
 
+    p <- aa %>%
+        group_by(sample) %>%
+        summarise(number_of_reads = n()) %>%
+        ggplot(aes(x = sample, y = number_of_reads)) +
+        geom_col() +
+        coord_flip() +
+        mtopen
+    mysaveandstore(fn = sprintf("ldna/results/plots/reads/number_of_reads_assessed_%s_to_%s_considering_reads_%s_fraction_%s_%s_%s.pdf", region, distance_from_start_to_probe, consider_reads_spanning_fraction, fraction_meth_threshold, mod_code_var, context), 5, 5, pl = p)
+
     ab <- aa %>%
-        mutate(unmeth = ifelse(fraction_meth > 0.5, 0, 1)) %>%
+        mutate(unmeth = ifelse(fraction_meth > fraction_meth_threshold, 0, 1)) %>%
         group_by(sample, region, condition) %>%
         summarise(propUnmeth = mean(unmeth)) %>%
         group_by(condition, region) %>%
@@ -1256,46 +1252,113 @@ read_analysis <- function(
         geom_point(aes(y = propUnmeth)) +
         facet_wrap(vars(region)) +
         geom_pwc(aes(x = condition, y = propUnmeth, group = condition), tip.length = 0, method = "wilcox_test") +
-        labs(x = "", y = "Pct Reads < 50% methylated") +
-        ggtitle("5'UTR Methylation") +
+        labs(x = "", y = sprintf("Pct Reads < %s methylated", fraction_meth_threshold)) +
+        ggtitle(sprintf("1-%s Methylation", distance_from_start_to_probe)) +
         mtclosedgridh +
         scale_conditions +
         anchorbar
-    mysaveandstore(sprintf("ldna/results/plots/reads/barplot_50pct_%s_%s_%s.pdf", region, mod_code_var, context), 4, 4, pl = p)
-
-
-
+    mysaveandstore(sprintf("ldna/results/plots/reads/barplot_%s_to_%s_considering_reads_%s_fraction_%s_%s_%s.pdf", region, distance_from_start_to_probe, consider_reads_spanning_fraction, fraction_meth_threshold, mod_code_var, context), 4, 4, pl = p)
 
     p <- aa %>%
         ggplot() +
         geom_density(aes(x = fraction_meth, fill = condition), alpha = 0.7) +
         labs(x = "Pct CpG Methylation per Read") +
-        ggtitle("5'UTR Methylation") +
+        ggtitle(sprintf("1-%s Methylation", distance_from_start_to_probe)) +
         facet_wrap(vars(region)) +
         mtclosed +
         scale_conditions
-    mysaveandstore(sprintf("ldna/results/plots/reads/fraction_meth_density_distribution_%s_%s_%s.pdf", region, mod_code_var, context), 4, 4, pl = p)
+    mysaveandstore(sprintf("ldna/results/plots/reads/fraction_meth_density_distribution_%s_to_%s_considering_reads_%s_fraction_%s_%s_%s.pdf", region, distance_from_start_to_probe, consider_reads_spanning_fraction, fraction_meth_threshold, mod_code_var, context), 4, 4, pl = p)
 
 
-    p <- utr %>%
-        filter(region == "L1HS_intactness_req_ALL") %>%
-        filter(read_span > 600) %>%
-        group_by(read_id, condition, region) %>%
+    aa <- utr %>%
+        filter(read_span > distance_from_start_to_probe * consider_reads_spanning_fraction) %>%
+        group_by(read_id, sample, condition, region, gene_id) %>%
         summarise(fraction_meth = dplyr::first(fraction_meth), read_span = max(read_span), strand = dplyr::first(element_strand)) %>%
-        ggplot() +
-        geom_density(aes(x = fraction_meth, fill = condition), alpha = 0.7) +
-        labs(x = "Pct CpG Methylation per Read") +
-        ggtitle("L1HS Intact 5'UTR Methylation") +
-        mtopen +
+        ungroup()
+
+    p <- aa %>%
+        group_by(sample, gene_id) %>%
+        summarise(number_of_reads = n()) %>%
+        ggplot(aes(x = sample, y = number_of_reads)) +
+        geom_col() +
+        facet_wrap(~gene_id) +
+        coord_flip() +
+        mtopen
+    mysaveandstore(fn = sprintf("ldna/results/plots/reads/number_of_reads_assessed_%s_to_%s_considering_reads_%s_fraction_%s_%s_%s_split_by_geneid.pdf", region, distance_from_start_to_probe, consider_reads_spanning_fraction, fraction_meth_threshold, mod_code_var, context), 30, 30, pl = p)
+
+    ab <- aa %>%
+        mutate(unmeth = ifelse(fraction_meth > fraction_meth_threshold, 0, 1)) %>%
+        group_by(sample, region, condition, gene_id) %>%
+        summarise(propUnmeth = mean(unmeth)) %>%
+        group_by(condition, region, gene_id) %>%
+        mutate(meanProp = mean(propUnmeth))
+
+    p <- ab %>%
+        ggplot(aes(x = condition)) +
+        stat_summary(aes(y = propUnmeth, fill = condition), color = "black", fun = "mean", geom = "bar") +
+        geom_point(aes(y = propUnmeth)) +
+        facet_wrap(~gene_id) +
+        geom_pwc(aes(x = condition, y = propUnmeth, group = condition), tip.length = 0, method = "wilcox_test") +
+        labs(x = "", y = sprintf("Pct Reads < %s methylated", fraction_meth_threshold)) +
+        ggtitle(sprintf("1-%s Methylation", distance_from_start_to_probe)) +
+        mtclosedgridh +
         scale_conditions +
         anchorbar
-    mysaveandstore(sprintf("ldna/results/plots/reads/fraction_meth_density_distribution_l1hsintact_%s_%s.pdf", mod_code_var, context), 4, 4, pl = p)
+    mysaveandstore(sprintf("ldna/results/plots/reads/barplot_%s_to_%s_considering_reads_%s_fraction_%s_%s_%s_split_by_geneid.pdf", region, distance_from_start_to_probe, consider_reads_spanning_fraction, fraction_meth_threshold, mod_code_var, context), 30, 30, pl = p)
 }
 
 tryCatch(
     {
-        read_analysis(readscg, "L1HS_intactness_req_ALL", "m", "CpG")
-        read_analysis(reads, "L1HS_intactness_req_ALL", "m", "NoContext")
+        read_analysis(
+            readsdf = readscg,
+            region = "L1HS_intactness_req_ALL",
+            mod_code_var = "m",
+            distance_from_start_to_probe = 909,
+            consider_reads_spanning_fraction = 0.7,
+            fraction_meth_threshold = 0.5,
+            context = "CpG"
+        )
+
+        read_analysis(
+            readsdf = readscg,
+            region = "L1HS_intactness_req_ALL",
+            mod_code_var = "m",
+            distance_from_start_to_probe = 500,
+            consider_reads_spanning_fraction = 0.9,
+            fraction_meth_threshold = 0.5,
+            context = "CpG"
+        )
+
+        read_analysis(
+            readsdf = readscg,
+            region = "L1HS_intactness_req_ALL",
+            mod_code_var = "m",
+            distance_from_start_to_probe = 328,
+            consider_reads_spanning_fraction = 0.9,
+            fraction_meth_threshold = 0.5,
+            context = "CpG"
+        )
+
+        read_analysis(
+            readsdf = readscg,
+            region = "L1HS_intactness_req_ALL",
+            mod_code_var = "m",
+            distance_from_start_to_probe = 500,
+            consider_reads_spanning_fraction = 0.9,
+            fraction_meth_threshold = 0.25,
+            context = "CpG"
+        )
+
+        read_analysis(
+            readsdf = readscg,
+            region = "L1HS_intactness_req_ALL",
+            mod_code_var = "m",
+            distance_from_start_to_probe = 328,
+            consider_reads_spanning_fraction = 0.9,
+            fraction_meth_threshold = 0.25,
+            context = "CpG"
+        )
+        # read_analysis(reads, "L1HS_intactness_req_ALL", "m", "NoContext")
         # read_analysis(readscg, "L1HS_intactness_req_ALL", "h", "CpG")
         # read_analysis(reads, "L1HS_intactness_req_ALL", "h", "NoContext")
         # read_analysis(reads, "L1HS_intactness_req_ALL", "a", "NoContext")
@@ -1953,10 +2016,60 @@ if (conf$single_condition == "no") {
 
 
 ##################
+grsdf <- read_delim("ldna/Rintermediates/grsdf.tsv", col_names = TRUE)
+grsdf %$% sample %>% unique()
+grsdf$seqnames <- factor(grsdf$seqnames, levels = chromosomesAll)
+grs <- GRanges(grsdf)
+cpg_islands <- rtracklayer::import(conf$cpg_islands)
+cpgi_shores <- rtracklayer::import(conf$cpgi_shores)
+cpgi_shelves <- rtracklayer::import(conf$cpgi_shelves)
+cpgi_features <- c(cpg_islands, cpgi_shelves, cpgi_shores)
+grs_cpg_islands <- grs %>% subsetByOverlaps(cpg_islands)
+grs_cpg_islands$islandStatus <- "island"
+grs_cpgi_shelves <- grs %>% subsetByOverlaps(cpgi_shelves)
+grs_cpgi_shelves$islandStatus <- "shelf"
+grs_cpgi_shores <- grs %>% subsetByOverlaps(cpgi_shores)
+grs_cpgi_shores$islandStatus <- "shore"
+grs_cpg_opensea <- grs %>% subsetByOverlaps(cpgi_features, invert = TRUE)
+grs_cpg_opensea$islandStatus <- "opensea"
+# SETTING UP SOME SUBSETS FOR EXPLORATION
+set.seed(75)
+grsdfs <- grsdf %>%
+    group_by(sample, seqnames, islandStatus) %>%
+    slice_sample(n = 1000)
+grss <- GRanges(grsdfs)
+
+
+############
+# GLOBAL
+dir.create("ldna/results/plots/genomewide", showWarnings = FALSE)
+a <- grsdf %>%
+    group_by(sample) %>%
+    summarize(mean = mean(pctM), sd = sd(pctM), n = n())
+# t.test(pctM ~ condition, data = grsdf, var.equal = TRUE)
+# t.test(pctM ~ condition, data = grsdf %>% filter(seqnames %in% chromosomesNoX), var.equal = TRUE)
+
+p <- grsdfs %>% ggplot() +
+    geom_boxplot(aes(x = islandStatus, y = pctM, fill = condition)) +
+    mtopen +
+    scale_conditions
+mysaveandstore(fn = "ldna/results/plots/genomewide/cpgislandstatusbox.pdf", w = 6, h = 5, res = 300, pl = p)
+
+
+p <- grsdfs %>%
+    group_by(islandStatus, condition) %>%
+    summarize(pctM = mean(pctM)) %>%
+    ggplot() +
+    geom_col(aes(x = islandStatus, y = pctM, fill = condition), position = "dodge", color = "black") +
+    mtopen +
+    scale_conditions +
+    anchorbar
+mysaveandstore(fn = "ldna/results/plots/genomewide/cpgislandstatusbar_1000.pdf", w = 4, h = 4, res = 300, pl = p)
 
 ## CENTROMERE
 # ANNOTATIONS
 ##########################################
+
 giesma <- read_delim(conf$cytobands, col_names = FALSE)
 cent_gr <- giesma %>%
     filter(X5 == "acen") %>%

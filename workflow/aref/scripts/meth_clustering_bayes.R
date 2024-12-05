@@ -49,6 +49,56 @@ dat_index <- df %>%
     ) %>%
     dplyr::select(Nmeth, cov, UTR_status, consensus_pos, sample, condition, gene_id)
 
+
+dat_index_25 <- df %>%
+    filter(consensus_pos <= 25) %>%
+    mutate(
+        Nmeth = as.integer(pctM / 100 * cov),
+        UTR_status = as.integer(factor(ifelse(consensus_pos < 909, "UTR", "Body"))),
+        consensus_pos = as.integer(factor(as.character(consensus_pos))),
+        sample = as.integer(factor(sample)),
+        condition = as.integer(factor(condition, levels = c("CTRL", "AD"))) - 1,
+        gene_id = as.integer(factor(gene_id))
+    ) %>%
+    dplyr::select(Nmeth, cov, UTR_status, consensus_pos, sample, condition, gene_id)
+
+dat_index_328 <- df %>%
+    filter(consensus_pos <= 328) %>%
+    mutate(
+        Nmeth = as.integer(pctM / 100 * cov),
+        UTR_status = as.integer(factor(ifelse(consensus_pos < 909, "UTR", "Body"))),
+        consensus_pos = as.integer(factor(as.character(consensus_pos))),
+        sample = as.integer(factor(sample)),
+        condition = as.integer(factor(condition, levels = c("CTRL", "AD"))) - 1,
+        gene_id = as.integer(factor(gene_id))
+    ) %>%
+    dplyr::select(Nmeth, cov, UTR_status, consensus_pos, sample, condition, gene_id)
+
+dat_index_500 <- df %>%
+    filter(consensus_pos <= 500) %>%
+    mutate(
+        Nmeth = as.integer(pctM / 100 * cov),
+        UTR_status = as.integer(factor(ifelse(consensus_pos < 909, "UTR", "Body"))),
+        consensus_pos = as.integer(factor(as.character(consensus_pos))),
+        sample = as.integer(factor(sample)),
+        condition = as.integer(factor(condition, levels = c("CTRL", "AD"))) - 1,
+        gene_id = as.integer(factor(gene_id))
+    ) %>%
+    dplyr::select(Nmeth, cov, UTR_status, consensus_pos, sample, condition, gene_id)
+
+dat_index_909 <- df %>%
+    filter(consensus_pos <= 909) %>%
+    mutate(
+        Nmeth = as.integer(pctM / 100 * cov),
+        UTR_status = as.integer(factor(ifelse(consensus_pos < 909, "UTR", "Body"))),
+        consensus_pos = as.integer(factor(as.character(consensus_pos))),
+        sample = as.integer(factor(sample)),
+        condition = as.integer(factor(condition, levels = c("CTRL", "AD"))) - 1,
+        gene_id = as.integer(factor(gene_id))
+    ) %>%
+    dplyr::select(Nmeth, cov, UTR_status, consensus_pos, sample, condition, gene_id)
+
+
 cpos <- dat$consensus_pos %>%
     unique() %>%
     .[1:5]
@@ -69,11 +119,47 @@ datindexs %>%
     unique()
 
 
+
+model_name <- "mv2_25"
+mv2 <- ulam(
+    alist(
+        Nmeth ~ dbinom(cov, p),
+        logit(p) <- a +
+            z_c[consensus_pos] * a_c_sigma +
+            z_g[gene_id] * a_g_sigma +
+            z_s[sample] * a_s_sigma +
+            b * condition,
+
+        # Non-centered parameters
+        vector[consensus_pos]:z_c ~ dnorm(0, 1),
+        vector[gene_id]:z_g ~ dnorm(0, 1),
+        vector[sample]:z_s ~ dnorm(0, 1),
+
+        # Hyperpriors
+        a_c_sigma ~ dexp(1),
+        a_g_sigma ~ dexp(1),
+        a_s_sigma ~ dexp(1),
+        # Prior for b
+        b ~ dnorm(0, 0.5),
+        a ~ dnorm(0, 1),
+
+        # Generated quantities for easier interpretation
+        gq > vector[consensus_pos]:a_c <<- z_c * a_c_sigma,
+        gq > vector[gene_id]:a_g <<- z_g * a_g_sigma,
+        gq > vector[sample]:a_s <<- z_s * a_s_sigma
+    ),
+    data = dat_index, chains = 4, cores = 4, log_lik = FALSE,
+    file = sprintf("%s/%s", outputdir, model_name),
+    output_dir = stan_workdir
+)
+
+
 model_name <- "mv2"
 mv2 <- ulam(
     alist(
         Nmeth ~ dbinom(cov, p),
-        logit(p) <- a + z_c[consensus_pos] * a_c_sigma +
+        logit(p) <- a +
+            z_c[consensus_pos] * a_c_sigma +
             z_g[gene_id] * a_g_sigma +
             z_s[sample] * a_s_sigma +
             b * condition,
@@ -122,7 +208,8 @@ mf1 <- ulam(
 mv1 <- ulam(
     alist(
         Nmeth ~ dbinom(cov, p),
-        logit(p) <- a + a_s_bar + z_s[sample] * a_s_sigma +
+        logit(p) <- a +
+            a_s_bar + z_s[sample] * a_s_sigma +
             b * condition,
 
         # Non-centered parameters

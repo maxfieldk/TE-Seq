@@ -1670,7 +1670,7 @@ rule R_clock:
         mem_mb = 50000,
         cpus_per_task = 4
     script:
-        "scripts/R_clock.py"
+        "scripts/R_clock.R"
 
 rule pyaging_clock_analysis:
     input:

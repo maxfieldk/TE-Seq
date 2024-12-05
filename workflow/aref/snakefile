@@ -965,8 +965,8 @@ if [ ! -f {input.vcf_sml}.gz.tbi ]; then
 fi
 vcfout={output.annvcf}
 bcftools annotate -a {params.dbsnp} -c ID -o ${{vcfout%.*}} -O v {input.vcf_sml}.gz
-bgzip $output
-tabix -p vcf $output
+bgzip --stdout ${{vcfout%.*}} > $vcfout
+tabix -p vcf $vcfout
         """
 
 rule getstuff:

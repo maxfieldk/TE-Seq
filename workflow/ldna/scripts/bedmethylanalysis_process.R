@@ -284,19 +284,65 @@ write_delim(perelementdf, "ldna/Rintermediates/perelementdf.tsv", col_names = TR
 # RTE PROMOTERS
 # annotate whether full length elements promoters overlap DMRs
 flelement <- rmann %>% filter(rte_length_req == "FL")
-rmann %$% rte_length_req %>% table()
-
 flSINE <- flelement %>% filter(rte_superfamily == "SINE")
 flLINE <- flelement %>% filter(rte_superfamily == "LINE")
 rmann %$% ltr_viral_status %>% unique()
 flFl_Provirus_5LTR <- flelement %>%
     filter(str_detect(gene_id, "LTR")) %>%
-    filter(ltr_viral_status == "5'LTR (FL Int)")
-
+    filter(ltr_viral_status == "5'LTR (FL Int)" | ltr_viral_status == "5'LTR (Trnc Int)")
 flSINEgrs <- GRanges(flSINE)
-flLINE5UTRgrs <- GRanges(flLINE) %>% resize(909)
 flFl_Provirus_5LTRgrs <- GRanges(flFl_Provirus_5LTR)
-flRTEpromotergrs <- c(c(flSINEgrs, flLINE5UTRgrs), flFl_Provirus_5LTRgrs)
+
+# for L1HS I get several region of the 5UTR based off of consensus alignment
+l1_aln_dir = "ldna/results/plots/l1_alignment_meth"
+fll1hs_consensus_index_long <- read_csv(sprintf("%s/%s_fl_mapping_to_consensus_table.csv", l1_aln_dir, "L1HS"))
+
+filter_by_consensus_pos <- function(fl_grs, pos_mapping, include_up_to_pos) {
+    genes_to_map <- pos_mapping %$% gene_id %>% unique()
+    filter_pos_list <- list()
+    for (element in genes_to_map) {
+        dfs <- pos_mapping %>% filter(gene_id == element)
+        seqval <- dfs %>% filter(consensus_pos == include_up_to_pos) %$% sequence_pos
+        if (!is.na(seqval)) {
+            filter_pos = seqval
+        } else {
+            start_pos <- include_up_to_pos - 1
+            match <- FALSE
+            while (match == FALSE) {
+                seqval <- dfs %>% filter(consensus_pos == start_pos) %$% sequence_pos
+                if (!is.na(seqval)) {
+                    filter_pos <- seqval
+                    match <- TRUE
+                } else {
+                    start_pos <- start_pos - 1
+                }
+            }
+        }
+        filter_pos_list[[element]] <- filter_pos
+    }
+    mapping <- tibble(gene_id = names(filter_pos_list), filter_pos = unlist(filter_pos_list))
+    grlist <- map(seq_along(fl_grs), function(x) fl_grs[x])
+    grlistresized <- map(grlist, function(x) if (mcols(x)$gene_id %in% mapping$gene_id) {return(resize(x, width = (mapping %>% filter(gene_id == mcols(x)$gene_id) %$% filter_pos)))} )
+    number_omitted <- length(grlist) - nrow(mapping)
+    l1hs_resized <- purrr::reduce(grlistresized, c)
+    return(l1hs_resized)
+}
+
+flL1HS5UTR <- filter_by_consensus_pos(flLINE %>% filter(rte_subfamily == "L1HS" %>% filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS)) %>% GRanges(), fll1hs_consensus_index_long, 909)
+flL1HS500 <- filter_by_consensus_pos(flLINE %>% filter(rte_subfamily == "L1HS" %>% filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS)) %>% GRanges(), fll1hs_consensus_index_long, 500)
+flL1HS328 <- filter_by_consensus_pos(flLINE %>% filter(rte_subfamily == "L1HS" %>% filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS)) %>% GRanges(), fll1hs_consensus_index_long, 328)
+
+flLINENOTL1HS <- flLINE %>% filter(rte_subfamily != "L1HS") %>% GRanges() %>% resize(909)
+
+
+flRTEpromotergrs <- c(c(flSINEgrs, flLINENOTL1HS), flFl_Provirus_5LTRgrs, flL1HS5UTR)
+
+mcols(flL1HS5UTR)$region <- "909"
+mcols(flL1HS500)$region <- "500"
+mcols(flL1HS328)$region <- "328"
+l1hs_intra_utr_grs <- c(c(flL1HS328, flL1HS500), flL1HS5UTR)
+
+
 
 if (conf$single_condition == "no") {
     mbo <- mergeByOverlaps(flRTEpromotergrs, dmrsgr)
@@ -328,34 +374,49 @@ if (conf$single_condition == "no") {
     flRTEpromoterdfGOOD <- tibble(as.data.frame(flRTEpromotergrs))
 }
 
-
 flRTEpromoter <- flRTEpromoterdfGOOD %>% filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS)
 write_delim(flRTEpromoter, "ldna/Rintermediates/flRTEpromoter.tsv", col_names = TRUE)
 # flRTEpromoter <- read_delim("ldna/Rintermediates/flRTEpromoter.tsv", col_names = TRUE)
 
+
 grouping_var <- "rte_subfamily"
 rte_frame <- GRanges(flRTEpromoter %>% filter(!!sym(grouping_var) != "Other") %>% filter(rte_length_req == "FL"))
-mbo <- mergeByOverlaps(grs, rte_frame)
-methdf <- mbo$grs %>%
-    as.data.frame() %>%
-    tibble()
-rte_only_frame <- mbo$rte_frame %>%
-    as.data.frame() %>%
-    tibble() %>%
-    dplyr::rename(rte_seqnames = seqnames, rte_start = start, rte_end = end, rte_strand = strand, rte_width = width)
-rtedf_promoters <- bind_cols(methdf, rte_only_frame)
 
+merge_with_grs <- function(grs, rte_frame) {
+    mbo <- mergeByOverlaps(grs, rte_frame)
+    methdf <- mbo$grs %>%
+        as.data.frame() %>%
+        tibble()
+    rte_only_frame <- mbo$rte_frame %>%
+        as.data.frame() %>%
+        tibble() %>%
+        dplyr::rename(rte_seqnames = seqnames, rte_start = start, rte_end = end, rte_strand = strand, rte_width = width)
+    rtedf_promoters <- bind_cols(methdf, rte_only_frame)
+    return(rtedf_promoters)
+}
+rtedf_promoters <- merge_with_grs(grs, rte_frame)
 write_delim(rtedf_promoters, "ldna/Rintermediates/rtedf_promoters.tsv", col_names = TRUE)
 # rtedf_promoters <- read_delim("ldna/Rintermediates/rtedf_promoters.tsv", col_names = TRUE)
+
+l1hs_intrautr <- merge_with_grs(grs, l1hs_intra_utr_grs)
+write_delim(l1hs_intrautr, "ldna/Rintermediates/l1hs_intrautr.tsv", col_names = TRUE)
+
+
 perelementdf_promoters <- rtedf_promoters %>%
     filter(cov > MINIMUMCOVERAGE) %>%
     group_by(gene_id, sample, condition) %>%
     summarize(mean_meth = mean(pctM)) %>%
     left_join(flRTEpromoter %>% dplyr::rename(rte_seqnames = seqnames, rte_start = start, rte_end = end, rte_strand = strand, rte_width = width))
-
-
 write_delim(perelementdf_promoters, "ldna/Rintermediates/perelementdf_promoters.tsv", col_names = TRUE)
 # perelementdf_promoters <- read_delim("ldna/Rintermediates/perelementdf_promoters.tsv", col_names = TRUE)
+
+perl1hs_5utr_region <- l1hs_intrautr %>%
+    filter(cov > MINIMUMCOVERAGE) %>%
+    group_by(gene_id, sample, condition) %>%
+    mutate(mean_meth = mean(pctM)) %>%
+    ungroup()
+write_delim(perl1hs_5utr_region, "ldna/Rintermediates/perl1hs_5utr_region.tsv", col_names = TRUE)
+# perl1hs_5utr_region <- read_delim("ldna/Rintermediates/perl1hs_5utr_region.tsv", col_names = TRUE)
 
 
 # Genes
