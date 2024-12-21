@@ -206,7 +206,7 @@ Make sure your fastq file naming is consistent with the naming scheme set forth 
   ```
   peptable_srna.csv, is automatically updated each time you call Snakemake, according to the rules set out in conf/project_config_srna.yaml applied to conf/sample_table.csv. This is how rawdata paths can be generated dynamically.  
   The workflow/profile/default/config.yaml instructs Snakemake how to be run in your compute environment. More information on Snakemake profiles can be found at https://snakemake.readthedocs.io/en/stable/executing/cli.html under the "Profiles" section header.  
-  If using the containerized workflow (default), modify the contents of workflow/profile/default/config.yaml such that Singularity containers have access to a directory which contains all files which are referenced in the pipeline and which contains your project directory.  
+  If using the containerized workflow (default), modify the contents of workflow/profile/default/config.yaml such that Singularity containers have access to a directory which contains all files which are referenced in the pipeline and which contains your project directory. Certain hpc cluster computer systems have multiple paths refer to the same folder (e.g. /users/data/... is equivalent to /hpc_name/data/...). Be sure to include all such paths else you may get read/write errors.
   ```
   SUPPOSE YOUR PIPELINE DIRECTORY'S PATH IS /users/YOURUSERNAME/data/myproject/TE-Seq
   AND THAT YOU HAVE SUPPLIED GENOME ANNOTATIONS WITH THE FOLLOWING PATH /oscar/data/jsedivy/YOURUSERNAME/refseq.gtf
