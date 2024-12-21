@@ -84,7 +84,7 @@ https://www.neb.com/en-us/products/e6310-nebnext-rrna-depletion-kit-human-mouse-
   Clone this pipeline into said directory, using a tag to specify a frozen version, or without one to get the latest version (this may give you more errors than a stable version).  
   ```
   cd myproject
-  git clone https://github.com/maxfieldk/TE-Seq.git
+  git clone -b rna-seq-stable https://github.com/maxfieldk/TE-Seq.git
   ```
   Copy the workflow/conf_example directory to ./conf  
   ```
