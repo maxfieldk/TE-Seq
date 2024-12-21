@@ -1,0 +1,12 @@
+methylartist region \
+--bams conf/ldna_methylartist_bam_config.txt \
+-o ldna/results/m/plots/methylartist/locus/test2.png \
+-i chr13:5786459-5793066 \
+--ref aref/extended/A.REF.fa \
+--motif CG \
+-m m \
+-p 10 \
+--highlight_bed ldna/results/m/tables/dmrs.tsv \
+--labelgenes \
+--gtf /users/mkelsey/data/Nanopore/alz/RTE/aref/extended/A.REF_annotations/A.REF_repeatmasker.complete.gtf.gz \
+--skip_align_plot

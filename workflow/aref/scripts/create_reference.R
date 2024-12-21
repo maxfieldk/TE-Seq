@@ -14,12 +14,12 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            tldroutput = "aref/A.REF_tldr/A.REF.table.txt",
+            tldroutput = "aref/AD5_tldr/AD5.table.txt",
             reference = "../genome_files/reference.ucsc.fa"
         ), env = globalenv())
         assign("outputs", list(
-            updated_reference = "aref/default/A.REF-pre-ins-filtering.fa",
-            non_ref_contigs = "aref/default/A.REF-pre-ins-filtering_nonrefcontigs.fa"
+            updated_reference = "aref/default/AD5-pre-ins-filtering.fa",
+            non_ref_contigs = "aref/default/AD5-pre-ins-filtering_nonrefcontigs.fa"
         ), env = globalenv())
     }
 )
@@ -45,9 +45,9 @@ for (i in 1:length(er)) {
 df$emptyreadsnum <- emptyreadsnum %>% replace_na(0)
 df <- df %>%
     mutate(fraction_reads_count = UsedReads / (UsedReads + emptyreadsnum)) %>%
-    filter(fraction_reads_count > 0.30) %>%
-    filter(SpanReads > 3) %>%
-    filter(UsedReads > 10) %>%
+    filter(fraction_reads_count > 0.25) %>%
+    filter(SpanReads > 2) %>%
+    filter(UsedReads > 5) %>%
     mutate(faName = paste0("NI_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>%
     filter(!is.na(Family)) %>%
     filter(!is.na(StartTE)) %>%

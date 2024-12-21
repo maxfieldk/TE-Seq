@@ -77,7 +77,7 @@ mysave <- function(fn = "ztmp.pdf", w = 5, h = 5, res = 600, pl = p, store = sto
         )
     }
 }
-store_var <- "yes"
+store_var <- "no"
 mysaveandstore <- function(fn = "ztmp.pdf", w = 5, h = 5, res = 600, pl = p, store = store_var, raster = FALSE, sf = NULL) {
     dn <- dirname(fn)
     dir.create(dn, showWarnings = FALSE, recursive = TRUE)
@@ -139,6 +139,115 @@ mysaveandstore <- function(fn = "ztmp.pdf", w = 5, h = 5, res = 600, pl = p, sto
     }
 }
 
+
+mss <- function(fn = "ztmp.pdf", w = 5, h = 5, wv = 4, hv = 4, res = 600, pl = p, store = store_var, raster = FALSE, sf = NULL, plus_void = FALSE) {
+    dn <- dirname(fn)
+    dir.create(dn, showWarnings = FALSE, recursive = TRUE)
+
+    if (raster == TRUE) {
+        tryCatch(
+            {
+                png(gsub(".pdf", ".png", fn), width = w, height = h, units = "in", res = res)
+                print(pl)
+                dev.off()
+                print(paste(getwd(), gsub(".pdf", ".png", fn), sep = "/"))
+            },
+            error = function(e) {
+                print("plot not saved")
+                print(e)
+                tryCatch(
+                    {
+                        dev.off()
+                    },
+                    error = function(e) {
+                        print(e)
+                    }
+                )
+            }
+        )
+        if (plus_void == TRUE) {
+            tryCatch(
+                {
+                    pl_no_title_or_legend <- pl + theme(plot.title = element_blank(), plot.subtitle = element_blank(), legend.position = "none")
+                    fn_no_title_or_legend <- gsub(".pdf", "_void.pdf", fn)
+                    png(gsub(".pdf", ".png", fn_no_title_or_legend), width = wv, height = hv, units = "in", res = res)
+                    print(pl_no_title_or_legend)
+                    dev.off()
+                    print(paste(getwd(), gsub(".pdf", ".png", fn_no_title_or_legend), sep = "/"))
+                },
+                error = function(e) {
+                    print("plot not saved")
+                    print(e)
+                    tryCatch(
+                        {
+                            dev.off()
+                        },
+                        error = function(e) {
+                            print(e)
+                        }
+                    )
+                }
+            )
+        }
+    } else {
+        tryCatch(
+            {
+                cairo_pdf(fn, width = w, height = h, family = "Helvetica")
+                print(pl)
+                dev.off()
+                print(paste(getwd(), fn, sep = "/"))
+            },
+            error = function(e) {
+                print("plot not saved")
+                print(e)
+                tryCatch(
+                    {
+                        dev.off()
+                    },
+                    error = function(e) {
+                        print(e)
+                    }
+                )
+            }
+        )
+        if (plus_void == TRUE) {
+            tryCatch(
+                {
+                    pl_no_title_or_legend <- pl + theme(plot.title = element_blank(), plot.subtitle = element_blank(), legend.position = "none")
+                    fn_no_title_or_legend <- gsub(".pdf", "_void.pdf", fn)
+                    cairo_pdf(fn_no_title_or_legend, width = wv, height = hv, family = "Helvetica")
+                    print(pl_no_title_or_legend)
+                    dev.off()
+                    print(paste(getwd(), fn_no_title_or_legend, sep = "/"))
+                },
+                error = function(e) {
+                    print("plot not saved")
+                    print(e)
+                    tryCatch(
+                        {
+                            dev.off()
+                        },
+                        error = function(e) {
+                            print(e)
+                        }
+                    )
+                }
+            )
+        }
+
+        if (!exists("mysaveandstoreplots")) {
+            mysaveandstoreplots <<- list()
+        }
+        if (store == "yes") {
+            mysaveandstoreplots[[fn]] <<- pl
+            print("plot_stored!")
+        }
+    }
+    if (!is.null(sf)) {
+        write_delim(sf, gsub(".pdf", "_stats.tsv", fn), delim = "\t", col_names = TRUE)
+        print(paste(getwd(), gsub(".pdf", "_stats.tsv", fn), sep = "/"))
+    }
+}
 
 # VARIABLES
 chromosomesAll <- c(paste0("chr", 1:22), "chrX", "chrY", "chrM")

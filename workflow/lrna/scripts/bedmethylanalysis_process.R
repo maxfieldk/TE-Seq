@@ -87,10 +87,10 @@ for (sample_name in samples) {
     sample_grs[[sample_name]] <- gr
 }
 
-grs <- Reduce(c, sample_grs)
+grsunfiltered <- Reduce(c, sample_grs)
 rm(sample_grs)
 # filter out low coverage and ensure that all samples have the same cpgs
-grs <- grs[grs$cov > MINIMUMCOVERAGE]
+grs <- grsunfiltered[grsunfiltered$cov > MINIMUMCOVERAGE]
 grsdf <- tibble(as.data.frame(grs))
 grsdf %$% seqnames %>% unique()
 write_delim(grsdf %>% filter(grepl("*nonref*", seqnames)), "lrna/Rintermediates/grsdf_nonref.tsv", col_names = TRUE)
