@@ -1837,7 +1837,7 @@ rule reps_to_reps:
 rule last_train:
     input:
         db="aref/terex/gdb.prj",
-        reads= expand("ldna/intermediates/{agivensample}/fastqs/{agivensample}.fq", agivensample = config["aref"]["samples"][1])
+        reads= expand("ldna/intermediates/{agivensample}/fastqs/{agivensample}.fq",agivensample=[config["aref"]["samples"][1] if len(config["aref"]["samples"]) > 1 else "default_sample"])
     output:
         params="aref/terex/reads.train"
     resources:
