@@ -54,14 +54,22 @@ tryCatch(
 
 library(Rsamtools)
 fa <- Rsamtools::FaFile(inputs$ref)
-rmann <- read_csv(conf$rmann) %>%
+rmannShared <- read_csv(conf$rmann)
+
+rmannSamples <- list()
+for (sample in sample_table$sample_name) {
+    df <- read_csv(sprintf("aref/extended/%s_annotations/%s_rmann_nonref.csv", sample, sample))
+    df$sample_name <- sample
+    df <- df %>% left_join(sample_table)
+    rmannSamples[[sample]] <- df
+}
+rmannnonref <- do.call(rbind, rmannSamples) %>% tibble()
+rmann <- bind_rows(rmannShared, rmannnonref) %>%
     filter(refstatus != "NonCentral")
 
-rtedf <- read_delim("ldna/Rintermediates/rtedf.tsv", col_names = TRUE)
-
 ##############################
-outputdir_already_computed <- "/users/mkelsey/data/LF1/RTE/ldna/results/plots/l1_alignment_meth"
-outputdir <- "ldna/results/plots/l1_alignment_meth"
+outputdir_already_computed <- "/users/mkelsey/data/LF1/RTE/ldna/results/m/plots/l1_alignment_meth"
+outputdir <- "ldna/results/m/plots/l1_alignment_meth"
 
 subfam <- "L1HS"
 grs_fl <- rmann %>%
@@ -70,10 +78,27 @@ grs_fl <- rmann %>%
     group_by(rte_subfamily) %>%
     mutate(length99 = quantile(length, 0.99)) %>%
     ungroup() %>%
-    filter(length < length99 * 1.05) %>%
+    filter(length < length99 * 1.05)
+grs_fl_ref <- grs_fl %>%
+    filter(refstatus == "Ref") %>%
     GRanges()
-grs_fl_ss <- getSeq(fa, grs_fl)
-names(grs_fl_ss) <- mcols(grs_fl)$gene_id
+
+grs_fl_ss_ref <- getSeq(fa, grs_fl_ref)
+names(grs_fl_ss_ref) <- mcols(grs_fl_ref)$gene_id
+grs_fl_ss_nonref_list <- list()
+for (sample in sample_table$sample_name) {
+    sample_grs_fl <- grs_fl %>%
+        filter(sample_name == sample) %>%
+        GRanges()
+    sample_fa <- fa <- Rsamtools::FaFile(sprintf("aref/extended/%s.fa", sample))
+    grs_fl_ss_sample <- getSeq(sample_fa, sample_grs_fl)
+    names(grs_fl_ss_sample) <- paste0(sample, "___", mcols(sample_grs_fl)$gene_id)
+    grs_fl_ss_nonref_list[[sample]] <- grs_fl_ss_sample
+}
+grs_fl_ss_nonref <- purrr::reduce(grs_fl_ss_nonref_list, c)
+
+grs_fl_ss <- c(grs_fl_ss_ref, grs_fl_ss_nonref)
+
 fl_fa_path <- sprintf("%s/alignments/%s_fl.fa", outputdir, subfam)
 dir.create(dirname(fl_fa_path), recursive = TRUE)
 writeXStringSet(grs_fl_ss, fl_fa_path)
@@ -153,12 +178,23 @@ consensus_index_long <- index_df %>%
     filter(!(is.na(sequence_pos) & is.na(consensus_pos)))
 
 write_csv(alignment_index_long, sprintf("%s/%s_fl_mapping_to_alignment_table.csv", outputdir, subfam))
-alignment_index_long <- read_csv(sprintf("%s/%s_fl_mapping_to_alignment_table.csv", outputdir, subfam))
+# alignment_index_long <- read_csv(sprintf("%s/%s_fl_mapping_to_alignment_table.csv", outputdir, subfam))
 write_csv(consensus_index_long, sprintf("%s/%s_fl_mapping_to_consensus_table.csv", outputdir, subfam))
-consensus_index_long <- read_csv(sprintf("%s/%s_fl_mapping_to_consensus_table.csv", outputdir, subfam))
+# consensus_index_long <- read_csv(sprintf("%s/%s_fl_mapping_to_consensus_table.csv", outputdir, subfam))
 
 
-# Combine the individual data frames into one tidy data frame
+##############
+# METHYLATION CLUSTERING
+
+outputdir_meth_clustering <- "ldna/results/m/plots/l1_alignment_meth"
+subfam <- "L1HS"
+consensus_index_long <- read_csv(sprintf("%s/%s_fl_mapping_to_consensus_table.csv", outputdir_meth_clustering, subfam))
+
+rtedf <- read_delim(sprintf("ldna/Rintermediates/%s/rtedf.tsv", params$mod_code), col_names = TRUE)
+
+consensus_path <- sprintf("%s/alignments/%s_fl_consensus.fa", outputdir_meth_clustering, subfam)
+consensus_ss <- readDNAStringSet(consensus_path)
+
 cg_indices <- consensus_ss %>%
     vmatchPattern(pattern = "CG") %>%
     start() %>%
@@ -210,8 +246,10 @@ library(tidyHeatmap)
 
 dat <- merged %>%
     filter(!is.na(pctM))
-
-write_csv(dat, "meth_for_bayes.csv")
+dat %$% gene_id %>%
+    unique() %>%
+    length()
+# write_csv(dat, "meth_for_bayes.csv")
 
 
 # methylation heatmaps
@@ -226,19 +264,19 @@ for (sample in conf$samples) {
         heatmap(gene_id, consensus_pos, pctM, cluster_rows = TRUE, cluster_columns = FALSE) %>%
         as_ComplexHeatmap()
     hms[[sample]] <- p
-    dir.create(outputdir, recursive = TRUE)
-    mysaveandstore(sprintf("%s/%s_methylation_%s.pdf", outputdir, sample, subfam), w = 6, h = 6)
+    dir.create(outputdir_meth_clustering, recursive = TRUE)
+    mysaveandstore(sprintf("%s/%s_methylation_%s.pdf", outputdir_meth_clustering, sample, subfam), w = 6, h = 6)
 }
 # Generate the expression as a string and parse it
 p <- base::eval(base::parse(text = paste0("hms[['", conf$samples, "']]", collapse = " + ")))
-mysaveandstore(sprintf("%s/%s_methylation_%s1.pdf", outputdir, "all", subfam), w = 36, h = 6)
+mysaveandstore(sprintf("%s/%s_methylation_%s1.pdf", outputdir_meth_clustering, "all", subfam), w = 36, h = 6)
 rm(p)
 p <- Reduce(`+`, hms) # Add all elements in the list
 
 # motif analysis of consensus
 motif_pwms_path <- "/oscar/home/mkelsey/anaconda/gimme/lib/python3.10/site-packages/data/motif_databases/HOCOMOCOv11_HUMAN.pfm"
 conda_base_path <- system("conda info --base", intern = TRUE)
-motif_search_output_path <- sprintf("%s/alignments/%s_fl_consensus.motifs.bed", outputdir, subfam)
+motif_search_output_path <- sprintf("%s/alignments/%s_fl_consensus.motifs.bed", outputdir_meth_clustering, subfam)
 
 system(
     sprintf(
@@ -249,7 +287,7 @@ system(
 motifs_df <- as.data.frame(rtracklayer::import(motif_search_output_path)) %>% tibble()
 
 
-motif_search_output_path <- sprintf("%s/alignments/%s_fl.motifs.bed", outputdir, subfam)
+motif_search_output_path <- sprintf("%s/alignments/%s_fl.motifs.bed", outputdir_meth_clustering, subfam)
 system(
     sprintf(
         "source %s/etc/profile.d/conda.sh && conda activate gimme && gimme scan %s -g %s -p %s -c 0.9 -n 10 -b > %s",
@@ -437,13 +475,13 @@ comb_mat <- combn(cluster_for_gimme_maelstrom$cluster %>% unique(), 2)
 for (i in 1:ncol(comb_mat)) {
     cluster1 <- comb_mat[1, i]
     cluster2 <- comb_mat[2, i]
-    dir.create("ldna/results/cluster_analysis", recursive = TRUE)
-    cluster_path <- sprintf("ldna/results/cluster_analysis/l1_clusters_for_motif_analysis_%s_%s.tsv", cluster1, cluster2)
+    dir.create(sprintf("ldna/results/%s/cluster_analysis", params$mod_code), recursive = TRUE)
+    cluster_path <- sprintf("ldna/results/%s/cluster_analysis/l1_clusters_for_motif_analysis_%s_%s.tsv", params$mod_code, cluster1, cluster2)
     cluster_for_gimme_maelstrom %>%
         filter(cluster %in% c(cluster1, cluster2)) %>%
         arrange(cluster) %>%
         write_delim(cluster_path, col_names = TRUE, delim = "\t")
-    outputdir_clusters <- "ldna/results/cluster_analysis"
+    outputdir_clusters <- sprintf("ldna/results/%s/cluster_analysis", params$mod_code)
     # motif analysis of consensus
     conda_base_path <- system("conda info --base", intern = TRUE)
     cluster_tf_enrichment_outputdir_path_gimme <- sprintf("%s/cluster_analysis_%s_%s/gimme", outputdir_clusters, cluster1, cluster2)

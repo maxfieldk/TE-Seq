@@ -1,5 +1,4 @@
 software-deployment-method: conda
-conda-frontend: mamba
 rerun-triggers: mtime
 keep-going: True
 rerun-incomplete: True

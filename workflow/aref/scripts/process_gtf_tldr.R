@@ -15,6 +15,7 @@ tryCatch(
     {
         inputs <- snakemake@input
         outputs <- snakemake@output
+        params <- snakemake@params
     },
     error = function(e) {
         assign("inputs", list(
@@ -22,6 +23,9 @@ tryCatch(
             ref_cytobands = "aref/default/A.REF_annotations/cytobands.bed",
             tldroutput = "aref/A.REF_tldr/A.REF.table.txt",
             ref = "aref/default/A.REF-pre-ins-filtering.fa"
+        ), env = globalenv())
+        assign("params", list(
+            tldr_switch = "process_gtf"
         ), env = globalenv())
         assign("outputs", list(
             contigs_to_keep = "aref/default/contigs_to_keep.txt",
@@ -143,7 +147,7 @@ rmfragments <- rmfragments %>%
     dplyr::rename(old_id = gene_id) %>%
     dplyr::rename(gene_id = GiesmaID)
 
-if (conf$update_ref_with_tldr$response == "yes") {
+if (params$tldr_switch == "process_gtf_tldr") {
     # now determine which nonref contigs should be kept in the reference
     df <- read_delim(inputs$tldroutput) %>%
         mutate(faName = paste0("NI_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>%

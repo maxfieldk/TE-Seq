@@ -665,8 +665,9 @@ somatic_naught <- dfall %>%
     filter(SpanReads < 6) %>%
     mutate(TSD_OK = ifelse(is.na(TSD), FALSE, ifelse(nchar(TSD) < 21, TRUE, FALSE))) %>%
     # binomial probability that we observe this few reads were it a heterozygous insert
-    mutate(prob_fp = ifelse(UsedReads > as.numeric(emptyreadsnum), 1, dbinom(x = UsedReads, size = UsedReads + as.numeric(emptyreadsnum), prob = 0.5))) %>%
-    filter(prob_fp < 0.01) %>%
+    mutate(prob_fp = ifelse(UsedReads > as.numeric(emptyreadsnum), 1, pbinom(q = UsedReads, size = UsedReads + as.numeric(emptyreadsnum), prob = 0.5))) %>%
+    filter(prob_fp < 0.001) %>%
+    filter(is.na(NonRef)) %>%
     relocate(prob_fp, UsedReads, emptyreadsnum)
 
 somatic_alpha <- dfall %>%
@@ -767,22 +768,82 @@ write_csv(transductions_df %>% filter(adjacent == TRUE), sprintf("%s/promising_t
 
 # NOW WITH ALL THIS DATA PAUSE - MANUALLY INSPECT EACH PUTATIVE INSERT, AND WRITE UUIDS OF PASSING ELEMENTS INTO THE CURATED_ELEMENTS_PATH FILE BELOW
 # all elements that passed scrutiny:
-curated_elements_path <- sprintf("%s/curated_inserts.txt", outputdir)
+curated_elements_path <- sprintf("%s/insert_characteristics/curated_inserts.txt", outputdir)
 if (file.exists(curated_elements_path)) {
     ce <- read_csv(curated_elements_path, col_names = FALSE)
     curation_df_complete <- tibble(UUID = ce$X1, pass_curation = TRUE)
 
-    if (is.null(sdf$condition)) {
-        sdf$condition <- conf$levels
+    if (is.null(dfall$condition)) {
+        dfall$condition <- conf$levels
     }
-    pass <- sdf %>%
+    pass <- somatic_naught %>%
         left_join(curation_df_complete) %>%
         filter(pass_curation == TRUE) %>%
-        mutate(sample_name = ordered(sample_name, levels = conf$samples)) %>%
+        mutate(sample_name = factor(sample_name, levels = conf$samples)) %>%
         mutate(condition = factor(condition, levels = conf$levels))
 
     group_name <- "curated_elements"
     plot_group_characteristics(pass, group_name)
+    library(ggrepel)
+
+    pf <- pass %>%
+        group_by(sample_name, condition, apoe, sex, age, Subfamily) %>%
+        summarise(n = n()) %>%
+        full_join(sample_table) %>%
+        mutate(n = case_when(is.na(n) ~ 0, TRUE ~ n)) %>%
+        ungroup()
+    p <- pass %>%
+        group_by(sample_name, condition, apoe, sex, age) %>%
+        summarise(n = n()) %>%
+        full_join(sample_table) %>%
+        mutate(n = case_when(is.na(n) ~ 0, TRUE ~ n)) %>%
+        ungroup() %>%
+        mutate(sample_name = fct_reorder(paste0(sample_name, "_", age), age)) %>%
+        ggplot(aes(y = sample_name, x = n, color = condition, shape = sex)) +
+        geom_segment(aes(x = 0, xend = n, yend = sample_name), color = "green") +
+        geom_point(size = 3) +
+        scale_conditions +
+        # geom_vline(xintercept = pf %>% filter(condition == "AD") %$% n %>% mean(), color = "blue", linetype = "dashed") +
+        # geom_vline(xintercept = pf %>% filter(condition == "CTRL") %$% n %>% mean(), color = "grey", linetype = "dashed") +
+        geom_text_repel(aes(label = apoe)) +
+        # new_scale_fill() +
+        # geom_tile(aes(x = -1, fill = sex), width = 2) + # Add metadata strip
+        scale_conditions +
+        mtopen
+    library(broom)
+    stats <- summary(lm(n ~ condition + sex + age, pf)) %>% tidy()
+    mysaveandstore(pl = p, sprintf("%s/insert_characteristics/%s/point_char.pdf", outputdir, group_name), 5, 4, sf = stats)
+
+    pf <- pass %>%
+        group_by(sample_name, condition, apoe, sex, age, Subfamily) %>%
+        summarise(n = n()) %>%
+        full_join(sample_table %>% crossing(Subfamily = c("L1HS", "AluY"))) %>%
+        mutate(n = case_when(is.na(n) ~ 0, TRUE ~ n)) %>%
+        ungroup()
+    p <- pf %>%
+        mutate(sample_name = fct_reorder(paste0(sample_name, "_", age), age)) %>%
+        ggplot(aes(y = sample_name, x = n, color = condition, shape = sex)) +
+        geom_segment(aes(x = 0, xend = n, yend = sample_name), color = "green") +
+        geom_point(size = 3) +
+        scale_conditions +
+        # geom_vline(xintercept = pf %>% filter(condition == "AD") %$% n %>% mean(), color = "blue", linetype = "dashed") +
+        # geom_vline(xintercept = pf %>% filter(condition == "CTRL") %$% n %>% mean(), color = "grey", linetype = "dashed") +
+        geom_text_repel(aes(label = apoe)) +
+        facet_wrap(~Subfamily) +
+        # new_scale_fill() +
+        # geom_tile(aes(x = -1, fill = sex), width = 2) + # Add metadata strip
+        scale_conditions +
+        mtclosed
+    library(broom)
+    statsAlu <- summary(lm(n ~ condition + sex + age, pf %>% filter(Subfamily == "AluY"))) %>%
+        tidy() %>%
+        mutate(Subfamily = "AluY")
+    statsL1 <- summary(lm(n ~ condition + sex + age, pf %>% filter(Subfamily == "L1HS"))) %>%
+        tidy() %>%
+        mutate(Subfamily = "L1HS")
+    stats <- full_join(statsAlu, statsL1)
+    mysaveandstore(pl = p, sprintf("%s/insert_characteristics/%s/point_char_faceted.pdf", outputdir, group_name), 5, 4, sf = stats)
+
     p <- pass %>%
         ggplot(aes(x = sample_name, fill = condition)) +
         geom_bar() +
@@ -868,8 +929,49 @@ if (file.exists(curated_elements_path)) {
         scale_y_continuous(limits = c(-0.5, NA)) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1))
     mysaveandstore(pl = p, sprintf("%s/insert_characteristics/%s/bar_bases.pdf", outputdir, group_name))
-}
 
+
+
+    pass %>%
+        group_by(Subfamily) %>%
+        summary()
+    library(dplyr)
+    library(tidyr)
+    data <- pass %>%
+        filter(Subfamily == "AluY") %>%
+        dplyr::select(LengthIns, StartTE, EndTE)
+    p <- as.data.frame(sapply(data, summary))
+    df <- as.data.frame(lapply(p, function(x) if (is.numeric(x)) round(x, 0) else x))
+
+    cut_site_df <- read_csv("aref/results/somatic_insertions/insert_characteristics/curated_elements/curated_element_cutsite_region.csv")
+    p <- pass %>%
+        left_join(cut_site_df) %>%
+        mutate(tsd_length = nchar(TSD)) %>%
+        dplyr::select(Subfamily, LengthIns, StartTE, EndTE, tsd_length, UsedReads, emptyreadsnum, `cut_site_seq_-3_+7`) %>%
+        dplyr::rename(`Used Reads` = UsedReads) %>%
+        dplyr::rename(`Empty Reads` = emptyreadsnum) %>%
+        arrange(StartTE) %>%
+        ggtexttable(theme = ttheme("minimal"))
+    mysaveandstore(pl = p, sprintf("%s/insert_characteristics/%s/insert_chars.pdf", outputdir, group_name), 8, 5)
+
+    p1 <- pass %>%
+        left_join(cut_site_df) %>%
+        mutate(tsd_length = nchar(TSD)) %>%
+        dplyr::select(Subfamily, LengthIns, StartTE, EndTE, tsd_length) %>%
+        arrange(StartTE) %>%
+        ggtexttable(theme = ttheme("minimal"))
+    mysaveandstore(pl = p1, sprintf("%s/insert_characteristics/%s/insert_chars_1.pdf", outputdir, group_name), 6, 4)
+    p2 <- pass %>%
+        left_join(cut_site_df) %>%
+        mutate(tsd_length = nchar(TSD)) %>%
+        dplyr::select(StartTE, UsedReads, emptyreadsnum, `cut_site_seq_-3_+7`) %>%
+        dplyr::rename(`Used Reads` = UsedReads) %>%
+        dplyr::rename(`Empty Reads` = emptyreadsnum) %>%
+        arrange(StartTE) %>%
+        dplyr::select(-StartTE) %>%
+        ggtexttable(theme = ttheme("minimal"))
+    mysaveandstore(pl = p2, sprintf("%s/insert_characteristics/%s/insert_chars_2.pdf", outputdir, group_name), 6, 4)
+}
 tdf <- pass %>%
     group_by(sample_name) %>%
     summarise(n = n()) %>%

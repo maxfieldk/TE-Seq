@@ -535,6 +535,60 @@ echo -e "chr\tpos\tN\tX" > {output.dssInput_h}
 awk -v s=1 '$4=="h" {{OFS = "\t"; print $1, $2+s, $10, $12}}' {output.bed} >> {output.dssInput_h}
         """
 
+rule modbamtobed_unfiltered_hardtomapregions:
+    input:
+        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+    params:
+        ref = lambda wildcards: "/oscar/data/jsedivy/mkelsey/ref/genomes/hg38/hg38.p13.sorted.fa" if wildcards.ref_genome == "hg38" else "aref/extended/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF.fa",
+        regions = "/users/mkelsey/data/Nanopore/alz/RTE/hgUnique.hg38.bed6"
+    resources:
+        cpus_per_task = 36,
+        mem_mb = 128000
+    output:
+        bed = "ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_bedMethyl_unfiltered_hardtomapregions.bed",
+        dssInput_m = "ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_m_dss_unfiltered_hardtomapregions.tsv",
+        dssInput_h = "ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_h_dss_unfiltered_hardtomapregions.tsv"
+    conda:
+        "omics"
+    shell: 
+        """
+echo "reference path is"
+echo {params.ref}
+mkdir -p $(dirname {output})
+/oscar/data/jsedivy/mkelsey/tools/modkit pileup {input.sortedbam} {output.bed} \
+--ref {params.ref} \
+--interval-size 30000 \
+--combine-strands \
+--cpg \
+--include-bed {params.regions} \
+-t {resources.cpus_per_task}
+
+echo -e "chr\tpos\tN\tX" > {output.dssInput_m}
+awk -v s=1 '$4=="m" {{OFS = "\t"; print $1, $2+s, $10, $12}}' {output.bed} >> {output.dssInput_m}
+echo -e "chr\tpos\tN\tX" > {output.dssInput_h}
+awk -v s=1 '$4=="h" {{OFS = "\t"; print $1, $2+s, $10, $12}}' {output.bed} >> {output.dssInput_h}
+        """
+
+
+rule bedmethylanalysis_process_unfiltered_hardtomapregions:
+    input:
+        # dmrs = "ldna/results/{mod_code}/tables/dmrs.tsv",
+        # dmls = "ldna/results/{mod_code}/tables/dmls.tsv",
+        bedmethylpaths = expand("ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_bedMethyl_unfiltered_hardtomapregions.bed", sample = samples, ref_genome = "analysis_default"),
+    params:
+        mod_code = lambda wildcards: wildcards.mod_code
+    output:
+        grsdf = "ldna/Rintermediates/{mod_code}/grsdf_unfiltered_hardtomapregions.tsv"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 200000,
+        runtime = 400
+    conda:
+        "ds"
+    script:
+        "scripts/bedmethylanalysis_process_unfiltered_hardtomapregions.R"
+
 # rule methbigwig:
 #     input:
 #         bed = "ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_bedMethyl.bed"
@@ -615,14 +669,14 @@ awk -v s=1 '$4=="a" {{OFS = "\t"; print $1, $2+s, $10, $12}}' {output.bed} >> {o
 
 rule dss:
     input:
-        data = expand("ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_{{type}}_dss.tsv", sample = samples, ref_genome = "analysis_default"),
+        data = expand("ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_{{mod_code}}_dss.tsv", sample = samples, ref_genome = "analysis_default"),
     params:
         chromosome = lambda w: w.chr
     output:
-        dmls_unfiltered = "ldna/results/tables/dmls.{chr}.{type}.unfiltered.tsv",
-        dmrs_unfiltered = "ldna/results/tables/dmrs.{chr}.{type}.unfiltered.tsv",
-        dmls = "ldna/results/tables/dmls.{chr}.{type}.tsv",
-        dmrs = "ldna/results/tables/dmrs.{chr}.{type}.tsv"
+        dmls_unfiltered = "ldna/results/{mod_code}/tables/dmls.{chr}.unfiltered.tsv",
+        dmrs_unfiltered = "ldna/results/{mod_code}/tables/dmrs.{chr}.unfiltered.tsv",
+        dmls = "ldna/results/{mod_code}/tables/dmls.{chr}.tsv",
+        dmrs = "ldna/results/{mod_code}/tables/dmrs.{chr}.tsv"
     conda:
         "dss2"
     resources:
@@ -635,14 +689,14 @@ rule dss:
 
 rule merge_dss:
     input:
-        dmrs = expand("ldna/results/tables/dmrs.{chr}.CG_m.tsv", chr = [chrid for chrid in ["chr%s"%e for e in list(range(1, 23)) + ["X", "Y"]] if chrid not in config["ldna"]["SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS"]]),
-        dmls = expand("ldna/results/tables/dmls.{chr}.CG_m.tsv", chr = [chrid for chrid in ["chr%s"%e for e in list(range(1, 23)) + ["X", "Y"]] if chrid not in config["ldna"]["SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS"]])
+        dmrs = expand("ldna/results/{{mod_code}}/tables/dmrs.{chr}.tsv", chr = [chrid for chrid in ["chr%s"%e for e in list(range(1, 23)) + ["X", "Y"]] if chrid not in config["ldna"]["SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS"]]),
+        dmls = expand("ldna/results/{{mod_code}}/tables/dmls.{chr}.tsv", chr = [chrid for chrid in ["chr%s"%e for e in list(range(1, 23)) + ["X", "Y"]] if chrid not in config["ldna"]["SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS"]])
     output:
-        dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
-        dmls = "ldna/results/tables/dmls.CG_m.tsv",
-        dmrs_bed = "ldna/results/tables/dmrs.CG_m.bed",
-        dmrs_hypo_bed = "ldna/results/tables/dmrs_hypo.CG_m.bed",
-        dmrs_hyper_bed = "ldna/results/tables/dmrs_hyper.CG_m.bed"
+        dmrs = "ldna/results/{mod_code}/tables/dmrs.tsv",
+        dmls = "ldna/results/{mod_code}/tables/dmls.tsv",
+        dmrs_bed = "ldna/results/{mod_code}/tables/dmrs.bed",
+        dmrs_hypo_bed = "ldna/results/{mod_code}/tables/dmrs_hypo.bed",
+        dmrs_hyper_bed = "ldna/results/{mod_code}/tables/dmrs_hyper.bed"
     priority: 100
     conda:
         "repeatanalysis"
@@ -728,9 +782,9 @@ mkdir -p $(dirname {output})
 
 rule genomewide_meth:
     input:
-        dss = expand("ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_m_dss.tsv", sample = samples, ref_genome = "analysis_default")
+        dss = expand("ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_{{mod_code}}_dss.tsv", sample = samples, ref_genome = "analysis_default")
     output:
-        plots = "ldna/results/plots/genomewide/genomewide_meth_plots.rds"
+        plots = "ldna/results/{mod_code}/plots/genomewide/genomewide_meth_plots.rds"
     resources:
         cpus_per_task =10,
         mem_mb = 200000,
@@ -747,12 +801,14 @@ else:
     ruleorder:  bedmethylanalysis_process > bedmethylanalysis_process_single_condition
 rule bedmethylanalysis_process:
     input:
-        dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
-        dmls = "ldna/results/tables/dmls.CG_m.tsv",
+        dmrs = "ldna/results/{mod_code}/tables/dmrs.tsv",
+        dmls = "ldna/results/{mod_code}/tables/dmls.tsv",
         bedmethylpaths = expand("ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_bedMethyl.bed", sample = samples, ref_genome = "analysis_default"),
         read_mods = expand('ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_readmods_{context}_{region}.tsv', sample = samples, ref_genome = "analysis_default", region = config["ldna"]["rte_subfamily_read_level_analysis"], context = ["CpG", "NoContext"])
+    params:
+        mod_code = lambda wildcards: wildcards.mod_code
     output:
-        grsdf = "ldna/Rintermediates/grsdf.tsv"
+        grsdf = "ldna/Rintermediates/{mod_code}/grsdf.tsv"
     resources:
         cpus_per_task =10,
         mem_mb = 200000,
@@ -766,8 +822,10 @@ rule bedmethylanalysis_process_single_condition:
     input:
         bedmethylpaths = expand("ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_bedMethyl.bed", sample = samples, ref_genome = "analysis_default"),
         read_mods = expand('ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_readmods_{context}_{region}.tsv', sample = samples, ref_genome = "analysis_default", region = config["ldna"]["rte_subfamily_read_level_analysis"], context = ["CpG", "NoContext"])
+    params:
+        mod_code = lambda wildcards: wildcards.mod_code
     output:
-        grsdf = "ldna/Rintermediates/grsdf.tsv"
+        grsdf = "ldna/Rintermediates/{mod_code}/grsdf.tsv"
     resources:
         cpus_per_task =10,
         mem_mb = 200000,
@@ -780,16 +838,17 @@ rule bedmethylanalysis_process_single_condition:
 
 rule bedmethylanalysis_plot:
     input:
-        grsdf = "ldna/Rintermediates/grsdf.tsv"
+        grsdf = "ldna/Rintermediates/{mod_code}/grsdf.tsv"
         # read_mods = expand('ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_readmods_{context}_{region}.tsv', sample = samples, region = config["ldna"]["rte_subfamily_read_level_analysis"], context = ["CpG", "NoContext"])
     params:
-        dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
-        dmls = "ldna/results/tables/dmls.CG_m.tsv"
+        mod_code = lambda wildcards: wildcards.mod_code,
+        dmrs = lambda wildcards: "ldna/results/%s/tables/dmrs.tsv"%wildcards.mod_code,
+        dmls = lambda wildcards: "ldna/results/%s/tables/dmls.tsv"%wildcards.mod_code
     output:
-        plots = "ldna/results/plots/bedmethylanalysis.rds",
-        promoters_bed = "ldna/Rintermediates/promoters.bed",
-        dmrpromoterhyper_bed = "ldna/Rintermediates/promoters_dmhyperregions.bed",
-        dmrpromoterhypo_bed = "ldna/Rintermediates/promoters_dmhyporegions.bed"
+        plots = "ldna/results/{mod_code}/plots/bedmethylanalysis.rds",
+        promoters_bed = "ldna/Rintermediates/{mod_code}/promoters.bed",
+        dmrpromoterhyper_bed = "ldna/Rintermediates/{mod_code}/promoters_dmhyperregions.bed",
+        dmrpromoterhypo_bed = "ldna/Rintermediates/{mod_code}/promoters_dmhyporegions.bed"
     resources:
         cpus_per_task =10,
         mem_mb = 200000,
@@ -802,7 +861,7 @@ rule bedmethylanalysis_plot:
 
 rule insertion_analysis:
     params:
-        filtered_tldr = lambda wildcards: expand("aref/{sample}_tldr/{sample}.table.kept_in_updated_ref.txt", sample = samples) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF_tldr/A.REF.table.kept_in_updated_ref.txt",
+        filtered_tldr = lambda wildcards: expand("aref/extended/{sample}.table.kept_in_updated_ref.txt", sample = samples) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF_tldr/A.REF.table.kept_in_updated_ref.txt",
         r_annotation_fragmentsjoined = lambda wildcards: expand("aref/extended/{sample}_annotations/{sample}_repeatmasker.gtf.rformatted.fragmentsjoined.csv", sample = samples) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
         r_repeatmasker_annotation = lambda wildcards: expand("aref/extended/{sample}_annotations/{sample}_repeatmasker_annotation.csv", sample = samples) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF_annotations/A.REF_repeatmasker_annotation.csv"
     output:
@@ -912,7 +971,7 @@ rule wgbs_bam2pat:
         outfile = "aref/extended/A.REF.{ref_genome}.wgbs.init.out",
         bam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
     output:
-        pat = expand("ldna/results/wgbs/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        pat = expand("ldna/results/{{mod_code}}/wgbs/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
     resources:
         runtime = 1000,
         mem_mb = 128000,
@@ -926,15 +985,15 @@ mkdir -p $(dirname {output})
 
 rule get_hg38_pat:
     input:
-        pat = expand("ldna/results/wgbs/hg38/{sample}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample= samples),
+        pat = expand("ldna/results/m/wgbs/hg38/{sample}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample= samples),
 
 rule uxm_deconv:
     input:
-        pat = expand("ldna/results/wgbs/hg38/{sample}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
+        pat = expand("ldna/results/m/wgbs/hg38/{sample}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
     params:
         atlas = "/users/mkelsey/data/Nanopore/alz/Atlas.U25.l4.hg38.tsv"
     output:
-        csv = "ldna/results/wgbs/hg38/tables/deconv.csv"
+        csv = "ldna/results/m/wgbs/hg38/tables/deconv.csv"
     conda: "omics"
     shell:
         """
@@ -949,15 +1008,15 @@ uxm deconv --include Neuron Oligodend --atlas {params.atlas} --output ${{outputc
 
 rule get_merged_pat:
     input:
-        pat = expand("ldna/results/wgbs/analysis_default/{sample}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
+        pat = expand("ldna/results/{{mod_code}}/wgbs/analysis_default/{sample}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
     params:
-        inputdir = "ldna/results/wgbs/analysis_default",
+        inputdir = lambda wildcards: "ldna/results/%s/wgbs/analysis_default"%wildcards.mod_code,
         level1 = config["ldna"]["levels"][0],
         level2 = lambda wildcards: config["ldna"]["levels"][1] if len(config["ldna"]["levels"]) > 1 else None,  # Second level if exists    
     conda:
         "omics"
     output:
-        outfile = "ldna/results/wgbs/analysis_default/merged/merged.outfile"
+        outfile = "ldna/results/{mod_code}/wgbs/analysis_default/merged/merged.outfile"
     shell:
         """
 mkdir -p $(dirname {output.outfile})
@@ -971,13 +1030,13 @@ touch {output.outfile}
 
 rule pat_fig:
     input:
-        outfile = "ldna/results/wgbs/analysis_default/merged/merged.outfile"
+        outfile = "ldna/results/{mod_code}/wgbs/analysis_default/merged/merged.outfile"
         # pat = expand("ldna/results/wgbs/{sample}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
     params:
         # methylartist_loci_of_interest = config["ldna"]["methylartist_loci_of_interest"],
-        loci_of_interest = ["aref/A.REF_annotations/A.REF_rte_beds/L1HS_intactness_req_ALL.bed", "ldna/Rintermediates/audrey_element.bed", "ldna/Rintermediates/audrey_element_promoter.bed", "ldna/Rintermediates/dm_FL_L1HS_promoters.bed", "ldna/Rintermediates/dm_Intact_L1HS_promoters.bed"]
+        loci_of_interest = lambda wildcards: ["aref/A.REF_annotations/A.REF_rte_beds/L1HS_intactness_req_ALL.bed", "ldna/Rintermediates/%s/audrey_element.bed"%wildcards.mod_code, "ldna/Rintermediates/%s/audrey_element_promoter.bed"%wildcards.mod_code, "ldna/Rintermediates/%s/dm_FL_L1HS_promoters.bed"%wildcards.mod_code, "ldna/Rintermediates/%s/dm_Intact_L1HS_promoters.bed"%wildcards.mod_code]
     output:
-        outfile = "ldna/results/wgbs/plots/pat_fig.outfile"
+        outfile = "ldna/results/{mod_code}/wgbs/plots/pat_fig.outfile"
         # pat_fig = "ldna/results/wgbs/plots/{region}.pat.pdf"
     resources:
         runtime = 30,
@@ -1006,12 +1065,12 @@ touch {output.outfile}
 
 rule pat_fig_rtes:
     input:
-        outfile = "ldna/results/wgbs/analysis_default/merged/merged.outfile"
+        outfile = "ldna/results/{mod_code}/wgbs/analysis_default/merged/merged.outfile"
         # pat = expand("ldna/results/wgbs/{sample}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
     params:
-        fl_rte = "/users/mkelsey/data/Nanopore/alz/RTE/ldna/Rintermediates/flRTEpromoter.tsv"
+        fl_rte = lambda wildcards: "/users/mkelsey/data/Nanopore/alz/RTE/ldna/Rintermediates/%s/flRTEpromoter.tsv"%wildcards.mod_code
     output:
-        outfile = "ldna/results/wgbs/plots/l1hs/l1hs_fl.outfile"
+        outfile = "ldna/results/{mod_code}/wgbs/plots/l1hs/l1hs_fl.outfile"
         # pat_fig = "ldna/results/wgbs/plots/{region}.pat.pdf"
     resources:
         runtime = 30,
@@ -1039,12 +1098,12 @@ touch {output.outfile}
 
 rule pat_fig_rtes_by_sample:
     input:
-        outfile = "ldna/results/wgbs/analysis_default/merged/merged.outfile"
+        outfile = "ldna/results/{mod_code}/wgbs/analysis_default/merged/merged.outfile"
         # pat = expand("ldna/results/wgbs/{sample}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
     params:
-        fl_rte = "/users/mkelsey/data/Nanopore/alz/RTE/ldna/Rintermediates/flRTEpromoter.tsv"
+        fl_rte = lambda wildcards: "/users/mkelsey/data/Nanopore/alz/RTE/ldna/Rintermediates/%s/flRTEpromoter.tsv"%wildcards.mod_code
     output:
-        outfile = "ldna/results/wgbs/plots/l1hs/by_sample/l1hs_fl_by_sample.outfile"
+        outfile = "ldna/results/{mod_code}/wgbs/plots/l1hs/by_sample/l1hs_fl_by_sample.outfile"
         # pat_fig = "ldna/results/wgbs/plots/{region}.pat.pdf"
     resources:
         runtime = 30,
@@ -1078,7 +1137,7 @@ rule methylartistlocusplot_loci_of_interest:
     input:
         sortedbam = expand("ldna/intermediates/{sample}/alignments/{rate}/{ref_genome}/{sample}.{type}.{modification_string}.sorted.filtered.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples),
         sortedbai = expand("ldna/intermediates/{sample}/alignments/{rate}/{ref_genome}/{sample}.{type}.{modification_string}.sorted.filtered.bam.bai", ref_genome = "analysis_default",rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples),
-        dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
+        dmrs = "ldna/results/{mod_code}/tables/dmrs.tsv",
         repeatmaskerbgz = "/users/mkelsey/data/Nanopore/alz/RTE/aref/extended/A.REF_annotations/A.REF_repeatmasker.complete.gtf.gz",
     resources:
         runtime = 180,
@@ -1089,12 +1148,12 @@ rule methylartistlocusplot_loci_of_interest:
         methylartist_bam_config = config["ldna"]["methylartist_bam_config"],
         methylartist_loci_of_interest = config["ldna"]["methylartist_loci_of_interest"],
         module_prefix = config["ldna"]["prefix"],
-        outputprefix = lambda w: "results/plots/methylartist/locus/loci_of_interest_",
+        outputprefix = lambda wildcards: "results/%s/plots/methylartist/locus/loci_of_interest_"%wildcards.mod_code,
     output:
-        "ldna/results/plots/methylartist/locus/methylartistlocusplot_loci_of_interest.outfile"
+        "ldna/results/{mod_code}/plots/methylartist/locus/methylartistlocusplot_loci_of_interest.outfile"
 
     conda:
-        "methylartist"
+        "methylartist2"
     shell:
         r"""
 mkdir -p $(dirname {output})
@@ -1106,6 +1165,7 @@ mapfile -t coords_array <<< "$coords"
 for coord in "${{coords_array[@]}}"
 do
 coordfnsafe=$(echo $coord | sed 's/:/-/')
+echo $coordfnsafe
 if /users/mkelsey/data/tools/methylartist/methylartist locus \
 --bams {params.methylartist_bam_config} \
 -o ${{outputprefix}}${{coordfnsafe}}.png \
@@ -1122,6 +1182,62 @@ echo "worked"
 else
 echo "failed"
 fi
+# if /users/mkelsey/data/tools/methylartist/methylartist locus --bams {params.methylartist_bam_config} -o ${{outputprefix}}${{coordfnsafe}}.png -i $coord --ref {params.ref} --motif CG -m m --highlight_bed {input.dmrs} -p 1,6,1,0,4 --labelgenes --svg; then
+# echo "worked"
+# else
+# echo "failed"
+# fi
+done
+touch {output}       
+        """
+
+
+rule methylartistlocusplot_region_of_interest:
+    input:
+        sortedbam = expand("ldna/intermediates/{sample}/alignments/{rate}/{ref_genome}/{sample}.{type}.{modification_string}.sorted.filtered.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples),
+        sortedbai = expand("ldna/intermediates/{sample}/alignments/{rate}/{ref_genome}/{sample}.{type}.{modification_string}.sorted.filtered.bam.bai", ref_genome = "analysis_default",rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples),
+        dmrs = "ldna/results/{mod_code}/tables/dmrs.tsv",
+        repeatmaskerbgz = "/users/mkelsey/data/Nanopore/alz/RTE/aref/extended/A.REF_annotations/A.REF_repeatmasker.complete.gtf.gz",
+    resources:
+        runtime = 180,
+        mem_mb = 5000
+    params:
+        ref = config["ldna"]["reference"],
+        refseqbgz = config["ldna"]["refseqbgz"],
+        methylartist_bam_config = config["ldna"]["methylartist_bam_config"],
+        methylartist_loci_of_interest = config["ldna"]["methylartist_loci_of_interest"],
+        module_prefix = config["ldna"]["prefix"],
+        outputprefix = lambda wildcards: "results/%s/plots/methylartist/locus/loci_of_interest_"%wildcards.mod_code,
+    output:
+        "ldna/results/{mod_code}/plots/methylartist/locus/methylartistlocusplot_loci_of_interest.outfile"
+    conda:
+        "methylartist2"
+    shell:
+        r"""
+mkdir -p $(dirname {output})
+outputprefix=$(dirname {output})/methylartistlocusplot_loci_of_interest_
+bams=$(echo {input.sortedbam})
+commabams=$(echo $bams | tr ' ' ',')
+coords=$(awk '{{print $1":"$2"-"$3}}' {params.methylartist_loci_of_interest})
+mapfile -t coords_array <<< "$coords"
+for coord in "${{coords_array[@]}}"
+do
+coordfnsafe=$(echo $coord | sed 's/:/-/')
+echo $coordfnsafe
+if /users/mkelsey/data/tools/methylartist/methylartist region \
+--bams {params.methylartist_bam_config} \
+-i $coord \
+-m m \
+--genes {input.repeatmaskerbgz} \
+ -p 32 --ref {params.ref} --samplepalette magma --motif CG \
+ -l 101126888-101129371 --highlightpalette viridis \
+ --highlight_bed {input.dmrs} \
+--skip_align_plot
+then
+echo "worked"
+else
+echo "failed"
+fi
 if /users/mkelsey/data/tools/methylartist/methylartist locus --bams {params.methylartist_bam_config} -o ${{outputprefix}}${{coordfnsafe}}.png -i $coord --ref {params.ref} --motif CG -m m --highlight_bed {input.dmrs} -p 1,6,1,0,4 --labelgenes --svg; then
 echo "worked"
 else
@@ -1130,6 +1246,9 @@ fi
 done
 touch {output}       
         """
+
+
+
 # -g {params.refseqbgz}
 
 # rule methylartistlocusplot5UTR:
@@ -1297,15 +1416,15 @@ touch {output}
 #tag MOTIF_ANALYSIS
 rule gimme:
     input:
-        promoters_bed = "ldna/Rintermediates/promoters.bed",
-        dmrpromoterhyper_bed = "ldna/Rintermediates/promoters_dmhyperregions.bed",
-        dmrpromoterhypo_bed = "ldna/Rintermediates/promoters_dmhyporegions.bed"
+        promoters_bed = "ldna/Rintermediates/{mod_code}/promoters.bed",
+        dmrpromoterhyper_bed = "ldna/Rintermediates/{mod_code}/promoters_dmhyperregions.bed",
+        dmrpromoterhypo_bed = "ldna/Rintermediates/{mod_code}/promoters_dmhyporegions.bed"
     params:
         ref = config["ldna"]["reference"],
         pwms = config["ldna"]["tf_position_weighted_matrices"]
     output:
-        hypo = "ldna/results/gimme/hypo/gimme.roc.report.txt",
-        hyper = "ldna/results/gimme/hyper/gimme.roc.report.txt"
+        hypo = "ldna/results/{mod_code}/gimme/hypo/gimme.roc.report.txt",
+        hyper = "ldna/results/{mod_code}/gimme/hyper/gimme.roc.report.txt"
     resources:
         cpus_per_task = 26,
         mem_mb = 64000,
@@ -1324,11 +1443,11 @@ gimme motifs ${{{input.dmrpromoterhypo_bed}%.*}}.fa $(dirname {output.hypo}) --b
 
 rule gimme_maelstrom:
     input:
-        clusters = "/users/mkelsey/data/n2102ep/RTE/ldna/Rintermediates/l1_dif_meth_for_motif_analysis.tsv"
+        clusters = "/users/mkelsey/data/n2102ep/RTE/ldna/Rintermediates/{mod_code}/l1_dif_meth_for_motif_analysis.tsv"
     params:
         ref = config["ldna"]["reference"],
     output:
-        out = "ldna/results/gimme/l1hs_promoter_methylation_dif_motif.out75.outfile"
+        out = "ldna/results/{mod_code}/gimme/l1hs_promoter_methylation_dif_motif.out75.outfile"
     container: "https://depot.galaxyproject.org/singularity/gimmemotifs:0.17.1--py39h67e14b5_1"
     resources:
         cpus_per_task = 26,
@@ -1342,10 +1461,10 @@ touch {output.out}
 
 rule gimmeplots:
     input:
-        hypo = "ldna/results/gimme/hypo/gimme.roc.report.txt",
-        hyper = "ldna/results/gimme/hyper/gimme.roc.report.txt"
+        hypo = "ldna/results/{mod_code}/gimme/hypo/gimme.roc.report.txt",
+        hyper = "ldna/results/{mod_code}/gimme/hyper/gimme.roc.report.txt"
     output:
-        plots = "ldna/results/gimme/gimme_plots.rds",
+        plots = "ldna/results/{mod_code}/gimme/gimme_plots.rds",
     conda:
         "ds"
     script:
@@ -1650,7 +1769,7 @@ rule pyaging_clock:
     conda: 
         "pyaging"
     output:
-        csv = "ldna/results/tables/clocks/pyaging_clock_results.csv"
+        csv = "ldna/results/m/tables/clocks/pyaging_clock_results.csv"
     resources:
         runtime = 100,
         mem_mb = 50000,
@@ -1664,21 +1783,21 @@ rule R_clock:
     conda: 
         "repeatanalysis"
     output:
-        csv = "ldna/results/tables/clocks/R_clock_results.csv"
+        csv = "ldna/results/m/tables/clocks/R_clock_results.csv"
     resources:
         runtime = 100,
         mem_mb = 50000,
         cpus_per_task = 4
     script:
-        "scripts/R_clock.py"
+        "scripts/R_clock.R"
 
 rule pyaging_clock_analysis:
     input:
-        csv = "ldna/results/tables/clocks/pyaging_clock_results.csv"
+        csv = "ldna/results/m/tables/clocks/pyaging_clock_results.csv"
     conda: 
         "repeatanalysis"
     output:
-        csv = "ldna/results/plots/clocks/pyaging_clock_plots.outfile"
+        csv = "ldna/results/m/plots/clocks/pyaging_clock_plots.outfile"
     resources:
         runtime = 30,
         mem_mb = 50000,
@@ -1688,11 +1807,11 @@ rule pyaging_clock_analysis:
 
 rule deconv:
     input:
-        deconv = "ldna/results/wgbs/hg38/tables/deconv.csv"
+        deconv = "ldna/results/m/wgbs/hg38/tables/deconv.csv"
     conda: 
         "repeatanalysis"
     output:
-        outfile = "ldna/results/plots/deconvolve/deconv.outfile"
+        outfile = "ldna/results/m/plots/deconvolve/deconv.outfile"
     resources:
         runtime = 30,
         mem_mb = 50000,

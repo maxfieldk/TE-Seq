@@ -25,55 +25,120 @@ stan_workdir <- sprintf("%s/stan_workdir", outputdir)
 dir.create(stan_workdir, recursive = TRUE)
 
 # Load data and prepare for model
+source("conf/sample_table_source.R")
+sample_table$age_scaled <- scale(sample_table$age)
 df <- read_csv("meth_for_bayes.csv")
 
-dat <- df %>%
+df <- df %>% left_join(sample_table %>% dplyr::select(sample_name, sex, age_scaled, braak, apoe) %>% dplyr::rename(sample = sample_name))
+
+dat_alpha <- df %>%
     mutate(
+        cov = as.integer(cov),
         Nmeth = as.integer(pctM / 100 * cov),
         UTR_status = as.integer(factor(ifelse(consensus_pos < 909, "UTR", "Body"))),
-        consensus_pos = factor(as.character(consensus_pos)),
+        consensus_pos = factor(as.character(consensus_pos), levels = as.character(df$consensus_pos %>% unique() %>% sort())),
         sample = factor(sample),
-        condition = factor(condition),
+        condition = factor(condition, levels = c("CTRL", "AD")),
+        gene_id = factor(gene_id),
+        sex = factor(sex, levels = c("F", "M")),
+        braak = factor(braak, levels = c())
+    )
+
+dat_alpha$age
+restore_sample <- tibble(sample_val = dat_alpha$sample %>% unique()) %>% mutate(sample = sample_val %>% as.integer())
+restore_condition <- tibble(condition_val = dat_alpha$condition %>% unique()) %>% mutate(condition = condition_val %>% unique() %>% as.integer() - 1)
+restore_consensus_pos <- tibble(consensus_pos_val = dat_alpha$consensus_pos %>% unique()) %>% mutate(consensus_pos = consensus_pos_val %>% as.integer())
+restore_gene_id <- tibble(gene_id_val = dat_alpha$gene_id %>% unique()) %>% mutate(gene_id = gene_id_val %>% as.integer())
+
+dat_index <-  df %>%
+    mutate(
+        cov = as.integer(cov),
+        Nmeth = as.integer(pctM / 100 * cov),
+        UTR_status = as.integer(factor(ifelse(consensus_pos < 909, "UTR", "Body"))),
+        consensus_pos = factor(as.character(consensus_pos), levels = as.character(df$consensus_pos %>% unique() %>% sort())),
+        sample = factor(sample),
+        condition = factor(condition, levels = c("CTRL", "AD")),
         gene_id = factor(gene_id)
     ) %>%
-    dplyr::select(Nmeth, cov, UTR_status, consensus_pos, sample, condition, gene_id)
-
-dat_index <- df %>%
     mutate(
         Nmeth = as.integer(pctM / 100 * cov),
-        UTR_status = as.integer(factor(ifelse(consensus_pos < 909, "UTR", "Body"))),
-        consensus_pos = as.integer(factor(as.character(consensus_pos))),
-        sample = as.integer(factor(sample)),
-        condition = as.integer(factor(condition, levels = c("CTRL", "AD"))) - 1,
-        gene_id = as.integer(factor(gene_id))
+        consensus_pos = as.integer(consensus_pos),
+        sample = as.integer(sample),
+        condition = as.integer(as.integer(condition) - 1),
+        gene_id = as.integer(gene_id)
     ) %>%
     dplyr::select(Nmeth, cov, UTR_status, consensus_pos, sample, condition, gene_id)
 
-cpos <- dat$consensus_pos %>%
-    unique() %>%
-    .[1:5]
-geneid <- dat %>%
-    pull(gene_id) %>%
-    unique() %>%
-    .[1:5]
+
+dat_index_328 <-  df %>%
+    filter(consensus_pos <= 328) %>%
+    mutate(
+        cov = as.integer(cov),
+        Nmeth = as.integer(pctM / 100 * cov),
+        UTR_status = as.integer(factor(ifelse(consensus_pos < 909, "UTR", "Body"))),
+        consensus_pos = factor(as.character(consensus_pos), levels = as.character(df$consensus_pos %>% unique() %>% sort())),
+        sample = factor(sample),
+        condition = factor(condition, levels = c("CTRL", "AD")),
+        gene_id = factor(gene_id),
+        sex = factor(sex, levels = c("F", "M"))) %>%
+    mutate(
+        Nmeth = as.integer(pctM / 100 * cov),
+        consensus_pos = as.integer(consensus_pos),
+        sample = as.integer(sample),
+        condition = as.integer(as.integer(condition) - 1),
+        gene_id = as.integer(gene_id),
+        sex = as.integer(as.integer(sex) - 1),
+        braak = as.integer(braak)
+    ) %>%
+    dplyr::select(Nmeth, cov, UTR_status, consensus_pos, sample, condition, gene_id, sex, braak, age_scaled)
+
+dat_index_500 <- df %>%
+    filter(consensus_pos <= 500) %>%
+    mutate(
+        cov = as.integer(cov),
+        Nmeth = as.integer(pctM / 100 * cov),
+        UTR_status = as.integer(factor(ifelse(consensus_pos < 909, "UTR", "Body"))),
+        consensus_pos = factor(as.character(consensus_pos), levels = as.character(df$consensus_pos %>% unique() %>% sort())),
+        sample = factor(sample),
+        condition = factor(condition, levels = c("CTRL", "AD")),
+        gene_id = factor(gene_id)
+    ) %>%
+    mutate(
+        Nmeth = as.integer(pctM / 100 * cov),
+        consensus_pos = as.integer(consensus_pos),
+        sample = as.integer(sample),
+        condition = as.integer(as.integer(condition) - 1),
+        gene_id = as.integer(gene_id)
+    ) %>%
+    dplyr::select(Nmeth, cov, UTR_status, consensus_pos, sample, condition, gene_id)
+dat_index_909 <- df %>%
+    filter(consensus_pos <= 909) %>%
+    mutate(
+        cov = as.integer(cov),
+        Nmeth = as.integer(pctM / 100 * cov),
+        UTR_status = as.integer(factor(ifelse(consensus_pos < 909, "UTR", "Body"))),
+        consensus_pos = factor(as.character(consensus_pos), levels = as.character(df$consensus_pos %>% unique() %>% sort())),
+        sample = factor(sample),
+        condition = factor(condition, levels = c("CTRL", "AD")),
+        gene_id = factor(gene_id)
+    ) %>% 
+    mutate(
+        Nmeth = as.integer(pctM / 100 * cov),
+        consensus_pos = as.integer(consensus_pos),
+        sample = as.integer(sample),
+        condition = as.integer(as.integer(condition) - 1),
+        gene_id = as.integer(gene_id)
+    ) %>%
+    dplyr::select(Nmeth, cov, UTR_status, consensus_pos, sample, condition, gene_id)
 
 
-datindexs <- dat_index %>%
-    filter(consensus_pos %in% 1:10) %>%
-    filter(gene_id %in% 1:10)
-datindexs %>%
-    pull(gene_id) %>%
-    unique()
-datindexs %>%
-    pull(consensus_pos) %>%
-    unique()
-
-
-model_name <- "mv2"
-mv2 <- ulam(
+# models
+model_name <- "mv2_328"
+mv2_328 <- ulam(
     alist(
         Nmeth ~ dbinom(cov, p),
-        logit(p) <- a + z_c[consensus_pos] * a_c_sigma +
+        logit(p) <- a +
+            z_c[consensus_pos] * a_c_sigma +
             z_g[gene_id] * a_g_sigma +
             z_s[sample] * a_s_sigma +
             b * condition,
@@ -96,57 +161,18 @@ mv2 <- ulam(
         gq > vector[gene_id]:a_g <<- z_g * a_g_sigma,
         gq > vector[sample]:a_s <<- z_s * a_s_sigma
     ),
-    data = dat_index, chains = 4, cores = 4, log_lik = FALSE,
+    data = dat_index_328, chains = 4, cores = 4, threads = 4, log_lik = FALSE,
     file = sprintf("%s/%s", outputdir, model_name),
     output_dir = stan_workdir
 )
-
-
-mf1 <- ulam(
+model_name <- "mv2_328_prior"
+mv2_328__prior <- ulam(
     alist(
         Nmeth ~ dbinom(cov, p),
-        logit(p) <- a + a_c[consensus_pos] +
-            a_g[gene_id] +
-            a_s[sample] +
-            b * condition,
-        b ~ dnorm(0, 1),
-        a ~ dnorm(0, 1),
-        a_c[consensus_pos] ~ dnorm(0, 1),
-        a_g[gene_id] ~ dnorm(0, 1),
-        a_s[sample] ~ dnorm(0, 1)
-    ),
-    data = datindexs, chains = 4, cores = 4, log_lik = FALSE
-)
-
-
-mv1 <- ulam(
-    alist(
-        Nmeth ~ dbinom(cov, p),
-        logit(p) <- a + a_s_bar + z_s[sample] * a_s_sigma +
-            b * condition,
-
-        # Non-centered parameters
-        vector[sample]:z_s ~ dnorm(0, 1),
-
-        # Hyperpriors
-        a_s_bar ~ dnorm(0, 1),
-        a_s_sigma ~ dexp(1),
-        # Prior for b
-        b ~ dnorm(0, 1),
-        a ~ dnorm(0, 1),
-
-        # Generated quantities for easier interpretation
-        gq > vector[sample]:a_s <<- a_s_bar + z_s * a_s_sigma
-    ),
-    data = datindexs, chains = 4, cores = 4, log_lik = FALSE
-)
-
-mv2 <- ulam(
-    alist(
-        Nmeth ~ dbinom(cov, p),
-        logit(p) <- a + a_c_bar + z_c[consensus_pos] * a_c_sigma +
-            a_g_bar + z_g[gene_id] * a_g_sigma +
-            a_s_bar + z_s[sample] * a_s_sigma +
+        logit(p) <- a +
+            z_c[consensus_pos] * a_c_sigma +
+            z_g[gene_id] * a_g_sigma +
+            z_s[sample] * a_s_sigma +
             b * condition,
 
         # Non-centered parameters
@@ -155,27 +181,602 @@ mv2 <- ulam(
         vector[sample]:z_s ~ dnorm(0, 1),
 
         # Hyperpriors
-        a_c_bar ~ dnorm(0, 1),
         a_c_sigma ~ dexp(1),
-        a_g_bar ~ dnorm(0, 1),
         a_g_sigma ~ dexp(1),
-        a_s_bar ~ dnorm(0, 1),
         a_s_sigma ~ dexp(1),
         # Prior for b
-        b ~ dnorm(0, 1),
+        b ~ dnorm(0, 0.5),
         a ~ dnorm(0, 1),
 
         # Generated quantities for easier interpretation
-        gq > vector[consensus_pos]:a_c <<- a_c_bar + z_c * a_c_sigma,
-        gq > vector[gene_id]:a_g <<- a_g_bar + z_g * a_g_sigma,
-        gq > vector[sample]:a_s <<- a_s_bar + z_s * a_s_sigma
+        gq > vector[consensus_pos]:a_c <<- z_c * a_c_sigma,
+        gq > vector[gene_id]:a_g <<- z_g * a_g_sigma,
+        gq > vector[sample]:a_s <<- z_s * a_s_sigma
     ),
-    data = datindexs, chains = 4, cores = 4, log_lik = FALSE
+    data = dat_index_328, chains = 4, cores = 4, log_lik = FALSE, sample_prior = TRUE,
+    file = sprintf("%s/%s", outputdir, model_name),
+    output_dir = stan_workdir
+)
+
+model_name <- "mv2_500"
+mv2_500 <- ulam(
+    alist(
+        Nmeth ~ dbinom(cov, p),
+        logit(p) <- a +
+            z_c[consensus_pos] * a_c_sigma +
+            z_g[gene_id] * a_g_sigma +
+            z_s[sample] * a_s_sigma +
+            b * condition,
+
+        # Non-centered parameters
+        vector[consensus_pos]:z_c ~ dnorm(0, 1),
+        vector[gene_id]:z_g ~ dnorm(0, 1),
+        vector[sample]:z_s ~ dnorm(0, 1),
+
+        # Hyperpriors
+        a_c_sigma ~ dexp(1),
+        a_g_sigma ~ dexp(1),
+        a_s_sigma ~ dexp(1),
+        # Prior for b
+        b ~ dnorm(0, 0.5),
+        a ~ dnorm(0, 1),
+
+        # Generated quantities for easier interpretation
+        gq > vector[consensus_pos]:a_c <<- z_c * a_c_sigma,
+        gq > vector[gene_id]:a_g <<- z_g * a_g_sigma,
+        gq > vector[sample]:a_s <<- z_s * a_s_sigma
+    ),
+    data = dat_index_500, chains = 4, cores = 4, log_lik = FALSE,
+    file = sprintf("%s/%s", outputdir, model_name),
+    output_dir = stan_workdir, threads = 4
+)
+model_name <- "mv2_500_prior"
+mv2_500_prior <- ulam(
+    alist(
+        Nmeth ~ dbinom(cov, p),
+        logit(p) <- a +
+            z_c[consensus_pos] * a_c_sigma +
+            z_g[gene_id] * a_g_sigma +
+            z_s[sample] * a_s_sigma +
+            b * condition,
+
+        # Non-centered parameters
+        vector[consensus_pos]:z_c ~ dnorm(0, 1),
+        vector[gene_id]:z_g ~ dnorm(0, 1),
+        vector[sample]:z_s ~ dnorm(0, 1),
+
+        # Hyperpriors
+        a_c_sigma ~ dexp(1),
+        a_g_sigma ~ dexp(1),
+        a_s_sigma ~ dexp(1),
+        # Prior for b
+        b ~ dnorm(0, 0.5),
+        a ~ dnorm(0, 1),
+
+        # Generated quantities for easier interpretation
+        gq > vector[consensus_pos]:a_c <<- z_c * a_c_sigma,
+        gq > vector[gene_id]:a_g <<- z_g * a_g_sigma,
+        gq > vector[sample]:a_s <<- z_s * a_s_sigma
+    ),
+    data = dat_index_500, chains = 4, cores = 4, log_lik = FALSE, sample_prior = TRUE,
+    file = sprintf("%s/%s", outputdir, model_name),
+    output_dir = stan_workdir
+)
+
+model_name <- "mv2_909"
+mv2_909 <- ulam(
+    alist(
+        Nmeth ~ dbinom(cov, p),
+        logit(p) <- a +
+            z_c[consensus_pos] * a_c_sigma +
+            z_g[gene_id] * a_g_sigma +
+            z_s[sample] * a_s_sigma +
+            b * condition,
+
+        # Non-centered parameters
+        vector[consensus_pos]:z_c ~ dnorm(0, 1),
+        vector[gene_id]:z_g ~ dnorm(0, 1),
+        vector[sample]:z_s ~ dnorm(0, 1),
+
+        # Hyperpriors
+        a_c_sigma ~ dexp(1),
+        a_g_sigma ~ dexp(1),
+        a_s_sigma ~ dexp(1),
+        # Prior for b
+        b ~ dnorm(0, 0.5),
+        a ~ dnorm(0, 1),
+
+        # Generated quantities for easier interpretation
+        gq > vector[consensus_pos]:a_c <<- z_c * a_c_sigma,
+        gq > vector[gene_id]:a_g <<- z_g * a_g_sigma,
+        gq > vector[sample]:a_s <<- z_s * a_s_sigma
+    ),
+    data = dat_index_909, chains = 4, cores = 4, log_lik = FALSE,
+    file = sprintf("%s/%s", outputdir, model_name),
+    output_dir = stan_workdir, threads = 4
+)
+model_name <- "mv2_909_prior"
+mv2_909_prior <- ulam(
+    alist(
+        Nmeth ~ dbinom(cov, p),
+        logit(p) <- a +
+            z_c[consensus_pos] * a_c_sigma +
+            z_g[gene_id] * a_g_sigma +
+            z_s[sample] * a_s_sigma +
+            b * condition,
+
+        # Non-centered parameters
+        vector[consensus_pos]:z_c ~ dnorm(0, 1),
+        vector[gene_id]:z_g ~ dnorm(0, 1),
+        vector[sample]:z_s ~ dnorm(0, 1),
+
+        # Hyperpriors
+        a_c_sigma ~ dexp(1),
+        a_g_sigma ~ dexp(1),
+        a_s_sigma ~ dexp(1),
+        # Prior for b
+        b ~ dnorm(0, 0.5),
+        a ~ dnorm(0, 1),
+
+        # Generated quantities for easier interpretation
+        gq > vector[consensus_pos]:a_c <<- z_c * a_c_sigma,
+        gq > vector[gene_id]:a_g <<- z_g * a_g_sigma,
+        gq > vector[sample]:a_s <<- z_s * a_s_sigma
+    ),
+    data = dat_index_909, chains = 4, cores = 4, log_lik = FALSE, sample_prior = TRUE,
+    file = sprintf("%s/%s", outputdir, model_name),
+    output_dir = stan_workdir
+)
+
+model_name <- "mv2_full"
+mv2 <- ulam(
+  alist(
+    Nmeth ~ dbinom(cov, p),
+    logit(p) <- a +
+      z_c[consensus_pos] * a_c_sigma +
+      z_g[gene_id] * a_g_sigma +
+      z_s[sample] * a_s_sigma +
+      b[UTR_status] * condition,  # Slope for condition varies by UTR_status
+
+    # Non-centered parameters
+    vector[consensus_pos]:z_c ~ dnorm(0, 1),
+    vector[gene_id]:z_g ~ dnorm(0, 1),
+    vector[sample]:z_s ~ dnorm(0, 1),
+    vector[UTR_status]:b ~ dnorm(0, b_sigma),  # Prior for varying slopes of condition
+
+    # Hyperpriors
+    a_c_sigma ~ dexp(1),
+    a_g_sigma ~ dexp(1),
+    a_s_sigma ~ dexp(1),
+    b_sigma ~ dexp(1),  # Hyperprior for variability of b across UTR_status
+    a ~ dnorm(0, 1)
+  ),
+  data = dat_index, chains = 4, cores = 4, log_lik = FALSE
+)
+model_name <- "mv2_full_prior"
+mv2_full_prior <- ulam(
+    alist(
+        Nmeth ~ dbinom(cov, p),
+        logit(p) <- a +
+            z_c[consensus_pos] * a_c_sigma +
+            z_g[gene_id] * a_g_sigma +
+            z_s[sample] * a_s_sigma +
+            b[UTR_status] * condition,
+
+        # Non-centered parameters
+        vector[consensus_pos]:z_c ~ dnorm(0, 1),
+        vector[gene_id]:z_g ~ dnorm(0, 1),
+        vector[sample]:z_s ~ dnorm(0, 1),
+
+        # Hyperpriors
+        a_c_sigma ~ dexp(1),
+        a_g_sigma ~ dexp(1),
+        a_s_sigma ~ dexp(1),
+        # Prior for b
+        b ~ dnorm(0, 0.5),
+        a ~ dnorm(0, 1),
+
+        # Generated quantities for easier interpretation
+        gq > vector[consensus_pos]:a_c <<- z_c * a_c_sigma,
+        gq > vector[gene_id]:a_g <<- z_g * a_g_sigma,
+        gq > vector[sample]:a_s <<- z_s * a_s_sigma
+    ),
+    data = dat_index, chains = 4, cores = 4, log_lik = FALSE, sample_prior = TRUE,
+    file = sprintf("%s/%s", outputdir, model_name),
+    output_dir = stan_workdir
 )
 
 
+####### with covariates
+
+model_name <- "mv2_328_with_sex_age"
+mv2_328_with_sex_age <- ulam(
+    alist(
+        Nmeth ~ dbinom(cov, p),
+        logit(p) <- a +
+            z_c[consensus_pos] * a_c_sigma +
+            z_g[gene_id] * a_g_sigma +
+            z_s[sample] * a_s_sigma +
+            b * condition +
+            beta_sex * sex +           # Effect of sex
+            beta_age * age_scaled,            # Effect of age
+
+        # Non-centered parameters
+        vector[consensus_pos]:z_c ~ dnorm(0, 1),
+        vector[gene_id]:z_g ~ dnorm(0, 1),
+        vector[sample]:z_s ~ dnorm(0, 1),
+
+        # Hyperpriors
+        a_c_sigma ~ dexp(1),
+        a_g_sigma ~ dexp(1),
+        a_s_sigma ~ dexp(1),
+
+        # Priors for coefficients
+        b ~ dnorm(0, 0.5),             # Prior for condition slope
+        beta_sex ~ dnorm(0, 0.5),      # Prior for sex effect
+        beta_age ~ dnorm(0, 0.5),      # Prior for age effect
+        a ~ dnorm(0, 1),               # Prior for intercept
+
+        # Generated quantities for easier interpretation
+        gq > vector[consensus_pos]:a_c <<- z_c * a_c_sigma,
+        gq > vector[gene_id]:a_g <<- z_g * a_g_sigma,
+        gq > vector[sample]:a_s <<- z_s * a_s_sigma
+    ),
+    data = dat_index_328, chains = 4, cores = 4, threads = 4, log_lik = FALSE,
+    file = sprintf("%s/%s", outputdir, model_name),
+    output_dir = stan_workdir
+)
+
+model_name <- "mv2_328_with_sex_age_prior"
+mv2_328_with_sex_age_prior <- ulam(
+    alist(
+        Nmeth ~ dbinom(cov, p),
+        logit(p) <- a +
+            z_c[consensus_pos] * a_c_sigma +
+            z_g[gene_id] * a_g_sigma +
+            z_s[sample] * a_s_sigma +
+            b * condition +
+            beta_sex * sex +           # Effect of sex
+            beta_age * age_scaled,            # Effect of age
+
+        # Non-centered parameters
+        vector[consensus_pos]:z_c ~ dnorm(0, 1),
+        vector[gene_id]:z_g ~ dnorm(0, 1),
+        vector[sample]:z_s ~ dnorm(0, 1),
+
+        # Hyperpriors
+        a_c_sigma ~ dexp(1),
+        a_g_sigma ~ dexp(1),
+        a_s_sigma ~ dexp(1),
+
+        # Priors for coefficients
+        b ~ dnorm(0, 0.5),             # Prior for condition slope
+        beta_sex ~ dnorm(0, 0.5),      # Prior for sex effect
+        beta_age ~ dnorm(0, 0.5),      # Prior for age effect
+        a ~ dnorm(0, 1),               # Prior for intercept
+
+        # Generated quantities for easier interpretation
+        gq > vector[consensus_pos]:a_c <<- z_c * a_c_sigma,
+        gq > vector[gene_id]:a_g <<- z_g * a_g_sigma,
+        gq > vector[sample]:a_s <<- z_s * a_s_sigma
+    ),
+    data = dat_index_328, chains = 4, cores = 4, log_lik = FALSE, sample_prior = TRUE,
+    file = sprintf("%s/%s", outputdir, model_name),
+    output_dir = stan_workdir
+)
+
+
+dat <- list(
+    Nmeth = dat_index_328$Nmeth,
+    cov = dat_index_328$cov,
+    consensus_pos = dat_index_328$consensus_pos,
+    gene_id = dat_index_328$gene_id,
+    sample = dat_index_328$sample,
+    braak = dat_index_328$braak, # BRAAK as an ordered index
+    alpha = rep(2, max(dat_index_328$braak) - 1) # Dirichlet prior
+)
+
+model_name <- "mv2_braak_binomial"
+mv2_braak_binomial <- ulam(
+    alist(
+        Nmeth ~ dbinom(cov, p),
+        logit(p) <- a +
+            z_c[consensus_pos] * a_c_sigma +
+            z_g[gene_id] * a_g_sigma +
+            z_s[sample] * a_s_sigma +
+            bB * sum(delta_j[1:braak]),
+        
+        # Non-centered parameters
+        vector[consensus_pos]:z_c ~ dnorm(0, 1),
+        vector[gene_id]:z_g ~ dnorm(0, 1),
+        vector[sample]:z_s ~ dnorm(0, 1),
+        
+        # Hyperpriors
+        a_c_sigma ~ dexp(1),
+        a_g_sigma ~ dexp(1),
+        a_s_sigma ~ dexp(1),
+        
+        # Coefficient priors
+        bB ~ normal(0, 1),
+        a ~ normal(0, 1),
+        
+        # Delta parameters for BRAAK stage
+        vector[8]:delta_j <<- append_row(0, delta), # delta_j includes a fixed 0
+        simplex[7]:delta ~ dirichlet(alpha)     # Dirichlet prior on delta
+    ),
+    data = dat,
+    chains = 4, cores = 4, threads = 4, log_lik = FALSE,
+    file = sprintf("%s/%s", outputdir, model_name),
+    output_dir = stan_workdir
+)
+
+
+
+# model_name <- "mv2"
+# mv2 <- ulam(
+#     alist(
+#         Nmeth ~ dbinom(cov, p),
+#         logit(p) <- a +
+#             z_c[consensus_pos] * a_c_sigma +
+#             z_g[gene_id] * a_g_sigma +
+#             z_s[sample] * a_s_sigma +
+#             b * condition,
+
+#         # Non-centered parameters
+#         vector[consensus_pos]:z_c ~ dnorm(0, 1),
+#         vector[gene_id]:z_g ~ dnorm(0, 1),
+#         vector[sample]:z_s ~ dnorm(0, 1),
+
+#         # Hyperpriors
+#         a_c_sigma ~ dexp(1),
+#         a_g_sigma ~ dexp(1),
+#         a_s_sigma ~ dexp(1),
+#         # Prior for b
+#         b ~ dnorm(0, 0.5),
+#         a ~ dnorm(0, 1),
+
+#         # Generated quantities for easier interpretation
+#         gq > vector[consensus_pos]:a_c <<- z_c * a_c_sigma,
+#         gq > vector[gene_id]:a_g <<- z_g * a_g_sigma,
+#         gq > vector[sample]:a_s <<- z_s * a_s_sigma
+#     ),
+#     data = dat_index, chains = 4, cores = 4, log_lik = FALSE,
+#     file = sprintf("%s/%s", outputdir, model_name),
+#     output_dir = stan_workdir
+# )
+
+
+# mf1 <- ulam(
+#     alist(
+#         Nmeth ~ dbinom(cov, p),
+#         logit(p) <- a + a_c[consensus_pos] +
+#             a_g[gene_id] +
+#             a_s[sample] +
+#             b * condition,
+#         b ~ dnorm(0, 1),
+#         a ~ dnorm(0, 1),
+#         a_c[consensus_pos] ~ dnorm(0, 1),
+#         a_g[gene_id] ~ dnorm(0, 1),
+#         a_s[sample] ~ dnorm(0, 1)
+#     ),
+#     data = datindexs, chains = 4, cores = 4, log_lik = FALSE
+# )
+
+
+# mv1 <- ulam(
+#     alist(
+#         Nmeth ~ dbinom(cov, p),
+#         logit(p) <- a +
+#             a_s_bar + z_s[sample] * a_s_sigma +
+#             b * condition,
+
+#         # Non-centered parameters
+#         vector[sample]:z_s ~ dnorm(0, 1),
+
+#         # Hyperpriors
+#         a_s_bar ~ dnorm(0, 1),
+#         a_s_sigma ~ dexp(1),
+#         # Prior for b
+#         b ~ dnorm(0, 1),
+#         a ~ dnorm(0, 1),
+
+#         # Generated quantities for easier interpretation
+#         gq > vector[sample]:a_s <<- a_s_bar + z_s * a_s_sigma
+#     ),
+#     data = datindexs, chains = 4, cores = 4, log_lik = FALSE
+# )
+
+# mv2 <- ulam(
+#     alist(
+#         Nmeth ~ dbinom(cov, p),
+#         logit(p) <- a + a_c_bar + z_c[consensus_pos] * a_c_sigma +
+#             a_g_bar + z_g[gene_id] * a_g_sigma +
+#             a_s_bar + z_s[sample] * a_s_sigma +
+#             b * condition,
+
+#         # Non-centered parameters
+#         vector[consensus_pos]:z_c ~ dnorm(0, 1),
+#         vector[gene_id]:z_g ~ dnorm(0, 1),
+#         vector[sample]:z_s ~ dnorm(0, 1),
+
+#         # Hyperpriors
+#         a_c_bar ~ dnorm(0, 1),
+#         a_c_sigma ~ dexp(1),
+#         a_g_bar ~ dnorm(0, 1),
+#         a_g_sigma ~ dexp(1),
+#         a_s_bar ~ dnorm(0, 1),
+#         a_s_sigma ~ dexp(1),
+#         # Prior for b
+#         b ~ dnorm(0, 1),
+#         a ~ dnorm(0, 1),
+
+#         # Generated quantities for easier interpretation
+#         gq > vector[consensus_pos]:a_c <<- a_c_bar + z_c * a_c_sigma,
+#         gq > vector[gene_id]:a_g <<- a_g_bar + z_g * a_g_sigma,
+#         gq > vector[sample]:a_s <<- a_s_bar + z_s * a_s_sigma
+#     ),
+#     data = datindexs, chains = 4, cores = 4, log_lik = FALSE
+# )
+
 ################
 
+
+
+
+model <- mv2_braak_binomial
+modelprior <- mv2_328_with_sex_age_prior
+model_name <- "mv2_braak_binomial"
+model_data <- dat
+precis(model %>%
+    spread_draws(a, bB))
+precis(model_no_confounds %>%
+    spread_draws(a, b, a_c[..], a_g[..], a_s[..]))
+precis(model %>%
+    spread_draws(b, beta_age))
+precis(model_no_confounds %>%
+    spread_draws(b))
+
+
+draws_spread <- model %>%
+    spread_draws(a, b, a_c_sigma, a_c[..], a_g_sigma, a_g[..], a_s_sigma, a_s[..])
+
+draws_gathered <- model %>%
+    gather_draws(a, b, a_c_sigma, a_c[consensus_pos], a_g_sigma, a_g[gene_id], a_s_sigma, a_s[sample]) %>%
+    left_join(restore_consensus_pos) %>%
+    left_join(restore_sample) %>%
+    left_join(restore_gene_id) %>% 
+    ungroup()
+
+
+draws_spread_prior <- model %>%
+    spread_draws(a, b, a_c_sigma, a_c[..], a_g_sigma, a_g[..], a_s_sigma, a_s[..])
+
+draws_gathered_prior <- modelprior %>%
+    gather_draws(a, b, a_c_sigma, a_c[consensus_pos], a_g_sigma, a_g[gene_id], a_s_sigma, a_s[sample]) %>%
+    left_join(restore_consensus_pos) %>%
+    left_join(restore_sample) %>%
+    left_join(restore_gene_id) %>%
+    ungroup()
+
+p <- draws_gathered %>%
+    ggplot(aes(y = .variable, x = .value)) +
+    stat_halfeye() +
+    geom_vline(xintercept = 0, linetype = "dashed") +
+    mtclosed +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+mysaveandstore(sprintf("%s/%s/summary.pdf", outputdir, model_name), 4, 4)
+
+# these are simulation plots showing real effect and estimate
+p <- draws_gathered %>%
+    filter(.variable == "a_c") %>%
+    filter(!is.na(consensus_pos_val)) %>%
+    ggplot(aes(y = consensus_pos_val, x = .value)) +
+    stat_halfeye() +
+    geom_vline(xintercept = 0, linetype = "dashed") +
+    stat_halfeye(
+        data =
+            draws_gathered_prior %>%
+                filter(.variable == "a_c") %>%
+                filter(!is.na(consensus_pos_val)),
+        alpha = 0.2, color = "blue"
+    ) +
+    lims(x = c(-1, 1)) +
+    mtclosed
+mysaveandstore(sprintf("%s/%s/summary_ac.pdf", outputdir, model_name), 4, 4)
+
+
+p <- draws_gathered %>%
+    filter(.variable == "a_s") %>%
+    filter(!is.na(sample)) %>%
+    ggplot(aes(y = sample, x = .value)) +
+    stat_halfeye() +
+    geom_vline(xintercept = 0, linetype = "dashed") +
+    stat_halfeye(
+        data = draws_gathered_prior %>%
+            filter(.variable == "a_s") %>%
+            filter(!is.na(sample)),
+     alpha = 0.2, color = "blue") +
+    lims(x = c(-1, 1)) +
+    mtclosed
+mysaveandstore(sprintf("%s/%s/summary_as.pdf", outputdir, model_name), 4, 4)
+
+p <- draws_gathered %>%
+    filter(.variable == "a_g") %>%
+    filter(!is.na(gene_id)) %>%
+    ggplot(aes(y = gene_id, x = .value)) +
+    stat_halfeye() +
+    stat_halfeye(
+        data =
+            draws_gathered_prior %>%
+                filter(.variable == "a_g") %>%
+                filter(!is.na(gene_id)), alpha = 0.2, color = "blue"
+    ) +
+    lims(x = c(-1, 1)) +
+    mtclosed
+mysaveandstore(sprintf("%s/%s/summary_ag.pdf", outputdir, model_name), 4, 40)
+
+p <- draws_gathered %>%
+    filter(.variable == "b") %>%
+    ggplot(aes(y = .variable, x = .value)) +
+    stat_halfeye() +
+    stat_halfeye(
+        data =
+            draws_gathered_prior %>%
+                filter(.variable == "b"),
+        alpha = 0.2, color = "blue"
+    ) +
+    lims(x = c(-1, 1)) +
+    mtclosed
+mysaveandstore(sprintf("%s/%s/summary_b.pdf", outputdir, model_name), 4, 4)
+
+b_samples <- draws_spread %>% pull(b)
+left_tail <- mean(b_samples < 0)
+right_tail <- mean(b_samples > 0)
+one_tailed_pval <- min(left_tail, right_tail)
+two_tailed_pval <- 2 * min(left_tail, right_tail)
+statsframe <- tibble(parameter = c("b"), one_tailed_pval = one_tailed_pval, two_tailed_pval = two_tailed_pval)
+write_delim(statsframe, sprintf("%s/%s/stats_b.tsv", outputdir, model_name))
+
+# lin pred
+# note that I am only using first 5 gene_ids and first 10 consensus_pos else the draws frame is 200 M rows long...
+lin_pred_draws <- model_data %>%
+    data_grid(condition, sample, gene_id = 1:5, consensus_pos = 1:10) %>%
+    add_linpred_draws(model)
+p <- lin_pred_draws %>% ggplot(aes(x = .linpred)) +
+    stat_halfeye()
+mysaveandstore(sprintf("%s/%s/linpred.pdf", outputdir, model_name), 10, 4)
+
+p <- lin_pred_draws %>% ggplot(aes(y = as.factor(condition), x = .linpred)) +
+    stat_halfeye()
+mysaveandstore(sprintf("%s/%s/linpred_bycondition.pdf", outputdir, model_name), 10, 4)
+
+# posterior predictions
+post_pred_draws <- model_data %>%
+    data_grid(condition, sample, gene_id = 1:5, consensus_pos = 1:10) %>%
+    mutate(cov = 30) %>%
+    add_predicted_draws(model) %>%
+    mutate(.prediction = .prediction / 30)
+p <- post_pred_draws %>% ggplot(aes(x = .prediction)) +
+    stat_halfeye()
+mysaveandstore(sprintf("%s/%s/pred.pdf", outputdir, model_name), 10, 4)
+
+p <- post_pred_draws %>% ggplot(aes(y = as.factor(condition), x = .prediction)) +
+    stat_halfeye()
+mysaveandstore(sprintf("%s/%s/pred_condition.pdf", outputdir, model_name), 10, 4)
+
+
+p <- post_pred_draws %>%
+    mutate(consensus_pos = as.integer(as.character(consensus_pos))) %>%
+    ggplot(aes(x = consensus_pos, y = .prediction)) +
+    stat_interval(.width = c(.50, .80, .95, .99)) +
+    scale_color_brewer() +
+    mtclosed
+mysaveandstore(sprintf("%s/%s/postpred_by_cpos.pdf", outputdir, model_name), 10, 4)
+}
+
+
+
+################
 
 summary(mf1)
 summary(mv1)
@@ -781,3 +1382,240 @@ p <- post_pred_draws %>%
     scale_color_brewer() +
     mtclosed
 mysaveandstore(sprintf("%s/%s/postpred.pdf", outputdir, model_name), 10, 4)
+
+
+############# READ MODEL
+
+region = "L1HS_intactness_req_ALL"
+mod_code_var = "m"
+distance_from_start_to_probe = 909
+consider_reads_spanning_fraction = 0.7
+fraction_meth_threshold = 0.5
+context = "CpG"
+
+rdf <- read_delim(sprintf("bayes/data/reads_%s_to_%s_considering_reads_%s_fraction_%s_%s_%s.tsv", 
+ region, distance_from_start_to_probe, consider_reads_spanning_fraction, 
+ fraction_meth_threshold, mod_code_var, context), col_names = TRUE
+)
+rdf <- rdf %>% mutate(highly_methylated = ifelse(fraction_meth > 0.5, 1, 0)) %>% 
+    group_by(sample) %>%
+    summarise(Nmeth = sum(highly_methylated), cov = n())
+
+rdf$Nmeth / rdf$cov
+rdf <- rdf %>% left_join(sample_table %>% dplyr::select(sample_name, condition, sex, age_scaled, braak, apoe) %>% dplyr::rename(sample = sample_name))
+
+d1 <- rdf %>%
+    mutate(
+        cov = as.integer(cov),
+        Nmeth = as.integer(Nmeth),
+        sample = as.integer(factor(sample)),
+        condition = as.integer(as.integer(factor(condition, levels = c("CTRL", "AD"))) -1),
+        sex = as.integer(as.integer(factor(sex, levels = c("F", "M")))-1),
+        braak = as.integer(braak),
+        apoe = as.integer(apoe)
+    )
+
+
+dat <- list(
+    Nmeth = d1$Nmeth,
+    cov = d1$cov,
+    sample = d1$sample,
+    braak = d1$braak, # BRAAK as an ordered index
+    condition = d1$condition,
+    apoe = d1$apoe,
+    sex = d1$sex,
+    age_scaled = d1$age_scaled,
+    alpha = rep(2, max(d1$braak) - 1) # Dirichlet prior
+)
+
+model_name <- "r_braak"
+r_braak <- ulam(
+    alist(
+        Nmeth ~ dbinom(cov, p),
+        logit(p) <- a +
+            z_s[sample] * a_s_sigma +
+            bB * sum(delta_j[1:braak]),
+        
+        # Non-centered parameters
+        vector[sample]:z_s ~ dnorm(0, 1),
+        
+        # Hyperpriors
+        a_s_sigma ~ dexp(1),
+        
+        # Coefficient priors
+        bB ~ normal(0, 1),
+        a ~ normal(0, 1),
+        
+        # Delta parameters for BRAAK stage
+        vector[8]:delta_j <<- append_row(0, delta), # delta_j includes a fixed 0
+        simplex[7]:delta ~ dirichlet(alpha)     # Dirichlet prior on delta
+    ),
+    data = dat,
+    chains = 4, cores = 4, threads = 1, log_lik = FALSE,
+    file = sprintf("%s/%s", outputdir, model_name),
+    output_dir = stan_workdir
+)
+model <- r_braak
+model_name = "r_braak"
+precis(model %>%
+    spread_draws(a, bB))
+
+
+model_name <- "r_braak_cov"
+r_braak_cov <- ulam(
+    alist(
+        Nmeth ~ dbinom(cov, p),
+        logit(p) <- a +
+            z_s[sample] * a_s_sigma +
+            bB * sum(delta_j[1:braak]) +
+            beta_sex * sex +           # Effect of sex
+            beta_age * age_scaled,    
+        # Non-centered parameters
+        vector[sample]:z_s ~ dnorm(0, 1),
+        
+        # Hyperpriors
+        a_s_sigma ~ dexp(1),
+        
+        # Coefficient priors
+        bB ~ normal(0, 1),
+        a ~ normal(0, 1),
+        beta_sex ~ dnorm(0, 0.5),      # Prior for sex effect
+        beta_age ~ dnorm(0, 0.5),      # Prior for age effect
+        # Delta parameters for BRAAK stage
+        vector[8]:delta_j <<- append_row(0, delta), # delta_j includes a fixed 0
+        simplex[7]:delta ~ dirichlet(alpha)     # Dirichlet prior on delta
+    ),
+    data = dat,
+    chains = 4, cores = 4, threads = 1, log_lik = FALSE,
+    file = sprintf("%s/%s", outputdir, model_name),
+    output_dir = stan_workdir
+)
+model <- r_braak_cov
+model_name = "r_braak_cov"
+precis(model %>%
+    spread_draws(a, bB))
+
+model_name <- "r_ad_cov"
+r_ad_cov <- ulam(
+    alist(
+        Nmeth ~ dbinom(cov, p),
+        logit(p) <- a +
+            z_s[sample] * a_s_sigma +
+            z_e[apoe] * a_e_sigma +
+            b * condition +
+            beta_sex * sex +           # Effect of sex
+            beta_age * age_scaled,    
+        # Non-centered parameters
+        vector[sample]:z_s ~ dnorm(0, 1),
+        vector[apoe]:z_e ~ dnorm(0, 1),
+
+        # Hyperpriors
+        a_s_sigma ~ dexp(1),
+        a_e_sigma ~ dexp(1),
+
+        # Coefficient priors
+        b ~ normal(0, 0.5),
+        a ~ normal(0, 1),
+        beta_sex ~ dnorm(0, 0.5),      # Prior for sex effect
+        beta_age ~ dnorm(0, 0.5)      # Prior for age effect
+    ),
+    data = dat,
+    chains = 4, cores = 4, threads = 1, log_lik = FALSE,
+    file = sprintf("%s/%s", outputdir, model_name),
+    output_dir = stan_workdir
+)
+model <- r_ad_cov
+model_name = "r_ad_cov"
+precis(model %>%
+    spread_draws(a, b, beta_sex, beta_age, z_s[..], z_e[..]))
+
+b_samples <- model %>%
+    spread_draws(a, b) %>% pull(b)
+left_tail <- mean(b_samples < 0)
+right_tail <- mean(b_samples > 0)
+one_tailed_pval <- min(left_tail, right_tail)
+two_tailed_pval <- 2 * min(left_tail, right_tail)
+statsframe <- tibble(parameter = c("b"), one_tailed_pval = one_tailed_pval, two_tailed_pval = two_tailed_pval)
+path <- sprintf("%s/%s/stats_b.tsv", outputdir, model_name)
+dir.create(dirname(path), recursive = TRUE)
+write_delim(statsframe, path)
+
+model_name <- "r_ad"
+r_ad <- ulam(
+    alist(
+        Nmeth ~ dbinom(cov, p),
+        logit(p) <- a +
+            z_s[sample] * a_s_sigma +
+            b * condition,
+        # Non-centered parameters
+        vector[sample]:z_s ~ dnorm(0, 1),
+        
+        # Hyperpriors
+        a_s_sigma ~ dexp(1),
+        
+        # Coefficient priors
+        b ~ normal(0, 0.5),
+        a ~ normal(0, 1)
+    ),
+    data = dat,
+    chains = 4, cores = 4, threads = 1, log_lik = FALSE,
+    file = sprintf("%s/%s", outputdir, model_name),
+    output_dir = stan_workdir
+)
+model <- r_ad
+model_name = "r_ad"
+precis(model %>%
+    spread_draws(a, b, z_s[..]))
+
+b_samples <- model %>%
+    spread_draws(a, b) %>% pull(b)
+left_tail <- mean(b_samples < 0)
+right_tail <- mean(b_samples > 0)
+one_tailed_pval <- min(left_tail, right_tail)
+two_tailed_pval <- 2 * min(left_tail, right_tail)
+statsframe <- tibble(parameter = c("b"), one_tailed_pval = one_tailed_pval, two_tailed_pval = two_tailed_pval)
+path <- sprintf("%s/%s/stats_b.tsv", outputdir, model_name)
+dir.create(dirname(path), recursive = TRUE)
+write_delim(statsframe, path)
+
+
+
+model_name <- "r_ad_nosample"
+r_ad_nosample <- ulam(
+    alist(
+        Nmeth ~ dbinom(cov, p),
+        logit(p) <- a +
+            b * condition +
+            beta_sex * sex +           # Effect of sex
+            beta_age * age_scaled,    
+        
+        # Coefficient priors
+        b ~ normal(0, 0.5),
+        a ~ normal(0, 1),
+        beta_sex ~ dnorm(0, 0.5),      # Prior for sex effect
+        beta_age ~ dnorm(0, 0.5)      # Prior for age effect
+    ),
+    data = dat,
+    chains = 4, cores = 4, threads = 1, log_lik = FALSE,
+    file = sprintf("%s/%s", outputdir, model_name),
+    output_dir = stan_workdir
+)
+model <- r_ad_nosample
+model_name = "r_ad_nosample"
+precis(model %>%
+    spread_draws(a, b, beta_sex, beta_age))
+
+b_samples <- model %>%
+    spread_draws(a, b) %>% pull(b)
+left_tail <- mean(b_samples < 0)
+right_tail <- mean(b_samples > 0)
+one_tailed_pval <- min(left_tail, right_tail)
+two_tailed_pval <- 2 * min(left_tail, right_tail)
+statsframe <- tibble(parameter = c("b"), one_tailed_pval = one_tailed_pval, two_tailed_pval = two_tailed_pval)
+path <- sprintf("%s/%s/stats_b.tsv", outputdir, model_name)
+dir.create(dirname(path), recursive = TRUE)
+write_delim(statsframe, path)
+
+
+ttt <- rdf %>% mutate(pct = Nmeth/cov)
+summary(lm(pct ~ condition + sex + age_scaled, data = ttt))
