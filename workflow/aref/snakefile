@@ -862,7 +862,7 @@ tabix {output.hq_snps}
 
 
 rule snpeff_build_db:
-    input:
+    params:
         ref = config["ldna"]["reference"],
         refseq = config["aref"]["ref_refseq_gtf"]
     output:
@@ -879,8 +879,8 @@ configfile=$(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.confi
 echo '# Human genome, version hs1
 hs1.genome : Human' >> $configfile
 mkdir -p $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/data/hs1
-cp {input.refseq} $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/data/hs1/genes.gtf
-cp {input.ref} $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/data/hs1/sequences.fa
+cp {params.refseq} $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/data/hs1/genes.gtf
+cp {params.ref} $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/data/hs1/sequences.fa
 
 java -Xmx60g -jar $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.jar build -gtf22 -v hs1 -noCheckCds -noCheckProtein
 mkdir -p $(dirname {output.outfile})
@@ -1167,6 +1167,8 @@ rule process_gtf:
         ref_cytobands = "aref/{default_or_extended}/A.REF_annotations/cytobands.bed",
         ref = "aref/{default_or_extended}/A.REF.fa",
         reffai = "aref/{default_or_extended}/A.REF.fa.fai"
+    params:
+        tldr_switch = "process_gtf"
     output:
         repmask_gff2 = "aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker.gff2",
         repmask_gff3 = "aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker.gff3",
@@ -1184,6 +1186,8 @@ rule process_gtf_tldr:
         ref_cytobands = "aref/{default_or_extended}/A.REF_annotations/cytobands.bed",
         ref = "aref/{default_or_extended}/{sample_or_ref}-pre-ins-filtering.fa",
         tldroutput = "aref/{sample_or_ref}_tldr/{sample_or_ref}.table.txt"
+    params:
+        tldr_switch = "process_gtf_tldr"
     output:
         contigs_to_keep = "aref/{default_or_extended}/{sample_or_ref}_contigs_to_keep.txt",
         filtered_tldr = "aref/{default_or_extended}/{sample_or_ref}.table.kept_in_updated_ref.txt",
@@ -1833,7 +1837,7 @@ rule reps_to_reps:
 rule last_train:
     input:
         db="aref/terex/gdb.prj",
-        reads= expand("ldna/intermediates/{agivensample}/fastqs/{agivensample}.fq", agivensample = config["aref"]["samples"][1])
+        reads= expand("ldna/intermediates/{agivensample}/fastqs/{agivensample}.fq",agivensample=[config["aref"]["samples"][1] if len(config["aref"]["samples"]) > 1 else "default_sample"])
     output:
         params="aref/terex/reads.train"
     resources:
