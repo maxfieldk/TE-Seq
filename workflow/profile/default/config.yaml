@@ -71,4 +71,5 @@ set-resources:
         cpus_per_task: 12
         slurm_partition: "gpu-he"
         mem_mb: 128000
-        slurm_extra: "--time=96:00:00 --prefer=a6000 --gres=gpu:2"
+        runtime: 5760
+        slurm_extra: "'--gres=gpu:2'"
