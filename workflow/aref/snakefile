@@ -154,7 +154,7 @@ rule dorado:
         slurm_partition="gpu-he",
         mem_mb = 128000,
         runtime = 5760,
-        slurm_extra="'--prefer=a6000 --gres=gpu:2'"
+        slurm_extra="'--gres=gpu:2'"
     shell:
         """
 mkdir -p $(dirname {output.calls})
