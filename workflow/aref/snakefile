@@ -153,7 +153,8 @@ rule dorado:
         cpus_per_task =12,
         slurm_partition="gpu-he",
         mem_mb = 128000,
-        slurm_extra="--time=96:00:00 --prefer=a6000 --gres=gpu:2"
+        runtime = 5760,
+        slurm_extra="'--prefer=a6000 --gres=gpu:2'"
     shell:
         """
 mkdir -p $(dirname {output.calls})
@@ -862,8 +863,9 @@ tabix {output.hq_snps}
 
 
 rule snpeff_build_db:
+    input:
+        ref = config["ldna"]["reference"]
     params:
-        ref = config["ldna"]["reference"],
         refseq = config["aref"]["ref_refseq_gtf"]
     output:
         outfile = "aref/intermediates/snpeff/db.outfile"
@@ -880,7 +882,7 @@ echo '# Human genome, version hs1
 hs1.genome : Human' >> $configfile
 mkdir -p $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/data/hs1
 cp {params.refseq} $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/data/hs1/genes.gtf
-cp {params.ref} $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/data/hs1/sequences.fa
+cp {input.ref} $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/data/hs1/sequences.fa
 
 java -Xmx60g -jar $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.jar build -gtf22 -v hs1 -noCheckCds -noCheckProtein
 mkdir -p $(dirname {output.outfile})
