@@ -39,7 +39,7 @@ set-resources:
     srna_alignSTAR_SE:
         mem_mb: attempt * 35000
     aref_tldr_aggregate_multiple_samples:
-        mem_mb: attempt * 100000
+        mem_mb: attempt * 125000
         runtime: attempt * 200
     aref_process_gtf_tldr:
         mem_mb: attempt * 35000
