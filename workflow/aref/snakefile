@@ -653,7 +653,7 @@ rule pepper:
     resources:
         cpus_per_task =20,
         runtime = 600,
-        mem_mb = 50000
+        mem_mb = 75000
     container:
         "docker://kishwars/pepper_deepvariant:r0.8"
     shell:	
