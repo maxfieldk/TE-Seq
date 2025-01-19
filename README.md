@@ -145,23 +145,6 @@ rm refseq.gtf; rm refseq.sorted.gtf; rm refseq.gff3; rm refseq.sorted.gff3
   ```
 ***
 ***
-### Downsampled HUMAN - Genome: HS1 -  Downsampled genome for a pipeline test-run
-- Clone the TE-Seq_test_data directory into a directory adjacent to the TE-Seq directory and reconfigure file structure to match default config paths
-```
-cd ..
-git clone https://github.com/maxfieldk/TE-Seq_test_rawdata.git
-
-```
-- These files will need to be decompressed
-```
-gunzip mm39.fa.gz; mv mm39.fa reference.ucsc.fa
-gunzip GCF_000001635.27_GRCm39_genomic.gtf.gz; mv GCF_000001635.27_GRCm39_genomic.gtf refseq.gtf
-gunzip GCF_000001635.27_GRCm39_genomic.gff.gz; mv GCF_000001635.27_GRCm39_genomic.gff refseq.gff3
-gunzip mm39.out.gz; mv mm39.out repeatmasker.ucsc.out
-```
-
-***
-***
 ### MOUSE - Genome: MM39
 - Download these files, and place them in a genome directory adjacent to your project directory
 ```
@@ -202,12 +185,21 @@ This pipeline expects chromosome names to be in UCSC format ie. "chr1, chr2, ...
   ```
 ***
 ***
+### Downsampled HUMAN - Genome: HS1 -  Downsampled genome for a pipeline test-run
+- Clone the TE-Seq_test_data directory into a directory adjacent to the TE-Seq directory. This directory will contain all genome annotations neede (in the "genome_files" folder), as well as all RNA-seq fastq's needed (in the "test_srna" folder). You will move these subdirectories in later steps. 
+```
+cd ..
+git clone https://github.com/maxfieldk/TE-Seq_test_rawdata.git
+```
+***
+***
   I recommend you store these downloaded annotations in a directory one level above your project directory (place genomes_file/ adjacent to the TE-Seq/ directory). Just ensure that the paths are nested within a Singularity bound directory if using the containerized workflow (read on to the segment on "workflow/profile/default/config.yaml" below for more details).  
 
-Create, in the TE-Seq directory a folder called srna_rawdata, and move your fastqs there. 
+Create, in the TE-Seq directory a folder called srna_rawdata, and move your fastqs there.
 ```
 mkdir -p srna_rawdata
-#now move all your fastqs into this directory
+#now move all your fastqs into this directory.
+#e.g is you are using the te-seq downsampled test data: mv ../TE-Seq_test_rawdata/test_srna/*.fq.gz srna_rawdata
 ```
 Make sure your fastq file naming is consistent with the naming scheme set forth in the conf/project_config_srna.yaml. This scheme fills in the sample_name from the conf/sample_table_srna.csv for both the read1 and read2 fasts file paths i.e.:  
   ```
