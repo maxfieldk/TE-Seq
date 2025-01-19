@@ -94,7 +94,7 @@ cp -r workflow/conf_example conf
 ## Configure your analysis
   In order to run this pipeline, a number of configuration files must be edited to reflect your data and analytical decisions. Here I will walk you through the setup needed to execute the AREF and SRNA modules.
   
-  Modify the contents of __conf/sample_table_srna.csv__. You provide two mandatory columns "sample_names" (e.g. Profiferating_1) and "condition" (e.g. Proliferating), and optionally meta-data variables. You can include up to 2 columns which contain the string "batch" (e.g. "batch", and "batch_lane"), which will be used to batch correct the differential expression analysis and provide batch-corrected counts. If you only have one batch variable to model, it must be called "batch", and if you have two, the main batch effect should be titled "batch", and this will be the batch effect shown in various qc plots (but both will be modeled by Deseq2/limma). Make sure sample names do not start with numbers (add an X in front if they do), and that these names do not contain a period "." or dash "-" character (these are excluded by wildcard constraints in several rules).
+  Modify the contents of __conf/sample_table_srna.csv__. You provide two mandatory columns "sample_name" (e.g. Profiferating_1) and "condition" (e.g. Proliferating), and optionally meta-data variables. You can include up to 2 columns which contain the string "batch" (e.g. "batch", and "batch_lane"), which will be used to batch correct the differential expression analysis and provide batch-corrected counts. If you only have one batch variable to model, it must be called "batch", and if you have two, the main batch effect should be titled "batch", and this will be the batch effect shown in various qc plots (but both will be modeled by Deseq2/limma). Make sure sample names do not start with numbers (add an X in front if they do), and that these names do not contain a period "." or dash "-" character (these are excluded by wildcard constraints in several rules).
   If you have added meta-data columns to your sample_table_srna which you would like to be represented as ordered factors in downstream visualizations (e.g. you are studying Alzheimer's samples and want Braak stage I to be followed by stages II, III, etc. in your plots), modify the contents of __conf/sample_table_source.R__ as suggested in the commented out code block of the script.
 
 Modify the contents of __conf/config.yaml__. This file's contents determine the way in which the pipeline is run.
@@ -145,6 +145,23 @@ rm refseq.gtf; rm refseq.sorted.gtf; rm refseq.gff3; rm refseq.sorted.gff3
   ```
 ***
 ***
+### Downsampled HUMAN - Genome: HS1 -  Downsampled genome for a pipeline test-run
+- Clone the TE-Seq_test_data directory into a directory adjacent to the TE-Seq directory and reconfigure file structure to match default config paths
+```
+cd ..
+git clone https://github.com/maxfieldk/TE-Seq_test_rawdata.git
+
+```
+- These files will need to be decompressed
+```
+gunzip mm39.fa.gz; mv mm39.fa reference.ucsc.fa
+gunzip GCF_000001635.27_GRCm39_genomic.gtf.gz; mv GCF_000001635.27_GRCm39_genomic.gtf refseq.gtf
+gunzip GCF_000001635.27_GRCm39_genomic.gff.gz; mv GCF_000001635.27_GRCm39_genomic.gff refseq.gff3
+gunzip mm39.out.gz; mv mm39.out repeatmasker.ucsc.out
+```
+
+***
+***
 ### MOUSE - Genome: MM39
 - Download these files, and place them in a genome directory adjacent to your project directory
 ```
@@ -185,24 +202,24 @@ This pipeline expects chromosome names to be in UCSC format ie. "chr1, chr2, ...
   ```
 ***
 ***
-  I recommend you store these downloaded annotations in a directory one level above your project directory (place genomes_files/ adjacent to the TE-Seq/ directory). Just ensure that the paths are nested within a Singularity bound directory if using the containerized workflow (read on to the segment on "workflow/profile/default/config.yaml" below for more details).  
+  I recommend you store these downloaded annotations in a directory one level above your project directory (place genomes_file/ adjacent to the TE-Seq/ directory). Just ensure that the paths are nested within a Singularity bound directory if using the containerized workflow (read on to the segment on "workflow/profile/default/config.yaml" below for more details).  
 
-Create, in your project directory, the srna/rawdata directories, and move your fastqs there. 
+Create, in the TE-Seq directory a folder called srna_rawdata, and move your fastqs there. 
 ```
-mkdir -p srna/rawdata
+mkdir -p srna_rawdata
 #now move all your fastqs into this directory
 ```
 Make sure your fastq file naming is consistent with the naming scheme set forth in the conf/project_config_srna.yaml. This scheme fills in the sample_name from the conf/sample_table_srna.csv for both the read1 and read2 fasts file paths i.e.:  
   ```
-  source1: "srna/rawdata/{sample_name}_R1.fastq.gz" source2: "srna/rawdata/{sample_name}_R2.fastq.gz"
+  source1: "srna_rawdata/{sample_name}_R1.fastq.gz" source2: "srna_rawdata/{sample_name}_R2.fastq.gz"
   ```
   If rawdata file names do not match with sample names, either you can rename them, or you can provide a mapping from sample_name to rawdata identifier. In this case you would add a column to your conf/sample_table_srna.csv titled something like  "fq_sample_name", and add the rawdata identifiers to this column. Then you would modify the "derive" block in your conf/project_config_srna.yaml as follows, changing {sample_name} to your new column name in conf/sample_table_csv, as done below "fq_sample_name":  
   ```
   derive:
     attributes: [file_path_R1, file_path_R2]
     sources:
-      source1: "srna/rawdata/{fq_sample_name}_R1_001.fastq.gz"
-      source2: "srna/rawdata/{fq_sample_name}_R2_001.fastq.gz"
+      source1: "srna_rawdata/{fq_sample_name}_R1_001.fastq.gz"
+      source2: "srna_rawdata/{fq_sample_name}_R2_001.fastq.gz"
   ```
   peptable_srna.csv, is automatically updated each time you call Snakemake, according to the rules set out in conf/project_config_srna.yaml applied to conf/sample_table.csv. This is how rawdata paths can be generated dynamically.  
   The workflow/profile/default/config.yaml instructs Snakemake how to be run in your compute environment. More information on Snakemake profiles can be found at https://snakemake.readthedocs.io/en/stable/executing/cli.html under the "Profiles" section header.  
