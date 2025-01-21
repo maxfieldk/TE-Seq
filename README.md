@@ -617,5 +617,5 @@ An error of this type, assuming the path indeed exists and you have requisite pe
 
 ---
 ## Attribution
-Pending the publication of our manuscript, if you use this pipeline or any of its component parts, please cite the biorxiv submission: https://www.biorxiv.org/content/10.1101/2024.10.11.617912v1    
+Pending the publication of our manuscript, if you use this pipeline please cite the biorxiv submission: https://www.biorxiv.org/content/10.1101/2024.10.11.617912v1    
 The workflow graphic contains icons which were adapted from work by Zandra Fagernas. It carries a CC-BY 4.0 license.  
