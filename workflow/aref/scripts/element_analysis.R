@@ -203,9 +203,9 @@ if (length(rownames(grs_df)) != 0) {
 
     grs_intact_ss <- grs_fl_ss[grepl("^Intact", mcols(grs_fl_ss)$intactness_req)]
 
-
     # ORF1 AND ORF2 SEQUENCE ANALYSES
     # cannonical locations of RT and EN in ORF2 protein
+
 
     pos <- ORFik::findORFs(grs_intact_ss, startCodon = "ATG", longestORF = TRUE, minimumLength = 333)
     names(pos) <- names(grs_intact_ss)
@@ -215,19 +215,25 @@ if (length(rownames(grs_df)) != 0) {
     for (element in names(grs_intact_ss)) {
         print(element)
         firstorf <- pos[[element]][1]
-        secondorf <- pos[[element]][2]
         firstorfrow <- firstorf %>%
             as.data.frame() %>%
             tibble() %>%
             dplyr::select(start, end) %>%
             mutate(gene_id = element) %>%
             mutate(feature = "ORF1")
-        secondorfrow <- secondorf %>%
-            as.data.frame() %>%
-            tibble() %>%
-            dplyr::select(start, end) %>%
-            mutate(gene_id = element) %>%
-            mutate(feature = "ORF2")
+
+        if (length(pos[[element]]) > 1) {
+            secondorf <- pos[[element]][2]
+            secondorfrow <- secondorf %>%
+                as.data.frame() %>%
+                tibble() %>%
+                dplyr::select(start, end) %>%
+                mutate(gene_id = element) %>%
+                mutate(feature = "ORF2")
+        } else {
+            secondorf <- NULL
+            secondorfrow <- NULL
+        }
         X5UTRrow <- tibble(start = 1, end = firstorfrow$start - 1) %>%
             mutate(gene_id = element) %>%
             mutate(feature = "5UTR")
@@ -237,7 +243,11 @@ if (length(rownames(grs_df)) != 0) {
 
         element_ann_df <- rbind(element_ann_df, X5UTRrow, firstorfrow, secondorfrow, X3UTRrow)
         orf1[[element]] <- grs_intact_ss[[element]][firstorf]
-        orf2[[element]] <- grs_intact_ss[[element]][secondorf]
+        if (length(pos[[element]]) > 1) {
+            orf2[[element]] <- grs_intact_ss[[element]][secondorf]
+        } else {
+            orf2[[element]] <- NULL
+        }
     }
 
     write_delim(element_ann_df %>% dplyr::select(gene_id, start, end, feature), sprintf("%s/intact_l1_anatomy_coordinates.tsv", outputdir), delim = "\t", col_names = TRUE)
@@ -245,14 +255,16 @@ if (length(rownames(grs_df)) != 0) {
     orf1ss <- DNAStringSet(orf1)
     orf2ss <- DNAStringSet(orf2)
 
-    orf1ps <- Biostrings::translate(orf1ss)
+    orf1ps %$%
+        orf1ps <- Biostrings::translate(orf1ss)
     orf2ps <- Biostrings::translate(orf2ss)
 
     writeXStringSet(orf1ps, sprintf("%s/orf1ps.fa", outputdir))
     system(sprintf("echo $(pwd); mafft --auto %s/orf1ps.fa > %s/orf1ps.aln.fa", outputdir, outputdir))
+
     aln <- read.alignment(sprintf("%s/orf1ps.aln.fa", outputdir), format = "fasta")
     d <- dist.alignment(aln, "identity")
-    orf1Tree <- nj(d)
+    orf1Tree <- njs(d)
     png(paste0(sprintf("%s/orf1Tree.png", outputdir)), width = 10, height = 30, units = "in", res = 300)
     plot(orf1Tree, main = "Phylogenetic Tree of ORF1 Sequences")
     dev.off()
