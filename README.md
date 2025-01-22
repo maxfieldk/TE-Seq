@@ -19,6 +19,8 @@ It also aims address concerns pertaining to:
 
 This project derives from my work in the __Sedivy Lab at Brown University__, where we study transposable elements, in particular __LINE1__.
 
+**Thank you for your interest!**
+
 ## Pipeline Overview
   This pipeline conducts an end-to-end analysis of raw sequencing data, implementing state of the art TE-minded computational methods. It produces a comprehensive analyses of repetitive element expression at both the level of an individual repetitive element as well as family groupings of these elements. It consists of 4 modules, "Annotate Referene" (AREF), short-read RNA-Seq (SRNA), long-read RNA-Seq (LRNA), and long-read DNA-Seq (LDNA). LRNA and LDNA remain in active development and will be formally released at a future date. Accordingly, this guide pertains only to the AREF and SRNA modules. 
 
@@ -94,7 +96,7 @@ cp -r workflow/conf_example conf
 ## Configure your analysis
   In order to run this pipeline, a number of configuration files must be edited to reflect your data and analytical decisions. Here I will walk you through the setup needed to execute the AREF and SRNA modules.
   
-  Modify the contents of __conf/sample_table_srna.csv__. You provide two mandatory columns "sample_names" (e.g. Profiferating_1) and "condition" (e.g. Proliferating), and optionally meta-data variables. You can include up to 2 columns which contain the string "batch" (e.g. "batch", and "batch_lane"), which will be used to batch correct the differential expression analysis and provide batch-corrected counts. If you only have one batch variable to model, it must be called "batch", and if you have two, the main batch effect should be titled "batch", and this will be the batch effect shown in various qc plots (but both will be modeled by Deseq2/limma). Make sure sample names do not start with numbers (add an X in front if they do), and that these names do not contain a period "." or dash "-" character (these are excluded by wildcard constraints in several rules).
+  Modify the contents of __conf/sample_table_srna.csv__. You provide two mandatory columns "sample_name" (e.g. Profiferating_1) and "condition" (e.g. Proliferating), and optionally meta-data variables. You can include up to 2 columns which contain the string "batch" (e.g. "batch", and "batch_lane"), which will be used to batch correct the differential expression analysis and provide batch-corrected counts. If you only have one batch variable to model, it must be called "batch", and if you have two, the main batch effect should be titled "batch", and this will be the batch effect shown in various qc plots (but both will be modeled by Deseq2/limma). Make sure sample names do not start with numbers (add an X in front if they do), and that these names do not contain a period "." or dash "-" character (these are excluded by wildcard constraints in several rules).
   If you have added meta-data columns to your sample_table_srna which you would like to be represented as ordered factors in downstream visualizations (e.g. you are studying Alzheimer's samples and want Braak stage I to be followed by stages II, III, etc. in your plots), modify the contents of __conf/sample_table_source.R__ as suggested in the commented out code block of the script.
 
 Modify the contents of __conf/config.yaml__. This file's contents determine the way in which the pipeline is run.
@@ -185,24 +187,33 @@ This pipeline expects chromosome names to be in UCSC format ie. "chr1, chr2, ...
   ```
 ***
 ***
-  I recommend you store these downloaded annotations in a directory one level above your project directory (place genomes_files/ adjacent to the TE-Seq/ directory). Just ensure that the paths are nested within a Singularity bound directory if using the containerized workflow (read on to the segment on "workflow/profile/default/config.yaml" below for more details).  
-
-Create, in your project directory, the srna/rawdata directories, and move your fastqs there. 
+### Downsampled HUMAN - Genome: HS1 -  Downsampled genome for a pipeline test-run
+- Clone the TE-Seq_test_data directory into a directory adjacent to the TE-Seq directory. This directory will contain all genome annotations neede (in the "genome_files" folder), as well as all RNA-seq fastq's needed (in the "test_srna" folder). You will move these subdirectories in later steps. 
 ```
-mkdir -p srna/rawdata
-#now move all your fastqs into this directory
+cd ..
+git clone https://github.com/maxfieldk/TE-Seq_test_rawdata.git
+```
+***
+***
+  I recommend you store these downloaded annotations in a directory one level above your project directory (place genomes_file/ adjacent to the TE-Seq/ directory). Just ensure that the paths are nested within a Singularity bound directory if using the containerized workflow (read on to the segment on "workflow/profile/default/config.yaml" below for more details).  
+
+Create, in the TE-Seq directory a folder called srna_rawdata, and move your fastqs there.
+```
+mkdir -p srna_rawdata
+#now move all your fastqs into this directory.
+#e.g is you are using the te-seq downsampled test data: mv ../TE-Seq_test_rawdata/test_srna/*.fq.gz srna_rawdata
 ```
 Make sure your fastq file naming is consistent with the naming scheme set forth in the conf/project_config_srna.yaml. This scheme fills in the sample_name from the conf/sample_table_srna.csv for both the read1 and read2 fasts file paths i.e.:  
   ```
-  source1: "srna/rawdata/{sample_name}_R1.fastq.gz" source2: "srna/rawdata/{sample_name}_R2.fastq.gz"
+  source1: "srna_rawdata/{sample_name}_R1.fastq.gz" source2: "srna_rawdata/{sample_name}_R2.fastq.gz"
   ```
   If rawdata file names do not match with sample names, either you can rename them, or you can provide a mapping from sample_name to rawdata identifier. In this case you would add a column to your conf/sample_table_srna.csv titled something like  "fq_sample_name", and add the rawdata identifiers to this column. Then you would modify the "derive" block in your conf/project_config_srna.yaml as follows, changing {sample_name} to your new column name in conf/sample_table_csv, as done below "fq_sample_name":  
   ```
   derive:
     attributes: [file_path_R1, file_path_R2]
     sources:
-      source1: "srna/rawdata/{fq_sample_name}_R1_001.fastq.gz"
-      source2: "srna/rawdata/{fq_sample_name}_R2_001.fastq.gz"
+      source1: "srna_rawdata/{fq_sample_name}_R1_001.fastq.gz"
+      source2: "srna_rawdata/{fq_sample_name}_R2_001.fastq.gz"
   ```
   peptable_srna.csv, is automatically updated each time you call Snakemake, according to the rules set out in conf/project_config_srna.yaml applied to conf/sample_table.csv. This is how rawdata paths can be generated dynamically.  
   The workflow/profile/default/config.yaml instructs Snakemake how to be run in your compute environment. More information on Snakemake profiles can be found at https://snakemake.readthedocs.io/en/stable/executing/cli.html under the "Profiles" section header.  
@@ -263,6 +274,332 @@ CTRL F to the only occurrence of "conf$species". You will find two blocks of cod
   If you encounter problems, please create a new issue on the github page.  
 
 
+## Outputs
+
+### Location of reference files:
+
+Reference genome  
+	aref/default/A.REF.fa
+
+Optionally, snp-patched reference genome  
+	aref/default/A.REF.snp_patched.fa
+
+Genome star indeces  
+	aref/default/A.REF_indeces/star_index
+
+Repetitive element annotation/info table  
+  aref/default/A.REF_annotations/A.REF_rmann.csv
+
+Repetitive element clade summary statistics  
+	aref/default/A.REF_annotations/A.REF_rmann_group_summary_stats.tsv
+
+Repetitive element + refseq gtf  
+	aref/default/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf
+
+Repetitive element gtf (bgzipped + tabix indexed for genome browser viewing)  
+  aref/default/A.REF_annotations/A.REF_repeatmasker.complete.gff3.gz  
+  aref/default/A.REF_annotations/A.REF_repeatmasker.complete.gff3.gz.tbi
+
+RefSeq gtf (bgzipped + tabix indexed for genome browser viewing)  
+	aref/default/A.REF_annotations/refseq.complete.gtf.gz
+  aref/default/A.REF_annotations/refseq.complete.gtf.gz.tbi
+
+### Overview of results
+At the highest level, RNA-seq results are partitioned into 6 sub-folders found in the srna/results/agg directory:  
+**deseq** has rather high level summary plots dealing with the total numbers of differentially expressed genes, sample distance heatmaps and principal component analysis (PCA) plots.  
+**repeat_analysis** has most plots detailing repetitive element expression. These include clade grouped expression bar plots, scatter plots of individual element expression, heatmaps, etc.  
+**enrichment_analysis** has plots downstream of gene-set GSEA, including various summaries and heatmaps/scatter plots showing gene-set gene expression.  
+**enrichment_analysis_repeats** has plots downstream of repetitive element GSEA.  
+**bigwig_plots** deals with an analysis of the bigwig files (read mapping to genome, which normalizes only for sequencing depth) split by various RNA/gene/repetitive element types.  
+**tpm_sources** shows sample transcripts per million (TPM) split by various RNA/gene/repetitive element types. 
+
+### Location of main result tables:
+
+Gene/Repetitive Element normalized counts + differential analysis results  
+  srna/results/agg/deseq/resultsdf.tsv  
+The deseq folder has the resultsdf, which has deseq2 normalized counts (and if a batch variable/confounders were specified in the config, these counts are also batch corrected by limma) as well as deseq2 p-values for all contrasts.
+
+Sample size factors (determined by deseq2 to adjust for sequencing depth)  
+  srna/results/agg/deseq/telescope_multi/sizefactors.csv
+
+Untargeted GSEA results (all of msigdb)  
+	srna/results/agg/enrichment_analysis/results_table_unbiased.tsv
+
+GSEA of rte clades results  
+srna/results/agg/enrichment_analysis_repeats/telescope_multi/results_table.tsv
+
+Raw feature_counts unnormalized counts  
+	srna/outs/agg/featurecounts_genes/counts.txt
+
+TPM for multi/unique count modes  
+	srna/outs/agg/tpm/telescope_multi/tpmdf.tsv  
+  srna/outs/agg/tpm/telescope_unique/tpmdf.tsv  
+
+
+### Location of important files:
+
+Multiqc report
+  srna/qc/multiqc/multiqc_report.html
+
+Bam and BigWig files for each sample:
+  srna/outs/{sample_name}/star_output/{sample_name}.sorted.bam  
+  #forward strand signal  
+  srna/outs/{sample_name}/star_output/{sample_name}.F.bw  
+  #reverse strand signal  
+  srna/outs/{sample_name}/star_output/{sample_name}.R.bw  
+
+Snakemake report
+If you have run “snakemake --profile workflow/profile/default –report”
+There will be a file including the majority of all plots (there are too many produced by the pipeline to include all of them in a reasonably sized file..).
+report.html
+This report makes it straightforward to determine which script produced which plot, and it includes all code used to produce plots (click on the (i) icon by a plot for this information)
+
+### Notes on interpreting plots
+
+For results dealing with repetitive elements: results found nested under telescope_multi or telescope_unique are for the multi-mapper or unique-mode. 
+
+Also, for many plot types there are multiple variants plotted. Often these show different subsets of elements (e.g. the “all”, the “rte_length_req”, or the “rte_intactness_req”, which show either all elements in a given group, only full length elements, or only intact elements). Also, some facet by a grouping variable (e.g. “all” or “genic_loc”, which either do not split a plot up by repetitive element relation to genes, or facet the plot according to whether elements are intergenic, intronic, exonic, etc.). Many plots come in log and linear scales.
+
+Repetitive element enrichment analysis
+GSEA is run in three modes, standard (std), positive enrichment mode (pos) and negative enrichment mode (neg), and plots for each of these modes are found nested under  srna/results/agg/enrichment_analysis_repeats/telescope_multi/{mode}
+
+Directory tree of RNA-Seq results
+For reference, this what the directory tree for an analysis with three contrasts (ESEN_vs_PRO, LSEN_vs_ESEN, LSEN_vs_PRO) should look like.
+
+Starting in the srna/results/agg directory:
+```bash
+├── bigwig_plots
+│   ├── genomic_context
+│   └── rte
+├── deseq
+│   ├── telescope_multi
+│   │   ├── condition_ESEN_vs_PRO
+│   │   ├── condition_LSEN_vs_ESEN
+│   │   ├── condition_LSEN_vs_PRO
+│   │   ├── figs
+│   │   ├── genes
+│   │   │   ├── batchRemoved_no
+│   │   │   ├── condition_ESEN_vs_PRO
+│   │   │   ├── condition_LSEN_vs_ESEN
+│   │   │   └── condition_LSEN_vs_PRO
+│   │   └── rtes
+│   │       ├── batchRemoved_no
+│   │       ├── condition_ESEN_vs_PRO
+│   │       ├── condition_LSEN_vs_ESEN
+│   │       └── condition_LSEN_vs_PRO
+│   └── telescope_unique
+│       ├── condition_ESEN_vs_PRO
+│       ├── condition_LSEN_vs_ESEN
+│       ├── condition_LSEN_vs_PRO
+│       ├── genes
+│       │   ├── batchRemoved_no
+│       │   ├── condition_ESEN_vs_PRO
+│       │   ├── condition_LSEN_vs_ESEN
+│       │   └── condition_LSEN_vs_PRO
+│       └── rtes
+│           ├── batchRemoved_no
+│           ├── condition_ESEN_vs_PRO
+│           ├── condition_LSEN_vs_ESEN
+│           └── condition_LSEN_vs_PRO
+├── enrichment_analysis
+│   ├── condition_ESEN_vs_PRO
+│   │   └── gsea
+│   │       ├── C1
+│   │       │   ├── all_genes
+│   │       │   └── core_enrichments
+│   │       ├── C2
+│   │       │   ├── all_genes
+│   │       │   └── core_enrichments
+│   │       ├── C3
+│   │       │   ├── all_genes
+│   │       │   └── core_enrichments
+│   │       ├── C4
+│   │       │   ├── all_genes
+│   │       │   └── core_enrichments
+│   │       ├── C5
+│   │       │   ├── all_genes
+│   │       │   └── core_enrichments
+│   │       ├── C6
+│   │       │   ├── all_genes
+│   │       │   └── core_enrichments
+│   │       ├── C7
+│   │       │   ├── all_genes
+│   │       │   └── core_enrichments
+│   │       ├── C8
+│   │       │   ├── all_genes
+│   │       │   └── core_enrichments
+│   │       ├── H
+│   │       │   ├── all_genes
+│   │       │   └── core_enrichments
+│   │       ├── msigdbC2_CPG_SENMAYO
+│   │       └── msigdbH
+│   ├── condition_LSEN_vs_ESEN
+│   │   └── gsea
+│   │       ├── C1
+│   │       │   ├── all_genes
+│   │       │   └── core_enrichments
+│   │       ├── C2
+│   │       │   ├── all_genes
+│   │       │   └── core_enrichments
+│   │       ├── C3
+│   │       │   ├── all_genes
+│   │       │   └── core_enrichments
+│   │       ├── C4
+│   │       │   ├── all_genes
+│   │       │   └── core_enrichments
+│   │       ├── C5
+│   │       │   ├── all_genes
+│   │       │   └── core_enrichments
+│   │       ├── C6
+│   │       │   ├── all_genes
+│   │       │   └── core_enrichments
+│   │       ├── C7
+│   │       │   ├── all_genes
+│   │       │   └── core_enrichments
+│   │       ├── C8
+│   │       │   ├── all_genes
+│   │       │   └── core_enrichments
+│   │       ├── H
+│   │       │   ├── all_genes
+│   │       │   └── core_enrichments
+│   │       ├── msigdbC2_CPG_SENMAYO
+│   │       └── msigdbH
+│   ├── condition_LSEN_vs_PRO
+│   │   └── gsea
+│   │       ├── C1
+│   │       │   ├── all_genes
+│   │       │   └── core_enrichments
+│   │       ├── C2
+│   │       │   ├── all_genes
+│   │       │   └── core_enrichments
+│   │       ├── C3
+│   │       │   ├── all_genes
+│   │       │   └── core_enrichments
+│   │       ├── C4
+│   │       │   ├── all_genes
+│   │       │   └── core_enrichments
+│   │       ├── C5
+│   │       │   ├── all_genes
+│   │       │   └── core_enrichments
+│   │       ├── C6
+│   │       │   ├── all_genes
+│   │       │   └── core_enrichments
+│   │       ├── C7
+│   │       │   ├── all_genes
+│   │       │   └── core_enrichments
+│   │       ├── C8
+│   │       │   ├── all_genes
+│   │       │   └── core_enrichments
+│   │       ├── H
+│   │       │   ├── all_genes
+│   │       │   └── core_enrichments
+│   │       ├── msigdbC2_CPG_SENMAYO
+│   │       └── msigdbH
+│   ├── targetted
+│   └── unbiased
+├── enrichment_analysis_repeats
+│   ├── telescope_multi
+│   │   ├── neg
+│   │   ├── pos
+│   │   └── std
+│   └── telescope_unique
+│       ├── neg
+│       ├── pos
+│       └── std
+├── repeatanalysis
+│   ├── telescope_multi
+│   │   ├── condition_ESEN_vs_PRO
+│   │   │   ├── log2scatter
+│   │   │   ├── myheatmap
+│   │   │   ├── myheatmap_allsamples
+│   │   │   ├── pvp
+│   │   │   ├── rte_gene_cor
+│   │   │   ├── stripp
+│   │   │   └── volcano
+│   │   ├── condition_LSEN_vs_ESEN
+│   │   │   ├── log2scatter
+│   │   │   ├── myheatmap
+│   │   │   ├── myheatmap_allsamples
+│   │   │   ├── pvp
+│   │   │   ├── rte_gene_cor
+│   │   │   ├── stripp
+│   │   │   └── volcano
+│   │   ├── condition_LSEN_vs_PRO
+│   │   │   ├── log2scatter
+│   │   │   ├── myheatmap
+│   │   │   ├── myheatmap_allsamples
+│   │   │   ├── pvp
+│   │   │   ├── rte_gene_cor
+│   │   │   ├── stripp
+│   │   │   └── volcano
+│   │   └── pan_contrast
+│   │       ├── bar
+│   │       │   ├── Alu
+│   │       │   ├── AluY
+│   │       │   ├── ERV
+│   │       │   ├── HERVK_INT
+│   │       │   ├── HERVK_LTR
+│   │       │   ├── HERVL_INT
+│   │       │   ├── HERVL_LTR
+│   │       │   ├── L1
+│   │       │   ├── L1HS
+│   │       │   ├── L1PA2
+│   │       │   ├── L1PA3
+│   │       │   ├── L1PA4
+│   │       │   ├── L1PA5
+│   │       │   ├── L1PA6
+│   │       │   ├── SVA
+│   │       │   ├── SVA_A
+│   │       │   ├── SVA_B
+│   │       │   ├── SVA_C
+│   │       │   ├── SVA_D
+│   │       │   ├── SVA_E
+│   │       │   └── SVA_F
+│   │       ├── heatmap
+│   │       ├── rte_gene_cor
+│   │       │   └── scatter_gene_te_corr
+│   │       └── venn
+│   └── telescope_unique
+│       ├── condition_ESEN_vs_PRO
+│       │   ├── log2scatter
+│       │   ├── myheatmap
+│       │   ├── myheatmap_allsamples
+│       │   ├── pvp
+│       │   ├── rte_gene_cor
+│       │   ├── stripp
+│       │   └── volcano
+│       ├── condition_LSEN_vs_ESEN
+│       │   ├── log2scatter
+│       │   ├── myheatmap
+│       │   ├── myheatmap_allsamples
+│       │   ├── pvp
+│       │   ├── rte_gene_cor
+│       │   ├── stripp
+│       │   └── volcano
+│       ├── condition_LSEN_vs_PRO
+│       │   ├── log2scatter
+│       │   ├── myheatmap
+│       │   ├── myheatmap_allsamples
+│       │   ├── pvp
+│       │   ├── rte_gene_cor
+│       │   ├── stripp
+│       │   └── volcano
+│       └── pan_contrast
+│           ├── bar
+│           ├── heatmap
+│           ├── rte_gene_cor
+│           └── venn
+└── tpm_sources
+    ├── telescope_multi
+    │   ├── multiple_groups
+    │   └── single_group
+    └── telescope_unique
+        ├── multiple_groups
+        └── single_group
+```
+
+
+
 ## Common Issues
 
 ```
@@ -280,5 +617,5 @@ An error of this type, assuming the path indeed exists and you have requisite pe
 
 ---
 ## Attribution
-  Pending the publication of our manuscript, if you use this pipeline or any of its component parts, please cite this github page. 
-    The workflow graphic contains icons which were adapted from work by Zandra Fagernas. It carries a CC-BY 4.0 license.  
+Pending the publication of our manuscript, if you use this pipeline please cite the biorxiv submission: https://www.biorxiv.org/content/10.1101/2024.10.11.617912v1    
+The workflow graphic contains icons which were adapted from work by Zandra Fagernas. It carries a CC-BY 4.0 license.  
