@@ -308,16 +308,16 @@ tryCatch(
                     names(ss) <- c(row$element_orf_id)
                     orf_ss_all <- c(orf_ss_all, ss)
                 }
-                
+
                 system(sprintf("makeblastdb -in %s -dbtype 'prot'", orf_aa_consensus_path))
 
                 orf_aa_ss_all <- Biostrings::translate(orf_ss_all)
                 orf_aa_ss_all_path <- sprintf("%s/intactness_annotation_workdir/%s_all_orfs_aa.fa", outputdir, element)
-                writeXStringSet(orf_aa_ss_all,orf_aa_ss_all_path)
+                writeXStringSet(orf_aa_ss_all, orf_aa_ss_all_path)
 
                 orf_aa_ss_all_blast_results_path <- sprintf("%s/intactness_annotation_workdir/%s_orf_length_%s_aa_blast_to_consensus_results.tsv", outputdir, element, modal_width)
-                system(sprintf("blastp -db %s -query %s -out %s -outfmt 7",orf_aa_consensus_path, orf_aa_ss_all_path, orf_aa_ss_all_blast_results_path))
-                bres <- read_delim(orf_aa_ss_all_blast_results_path, comment = "#", delim = "\t", col_names = c("qseqid","sseqid",    "pident", "length", "mismatch", "gapopen", "qstart",  "qend", "sstart",  "send", "evalue", "bitscore"))
+                system(sprintf("blastp -db %s -query %s -out %s -outfmt 7", orf_aa_consensus_path, orf_aa_ss_all_path, orf_aa_ss_all_blast_results_path))
+                bres <- read_delim(orf_aa_ss_all_blast_results_path, comment = "#", delim = "\t", col_names = c("qseqid", "sseqid", "pident", "length", "mismatch", "gapopen", "qstart", "qend", "sstart", "send", "evalue", "bitscore"))
                 bres <- bres %>%
                     separate_wider_delim(cols = qseqid, delim = ":", names = c("gene_id", "orf_start")) %>%
                     mutate(gene_orf_id = paste(gene_id, orf_start, delim = ":"))
@@ -414,7 +414,7 @@ tryCatch(
                 partial_orf_passes_mutation_threshold = map_chr(partial_orf_passes_mutation_threshold, ~ paste(.x, collapse = ";"))
             ) %>%
             dplyr::select(gene_id, intactness_req, orf_passes_mutation_threshold, partial_orf_passes_mutation_threshold)
-            },
+    },
     error = function(e) {
         print("no elements annotated for intactness")
         intactness_ann <- rmfragments %>%
@@ -722,7 +722,7 @@ getannotation <- function(to_be_annotated, regions_of_interest, property, name_i
         tibble() %>%
         dplyr::select(gene_id, !!property)
 
-    #now do it in a stranded fashion
+    # now do it in a stranded fashion
     inregions <- to_be_annotated %>% subsetByOverlaps(regions_of_interest, invert = FALSE, ignore.strand = FALSE)
     tryCatch(
         {
@@ -747,7 +747,9 @@ getannotation <- function(to_be_annotated, regions_of_interest, property, name_i
         tibble() %>%
         dplyr::select(gene_id, stranded)
 
-    annot <- full_join(annot_unstranded, annot_stranded) %>% mutate(!!paste0(property, "_orientation") := ifelse(!!sym(property) == name_out, name_out, ifelse(!!sym(property) == stranded, "Sense", "Antisense"))) %>% dplyr::select(-stranded)
+    annot <- full_join(annot_unstranded, annot_stranded) %>%
+        mutate(!!paste0(property, "_orientation") := ifelse(!!sym(property) == name_out, name_out, ifelse(!!sym(property) == stranded, "Sense", "Antisense"))) %>%
+        dplyr::select(-stranded)
     return(annot)
 }
 
@@ -823,47 +825,49 @@ region_annot <- region_annot %>%
         TRUE ~ "Other"
     )) %>%
     mutate(
-    loc_integrative_stranded = case_when(
-        exonic == "Exonic" & exonic_orientation == "Sense" ~ "Exonic_Sense",
-        intronic == "Intronic" & intronic_orientation == "Sense" ~ "Intronic_Sense",
-        coding_tx == "CdgTx" & coding_tx_orientation == "Sense" ~ "CdgTxOther_Sense",
-        noncoding_tx == "NoncdgTx" & noncoding_tx_orientation == "Sense" ~ "NoncdgTx_Sense",
-        exonic == "Exonic" & exonic_orientation == "Antisense" ~ "Exonic_Antisense",
-        intronic == "Intronic" & intronic_orientation == "Antisense" ~ "Intronic_Antisense",
-        coding_tx == "CdgTx" & coding_tx_orientation == "Antisense" ~ "CdgTxOther_Antisense",
-        noncoding_tx == "NoncdgTx" & noncoding_tx_orientation == "Antisense" ~ "NoncdgTx_Antisense",
-        coding_tx_adjacent == "CdgTxAdj" & coding_tx_adjacent_orientation == "Sense" ~ "CdgTxAdj_Sense",
-        noncoding_tx_adjacent == "NoncdgTxAdj" & noncoding_tx_adjacent_orientation == "Sense" ~ "NoncdgTxAdj_Sense",
-        coding_tx_adjacent == "CdgTxAdj" & coding_tx_adjacent_orientation == "Antisense" ~ "CdgTxAdj_Antisense",
-        noncoding_tx_adjacent == "NoncdgTxAdj" & noncoding_tx_adjacent_orientation == "Antisense" ~ "NoncdgTxAdj_Antisense",
-        genic == "Intergenic" ~ "Intergenic",
-        TRUE ~ "Other"
-    )) %>%
+        loc_integrative_stranded = case_when(
+            exonic == "Exonic" & exonic_orientation == "Sense" ~ "Exonic_Sense",
+            intronic == "Intronic" & intronic_orientation == "Sense" ~ "Intronic_Sense",
+            coding_tx == "CdgTx" & coding_tx_orientation == "Sense" ~ "CdgTxOther_Sense",
+            noncoding_tx == "NoncdgTx" & noncoding_tx_orientation == "Sense" ~ "NoncdgTx_Sense",
+            exonic == "Exonic" & exonic_orientation == "Antisense" ~ "Exonic_Antisense",
+            intronic == "Intronic" & intronic_orientation == "Antisense" ~ "Intronic_Antisense",
+            coding_tx == "CdgTx" & coding_tx_orientation == "Antisense" ~ "CdgTxOther_Antisense",
+            noncoding_tx == "NoncdgTx" & noncoding_tx_orientation == "Antisense" ~ "NoncdgTx_Antisense",
+            coding_tx_adjacent == "CdgTxAdj" & coding_tx_adjacent_orientation == "Sense" ~ "CdgTxAdj_Sense",
+            noncoding_tx_adjacent == "NoncdgTxAdj" & noncoding_tx_adjacent_orientation == "Sense" ~ "NoncdgTxAdj_Sense",
+            coding_tx_adjacent == "CdgTxAdj" & coding_tx_adjacent_orientation == "Antisense" ~ "CdgTxAdj_Antisense",
+            noncoding_tx_adjacent == "NoncdgTxAdj" & noncoding_tx_adjacent_orientation == "Antisense" ~ "NoncdgTxAdj_Antisense",
+            genic == "Intergenic" ~ "Intergenic",
+            TRUE ~ "Other"
+        )
+    ) %>%
     mutate(
-    loc_highres_integrative_stranded = case_when(
-        utr5 == "5UTR" & utr5_orientation == "Sense" ~ "UTR_Sense",
-        utr3 == "3UTR" & utr3_orientation == "Sense" ~ "UTR_Sense",
-        exonic == "Exonic" & exonic_orientation == "Sense" ~ "Exonic_Sense",
-        intronic == "Intronic" & intronic_orientation == "Sense" ~ "Intronic_Sense",
-        coding_tx == "CdgTx" & coding_tx_orientation == "Sense" ~ "CdgTxOther_Sense",
-        noncoding_tx == "NoncdgTx" & noncoding_tx_orientation == "Sense" ~ "NoncdgTx_Sense",
-        utr5 == "5UTR" & utr5_orientation == "Antisense" ~ "UTR_Antisense",
-        utr3 == "3UTR" & utr3_orientation == "Antisense" ~ "UTR_Antisense",
-        exonic == "Exonic" & exonic_orientation == "Antisense" ~ "Exonic_Antisense",
-        intronic == "Intronic" & intronic_orientation == "Antisense" ~ "Intronic_Antisense",
-        coding_tx == "CdgTx" & coding_tx_orientation == "Antisense" ~ "CdgTxOther_Antisense",
-        noncoding_tx == "NoncdgTx" & noncoding_tx_orientation == "Antisense" ~ "NoncdgTx_Antisense",
-        coding_tx_downstream == "CdgTxAdjDwn" & coding_tx_downstream_orientation == "Sense" ~ "CdgTxAdjDwn_Sense",
-        noncoding_tx_downstream == "NoncdgTxAdjDwn" & noncoding_tx_downstream_orientation == "Sense" ~ "NoncdgTxAdjDwn_Sense",
-        coding_tx_upstream == "CdgTxAdjUp" & coding_tx_upstream_orientation == "Sense" ~ "CdgTxAdjUp_Sense",
-        noncoding_tx_upstream == "NoncdgTxAdjUp" & noncoding_tx_upstream_orientation == "Sense" ~ "NoncdgTxAdjUp_Sense",
-        coding_tx_downstream == "CdgTxAdjDwn" & coding_tx_downstream_orientation == "Antisense" ~ "CdgTxAdjDwn_Antisense",
-        noncoding_tx_downstream == "NoncdgTxAdjDwn" & noncoding_tx_downstream_orientation == "Antisense" ~ "NoncdgTxAdjDwn_Antisense",
-        coding_tx_upstream == "CdgTxAdjUp" & coding_tx_upstream_orientation == "Antisense" ~ "CdgTxAdjUp_Antisense",
-        noncoding_tx_upstream == "NoncdgTxAdjUp" & noncoding_tx_upstream_orientation == "Antisense" ~ "NoncdgTxAdjUp_Antisense",
-        genic == "Intergenic" ~ "Intergenic",
-        TRUE ~ "Other"
-    )) %>%
+        loc_highres_integrative_stranded = case_when(
+            utr5 == "5UTR" & utr5_orientation == "Sense" ~ "UTR_Sense",
+            utr3 == "3UTR" & utr3_orientation == "Sense" ~ "UTR_Sense",
+            exonic == "Exonic" & exonic_orientation == "Sense" ~ "Exonic_Sense",
+            intronic == "Intronic" & intronic_orientation == "Sense" ~ "Intronic_Sense",
+            coding_tx == "CdgTx" & coding_tx_orientation == "Sense" ~ "CdgTxOther_Sense",
+            noncoding_tx == "NoncdgTx" & noncoding_tx_orientation == "Sense" ~ "NoncdgTx_Sense",
+            utr5 == "5UTR" & utr5_orientation == "Antisense" ~ "UTR_Antisense",
+            utr3 == "3UTR" & utr3_orientation == "Antisense" ~ "UTR_Antisense",
+            exonic == "Exonic" & exonic_orientation == "Antisense" ~ "Exonic_Antisense",
+            intronic == "Intronic" & intronic_orientation == "Antisense" ~ "Intronic_Antisense",
+            coding_tx == "CdgTx" & coding_tx_orientation == "Antisense" ~ "CdgTxOther_Antisense",
+            noncoding_tx == "NoncdgTx" & noncoding_tx_orientation == "Antisense" ~ "NoncdgTx_Antisense",
+            coding_tx_downstream == "CdgTxAdjDwn" & coding_tx_downstream_orientation == "Sense" ~ "CdgTxAdjDwn_Sense",
+            noncoding_tx_downstream == "NoncdgTxAdjDwn" & noncoding_tx_downstream_orientation == "Sense" ~ "NoncdgTxAdjDwn_Sense",
+            coding_tx_upstream == "CdgTxAdjUp" & coding_tx_upstream_orientation == "Sense" ~ "CdgTxAdjUp_Sense",
+            noncoding_tx_upstream == "NoncdgTxAdjUp" & noncoding_tx_upstream_orientation == "Sense" ~ "NoncdgTxAdjUp_Sense",
+            coding_tx_downstream == "CdgTxAdjDwn" & coding_tx_downstream_orientation == "Antisense" ~ "CdgTxAdjDwn_Antisense",
+            noncoding_tx_downstream == "NoncdgTxAdjDwn" & noncoding_tx_downstream_orientation == "Antisense" ~ "NoncdgTxAdjDwn_Antisense",
+            coding_tx_upstream == "CdgTxAdjUp" & coding_tx_upstream_orientation == "Antisense" ~ "CdgTxAdjUp_Antisense",
+            noncoding_tx_upstream == "NoncdgTxAdjUp" & noncoding_tx_upstream_orientation == "Antisense" ~ "NoncdgTxAdjUp_Antisense",
+            genic == "Intergenic" ~ "Intergenic",
+            TRUE ~ "Other"
+        )
+    ) %>%
     mutate(loc_lowres_integrative_stranded = case_when(
         loc_integrative == "Exonic" & exonic_orientation == "Sense" ~ "Genic_Sense",
         loc_integrative == "Intronic" & intronic_orientation == "Sense" ~ "Genic_Sense",
@@ -885,19 +889,32 @@ dist_to_nearest_coding_tx <- distanceToNearest(rmfragmentsgr_properinsertloc, co
     as.data.frame() %>%
     tibble()
 dist_to_nearest_coding_tx_df <- tibble(gene_id = mcols(rmfragmentsgr_properinsertloc[dist_to_nearest_coding_tx$queryHits, ])$gene_id, dist_to_nearest_coding_tx = dist_to_nearest_coding_tx$distance)
-nearest_coding_tx_df <- tibble(gene_id =mcols(rmfragmentsgr_properinsertloc)$gene_id, nearest_coding_tx = mcols(coding_transcripts[nearest(rmfragmentsgr_properinsertloc, coding_transcripts, ignore.strand = TRUE)])$gene_id)
+nearest_indices <- nearest(rmfragmentsgr_properinsertloc, coding_transcripts, ignore.strand = TRUE)
+valid_indices <- !is.na(nearest_indices)
+result <- rep(NA, length(nearest_indices))
+result[valid_indices] <- mcols(coding_transcripts[nearest_indices[valid_indices]])$gene_id
+nearest_coding_tx_df <- tibble(gene_id = mcols(rmfragmentsgr_properinsertloc)$gene_id, nearest_coding_tx = result)
 
 dist_to_nearest_noncoding_tx <- distanceToNearest(rmfragmentsgr_properinsertloc, noncoding_transcripts, ignore.strand = TRUE) %>%
     as.data.frame() %>%
     tibble()
 dist_to_nearest_noncoding_tx_df <- tibble(gene_id = mcols(rmfragmentsgr_properinsertloc[dist_to_nearest_noncoding_tx$queryHits, ])$gene_id, dist_to_nearest_noncoding_tx = dist_to_nearest_noncoding_tx$distance)
-nearest_noncoding_tx_df <- tibble(gene_id =mcols(rmfragmentsgr_properinsertloc)$gene_id, nearest_noncoding_tx = mcols(noncoding_transcripts[nearest(rmfragmentsgr_properinsertloc, noncoding_transcripts, ignore.strand = TRUE)])$gene_id)
+nearest_indices <- nearest(rmfragmentsgr_properinsertloc, noncoding_transcripts, ignore.strand = TRUE)
+valid_indices <- !is.na(nearest_indices)
+result <- rep(NA, length(nearest_indices))
+result[valid_indices] <- mcols(noncoding_transcripts[nearest_indices[valid_indices]])$gene_id
+nearest_noncoding_tx_df <- tibble(gene_id = mcols(rmfragmentsgr_properinsertloc)$gene_id, nearest_noncoding_tx = result)
+
 
 dist_to_nearest_tx <- distanceToNearest(rmfragmentsgr_properinsertloc, transcripts, ignore.strand = TRUE) %>%
     as.data.frame() %>%
     tibble()
 dist_to_nearest_tx_df <- tibble(gene_id = mcols(rmfragmentsgr_properinsertloc[dist_to_nearest_tx$queryHits, ])$gene_id, dist_to_nearest_tx = dist_to_nearest_tx$distance)
-nearest_tx_df <- tibble(gene_id =mcols(rmfragmentsgr_properinsertloc)$gene_id, nearest_tx = mcols(transcripts[nearest(rmfragmentsgr_properinsertloc, transcripts, ignore.strand = TRUE)])$gene_id)
+nearest_indices <- nearest(rmfragmentsgr_properinsertloc, transcripts, ignore.strand = TRUE)
+valid_indices <- !is.na(nearest_indices)
+result <- rep(NA, length(nearest_indices))
+result[valid_indices] <- mcols(transcripts[nearest_indices[valid_indices]])$gene_id
+nearest_tx_df <- tibble(gene_id = mcols(rmfragmentsgr_properinsertloc)$gene_id, nearest_tx = result)
 
 dist_to_nearest_txs_df <- left_join(rmfamilies %>% dplyr::select(gene_id), dist_to_nearest_coding_tx_df) %>%
     left_join(dist_to_nearest_noncoding_tx_df) %>%
@@ -909,7 +926,7 @@ dist_to_nearest_txs_df <- left_join(rmfamilies %>% dplyr::select(gene_id), dist_
 
 
 ########################################################## PULL EVERYTHING TOEGETHER
-length(dist_to_nearest_noncoding_tx) 
+length(dist_to_nearest_noncoding_tx)
 length(dist_to_nearest_coding_tx)
 length(rownames(rmfamilies))
 length(rmfragmentsgr_properinsertloc)
@@ -919,7 +936,7 @@ annots <- rmfamilies %>%
     full_join(req_annot) %>%
     full_join(ltr_viral_status) %>%
     full_join(ltr_proviral_groups) %>%
-    full_join(region_annot %>% rename_at(vars(-gene_id, -loc_integrative, -loc_lowres_integrative,-loc_highres_integrative, -loc_integrative_stranded, -loc_lowres_integrative_stranded, -loc_highres_integrative_stranded), ~ paste0(., "_loc"))) %>%
+    full_join(region_annot %>% rename_at(vars(-gene_id, -loc_integrative, -loc_lowres_integrative, -loc_highres_integrative, -loc_integrative_stranded, -loc_lowres_integrative_stranded, -loc_highres_integrative_stranded), ~ paste0(., "_loc"))) %>%
     full_join(dist_to_nearest_txs_df)
 
 

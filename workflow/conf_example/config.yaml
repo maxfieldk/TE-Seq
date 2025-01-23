@@ -139,7 +139,7 @@ srna:
     - "PRO_normoxic"
     - "DDIS_8w_low_O2"
 
-  contrasts: #follows the syntax: condition_ + level from "levels" + _vs_ + level from "levels"
+  contrasts: #follows the syntax: condition_ + level from "levels" + _vs_ + level from "levels". The second condition is the base of the contrast.
     - "condition_RS_0w_low_O2_vs_PRO_low_O2"
     - "condition_RS_4w_low_O2_vs_PRO_low_O2"
     - "condition_RS_8w_low_O2_vs_PRO_low_O2"

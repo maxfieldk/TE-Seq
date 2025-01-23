@@ -152,7 +152,8 @@ rule dorado:
         cpus_per_task =12,
         slurm_partition="gpu-he",
         mem_mb = 128000,
-        slurm_extra="--time=96:00:00 --prefer=a6000 --gres=gpu:2"
+        runtime = 5760,
+        slurm_extra="'--gres=gpu:2'"
     shell:
         """
 mkdir -p $(dirname {output.calls})
@@ -651,7 +652,7 @@ rule pepper:
     resources:
         cpus_per_task =20,
         runtime = 600,
-        mem_mb = 50000
+        mem_mb = 75000
     container:
         "docker://kishwars/pepper_deepvariant:r0.8"
     shell:	
@@ -861,8 +862,9 @@ tabix {output.hq_snps}
 
 
 rule snpeff_build_db:
+    input:
+        ref = config["ldna"]["reference"]
     params:
-        ref = config["ldna"]["reference"],
         refseq = config["aref"]["ref_refseq_gtf"]
     output:
         outfile = "aref/intermediates/snpeff/db.outfile"
@@ -879,7 +881,7 @@ echo '# Human genome, version hs1
 hs1.genome : Human' >> $configfile
 mkdir -p $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/data/hs1
 cp {params.refseq} $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/data/hs1/genes.gtf
-cp {params.ref} $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/data/hs1/sequences.fa
+cp {input.ref} $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/data/hs1/sequences.fa
 
 java -Xmx60g -jar $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.jar build -gtf22 -v hs1 -noCheckCds -noCheckProtein
 mkdir -p $(dirname {output.outfile})
@@ -1836,7 +1838,7 @@ rule reps_to_reps:
 rule last_train:
     input:
         db="aref/terex/gdb.prj",
-        reads= expand("ldna/intermediates/{agivensample}/fastqs/{agivensample}.fq", agivensample = config["aref"]["samples"][1])
+        reads= expand("ldna/intermediates/{agivensample}/fastqs/{agivensample}.fq",agivensample=[config["aref"]["samples"][1] if len(config["aref"]["samples"]) > 1 else "default_sample"])
     output:
         params="aref/terex/reads.train"
     resources:

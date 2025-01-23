@@ -584,7 +584,7 @@ for (ontology in c("rte_subfamily_limited", "l1_subfamily_limited", "rte_family"
         bind_rows,
         te_gene_matrix_list[grepl(sprintf("_vs_%s", base_level), names(te_gene_matrix_list))]
     )
-    print(te_gene_matrix_all, width = Inf)
+
     cor_df <- te_gene_matrix_all %>%
         group_by(!!sym(ontology), req_integrative, loc_integrative, rte_length_req) %>%
         mutate(groupN = n()) %>%
@@ -1217,7 +1217,8 @@ for (group_var in c("repeat_superfamily", "rte_subfamily", "rte_family", "l1_sub
         group_by(rte_family, rte_subfamily) %>%
         summarise(family_av_pctdiv = mean(family_av_pctdiv)) %>%
         mutate(rte_family = factor(rte_family, levels = c("L1", "Alu", "ERV", "SVA"))) %>%
-        arrange(rte_family, family_av_pctdiv) %$% rte_subfamily %>% unique()
+        arrange(rte_family, family_av_pctdiv) %$% rte_subfamily %>%
+        unique()
     if (confALL$aref$species != "human") {
         subfam_ordering <<- other_ordering
     } else {
