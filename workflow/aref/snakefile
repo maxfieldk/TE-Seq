@@ -59,7 +59,6 @@ def aref_complete_input(wildcards):
             paths.append(expand("aref/{sample_or_ref}_tldr/{sample_or_ref}.table.txt", sample_or_ref = config["aref"]["samples"]))
             
             paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_rte_beds/outfile.txt", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
-            paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_rte_beds/outfile.txt", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
             paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.complete.gtf", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
             paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.gff3", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
             paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.complete.gff3", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))

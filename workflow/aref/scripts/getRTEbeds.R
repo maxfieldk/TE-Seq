@@ -96,7 +96,7 @@ for (ontology in ontologies) {
                 groupframe <- ann %>% filter(!!sym(ontology) == group)
                 if (filter_var != "ALL") {
                     groupframe %$% rte_length_req %>% unique()
-                    groupframe <- groupframe %>% filter(str_detect(!!sym(filter_var), "Intact|FL$|^LTR"))
+                    groupframe <- groupframe %>% filter(!!sym(filter_var) == "Intact" | !!sym(filter_var) == "FL")
                 }
                 if (facet_var != "ALL") {
                     facet_values <- groupframe %>%

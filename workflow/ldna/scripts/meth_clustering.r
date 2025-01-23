@@ -46,7 +46,10 @@ tryCatch(
             r_repeatmasker_annotation = "aref/extended/A.REF_annotations/A.REF_repeatmasker_annotation.csv",
             ref = "aref/extended/A.REF.fa"
         ), env = globalenv())
-        assign("params", list(l13 = conf$l13fasta), env = globalenv())
+        assign("params", list(
+            l13 = conf$l13fasta,
+            mod_code = "m"
+        ), env = globalenv())
         assign("outputs", list(), env = globalenv())
     }
 )
@@ -263,9 +266,18 @@ for (sample in conf$samples) {
         filter(cpgs_detected_per_element > 50) %>%
         heatmap(gene_id, consensus_pos, pctM, cluster_rows = TRUE, cluster_columns = FALSE) %>%
         as_ComplexHeatmap()
-    hms[[sample]] <- p
+    merged %$% consensus_pos %>% unique()
+    num_pos <- as.numeric(as.character(merged$consensus_pos)) %>% unique()
+    annotvec <- c(
+        rep("5UTR", length(num_pos[num_pos <= 909])),
+        rep("Body", length(num_pos[num_pos > 909]))
+    )
+    ha <- HeatmapAnnotation(anatomy = annotvec)
     dir.create(outputdir_meth_clustering, recursive = TRUE)
     mysaveandstore(sprintf("%s/%s_methylation_%s.pdf", outputdir_meth_clustering, sample, subfam), w = 6, h = 6)
+    hms[[sample]] <- p
+    p <- p %v% ha
+    mysaveandstore(sprintf("%s/%s_methylation_%s_with_annot.pdf", outputdir_meth_clustering, sample, subfam), w = 6, h = 6)
 }
 # Generate the expression as a string and parse it
 p <- base::eval(base::parse(text = paste0("hms[['", conf$samples, "']]", collapse = " + ")))

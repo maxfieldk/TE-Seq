@@ -704,24 +704,6 @@ rule merge_dss:
         "scripts/merge_dss.R"
 
 
-
-# #something odd about running python scripts, you need to run in snakelocal mode.
-# rule l1readanalysis:
-#     input:
-#         sortedbams = expand("intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples),
-#         sortedbamindeces = expand("intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
-#     output:
-#         reads_of_interest = 'results/tables/reads_of_interest.tsv'
-#     resources:
-#         cpus_per_task = 10,
-#         mem_mb = 70000,
-#         runtime = 300,
-#         disk_mb = 1000000
-#     conda:
-#         "omics"
-#     shell:
-#         "python /users/mkelsey/data/Nanopore/nanoSnake/DNA/scripts/readanalysisgood.py {output.reads_of_interest} {input.sortedbams}"
-
 rule extractmods:
     input:
         sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
@@ -1039,7 +1021,7 @@ rule pat_fig:
         outfile = "ldna/results/{mod_code}/wgbs/plots/pat_fig.outfile"
         # pat_fig = "ldna/results/wgbs/plots/{region}.pat.pdf"
     resources:
-        runtime = 30,
+        runtime = 100,
         mem_mb = 10000,
         cpus_per_task = 4
     conda: "omics"
@@ -1073,7 +1055,7 @@ rule pat_fig_rtes:
         outfile = "ldna/results/{mod_code}/wgbs/plots/l1hs/l1hs_fl.outfile"
         # pat_fig = "ldna/results/wgbs/plots/{region}.pat.pdf"
     resources:
-        runtime = 30,
+        runtime = 100,
         mem_mb = 10000,
         cpus_per_task = 4
     conda: "omics"
@@ -1106,7 +1088,7 @@ rule pat_fig_rtes_by_sample:
         outfile = "ldna/results/{mod_code}/wgbs/plots/l1hs/by_sample/l1hs_fl_by_sample.outfile"
         # pat_fig = "ldna/results/wgbs/plots/{region}.pat.pdf"
     resources:
-        runtime = 30,
+        runtime = 100,
         mem_mb = 10000,
         cpus_per_task = 4
     conda: "omics"
@@ -1120,8 +1102,9 @@ while read -r line; do
     rte_name_array+=("$(awk '{{print $6}}' <<< "$line")")
 done < <(grep "L1HS" {params.fl_rte})
 
+echo "read lines"
 
-for (( i=1; i<((${{#coords_array[@]}} + 1)); i++ ))
+for (( i=0; i<${{#coords_array[@]}}; i++ ))
 do
 coord=${{coords_array[$i]}}
 rte_name=${{rte_name_array[$i]}}
@@ -1209,7 +1192,7 @@ rule methylartistlocusplot_region_of_interest:
         module_prefix = config["ldna"]["prefix"],
         outputprefix = lambda wildcards: "results/%s/plots/methylartist/locus/loci_of_interest_"%wildcards.mod_code,
     output:
-        "ldna/results/{mod_code}/plots/methylartist/locus/methylartistlocusplot_loci_of_interest.outfile"
+        "ldna/results/{mod_code}/plots/methylartist/locus/methylartistregionplot_loci_of_interest.outfile"
     conda:
         "methylartist2"
     shell:
