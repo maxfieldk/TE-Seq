@@ -255,8 +255,7 @@ if (length(rownames(grs_df)) != 0) {
     orf1ss <- DNAStringSet(orf1)
     orf2ss <- DNAStringSet(orf2)
 
-    orf1ps %$%
-        orf1ps <- Biostrings::translate(orf1ss)
+    orf1ps <- Biostrings::translate(orf1ss)
     orf2ps <- Biostrings::translate(orf2ss)
 
     writeXStringSet(orf1ps, sprintf("%s/orf1ps.fa", outputdir))
