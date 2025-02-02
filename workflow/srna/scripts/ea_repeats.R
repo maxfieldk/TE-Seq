@@ -159,7 +159,7 @@ for (contrast in params[["contrasts"]]) {
                     if (filter_var != "ALL") {
                         genesets <- resultsdf %>%
                             filter(!!sym(ontology) != "Other") %>%
-                            filter(str_detect(!!sym(filter_var), "Intact|FL$|^LTR")) %>%
+                            filter(!!sym(filter_var) == "Intact" | !!sym(filter_var) == "FL") %>%
                             select(!!sym(ontology), gene_id)
                     } else {
                         genesets <- resultsdf %>%
@@ -302,8 +302,10 @@ for (test_type in c("std", "pos", "neg")) {
                 theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
                 coord_equal()
             mysaveandstore(sprintf("%s/%s/gsea_top_rtes_%s_%s_ALLSIGSHOWN.pdf", params[["outputdir"]], test_type, ontology, filter_var), w = 3 + .3 * (length(conf$levels) - 1), h = 3 + .3 * length(sigIDs))
-            
-            all_levels <- resultsdf[,ontology] %>% unlist() %>% unique()
+
+            all_levels <- resultsdf[, ontology] %>%
+                unlist() %>%
+                unique()
             all_levels <- all_levels[!is.na(all_levels)]
             all_levels <- all_levels[!(all_levels == "Other")]
             all_levels_df <- tibble(Description := all_levels)

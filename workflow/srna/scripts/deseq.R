@@ -105,8 +105,10 @@ bounddf1 <- bounddf[bounddf$gene_id != "__no_feature", ]
 gene_cts <- read.delim(inputs$counts)
 str(gene_cts)
 length(gene_cts$gene_id)
-colnames(gene_cts) <- c("gene_id", conf$samples)
-
+colnames(gene_cts) <- colnames(gene_cts) %>%
+    gsub("Geneid", "gene_id", .) %>%
+    gsub("srna.outs.", "", .) %>%
+    gsub(".star_output.*", "", .)
 
 cts <- rbind(gene_cts, as.data.frame(bounddf1 %>% replace(is.na(.), 0)))
 rownames(cts) <- cts$gene_id
