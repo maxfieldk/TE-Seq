@@ -86,7 +86,8 @@ df <- read_delim(inputs[["rte_counts"]][1], comment = "#", col_names = FALSE)
 
 if (counttype == "telescope_multi") {
     bounddf <- tibble(df[, 1]) %>% rename(gene_id = X1)
-    for (path in inputs$rte_counts) {
+    for (sample in conf$samples) {
+        path <- grep(paste0("outs/", sample, "/telescope"), inputs$rte_counts, value = TRUE)
         bounddf <- full_join(bounddf, read_delim(path, comment = "#", col_names = FALSE) %>% dplyr::select(X1, X3) %>% rename(gene_id = X1), by = "gene_id")
     }
     colnames(bounddf) <- c("gene_id", conf$samples)
@@ -94,7 +95,8 @@ if (counttype == "telescope_multi") {
 
 if (counttype == "telescope_unique") {
     bounddf <- tibble(df[, 1]) %>% rename(gene_id = X1)
-    for (path in inputs$rte_counts) {
+    for (sample in conf$samples) {
+        path <- grep(paste0("outs/", sample, "/telescope"), inputs$rte_counts, value = TRUE)
         bounddf <- full_join(bounddf, read_delim(path, comment = "#", col_names = FALSE) %>% dplyr::select(X1, X6) %>% rename(gene_id = X1), by = "gene_id")
     }
     colnames(bounddf) <- c("gene_id", conf$samples)
