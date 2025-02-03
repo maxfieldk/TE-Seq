@@ -515,7 +515,7 @@ dir.create(outputdir, recursive = TRUE, showWarnings = FALSE)
 
 
     plot_group_characteristics <- function(insert_df, group_name) {
-        p <- pass %>%
+        p <- insert_df %>%
             group_by(sample_name, Subfamily) %>%
             summarise(n = n()) %>%
             ungroup() %>%
@@ -608,6 +608,21 @@ for (sample in sample_table$sample_name) {
     }
 }
 
+
+
+sample_table %>%
+    left_join(sample_sequencing_data) %>%
+    dplyr::select(-condition, -nanopore_rawdata_dir) %>%
+    write_delim(sprintf("aref/results/sample_chars.txt"))
+p <- sample_table %>%
+    left_join(sample_sequencing_data) %>%
+    dplyr::select(-condition, -nanopore_rawdata_dir) %>%
+    mutate(across(
+        c(reads_number, N50, bases_number),
+        ~ formatC(as.numeric(.x), format = "e", digits = 2)
+    )) %>%
+    ggtexttable(theme = ttheme("minimal"))
+mysaveandstore(pl = p, sprintf("aref/results/sample_chars.pdf"), 8, 5)
 # load tldr germinline tldr insertions that wind up in reference
 dfs_filtered <- list()
 if (conf$update_ref_with_tldr$per_sample == "yes") {
@@ -733,13 +748,12 @@ names(insert_frames)
 
 imap(insert_frames, ~ analyze_inserts(.x, .y))
 
-insert_frames[["tsd_pass1.1"]] %>% filter(Family != "SVA")
 
-insert_frames <- list(
-    "germline" = germline_insert_df[1:20, ] %>% filter(Family == "ALU")
-)
+# insert_frames <- list(
+#     "germline" = germline_insert_df[1:20, ] %>% filter(Family == "ALU")
+# )
 
-imap(insert_frames, ~ analyze_inserts(.x, .y))
+# imap(insert_frames, ~ analyze_inserts(.x, .y))
 
 
 #### transduction mapping
@@ -772,6 +786,14 @@ curated_elements_path <- sprintf("%s/insert_characteristics/curated_inserts.txt"
 if (file.exists(curated_elements_path)) {
     ce <- read_csv(curated_elements_path, col_names = FALSE)
     curation_df_complete <- tibble(UUID = ce$X1, pass_curation = TRUE)
+
+    for (UUID in curation_df_complete$UUID) {
+        path <- system(sprintf("find aref/results/somatic_insertions/unique_insert_data -name %s", UUID), intern = TRUE)
+        system("mkdir -p aref/results/somatic_insertions/insert_characteristics/curated_elements/insert_data")
+        system(sprintf("cp -r %s aref/results/somatic_insertions/insert_characteristics/curated_elements/insert_data", path))
+        file.exists(path)
+    }
+
 
     if (is.null(dfall$condition)) {
         dfall$condition <- conf$levels
@@ -1117,7 +1139,7 @@ tdf %>% mutate(fraction_genomes_with_a_somatic_insert = n / (bases_number / (2 *
 ### KEEP WORKING HERE - ALSO analyze the tsd_pass_othernumber
 
 
-p <- somatic_filt %>%
+p <- pass %>%
     group_by(sample_name, Subfamily, condition) %>%
     summarise(nins = n()) %>%
     ungroup() %>%
@@ -1145,16 +1167,20 @@ tryCatch(
             group_by(across(grouping_vars)) %>%
             summarise(nins = n()) %>%
             ungroup() %>%
+            full_join(sample_table %>% full_join(sample_sequencing_data)) %>%
+            replace_na(list(nins = 0)) %>%
             mutate(Insert_Type = "Germline")
-        somatic_n <- somatic_filt %>%
+        somatic_n <- pass %>%
             group_by(across(grouping_vars)) %>%
             summarise(nins = n()) %>%
             ungroup() %>%
+            full_join(sample_table %>% full_join(sample_sequencing_data)) %>%
+            replace_na(list(nins = 0)) %>%
             mutate(Insert_Type = "Somatic")
         insert_n <- bind_rows(germline_n, somatic_n)
         p <- insert_n %>% ggplot(aes(x = N50, y = nins, color = sample_name)) +
             geom_point(size = 2) +
-            facet_wrap(~Insert_Type) +
+            facet_wrap(~Insert_Type, scales = "free_y") +
             labs(x = "N50", y = "Number of Insertions") +
             mtclosed +
             scale_samples_unique
@@ -1162,7 +1188,7 @@ tryCatch(
 
         p <- insert_n %>% ggplot(aes(x = reads_number, y = nins, color = sample_name)) +
             geom_point() +
-            facet_wrap(~Insert_Type) +
+            facet_wrap(~Insert_Type, scales = "free_y") +
             labs(x = "Total Reads Count", y = "Number of Insertions") +
             mtclosed +
             scale_samples_unique
@@ -1170,7 +1196,7 @@ tryCatch(
 
         p <- insert_n %>% ggplot(aes(x = bases_number, y = nins, color = sample_name)) +
             geom_point() +
-            facet_wrap(~Insert_Type) +
+            facet_wrap(~Insert_Type, scales = "free_y") +
             labs(x = "Total Bases Count", y = "Number of Insertions") +
             mtclosed +
             scale_samples_unique
@@ -1207,11 +1233,17 @@ tryCatch(
             group_by(across(c(grouping_vars, Subfamily))) %>%
             summarise(nins = n()) %>%
             ungroup() %>%
+            complete(sample_name, Subfamily, fill = list(nins = 0)) %>%
+            dplyr::select(sample_name, Subfamily, nins) %>%
+            full_join(sample_table %>% full_join(sample_sequencing_data)) %>%
             mutate(Insert_Type = "Germline")
-        somatic_n_bysubfam <- somatic_filt %>%
+        somatic_n_bysubfam <- pass %>%
             group_by(across(c(grouping_vars, Subfamily))) %>%
             summarise(nins = n()) %>%
             ungroup() %>%
+            complete(sample_name, Subfamily, fill = list(nins = 0)) %>%
+            dplyr::select(sample_name, Subfamily, nins) %>%
+            full_join(sample_table %>% full_join(sample_sequencing_data)) %>%
             mutate(Insert_Type = "Somatic")
         insert_n_bysubfam <- bind_rows(germline_n_bysubfam, somatic_n_bysubfam)
         for (insertion_type in somatic_n_bysubfam %$% Subfamily %>% unique()) {
@@ -1253,10 +1285,10 @@ x <- tibble(OUT = "")
 write_tsv(x, file = outputs$plots)
 
 
-somatic_filt %>%
+pass %>%
     filter(Subfamily == "L1HS") %>%
     print(width = Inf)
-somatic_filt_out
+pass_out
 # ctrl6
 
 

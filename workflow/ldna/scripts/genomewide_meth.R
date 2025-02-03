@@ -17,7 +17,7 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            dss = sprintf("ldna/intermediates/%s/methylation/%s_CG_m_dss.tsv", sample_table$sample_name, sample_table$sample_name)
+            dss = sprintf("ldna/intermediates/%s/methylation/analysis_default/%s_CG_m_dss.tsv", sample_table$sample_name, sample_table$sample_name)
         ), env = globalenv())
         assign("outputs", list(plots = "ldna/results/plots/genomewide/genomewide_meth_plots.rds"), env = globalenv())
     }
