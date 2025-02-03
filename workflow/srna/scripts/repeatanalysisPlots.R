@@ -1582,6 +1582,9 @@ for (contrast in contrasts) {
                     if (length(rownames(groupframe)) > 2000) {
                         next
                     }
+                    if (length(rownames(groupframe)) == 0) {
+                        next
+                    }
                     eligible_modifiers <- c()
                     for (modifier in modifiers) {
                         values_present <- groupframe %>%
