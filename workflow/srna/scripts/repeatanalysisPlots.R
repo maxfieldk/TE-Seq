@@ -895,7 +895,7 @@ myheatmap <- function(df, facet_var = "ALL", filter_var = "ALL", DEvar = "ALL", 
             df <- df %>% filter(str_detect(!!sym(filter_var), "FL$"))
         }
         if (str_detect(filter_var, "intact")) {
-            df <- df %>% filter(str_detect(!!sym(filter_var), "Intact"))
+            df <- df %>% filter(str_detect(!!sym(filter_var), "^Intact"))
         }
         set_title <- paste0(group, " ", df %>%
             pull(!!sym(filter_var)) %>%
@@ -1009,7 +1009,7 @@ myheatmap_allsamples <- function(df, facet_var = "ALL", filter_var = "ALL", DEva
             df <- df %>% filter(str_detect(!!sym(filter_var), "FL$"))
         }
         if (str_detect(filter_var, "intact")) {
-            df <- df %>% filter(str_detect(!!sym(filter_var), "Intact"))
+            df <- df %>% filter(str_detect(!!sym(filter_var), "^Intact"))
         }
         set_title <- paste0(group, " ", df %>%
             pull(!!sym(filter_var)) %>%

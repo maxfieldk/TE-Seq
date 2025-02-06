@@ -357,7 +357,7 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
                         if (filter_var != "ALL") {
                             elements_of_interest <- rmann %>%
                                 filter(!!sym(ontology) == group) %>%
-                                filter(str_detect(!!sym(filter_var), "Intact|FL$|^LTR"))
+                                filter(str_detect(!!sym(filter_var), "^Intact|FL$|^LTR"))
                         } else {
                             elements_of_interest <- rmann %>%
                                 filter(!!sym(ontology) == group)

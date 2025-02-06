@@ -121,11 +121,25 @@ cnames <- colnames(cts)
 # cts <- cts[rowSums(cts > 0) != 0, ]
 # rounding since genes are not allowed fractional counts
 cts <- cts %>% mutate(across(everything(), ~ as.integer(round(.))))
+
+# ensure batch variables used in linear model have more than one level!
+batch_vars_to_use <- c()
 if (any(grepl("batch", colnames(coldata)))) {
+    for (value in colnames(coldata)[grepl("batch", colnames(coldata))]) {
+        number_unique_vals <- coldata[, value] %>%
+            unique() %>%
+            length()
+        if (number_unique_vals > 1) {
+            batch_vars_to_use <- c(batch_vars_to_use, value)
+        }
+    }
+}
+
+if (length(batch_vars_to_use) > 0) {
     dds <- DESeqDataSetFromMatrix(
         countData = cts,
         colData = coldata,
-        design = formula(paste0("~", paste0(grep("batch", colnames(coldata), value = TRUE), collapse = " + "), " + condition"))
+        design = formula(paste0("~", paste0(batch_vars_to_use, collapse = " + "), " + condition"))
     )
 } else {
     dds <- DESeqDataSetFromMatrix(
