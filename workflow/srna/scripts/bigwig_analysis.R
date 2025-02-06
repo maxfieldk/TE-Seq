@@ -343,9 +343,10 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
                 if ((length(values_present) > 1) | !("Other" %in% values_present)) {
                     eligible_modifiers <- c(eligible_modifiers, modifier)
                 }
-                eligible_filter_modifiers <- c(eligible_modifiers[grepl("_req$", eligible_modifiers)], "ALL")
+                # requiring that elements be ful length / intact - else you get FL and truncated elements of varying lengths merged together - no good
+                eligible_filter_modifiers <- c(eligible_modifiers[grepl("_req$", eligible_modifiers)])
                 eligible_facet_modifiers <- c("ALL")
-                eligible_modifier_combinations <- expand.grid(filter_var = eligible_filter_modifiers, facet_var = eligible_facet_modifiers, stringsAsFactors = FALSE)
+                eligible_modifier_combinations <- expand.grid(filter_var = eligible_filter_modifiers, facet_var = eligible_facet_modifiers, stringsAsFactors = FALSE) %>% dplyr::distinct()
             }
             for (i in seq(1, length(rownames(eligible_modifier_combinations)))) {
                 filter_var <- eligible_modifier_combinations[i, ]$filter_var
@@ -454,7 +455,7 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
                                 mtclosed +
                                 scale_samples +
                                 labs(x = "Position (bp)", y = "Read Density", caption = "Multi")
-                            if (elements_of_interest %$% rte_family %>% unique() == "L1") {
+                            if ((elements_of_interest %$% rte_family %>% unique() == "L1") & ((filter_var == "rte_length_req") | (filter_var == "intactness_req"))) {
                                 p2temp <- p2 + coord_cartesian(xlim = layer_scales(p1)$x$range$range)
                                 p <- p2temp / p1 + plot_layout(heights = c(0.2, 1))
                             } else {
@@ -472,7 +473,7 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
                                 mtclosed +
                                 scale_samples +
                                 labs(x = "Position (bp)", y = "Read Density", caption = "Multi")
-                            if (elements_of_interest %$% rte_family %>% unique() == "L1") {
+                            if ((elements_of_interest %$% rte_family %>% unique() == "L1") & ((filter_var == "rte_length_req") | (filter_var == "intactness_req"))) {
                                 p2temp <- p2 + coord_cartesian(xlim = layer_scales(p1)$x$range$range)
                                 p <- p2temp / p1 + plot_layout(heights = c(0.2, 1))
                             } else {
@@ -486,7 +487,7 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
                                 mtclosed +
                                 scale_conditions +
                                 labs(x = "Position (bp)", y = "Read Density", caption = "Multi")
-                            if (elements_of_interest %$% rte_family %>% unique() == "L1") {
+                            if ((elements_of_interest %$% rte_family %>% unique() == "L1") & ((filter_var == "rte_length_req") | (filter_var == "intactness_req"))) {
                                 p2temp <- p2 + coord_cartesian(xlim = layer_scales(p1)$x$range$range)
                                 p <- p2temp / p1 + plot_layout(heights = c(0.2, 1))
                             } else {
@@ -502,7 +503,7 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
                                 mtclosed +
                                 scale_samples +
                                 labs(x = "Position (bp)", y = "Read Density", caption = "Multi")
-                            if (elements_of_interest %$% rte_family %>% unique() == "L1") {
+                            if ((elements_of_interest %$% rte_family %>% unique() == "L1") & ((filter_var == "rte_length_req") | (filter_var == "intactness_req"))) {
                                 p2temp <- p2 + coord_cartesian(xlim = layer_scales(p1)$x$range$range)
                                 p <- p2temp / p1 + plot_layout(heights = c(0.2, 1))
                             } else {
@@ -520,7 +521,7 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
                                 mtclosed +
                                 scale_samples +
                                 labs(x = "Position (bp)", y = "Read Density", caption = "Multi")
-                            if (elements_of_interest %$% rte_family %>% unique() == "L1") {
+                            if ((elements_of_interest %$% rte_family %>% unique() == "L1") & ((filter_var == "rte_length_req") | (filter_var == "intactness_req"))) {
                                 p2temp <- p2 + coord_cartesian(xlim = layer_scales(p1)$x$range$range)
                                 p <- p2temp / p1 + plot_layout(heights = c(0.2, 1))
                             } else {
@@ -535,7 +536,7 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
                                 mtclosed +
                                 scale_conditions +
                                 labs(x = "Position (bp)", y = "Read Density", caption = "Multi")
-                            if (elements_of_interest %$% rte_family %>% unique() == "L1") {
+                            if ((elements_of_interest %$% rte_family %>% unique() == "L1") & ((filter_var == "rte_length_req") | (filter_var == "intactness_req"))) {
                                 p2temp <- p2 + coord_cartesian(xlim = layer_scales(p1)$x$range$range)
                                 p <- p2temp / p1 + plot_layout(heights = c(0.2, 1))
                             } else {
