@@ -86,7 +86,8 @@ df <- read_delim(inputs[["rte_counts"]][1], comment = "#", col_names = FALSE)
 
 if (counttype == "telescope_multi") {
     bounddf <- tibble(df[, 1]) %>% rename(gene_id = X1)
-    for (path in inputs$rte_counts) {
+    for (sample in conf$samples) {
+        path <- grep(paste0("outs/", sample, "/telescope"), inputs$rte_counts, value = TRUE)
         bounddf <- full_join(bounddf, read_delim(path, comment = "#", col_names = FALSE) %>% dplyr::select(X1, X3) %>% rename(gene_id = X1), by = "gene_id")
     }
     colnames(bounddf) <- c("gene_id", conf$samples)
@@ -94,7 +95,8 @@ if (counttype == "telescope_multi") {
 
 if (counttype == "telescope_unique") {
     bounddf <- tibble(df[, 1]) %>% rename(gene_id = X1)
-    for (path in inputs$rte_counts) {
+    for (sample in conf$samples) {
+        path <- grep(paste0("outs/", sample, "/telescope"), inputs$rte_counts, value = TRUE)
         bounddf <- full_join(bounddf, read_delim(path, comment = "#", col_names = FALSE) %>% dplyr::select(X1, X6) %>% rename(gene_id = X1), by = "gene_id")
     }
     colnames(bounddf) <- c("gene_id", conf$samples)
@@ -119,11 +121,25 @@ cnames <- colnames(cts)
 # cts <- cts[rowSums(cts > 0) != 0, ]
 # rounding since genes are not allowed fractional counts
 cts <- cts %>% mutate(across(everything(), ~ as.integer(round(.))))
+
+# ensure batch variables used in linear model have more than one level!
+batch_vars_to_use <- c()
 if (any(grepl("batch", colnames(coldata)))) {
+    for (value in colnames(coldata)[grepl("batch", colnames(coldata))]) {
+        number_unique_vals <- coldata[, value] %>%
+            unique() %>%
+            length()
+        if (number_unique_vals > 1) {
+            batch_vars_to_use <- c(batch_vars_to_use, value)
+        }
+    }
+}
+
+if (length(batch_vars_to_use) > 0) {
     dds <- DESeqDataSetFromMatrix(
         countData = cts,
         colData = coldata,
-        design = formula(paste0("~", paste0(grep("batch", colnames(coldata), value = TRUE), collapse = " + "), " + condition"))
+        design = formula(paste0("~", paste0(batch_vars_to_use, collapse = " + "), " + condition"))
     )
 } else {
     dds <- DESeqDataSetFromMatrix(
