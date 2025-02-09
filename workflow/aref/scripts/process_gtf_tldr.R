@@ -197,9 +197,6 @@ if (params$tldr_switch == "process_gtf_tldr") {
         filter(seqnames_element_type == family_element_type)
 
     sum(nonrefelementspass %$% seqnames %>% table() > 1)
-
-
-
     contigs_to_keep <- c(refcontigs, nonrefelementspass$seqnames %>% unique() %>% as.character())
     write_delim(as.data.frame(contigs_to_keep), outputs$contigs_to_keep, delim = "\n", col_names = FALSE)
 
@@ -228,12 +225,16 @@ if (params$tldr_switch == "process_gtf_tldr") {
         mutate(dist = abs(center - (end - start) / 2))
 
     rmnonrefkeep_central_element <- a %>%
+        left_join(df %>% dplyr::rename(seqnames = faName) %>% dplyr::select(seqnames, Strand)) %>%
         group_by(seqnames) %>%
         filter(dist == min(dist)) %>%
+        filter(strand == Strand) %>%
         ungroup() %>%
-        dplyr::select(-center, -dist, -seqname_ins_type, -ins_type, -contig_length, -seqnames_element_type, -family_element_type) %>%
+        dplyr::select(-center, dist, -seqname_ins_type, -ins_type, -contig_length, -seqnames_element_type, -family_element_type) %>%
         left_join(df_filtered %>% dplyr::select(faName, UUID), by = c("seqnames" = "faName")) %>%
         dplyr::rename(nonref_UUID = UUID)
+
+
     rmnonref_noncentral_elements <- rmnonref %>%
         anti_join(rmnonrefkeep_central_element) %>%
         mutate(refstatus = "NonCentral")

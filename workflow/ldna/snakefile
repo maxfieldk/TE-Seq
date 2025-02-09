@@ -235,6 +235,77 @@ mkdir -p $(dirname {output})
 touch {output.outfile}
         """
 
+rule extract_l1hs_aln:
+    input:
+        sortedbam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        sortedbamindex = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+    params:
+        regions = "aref/default/A.REF_annotations/A.REF_rte_beds/L1HS_ALL_ALL.bed"
+    output:
+        bam = "ldna/intermediates/{sample}/alignments/consensus_seq_alignments/l1hs_pulled_from_genome_aln_{sample}.bam"
+    resources:
+        cpus_per_task =20,
+        runtime = 900,
+        mem_mb = 80000
+    conda:
+        "omics"
+    shell:
+        """
+mkdir -p $(dirname {output.bam})
+samtools view -b -L {params.regions} {input.sortedbam} | \
+samtools sort -@4 -T {wildcards.sample} -O bam -o {output.bam}
+samtools index -@8 {output.bam}
+samtools stats {output.bam} > {output.bam}.stats.txt 
+samtools idxstat -@6 {output.bam} > {output.bam}.idxstats.txt 
+        """
+rule call_extractl1hsaln:
+    input:
+        expand("ldna/intermediates/{sample}/alignments/consensus_seq_alignments/l1hs_pulled_from_genome_aln_{sample}.bam", sample = samples)
+
+rule extract_l1hs_aln_fastqs:
+    input:
+        bam = "ldna/intermediates/{sample}/alignments/consensus_seq_alignments/l1hs_pulled_from_genome_aln_{sample}.bam"
+    output:
+        fastq = "ldna/intermediates/{sample}/alignments/consensus_seq_alignments/l1hs_pulled_from_genome_aln_{sample}.fq"
+    resources:
+        cpus_per_task =10,
+        threads = 10,
+        runtime = 300,
+        mem_mb = 32000
+    conda: "omics"
+    shell:
+        """
+mkdir -p $(dirname {output})
+samtools fastq -c6 -@8 {input.bam} > {output.fastq}
+        """
+
+
+rule aln_to_l1hs_consensus:
+    input:
+        fastq = "ldna/intermediates/{sample}/alignments/consensus_seq_alignments/l1hs_pulled_from_genome_aln_{sample}.fq",
+    params:
+        reference = "resources/sequences/L1HS_consensus_polyA_stripped.fa"
+    output:
+        bam = "ldna/intermediates/{sample}/alignments/consensus_seq_alignments/l1hs_{sample}.bam"
+    resources:
+        cpus_per_task =20,
+        runtime = 900,
+        mem_mb = 80000
+    conda:
+        "minimap2"
+    shell:
+        """
+mkdir -p $(dirname {output.bam})
+minimap2 -a -x map-ont -2 -t 12  --sam-hit-only --secondary=no {params.reference} {input.fastq} | \
+samtools sort -@4 -T {wildcards.sample} -O bam -o {output.bam}
+samtools index -@8 {output.bam}
+samtools stats {output.bam} > {output.bam}.stats.txt 
+samtools idxstat -@6 {output.bam} > {output.bam}.idxstats.txt 
+        """
+rule call_alnl1hsconsensus:
+    input:
+        expand("ldna/intermediates/{sample}/alignments/consensus_seq_alignments/l1hs_{sample}.bam", sample = samples)
+
 #tag QC
 
 rule mycoplasmaCheck:
@@ -844,8 +915,7 @@ rule bedmethylanalysis_plot:
 rule insertion_analysis:
     params:
         filtered_tldr = lambda wildcards: expand("aref/extended/{sample}.table.kept_in_updated_ref.txt", sample = samples) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/A.REF_tldr/A.REF.table.kept_in_updated_ref.txt",
-        r_annotation_fragmentsjoined = lambda wildcards: expand("aref/extended/{sample}_annotations/{sample}_repeatmasker.gtf.rformatted.fragmentsjoined.csv", sample = samples) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
-        r_repeatmasker_annotation = lambda wildcards: expand("aref/extended/{sample}_annotations/{sample}_repeatmasker_annotation.csv", sample = samples) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF_annotations/A.REF_repeatmasker_annotation.csv"
+        rmann_nonref = lambda wildcards: expand("aref/extended/{sample}_annotations/{sample}_rmann_nonref.csv", sample = samples) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF_annotations/A.REF_repeatmasker_annotation.csv"
     output:
         plots = "ldna/results/insertion_analysis/insertion_analysis.rds",
     conda:
