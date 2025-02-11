@@ -111,8 +111,9 @@ colnames(gene_cts) <- colnames(gene_cts) %>%
     gsub("Geneid", "gene_id", .) %>%
     gsub("srna.outs.", "", .) %>%
     gsub(".star_output.*", "", .)
+gene_cts <- gene_cts %>% dplyr::select(gene_id, conf$samples)
 
-cts <- rbind(gene_cts, as.data.frame(bounddf1 %>% replace(is.na(.), 0)))
+cts <- bind_rows(gene_cts, as.data.frame(bounddf1 %>% replace(is.na(.), 0)))
 rownames(cts) <- cts$gene_id
 cts <- dplyr::select(cts, -gene_id)
 cnames <- colnames(cts)
