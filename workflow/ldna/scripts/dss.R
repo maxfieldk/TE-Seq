@@ -10,8 +10,9 @@ set.seed(123)
 module_name <- "ldna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
 confALL <- configr::read.config(file = "conf/config.yaml")
-sample_table <- read_csv(sprintf("conf/sample_table_%s.csv", conf$prefix))
-sample_table <- sample_table[match(conf$samples, sample_table$sample_name), ]
+source("conf/sample_table_source.R")
+
+
 
 library(DSS)
 library(BiocParallel)
@@ -30,7 +31,7 @@ tryCatch(
     error = function(e) {
         print("not sourced snake variables")
         assign("inputs", list(
-            "data" = sprintf("ldna/intermediates/%s/methylation/%s_CG_m_dss.tsv", sample_table$sample_name, sample_table$sample_name),
+            "data" = sprintf("ldna/intermediates/%s/methylation/analysis_default/%s_CG_m_dss.tsv", sample_table$sample_name, sample_table$sample_name),
             "r_annotation_fragmentsjoined" = "annotations/repeatmasker.gtf.rformatted.fragmentsjoined.csv",
             "r_repeatmasker_annotation" = "annotations/repeatmasker_annotation.csv"
         ), env = globalenv())
@@ -62,53 +63,28 @@ BSobj <- makeBSseqData(sample_dfs, names(sample_dfs))
 mParam <- MulticoreParam(workers = 12, progressbar = TRUE)
 
 conditions <- conf$levels
-condition1samples <- sample_table[sample_table$condition == conditions[1], ]$sample_name
-condition2samples <- sample_table[sample_table$condition == conditions[2], ]$sample_name
-# condition1samples <- sample_table[sample_table$condition == conditions[1], ]$sample_name[1]
-# condition2samples <- sample_table[sample_table$condition == conditions[2], ]$sample_name[1]
-# need to adjust numbering given idiosyncracies of dmltest
-dmlTest <- DMLtest(BSobj, group1 = condition2samples, group2 = condition1samples, smoothing = TRUE)
+condition1samples <- sample_table[sample_table$condition == conditions[1], ]$sample_name %>% as.character()
+condition2samples <- sample_table[sample_table$condition == conditions[2], ]$sample_name %>% as.character()
 
-dmlTestNONAMECHANGE <- dmlTest
-tryCatch(
-    {
-        head(dmlTest)
-        dmls <- callDML(dmlTest)
-        head(dmls)
-        dmlcols <- colnames(dmls)
-        dmlcols1 <- gsub("1", "_ctwo", dmlcols)
-        dmlcols2 <- gsub("2", "_cone", dmlcols1)
-        dmlcols3 <- gsub("two", "2", dmlcols2)
-        dmlcols4 <- gsub("one", "1", dmlcols3)
-        dmlcols5 <- gsub("diff", "diff_c2_minus_c1", dmlcols4)
-        colnames(dmls) <- dmlcols5
-        head(dmls)
-    },
-    error = function(e) {
-        print("no DMLs")
-        dmls <- data.frame()
-    }
-)
 
-tryCatch(
-    {
-        dmrs <- callDMR(dmlTest)
-        dmrs <- as.data.frame(dmrs)
-        head(dmrs)
-        dmrcols <- colnames(dmrs)
-        dmrcols1 <- gsub("1", "_ctwo", dmrcols)
-        dmrcols2 <- gsub("2", "_cone", dmrcols1)
-        dmrcols3 <- gsub("two", "2", dmrcols2)
-        dmrcols4 <- gsub("one", "1", dmrcols3)
-        dmrcols5 <- gsub("diff.Methy", "diff_c2_minus_c1", dmrcols4)
-        colnames(dmrs) <- dmrcols5
-    },
-    error = function(e) {
-        print("no DMRs")
-        dmrs <- data.frame()
-    }
-)
-# save results
+design <- data.frame(sample_table)
+X <- model.matrix(~ condition + sex + age, design)
+
+sampleNames(BSobj)
+DMLfit <- DMLfit.multiFactor(BSobj, design = design, smoothing = TRUE, formula = ~ condition + sex + age)
+colnames(DMLfit$X)
+dmls <- DMLtest.multiFactor(DMLfit, term = "condition")
+dmrs_f1 <- callDMR(dmls, p.threshold = 0.05)
+dmrs_f1$dmr_type <- "t05"
+dmrs_f2 <- callDMR(dmls, p.threshold = 0.05, minCG = 10)
+dmrs_f2$dmr_type <- "t05CG10"
+dmrs_f3 <- callDMR(dmls, p.threshold = 0.01)
+dmrs_f3$dmr_type <- "t01"
+dmrs_f4 <- callDMR(dmls, p.threshold = 0.001)
+dmrs_f4$dmr_type <- "t001"
+
+dmrs <- bind_rows(dmrs_f1, dmrs_f2, dmrs_f3, dmrs_f4, dmrs_f5, dmrs_f6)
+
 options(scipen = 500)
 dir.create(dirname(outputs$dmls), recursive = TRUE, showWarnings = FALSE)
 write_delim(dmls, outputs$dmls_unfiltered, delim = "\t", col_names = TRUE)
@@ -141,15 +117,14 @@ write_delim(dmrs, outputs$dmrs_unfiltered, delim = "\t", col_names = TRUE)
     }
 }
 
+
 dmls <- dmls %>% filter(chr %in% CHROMOSOMESINCLUDEDINANALYSIS)
 dmrs <- dmrs %>% filter(chr %in% CHROMOSOMESINCLUDEDINANALYSIS)
-dmrs <- dmrs %>% mutate(direction = ifelse(diff_c2_minus_c1 > 0, "Hyper", "Hypo"))
+dmrs <- dmrs %>% mutate(direction = ifelse(areaStat > 0, "Hyper", "Hypo"))
 dmrs$direction <- factor(dmrs$direction, levels = c("Hyper", "Hypo"))
 
-dmls <- dmls %>% mutate(direction = ifelse(diff_c2_minus_c1 > 0, "Hyper", "Hypo"))
+dmls <- dmls %>% mutate(direction = ifelse(stat > 0, "Hyper", "Hypo"))
 dmls$direction <- factor(dmls$direction, levels = c("Hyper", "Hypo"))
-
-
 
 
 write_delim(dmls, outputs$dmls, delim = "\t", col_names = TRUE)

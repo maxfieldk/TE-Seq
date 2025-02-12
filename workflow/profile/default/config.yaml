@@ -2,7 +2,6 @@ software-deployment-method:
   - conda
   - apptainer
 singularity-args: '--bind /users/mkelsey/data,/users/jsedivy/data/mkelsey,/oscar/data/jsedivy/mkelsey,/oscar/home/jkreilin/data/vesicle_RNAseq,/users/jsedivy/data/rkalekar/Github_2024/RTE/srna'
-conda-frontend: mamba
 rerun-triggers: mtime
 keep-going: True
 rerun-incomplete: True
@@ -40,7 +39,7 @@ set-resources:
     srna_alignSTAR_SE:
         mem_mb: attempt * 35000
     aref_tldr_aggregate_multiple_samples:
-        mem_mb: attempt * 100000
+        mem_mb: attempt * 125000
         runtime: attempt * 200
     aref_process_gtf_tldr:
         mem_mb: attempt * 35000
@@ -72,4 +71,5 @@ set-resources:
         cpus_per_task: 12
         slurm_partition: "gpu-he"
         mem_mb: 128000
-        slurm_extra: "--time=96:00:00 --prefer=a6000 --gres=gpu:2"
+        runtime: 5760
+        slurm_extra: "'--gres=gpu:2'"

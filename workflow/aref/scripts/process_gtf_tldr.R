@@ -15,6 +15,7 @@ tryCatch(
     {
         inputs <- snakemake@input
         outputs <- snakemake@output
+        params <- snakemake@params
     },
     error = function(e) {
         assign("inputs", list(
@@ -22,6 +23,9 @@ tryCatch(
             ref_cytobands = "aref/default/A.REF_annotations/cytobands.bed",
             tldroutput = "aref/A.REF_tldr/A.REF.table.txt",
             ref = "aref/default/A.REF-pre-ins-filtering.fa"
+        ), env = globalenv())
+        assign("params", list(
+            tldr_switch = "process_gtf"
         ), env = globalenv())
         assign("outputs", list(
             contigs_to_keep = "aref/default/contigs_to_keep.txt",
@@ -143,7 +147,7 @@ rmfragments <- rmfragments %>%
     dplyr::rename(old_id = gene_id) %>%
     dplyr::rename(gene_id = GiesmaID)
 
-if (conf$update_ref_with_tldr$response == "yes") {
+if (params$tldr_switch == "process_gtf_tldr") {
     # now determine which nonref contigs should be kept in the reference
     df <- read_delim(inputs$tldroutput) %>%
         mutate(faName = paste0("NI_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>%
@@ -193,9 +197,6 @@ if (conf$update_ref_with_tldr$response == "yes") {
         filter(seqnames_element_type == family_element_type)
 
     sum(nonrefelementspass %$% seqnames %>% table() > 1)
-
-
-
     contigs_to_keep <- c(refcontigs, nonrefelementspass$seqnames %>% unique() %>% as.character())
     write_delim(as.data.frame(contigs_to_keep), outputs$contigs_to_keep, delim = "\n", col_names = FALSE)
 
@@ -224,12 +225,16 @@ if (conf$update_ref_with_tldr$response == "yes") {
         mutate(dist = abs(center - (end - start) / 2))
 
     rmnonrefkeep_central_element <- a %>%
+        left_join(df %>% dplyr::rename(seqnames = faName) %>% dplyr::select(seqnames, Strand)) %>%
         group_by(seqnames) %>%
         filter(dist == min(dist)) %>%
+        filter(strand == Strand) %>%
         ungroup() %>%
-        dplyr::select(-center, -dist, -seqname_ins_type, -ins_type, -contig_length, -seqnames_element_type, -family_element_type) %>%
+        dplyr::select(-center, dist, -seqname_ins_type, -ins_type, -contig_length, -seqnames_element_type, -family_element_type) %>%
         left_join(df_filtered %>% dplyr::select(faName, UUID), by = c("seqnames" = "faName")) %>%
         dplyr::rename(nonref_UUID = UUID)
+
+
     rmnonref_noncentral_elements <- rmnonref %>%
         anti_join(rmnonrefkeep_central_element) %>%
         mutate(refstatus = "NonCentral")

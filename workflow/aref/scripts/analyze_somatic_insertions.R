@@ -108,6 +108,7 @@ dir.create(outputdir, recursive = TRUE, showWarnings = FALSE)
 
         insert_mean_mapqs <- list()
         insert_supplementary_status <- list()
+        insert_indel_and_clipping_and_mapq_status <- list()
         insert_indel_and_clipping_status <- list()
         insert_status <- list()
         deletion_status <- list()
@@ -142,6 +143,7 @@ dir.create(outputdir, recursive = TRUE, showWarnings = FALSE)
                 insert_supplementary_status[[insert_id]] <- ifelse(all(is.na(read_of_interest$SA)), TRUE, FALSE)
 
                 # insert fails if it was captured in a read which has extensive indels or clipping
+                indelclipmapq <- list()
                 indelclip <- list()
                 insert <- list()
                 insert_fail_reason <- list()
@@ -152,18 +154,20 @@ dir.create(outputdir, recursive = TRUE, showWarnings = FALSE)
                 for (read_index in 1:nrow(read_of_interest)) {
                     read <- read_of_interest[read_index, ]
 
-                    inserts <- str_extract_all(read_of_interest$cigar, "[0-9]+I") %>%
+                    inserts <- str_extract_all(read$cigar, "[0-9]+I") %>%
                         unlist() %>%
                         gsub("I", "", .) %>%
                         as.numeric()
-                    deletions <- str_extract_all(read_of_interest$cigar, "[0-9]+D") %>%
+                    deletions <- str_extract_all(read$cigar, "[0-9]+D") %>%
                         unlist() %>%
                         gsub("D", "", .) %>%
                         as.numeric()
-                    clips <- str_extract_all(read_of_interest$cigar, "([0-9]+S)|([0-9]+H)") %>%
+                    clips <- str_extract_all(read$cigar, "([0-9]+S)|([0-9]+H)") %>%
                         unlist() %>%
                         gsub("S|H", "", .) %>%
                         as.numeric()
+                    mapq <- read$mapq
+                    indelclipmapq[[read_index]] <- ifelse((mapq < 60) | (sum(inserts > 50) > 1) | (sum(deletions > 50) > 0) | (sum(clips > 50) > 0), FALSE, TRUE)
                     indelclip[[read_index]] <- ifelse((sum(inserts > 50) > 1) | (sum(deletions > 50) > 0) | (sum(clips > 50) > 0), FALSE, TRUE)
                     insert[[read_index]] <- ifelse((sum(inserts > 50) > 1), FALSE, TRUE)
                     insert_fail_reason[[read_index]] <- ifelse((sum(inserts > 50) > 1), paste(inserts[inserts > 50], collapse = " "), "pass")
@@ -172,6 +176,7 @@ dir.create(outputdir, recursive = TRUE, showWarnings = FALSE)
                     clip[[read_index]] <- ifelse((sum(clips > 50) > 0), FALSE, TRUE)
                     clip_fail_reason[[read_index]] <- ifelse((sum(clips > 50) > 0), paste(clips[clips > 50], collapse = " "), "pass")
                 }
+                insert_indel_and_clipping_and_mapq_status[[insert_id]] <- any(unlist(indelclipmapq))
                 insert_indel_and_clipping_status[[insert_id]] <- any(unlist(indelclip))
                 insert_status[[insert_id]] <- any(unlist(insert))
                 deletion_status[[insert_id]] <- any(unlist(deletion))
@@ -183,6 +188,7 @@ dir.create(outputdir, recursive = TRUE, showWarnings = FALSE)
         }
         mean_mapq_filter <- tibble(UUID = names(insert_mean_mapqs), insert_mean_mapqs = unname(insert_mean_mapqs) %>% unlist())
         supplementary_alignment_filter <- tibble(UUID = names(insert_supplementary_status), insert_supplementary_status = unname(insert_supplementary_status) %>% map(~ .x[1]) %>% unlist())
+        indel_and_clipping_and_mapq_filter <- tibble(UUID = names(insert_indel_and_clipping_and_mapq_status), insert_indel_and_clipping_and_mapq_status = unname(insert_indel_and_clipping_and_mapq_status) %>% unlist())
         indel_and_clipping_filter <- tibble(UUID = names(insert_indel_and_clipping_status), insert_indel_and_clipping_status = unname(insert_indel_and_clipping_status) %>% unlist())
         insert_status_filter <- tibble(UUID = names(insert_status), insert_status = unname(insert_status) %>% unlist())
         deletion_status_filter <- tibble(UUID = names(deletion_status), deletion_status = unname(deletion_status) %>% unlist())
@@ -194,6 +200,7 @@ dir.create(outputdir, recursive = TRUE, showWarnings = FALSE)
         insertdf <- insertdf %>%
             left_join(mean_mapq_filter) %>%
             left_join(supplementary_alignment_filter) %>%
+            left_join(indel_and_clipping_and_mapq_filter) %>%
             left_join(indel_and_clipping_filter) %>%
             left_join(insert_status_filter) %>%
             left_join(deletion_status_filter) %>%
@@ -515,7 +522,7 @@ dir.create(outputdir, recursive = TRUE, showWarnings = FALSE)
 
 
     plot_group_characteristics <- function(insert_df, group_name) {
-        p <- pass %>%
+        p <- insert_df %>%
             group_by(sample_name, Subfamily) %>%
             summarise(n = n()) %>%
             ungroup() %>%
@@ -564,6 +571,28 @@ dir.create(outputdir, recursive = TRUE, showWarnings = FALSE)
                 mtclosed +
                 labs(title = element_type, x = "Consensus Position")
             mysaveandstore(pl = p, sprintf("%s/insert_characteristics/%s/%s/te_body_distribution.pdf", outputdir, group_name, element_type))
+
+            if (element_type == "AluY") {
+                p <- dftemp %>%
+                    arrange(-EndTE) %>%
+                    mutate(nrow = row_number()) %>%
+                    ggplot() +
+                    geom_segment(aes(x = StartTE, xend = EndTE, y = nrow, yend = nrow)) +
+                    geom_vline(xintercept = 250) +
+                    mtclosed +
+                    labs(title = element_type, x = "Consensus Position")
+                mysaveandstore(pl = p, sprintf("%s/insert_characteristics/%s/%s/te_body_distribution_withfilterguide.pdf", outputdir, group_name, element_type))
+            } else if (element_type == "L1HS") {
+                p <- dftemp %>%
+                    arrange(-EndTE) %>%
+                    mutate(nrow = row_number()) %>%
+                    ggplot() +
+                    geom_segment(aes(x = StartTE, xend = EndTE, y = nrow, yend = nrow)) +
+                    geom_vline(xintercept = 5800) +
+                    mtclosed +
+                    labs(title = element_type, x = "Consensus Position")
+                mysaveandstore(pl = p, sprintf("%s/insert_characteristics/%s/%s/te_body_distribution_withfilterguide.pdf", outputdir, group_name, element_type))
+            }
         }
     }
 }
@@ -608,6 +637,46 @@ for (sample in sample_table$sample_name) {
     }
 }
 
+
+
+sample_table %>%
+    left_join(sample_sequencing_data) %>%
+    dplyr::select(-condition, -nanopore_rawdata_dir) %>%
+    mutate(coverage = bases_number / (3.1 * 10**9)) %>%
+    write_delim(sprintf("aref/results/sample_chars.txt"))
+p <- sample_table %>%
+    left_join(sample_sequencing_data) %>%
+    dplyr::select(-condition, -nanopore_rawdata_dir) %>%
+    mutate(coverage = signif(bases_number / (3.1 * 10**9), 3)) %>%
+    mutate(across(
+        c(reads_number, N50, bases_number),
+        ~ formatC(as.numeric(.x), format = "e", digits = 2)
+    )) %>%
+    ggtexttable(theme = ttheme("minimal"))
+mysaveandstore(pl = p, sprintf("aref/results/sample_chars.pdf"), 8, 5)
+p <- sample_table %>%
+    left_join(sample_sequencing_data) %>%
+    dplyr::select(-nanopore_rawdata_dir) %>%
+    group_by(condition) %>%
+    summarise(mean_bases = mean(bases_number), mean_N50 = mean(N50), mean_reads = mean(reads_number)) %>%
+    mutate(mean_coverage = signif(mean_bases / (3.1 * 10**9), 3)) %>%
+    mutate(across(
+        c(mean_bases, mean_reads, mean_N50),
+        ~ formatC(as.numeric(.x), format = "e", digits = 2)
+    )) %>%
+    ggtexttable(theme = ttheme("minimal"))
+mysaveandstore(pl = p, sprintf("aref/results/sample_chars_grouped_means.pdf"), 6, 3)
+p <- sample_table %>%
+    left_join(sample_sequencing_data) %>%
+    dplyr::select(-nanopore_rawdata_dir) %>%
+    summarise(mean_bases = mean(bases_number), mean_N50 = mean(N50), mean_reads = mean(reads_number)) %>%
+    mutate(mean_coverage = signif(mean_bases / (3.1 * 10**9), 3)) %>%
+    mutate(across(
+        c(mean_bases, mean_reads, mean_N50),
+        ~ formatC(as.numeric(.x), format = "e", digits = 2)
+    )) %>%
+    ggtexttable(theme = ttheme("minimal"))
+mysaveandstore(pl = p, sprintf("aref/results/sample_chars_means.pdf"), 6, 3)
 # load tldr germinline tldr insertions that wind up in reference
 dfs_filtered <- list()
 if (conf$update_ref_with_tldr$per_sample == "yes") {
@@ -665,8 +734,20 @@ somatic_naught <- dfall %>%
     filter(SpanReads < 6) %>%
     mutate(TSD_OK = ifelse(is.na(TSD), FALSE, ifelse(nchar(TSD) < 21, TRUE, FALSE))) %>%
     # binomial probability that we observe this few reads were it a heterozygous insert
+    mutate(prob_fp = ifelse(UsedReads > as.numeric(emptyreadsnum), 1, pbinom(q = UsedReads, size = UsedReads + as.numeric(emptyreadsnum), prob = 0.5))) %>%
+    filter(prob_fp < 0.001) %>%
+    filter(is.na(NonRef)) %>%
+    relocate(prob_fp, UsedReads, emptyreadsnum)
+
+dfall %>%
+    filter(Filter == "PASS") %>%
+    filter(!is.na(EmptyReads)) %>%
+    rowwise() %>%
+    mutate(emptyreadsnum = sum(as.numeric(gsub("\\|", "", unlist(str_extract_all(EmptyReads, pattern = "\\|[0-9]+")))))) %>%
+    ungroup() %>%
+    mutate(sample_name = gsub("\\..*", "", str_extract(SampleReads, paste(conf$samples, collapse = "|")))) %>%
     mutate(prob_fp = ifelse(UsedReads > as.numeric(emptyreadsnum), 1, dbinom(x = UsedReads, size = UsedReads + as.numeric(emptyreadsnum), prob = 0.5))) %>%
-    filter(prob_fp < 0.01) %>%
+    filter(prob_fp < 0.001) %>%
     relocate(prob_fp, UsedReads, emptyreadsnum)
 
 somatic_alpha <- dfall %>%
@@ -683,7 +764,7 @@ somatic_alpha <- dfall %>%
     mutate(TSD_OK = ifelse(nchar(TSD) < 21, TRUE, FALSE)) %>%
     # binomial probability that we observe this few reads were it a heterozygous insert
     mutate(prob_fp = ifelse(UsedReads > as.numeric(emptyreadsnum), 1, dbinom(x = UsedReads, size = UsedReads + as.numeric(emptyreadsnum), prob = 0.5))) %>%
-    filter(prob_fp < 0.01) %>%
+    filter(prob_fp < 0.001) %>%
     relocate(prob_fp, UsedReads, emptyreadsnum)
 
 somatic_alpha %>%
@@ -703,42 +784,88 @@ somatic_alpha_annotated %$% insert_indel_and_clipping_status %>% table()
 somatic_alpha_annotated %$% insert_status %>% table()
 somatic_alpha_annotated %$% deletion_status %>% table()
 somatic_alpha_annotated %$% clip_status %>% table()
-somatic_alpha_annotated %$% inrepregion
+somatic_alpha_annotated %$% inrepregion %>% table()
 
-somatic_mappable <- somatic_alpha_annotated %>% filter(k50_mappable == TRUE)
-somatic_mappable_readfiltered <- somatic_mappable %>%
-    filter(insert_mean_mapqs > 55) %>%
+
+somatic_alpha_annotated %$% inrepregion %>% table()
+
+
+
+somatic_mappable %$% inrepregion %>% table()
+somatic_mappable_less_stringent %$% inrepregion %>% table()
+
+somatic_readfiltered <- somatic_alpha_annotated %>%
     filter(insert_supplementary_status == TRUE) %>%
-    filter(insert_indel_and_clipping_status == TRUE)
-somatic_mappable_readfiltered_teendfiltered <- somatic_mappable_readfiltered %>%
-    filter(EndTE >= endte_manual_filter | is.na(endte_manual_filter))
+    filter(insert_indel_and_clipping_and_mapq_status == TRUE)
 
-sdf <- somatic_mappable_readfiltered_teendfiltered
+somatic_readfiltered_teendfiltered <- somatic_readfiltered %>%
+    filter(EndTE >= endte_manual_filter | is.na(endte_manual_filter)) %>%
+    filter(TEMatch >= 90)
 
+somatic_readfiltered_l1hs_extended <- somatic_readfiltered %>%
+    filter(EndTE >= 5600 & EndTE < 5800) %>%
+    filter(TEMatch >= 90)
+
+somatic_mappable_readfiltered_teendfiltered <- somatic_readfiltered_teendfiltered %>%
+    filter(is.na(NonRef)) %>%
+    filter(insert_mean_mapqs > 55) %>%
+    filter(k50_mappable == TRUE) %>%
+    mutate(mappability_stringency = "high")
+somatic_mappable_less_stringentreadfiltered_teendfiltered <- somatic_readfiltered_teendfiltered %>%
+    filter(is.na(NonRef)) %>%
+    filter((insert_mean_mapqs > 40 & insert_mean_mapqs <= 55) | (k50_mappable == FALSE & insert_mean_mapqs > 40)) %>%
+    mutate(mappability_stringency = "medium")
+
+
+somatic_mappable_readfiltered_teendfiltered_l1hs_extended <- somatic_readfiltered_l1hs_extended %>%
+    filter(is.na(NonRef)) %>%
+    filter(insert_mean_mapqs > 55) %>%
+    filter(k50_mappable == TRUE) %>%
+    mutate(mappability_stringency = "high")
+somatic_mappable_less_stringentreadfiltered_teendfiltered_l1hs_extended <- somatic_readfiltered_l1hs_extended %>%
+    filter(is.na(NonRef)) %>%
+    filter((insert_mean_mapqs > 40 & insert_mean_mapqs <= 55) | (k50_mappable == FALSE & insert_mean_mapqs > 40)) %>%
+    mutate(mappability_stringency = "medium")
+
+sdf <- rbind(somatic_mappable_readfiltered_teendfiltered, somatic_mappable_less_stringentreadfiltered_teendfiltered)
+sdf_l1hs_extended <- rbind(somatic_mappable_readfiltered_teendfiltered_l1hs_extended, somatic_mappable_less_stringentreadfiltered_teendfiltered_l1hs_extended)
+
+
+sdf %$% inrepregion %>% table()
+sdf_l1hs_extended %$% inrepregion %>% table()
 
 plot_group_characteristics(somatic_naught, "no_filter")
 plot_group_characteristics(somatic_alpha, "has_tsd")
-plot_group_characteristics(somatic_mappable, "has_tsd_is_mappable")
-plot_group_characteristics(somatic_mappable_readfiltered, "has_tsd_is_mappable_readfiltered")
+plot_group_characteristics(somatic_readfiltered, "has_tsd_is_readfiltered")
+plot_group_characteristics(somatic_readfiltered_teendfiltered, "has_tsd_is_readfiltered_teendfiltered")
 plot_group_characteristics(somatic_mappable_readfiltered_teendfiltered, "has_tsd_is_mappable_readfiltered_teendfiltered")
+plot_group_characteristics(somatic_mappable_less_stringentreadfiltered_teendfiltered, "has_tsd_is_mappablelowerstringency_readfiltered_teendfiltered")
+plot_group_characteristics(somatic_mappable_readfiltered_teendfiltered_l1hs_extended, "has_tsd_is_mappable_readfiltered_teendfiltered_l1hs_extended")
+plot_group_characteristics(somatic_mappable_less_stringentreadfiltered_teendfiltered_l1hs_extended, "has_tsd_is_mappablelowerstringency_readfiltered_teendfiltered_l1hs_extended")
 
 
 
 insert_frames <- sdf %>%
     mutate(tsd_filter = ifelse(TSD_OK, "tsd_pass", "tsd_fail")) %>%
-    mutate(sup_read_combination = paste0(tsd_filter, "_", SpanReads, ".", UsedReads)) %>%
+    mutate(sup_read_combination = paste0(mappability_stringency, "_", tsd_filter, "_", SpanReads, ".", UsedReads)) %>%
     split(.$sup_read_combination)
 names(insert_frames)
 
 imap(insert_frames, ~ analyze_inserts(.x, .y))
 
-insert_frames[["tsd_pass1.1"]] %>% filter(Family != "SVA")
+insert_frames_l1hs_extended <- sdf_l1hs_extended %>%
+    mutate(tsd_filter = ifelse(TSD_OK, "tsd_pass", "tsd_fail")) %>%
+    mutate(sup_read_combination = paste0("l1hs_extended", "_", mappability_stringency, "_", tsd_filter, "_", SpanReads, ".", UsedReads)) %>%
+    split(.$sup_read_combination)
+names(insert_frames_l1hs_extended)
 
-insert_frames <- list(
-    "germline" = germline_insert_df[1:20, ] %>% filter(Family == "ALU")
-)
+imap(insert_frames_l1hs_extended, ~ analyze_inserts(.x, .y))
 
-imap(insert_frames, ~ analyze_inserts(.x, .y))
+# insert_frames <- list(
+#     "germline" = germline_insert_df[1:20, ] %>% filter(Family == "ALU")
+# )
+
+# imap(insert_frames, ~ analyze_inserts(.x, .y))
 
 
 #### transduction mapping
@@ -767,22 +894,107 @@ write_csv(transductions_df %>% filter(adjacent == TRUE), sprintf("%s/promising_t
 
 # NOW WITH ALL THIS DATA PAUSE - MANUALLY INSPECT EACH PUTATIVE INSERT, AND WRITE UUIDS OF PASSING ELEMENTS INTO THE CURATED_ELEMENTS_PATH FILE BELOW
 # all elements that passed scrutiny:
-curated_elements_path <- sprintf("%s/curated_inserts.txt", outputdir)
+curated_elements_path <- sprintf("%s/insert_characteristics/curated_inserts.txt", outputdir)
 if (file.exists(curated_elements_path)) {
     ce <- read_csv(curated_elements_path, col_names = FALSE)
     curation_df_complete <- tibble(UUID = ce$X1, pass_curation = TRUE)
 
-    if (is.null(sdf$condition)) {
-        sdf$condition <- conf$levels
+    for (UUID in curation_df_complete$UUID) {
+        path <- system(sprintf("find aref/results/somatic_insertions/unique_insert_data -name %s", UUID), intern = TRUE)
+        system("mkdir -p aref/results/somatic_insertions/insert_characteristics/curated_elements/insert_data")
+        system(sprintf("cp -r %s aref/results/somatic_insertions/insert_characteristics/curated_elements/insert_data", path))
+        file.exists(path)
     }
-    pass <- sdf %>%
+
+
+    if (is.null(dfall$condition)) {
+        dfall$condition <- conf$levels
+    }
+    pass <- somatic_alpha_annotated %>%
         left_join(curation_df_complete) %>%
         filter(pass_curation == TRUE) %>%
-        mutate(sample_name = ordered(sample_name, levels = conf$samples)) %>%
+        mutate(sample_name = factor(sample_name, levels = conf$samples)) %>%
         mutate(condition = factor(condition, levels = conf$levels))
+
+    pass %>% arrange(UUID)
 
     group_name <- "curated_elements"
     plot_group_characteristics(pass, group_name)
+    library(ggrepel)
+
+    pf <- pass %>%
+        group_by(sample_name, condition, apoe, sex, age, Subfamily) %>%
+        summarise(n = n()) %>%
+        full_join(sample_table) %>%
+        mutate(n = case_when(is.na(n) ~ 0, TRUE ~ n)) %>%
+        ungroup()
+    p <- pass %>%
+        group_by(sample_name, condition, apoe, sex, age) %>%
+        summarise(n = n()) %>%
+        full_join(sample_table) %>%
+        mutate(n = case_when(is.na(n) ~ 0, TRUE ~ n)) %>%
+        ungroup() %>%
+        mutate(sample_name = fct_reorder(paste0(sample_name, "_", age), age)) %>%
+        ggplot(aes(y = sample_name, x = n, color = condition, shape = sex)) +
+        geom_segment(aes(x = 0, xend = n, yend = sample_name), color = "green") +
+        geom_point(size = 3) +
+        scale_conditions +
+        # geom_vline(xintercept = pf %>% filter(condition == "AD") %$% n %>% mean(), color = "blue", linetype = "dashed") +
+        # geom_vline(xintercept = pf %>% filter(condition == "CTRL") %$% n %>% mean(), color = "grey", linetype = "dashed") +
+        geom_text_repel(aes(label = apoe)) +
+        # new_scale_fill() +
+        # geom_tile(aes(x = -1, fill = sex), width = 2) + # Add metadata strip
+        scale_conditions +
+        mtopen
+    library(broom)
+    stats <- summary(lm(n ~ condition + sex + age, pf)) %>% tidy()
+    mysaveandstore(pl = p, sprintf("%s/insert_characteristics/%s/point_char.pdf", outputdir, group_name), 5, 4, sf = stats)
+
+    p <- pass %>%
+        group_by(sample_name, condition, apoe, sex, age) %>%
+        summarise(n = n()) %>%
+        full_join(sample_table) %>%
+        mutate(n = case_when(is.na(n) ~ 0, TRUE ~ n)) %>%
+        ungroup() %>%
+        mutate(sample_name = fct_reorder(paste0(sample_name, "_", age), age)) %>%
+        ggplot(aes(x = condition, y = n)) +
+        geom_boxplot(aes(color = condition)) +
+        scale_conditions +
+        geom_point(size = 3) +
+        mtopen
+    mysaveandstore(pl = p, sprintf("%s/insert_characteristics/%s/point_boxplot_char.pdf", outputdir, group_name), 5, 4, sf = stats)
+
+
+    pf <- pass %>%
+        group_by(sample_name, condition, apoe, sex, age, Subfamily) %>%
+        summarise(n = n()) %>%
+        full_join(sample_table %>% crossing(Subfamily = c("L1HS", "AluY"))) %>%
+        mutate(n = case_when(is.na(n) ~ 0, TRUE ~ n)) %>%
+        ungroup()
+    p <- pf %>%
+        mutate(sample_name = fct_reorder(paste0(sample_name, "_", age), age)) %>%
+        ggplot(aes(y = sample_name, x = n, color = condition, shape = sex)) +
+        geom_segment(aes(x = 0, xend = n, yend = sample_name), color = "green") +
+        geom_point(size = 3) +
+        scale_conditions +
+        # geom_vline(xintercept = pf %>% filter(condition == "AD") %$% n %>% mean(), color = "blue", linetype = "dashed") +
+        # geom_vline(xintercept = pf %>% filter(condition == "CTRL") %$% n %>% mean(), color = "grey", linetype = "dashed") +
+        geom_text_repel(aes(label = apoe)) +
+        facet_wrap(~Subfamily) +
+        # new_scale_fill() +
+        # geom_tile(aes(x = -1, fill = sex), width = 2) + # Add metadata strip
+        scale_conditions +
+        mtclosed
+    library(broom)
+    statsAlu <- summary(lm(n ~ condition + sex + age, pf %>% filter(Subfamily == "AluY"))) %>%
+        tidy() %>%
+        mutate(Subfamily = "AluY")
+    statsL1 <- summary(lm(n ~ condition + sex + age, pf %>% filter(Subfamily == "L1HS"))) %>%
+        tidy() %>%
+        mutate(Subfamily = "L1HS")
+    stats <- full_join(statsAlu, statsL1)
+    mysaveandstore(pl = p, sprintf("%s/insert_characteristics/%s/point_char_faceted.pdf", outputdir, group_name), 5, 4, sf = stats)
+
     p <- pass %>%
         ggplot(aes(x = sample_name, fill = condition)) +
         geom_bar() +
@@ -868,8 +1080,68 @@ if (file.exists(curated_elements_path)) {
         scale_y_continuous(limits = c(-0.5, NA)) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1))
     mysaveandstore(pl = p, sprintf("%s/insert_characteristics/%s/bar_bases.pdf", outputdir, group_name))
-}
 
+
+
+    pass %>%
+        group_by(Subfamily) %>%
+        summary()
+    library(dplyr)
+    library(tidyr)
+    data <- pass %>%
+        filter(Subfamily == "AluY") %>%
+        dplyr::select(LengthIns, StartTE, EndTE)
+    p <- as.data.frame(sapply(data, summary))
+    df <- as.data.frame(lapply(p, function(x) if (is.numeric(x)) round(x, 0) else x))
+
+    cut_site_df <- read_csv("aref/results/somatic_insertions/insert_characteristics/curated_elements/curated_element_cutsite_region.csv")
+    p <- pass %>%
+        left_join(cut_site_df) %>%
+        mutate(tsd_length = nchar(TSD)) %>%
+        dplyr::select(Subfamily, sample_name, sample_name, seqnames, LengthIns, start, StartTE, EndTE, tsd_length, UsedReads, emptyreadsnum, `cut_site_seq_-3_+7`) %>%
+        dplyr::rename(`Used Reads` = UsedReads) %>%
+        dplyr::rename(`Empty Reads` = emptyreadsnum) %>%
+        arrange(sample_name, LengthIns) %>%
+        ggtexttable(theme = ttheme("minimal"))
+    mysaveandstore(pl = p, sprintf("%s/insert_characteristics/%s/insert_chars.pdf", outputdir, group_name), 12, 5)
+
+    p <- pass %>%
+        left_join(cut_site_df) %>%
+        mutate(tsd_length = nchar(TSD)) %>%
+        dplyr::select(Subfamily, sample_name, seqnames, start, LengthIns, StartTE, EndTE, tsd_length, UsedReads, emptyreadsnum, `cut_site_seq_-3_+7`, TEMatch, insert_mean_mapqs, MedianMapQ) %>%
+        dplyr::rename(`Used Reads` = UsedReads) %>%
+        dplyr::rename(`Empty Reads` = emptyreadsnum) %>%
+        arrange(sample_name, LengthIns) %>%
+        ggtexttable(theme = ttheme("minimal"))
+    mysaveandstore(pl = p, sprintf("%s/insert_characteristics/%s/insert_chars_detailed.pdf", outputdir, group_name), 15, 5)
+
+    p <- pass %>%
+        left_join(cut_site_df) %>%
+        mutate(tsd_length = nchar(TSD)) %>%
+        dplyr::select(UUID, Subfamily, sample_name, LengthIns, StartTE, EndTE, tsd_length, UsedReads, emptyreadsnum, `cut_site_seq_-3_+7`, TEMatch, insert_mean_mapqs, MedianMapQ) %>%
+        dplyr::rename(`Used Reads` = UsedReads) %>%
+        dplyr::rename(`Empty Reads` = emptyreadsnum) %>%
+        arrange(sample_name, LengthIns) %>%
+        ggtexttable(theme = ttheme("minimal"))
+    mysaveandstore(pl = p, sprintf("%s/insert_characteristics/%s/insert_chars_detailed1.pdf", outputdir, group_name), 18, 5)
+    p1 <- pass %>%
+        left_join(cut_site_df) %>%
+        mutate(tsd_length = nchar(TSD)) %>%
+        dplyr::select(Subfamily, LengthIns, StartTE, EndTE, tsd_length) %>%
+        arrange(StartTE) %>%
+        ggtexttable(theme = ttheme("minimal"))
+    mysaveandstore(pl = p1, sprintf("%s/insert_characteristics/%s/insert_chars_1.pdf", outputdir, group_name), 6, 4)
+    p2 <- pass %>%
+        left_join(cut_site_df) %>%
+        mutate(tsd_length = nchar(TSD)) %>%
+        dplyr::select(StartTE, UsedReads, emptyreadsnum, `cut_site_seq_-3_+7`) %>%
+        dplyr::rename(`Used Reads` = UsedReads) %>%
+        dplyr::rename(`Empty Reads` = emptyreadsnum) %>%
+        arrange(StartTE) %>%
+        dplyr::select(-StartTE) %>%
+        ggtexttable(theme = ttheme("minimal"))
+    mysaveandstore(pl = p2, sprintf("%s/insert_characteristics/%s/insert_chars_2.pdf", outputdir, group_name), 6, 4)
+}
 tdf <- pass %>%
     group_by(sample_name) %>%
     summarise(n = n()) %>%
@@ -1015,7 +1287,7 @@ tdf %>% mutate(fraction_genomes_with_a_somatic_insert = n / (bases_number / (2 *
 ### KEEP WORKING HERE - ALSO analyze the tsd_pass_othernumber
 
 
-p <- somatic_filt %>%
+p <- pass %>%
     group_by(sample_name, Subfamily, condition) %>%
     summarise(nins = n()) %>%
     ungroup() %>%
@@ -1043,16 +1315,20 @@ tryCatch(
             group_by(across(grouping_vars)) %>%
             summarise(nins = n()) %>%
             ungroup() %>%
+            full_join(sample_table %>% full_join(sample_sequencing_data)) %>%
+            replace_na(list(nins = 0)) %>%
             mutate(Insert_Type = "Germline")
-        somatic_n <- somatic_filt %>%
+        somatic_n <- pass %>%
             group_by(across(grouping_vars)) %>%
             summarise(nins = n()) %>%
             ungroup() %>%
+            full_join(sample_table %>% full_join(sample_sequencing_data)) %>%
+            replace_na(list(nins = 0)) %>%
             mutate(Insert_Type = "Somatic")
         insert_n <- bind_rows(germline_n, somatic_n)
         p <- insert_n %>% ggplot(aes(x = N50, y = nins, color = sample_name)) +
             geom_point(size = 2) +
-            facet_wrap(~Insert_Type) +
+            facet_wrap(~Insert_Type, scales = "free_y") +
             labs(x = "N50", y = "Number of Insertions") +
             mtclosed +
             scale_samples_unique
@@ -1060,7 +1336,7 @@ tryCatch(
 
         p <- insert_n %>% ggplot(aes(x = reads_number, y = nins, color = sample_name)) +
             geom_point() +
-            facet_wrap(~Insert_Type) +
+            facet_wrap(~Insert_Type, scales = "free_y") +
             labs(x = "Total Reads Count", y = "Number of Insertions") +
             mtclosed +
             scale_samples_unique
@@ -1068,7 +1344,7 @@ tryCatch(
 
         p <- insert_n %>% ggplot(aes(x = bases_number, y = nins, color = sample_name)) +
             geom_point() +
-            facet_wrap(~Insert_Type) +
+            facet_wrap(~Insert_Type, scales = "free_y") +
             labs(x = "Total Bases Count", y = "Number of Insertions") +
             mtclosed +
             scale_samples_unique
@@ -1105,11 +1381,17 @@ tryCatch(
             group_by(across(c(grouping_vars, Subfamily))) %>%
             summarise(nins = n()) %>%
             ungroup() %>%
+            complete(sample_name, Subfamily, fill = list(nins = 0)) %>%
+            dplyr::select(sample_name, Subfamily, nins) %>%
+            full_join(sample_table %>% full_join(sample_sequencing_data)) %>%
             mutate(Insert_Type = "Germline")
-        somatic_n_bysubfam <- somatic_filt %>%
+        somatic_n_bysubfam <- pass %>%
             group_by(across(c(grouping_vars, Subfamily))) %>%
             summarise(nins = n()) %>%
             ungroup() %>%
+            complete(sample_name, Subfamily, fill = list(nins = 0)) %>%
+            dplyr::select(sample_name, Subfamily, nins) %>%
+            full_join(sample_table %>% full_join(sample_sequencing_data)) %>%
             mutate(Insert_Type = "Somatic")
         insert_n_bysubfam <- bind_rows(germline_n_bysubfam, somatic_n_bysubfam)
         for (insertion_type in somatic_n_bysubfam %$% Subfamily %>% unique()) {
@@ -1151,10 +1433,10 @@ x <- tibble(OUT = "")
 write_tsv(x, file = outputs$plots)
 
 
-somatic_filt %>%
+pass %>%
     filter(Subfamily == "L1HS") %>%
     print(width = Inf)
-somatic_filt_out
+pass_out
 # ctrl6
 
 
@@ -1182,3 +1464,47 @@ somatic_filt_out
 #         unname()
 #     germline_insert_characteristics <- germline_insert_characteristics %>% add_row(germline_tsd_95 = germline_tsd_95, germline_trsd3_95 = germline_trsd3_95, germline_trsd5_95 = germline_trsd5_95, germline_endte_05 = germline_endte_05, Subfamily = element_type)
 # }
+
+
+
+rmann_nr_list <- list()
+for (sample in sample_table$sample_name) {
+    rmann_nr_temp <- read_csv(sprintf("aref/extended/%s_annotations/%s_rmann_nonref.csv", sample, sample))
+    rmann_nr_temp$sample_name <- sample
+    rmann_nr_list[[sample]] <- rmann_nr_temp
+}
+
+rmann_nr <- do.call(rbind, rmann_nr_list) %>%
+    tibble() %>%
+    mutate(gene_id = paste0(sample_name, "___", gene_id)) %>%
+    mutate(seqnames = paste0(sample_name, "___", seqnames))
+
+
+germline_insert_grs <- rmann_nr %$%
+    seqnames %>%
+    str_extract(., "chr[1-9XY].*") %>%
+    str_split("_") %>%
+    map(~ GRanges(tibble(
+        seqnames = .x[1],
+        start = .x[2],
+        stop = .x[3]
+    ))) %>%
+    purrr::reduce(., c)
+
+pass_grs <- pass %>%
+    GRanges() %>%
+    flank(width = 100, both = TRUE)
+
+pass_grs %>% subsetByOverlaps(germline_insert_grs)
+
+
+
+total_cov <- sample_table %>%
+    left_join(sample_sequencing_data) %>%
+    dplyr::select(-condition, -nanopore_rawdata_dir) %>%
+    mutate(coverage = bases_number / (3.1 * 10**9)) %$% coverage %>%
+    sum()
+
+frost_total_cov <- 7.4 * 18
+
+pass_grs %>% subsetByOverlaps(segdups)

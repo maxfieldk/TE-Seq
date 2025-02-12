@@ -59,7 +59,6 @@ def aref_complete_input(wildcards):
             paths.append(expand("aref/{sample_or_ref}_tldr/{sample_or_ref}.table.txt", sample_or_ref = config["aref"]["samples"]))
             
             paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_rte_beds/outfile.txt", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
-            paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_rte_beds/outfile.txt", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
             paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.complete.gtf", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
             paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.gff3", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
             paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.complete.gff3", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
@@ -153,7 +152,8 @@ rule dorado:
         cpus_per_task =12,
         slurm_partition="gpu-he",
         mem_mb = 128000,
-        slurm_extra="--time=96:00:00 --prefer=a6000 --gres=gpu:2"
+        runtime = 5760,
+        slurm_extra="'--gres=gpu:2'"
     shell:
         """
 mkdir -p $(dirname {output.calls})
@@ -652,7 +652,7 @@ rule pepper:
     resources:
         cpus_per_task =20,
         runtime = 600,
-        mem_mb = 50000
+        mem_mb = 75000
     container:
         "docker://kishwars/pepper_deepvariant:r0.8"
     shell:	
@@ -863,7 +863,8 @@ tabix {output.hq_snps}
 
 rule snpeff_build_db:
     input:
-        ref = config["ldna"]["reference"],
+        ref = config["ldna"]["reference"]
+    params:
         refseq = config["aref"]["ref_refseq_gtf"]
     output:
         outfile = "aref/intermediates/snpeff/db.outfile"
@@ -879,7 +880,7 @@ configfile=$(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.confi
 echo '# Human genome, version hs1
 hs1.genome : Human' >> $configfile
 mkdir -p $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/data/hs1
-cp {input.refseq} $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/data/hs1/genes.gtf
+cp {params.refseq} $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/data/hs1/genes.gtf
 cp {input.ref} $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/data/hs1/sequences.fa
 
 java -Xmx60g -jar $(dirname $(dirname $(which snpEff)))/share/snpeff-5.2-0/snpEff.jar build -gtf22 -v hs1 -noCheckCds -noCheckProtein
@@ -965,8 +966,8 @@ if [ ! -f {input.vcf_sml}.gz.tbi ]; then
 fi
 vcfout={output.annvcf}
 bcftools annotate -a {params.dbsnp} -c ID -o ${{vcfout%.*}} -O v {input.vcf_sml}.gz
-bgzip $output
-tabix -p vcf $output
+bgzip --stdout ${{vcfout%.*}} > $vcfout
+tabix -p vcf $vcfout
         """
 
 rule getstuff:
@@ -1167,6 +1168,8 @@ rule process_gtf:
         ref_cytobands = "aref/{default_or_extended}/A.REF_annotations/cytobands.bed",
         ref = "aref/{default_or_extended}/A.REF.fa",
         reffai = "aref/{default_or_extended}/A.REF.fa.fai"
+    params:
+        tldr_switch = "process_gtf"
     output:
         repmask_gff2 = "aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker.gff2",
         repmask_gff3 = "aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker.gff3",
@@ -1184,6 +1187,8 @@ rule process_gtf_tldr:
         ref_cytobands = "aref/{default_or_extended}/A.REF_annotations/cytobands.bed",
         ref = "aref/{default_or_extended}/{sample_or_ref}-pre-ins-filtering.fa",
         tldroutput = "aref/{sample_or_ref}_tldr/{sample_or_ref}.table.txt"
+    params:
+        tldr_switch = "process_gtf_tldr"
     output:
         contigs_to_keep = "aref/{default_or_extended}/{sample_or_ref}_contigs_to_keep.txt",
         filtered_tldr = "aref/{default_or_extended}/{sample_or_ref}.table.kept_in_updated_ref.txt",
@@ -1833,7 +1838,7 @@ rule reps_to_reps:
 rule last_train:
     input:
         db="aref/terex/gdb.prj",
-        reads= expand("ldna/intermediates/{agivensample}/fastqs/{agivensample}.fq", agivensample = config["aref"]["samples"][1])
+        reads= expand("ldna/intermediates/{agivensample}/fastqs/{agivensample}.fq",agivensample=[config["aref"]["samples"][1] if len(config["aref"]["samples"]) > 1 else "default_sample"])
     output:
         params="aref/terex/reads.train"
     resources:

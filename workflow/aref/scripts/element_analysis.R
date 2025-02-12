@@ -203,9 +203,9 @@ if (length(rownames(grs_df)) != 0) {
 
     grs_intact_ss <- grs_fl_ss[grepl("^Intact", mcols(grs_fl_ss)$intactness_req)]
 
-
     # ORF1 AND ORF2 SEQUENCE ANALYSES
     # cannonical locations of RT and EN in ORF2 protein
+
 
     pos <- ORFik::findORFs(grs_intact_ss, startCodon = "ATG", longestORF = TRUE, minimumLength = 333)
     names(pos) <- names(grs_intact_ss)
@@ -215,19 +215,25 @@ if (length(rownames(grs_df)) != 0) {
     for (element in names(grs_intact_ss)) {
         print(element)
         firstorf <- pos[[element]][1]
-        secondorf <- pos[[element]][2]
         firstorfrow <- firstorf %>%
             as.data.frame() %>%
             tibble() %>%
             dplyr::select(start, end) %>%
             mutate(gene_id = element) %>%
             mutate(feature = "ORF1")
-        secondorfrow <- secondorf %>%
-            as.data.frame() %>%
-            tibble() %>%
-            dplyr::select(start, end) %>%
-            mutate(gene_id = element) %>%
-            mutate(feature = "ORF2")
+
+        if (length(pos[[element]]) > 1) {
+            secondorf <- pos[[element]][2]
+            secondorfrow <- secondorf %>%
+                as.data.frame() %>%
+                tibble() %>%
+                dplyr::select(start, end) %>%
+                mutate(gene_id = element) %>%
+                mutate(feature = "ORF2")
+        } else {
+            secondorf <- NULL
+            secondorfrow <- NULL
+        }
         X5UTRrow <- tibble(start = 1, end = firstorfrow$start - 1) %>%
             mutate(gene_id = element) %>%
             mutate(feature = "5UTR")
@@ -237,117 +243,106 @@ if (length(rownames(grs_df)) != 0) {
 
         element_ann_df <- rbind(element_ann_df, X5UTRrow, firstorfrow, secondorfrow, X3UTRrow)
         orf1[[element]] <- grs_intact_ss[[element]][firstorf]
-        orf2[[element]] <- grs_intact_ss[[element]][secondorf]
+        if (length(pos[[element]]) > 1) {
+            orf2[[element]] <- grs_intact_ss[[element]][secondorf]
+        } else {
+            orf2[[element]] <- NULL
+        }
     }
 
     write_delim(element_ann_df %>% dplyr::select(gene_id, start, end, feature), sprintf("%s/intact_l1_anatomy_coordinates.tsv", outputdir), delim = "\t", col_names = TRUE)
 
-    orf1ss <- DNAStringSet(orf1)
-    orf2ss <- DNAStringSet(orf2)
-
-    orf1ps <- Biostrings::translate(orf1ss)
-    orf2ps <- Biostrings::translate(orf2ss)
-
-    writeXStringSet(orf1ps, sprintf("%s/orf1ps.fa", outputdir))
-    system(sprintf("echo $(pwd); mafft --auto %s/orf1ps.fa > %s/orf1ps.aln.fa", outputdir, outputdir))
-    aln <- read.alignment(sprintf("%s/orf1ps.aln.fa", outputdir), format = "fasta")
-    d <- dist.alignment(aln, "identity")
-    orf1Tree <- nj(d)
-    png(paste0(sprintf("%s/orf1Tree.png", outputdir)), width = 10, height = 30, units = "in", res = 300)
-    plot(orf1Tree, main = "Phylogenetic Tree of ORF1 Sequences")
-    dev.off()
-
-
-    ##### ggtree
-    # writeXStringSet(grs_intact_ss, sprintf("%s/l1_intact.fa", outputdir))
-    # system(sprintf("echo $(pwd); mafft --auto %s/l1_intact.fa > %s/l1_intact.aln.fa", outputdir, outputdir))
 
     for (subfam in mcols(grs_intact_ss)$rte_subfamily %>% unique()) {
         subfam_ss <- grs_intact_ss[mcols(grs_intact_ss)$rte_subfamily == subfam]
         writeXStringSet(subfam_ss, sprintf("%s/%s_intact.fa", outputdir, subfam))
-        system(sprintf("echo $(pwd); mafft --auto %s/%s_intact.fa > %s/%s_intact.aln.fa", outputdir, subfam, outputdir, subfam))
+        print(length(subfam_ss))
+        if (length(subfam_ss) > 800) {
+            print("skipping sequence alignment - too many sequences to align")
+        } else {
+            system(sprintf("echo $(pwd); mafft --auto %s/%s_intact.fa > %s/%s_intact.aln.fa", outputdir, subfam, outputdir, subfam))
+            subfam_intact_aln <- read.alignment(sprintf("%s/%s_intact.aln.fa", outputdir, subfam), format = "fasta")
+            d <- dist.alignment(subfam_intact_aln, "identity", gap = FALSE)
+            d_gapped <- dist.alignment(subfam_intact_aln, "identity", gap = TRUE)
 
-        subfam_intact_aln <- read.alignment(sprintf("%s/%s_intact.aln.fa", outputdir, subfam), format = "fasta")
-        d <- dist.alignment(subfam_intact_aln, "identity", gap = FALSE)
-        d_gapped <- dist.alignment(subfam_intact_aln, "identity", gap = TRUE)
+            # this is the pct difference in identity between sequences
+            dsqaured <- 100 * d**2
+            d_gappedsquared <- 100 * d_gapped**2
 
-        # this is the pct difference in identity between sequences
-        dsqaured <- 100 * d**2
-        d_gappedsquared <- 100 * d_gapped**2
+            tree_raw <- as.treedata(fastme.bal(dsqaured))
+            treegapped_raw <- as.treedata(fastme.bal(d_gappedsquared))
+            # to df for further modifications
+            ttibble_raw <- as_tibble(tree_raw)
+            ttibblegapped_raw <- as_tibble(treegapped_raw)
 
-        tree_raw <- as.treedata(fastme.bal(dsqaured))
-        treegapped_raw <- as.treedata(fastme.bal(d_gappedsquared))
-        # to df for further modifications
-        ttibble_raw <- as_tibble(tree_raw)
-        ttibblegapped_raw <- as_tibble(treegapped_raw)
+            ttibble_raw <- ttibble_raw %>%
+                left_join(as.data.frame(mcols(grs_intact_ss)), by = c("label" = "gene_id")) %>%
+                mutate(group = str_extract(label, "L1HS|L1PA2")) %>%
+                mutate(group = factor(group, levels = c("L1HS", "L1PA2")))
 
-        ttibble_raw <- ttibble_raw %>%
-            left_join(as.data.frame(mcols(grs_intact_ss)), by = c("label" = "gene_id")) %>%
-            mutate(group = str_extract(label, "L1HS|L1PA2")) %>%
-            mutate(group = factor(group, levels = c("L1HS", "L1PA2")))
+            ttibblegapped_raw <- ttibblegapped_raw %>%
+                left_join(as.data.frame(mcols(grs_intact_ss)), by = c("label" = "gene_id"))
+            subfam_intact_tree <- as.treedata(ttibble_raw)
+            subfam_intact_tree_gapped <- as.treedata(ttibblegapped_raw)
 
-        ttibblegapped_raw <- ttibblegapped_raw %>%
-            left_join(as.data.frame(mcols(grs_intact_ss)), by = c("label" = "gene_id"))
-        subfam_intact_tree <- as.treedata(ttibble_raw)
-        subfam_intact_tree_gapped <- as.treedata(ttibblegapped_raw)
+            p <- ggtree(subfam_intact_tree, layout = "fan") +
+                geom_treescale() +
+                geom_tippoint(aes(color = refstatus)) +
+                ggtitle(sprintf("%s ORF1&2 Intact Phylogeny", subfam)) + scale_palette
+            mysaveandstore(sprintf("%s/%s_intact_tree_fan.pdf", outputdir, subfam), w = 7, h = 7)
 
-        p <- ggtree(subfam_intact_tree, layout = "fan") +
-            geom_treescale() +
-            geom_tippoint(aes(color = refstatus)) +
-            ggtitle(sprintf("%s ORF1&2 Intact Phylogeny", subfam)) + scale_palette
-        mysaveandstore(sprintf("%s/%s_intact_tree_fan.pdf", outputdir, subfam), w = 7, h = 7)
+            p <- ggtree(subfam_intact_tree) +
+                geom_treescale() +
+                geom_tippoint(aes(color = refstatus)) +
+                theme_tree2() +
+                xlab("% Mutation") +
+                ggtitle(sprintf("%s ORF1&2 Intact Phylogeny", subfam)) + scale_palette
+            mysaveandstore(sprintf("%s/%s_intact_tree_nolab.pdf", outputdir, subfam), w = 7.5, h = 20)
+            p <- p + geom_tiplab(aes(label = label))
+            mysaveandstore(sprintf("%s/%s_intact_tree.pdf", outputdir, subfam), w = 7.5, h = 20)
 
-        p <- ggtree(subfam_intact_tree) +
-            geom_treescale() +
-            geom_tippoint(aes(color = refstatus)) +
-            theme_tree2() +
-            xlab("% Mutation") +
-            ggtitle(sprintf("%s ORF1&2 Intact Phylogeny", subfam)) + scale_palette
-        mysaveandstore(sprintf("%s/%s_intact_tree_nolab.pdf", outputdir, subfam), w = 7.5, h = 20)
-        p <- p + geom_tiplab(aes(label = label))
-        mysaveandstore(sprintf("%s/%s_intact_tree.pdf", outputdir, subfam), w = 7.5, h = 20)
-
-        # make the tree horizontal
-        p <- ggtree(subfam_intact_tree) +
-            geom_treescale() +
-            geom_tippoint(aes(color = refstatus)) +
-            theme_tree2() +
-            xlab("% Mutation") +
-            ggtitle(sprintf("%s ORF1&2 Intact Phylogeny", subfam)) +
-            coord_flip() + scale_palette
-        mysaveandstore(sprintf("%s/%s_intact_tree_horizontal_nolab.pdf", outputdir, subfam), w = 20, h = 8)
-        p <- p + geom_tiplab(aes(label = label, angle = 90))
-        mysaveandstore(sprintf("%s/%s_intact_tree_horizontal.pdf", outputdir, subfam), w = 20, h = 8)
+            # make the tree horizontal
+            p <- ggtree(subfam_intact_tree) +
+                geom_treescale() +
+                geom_tippoint(aes(color = refstatus)) +
+                theme_tree2() +
+                xlab("% Mutation") +
+                ggtitle(sprintf("%s ORF1&2 Intact Phylogeny", subfam)) +
+                coord_flip() + scale_palette
+            mysaveandstore(sprintf("%s/%s_intact_tree_horizontal_nolab.pdf", outputdir, subfam), w = 20, h = 8)
+            p <- p + geom_tiplab(aes(label = label, angle = 90))
+            mysaveandstore(sprintf("%s/%s_intact_tree_horizontal.pdf", outputdir, subfam), w = 20, h = 8)
 
 
-        p <- ggtree(subfam_intact_tree_gapped) +
-            geom_treescale() +
-            geom_tippoint(aes(color = refstatus)) +
-            theme_tree2() +
-            xlab("% Mutation") +
-            ggtitle(sprintf("%s ORF1&2 Intact Phylogeny", subfam)) + scale_palette
-        mysaveandstore(sprintf("%s/%s_intact_tree_gapped_nolab.pdf", outputdir, subfam), w = 7.5, h = 20)
-        p <- p + geom_tiplab(aes(label = label))
-        mysaveandstore(sprintf("%s/%s_intact_tree_gapped.pdf", outputdir, subfam), w = 7.5, h = 20)
+            p <- ggtree(subfam_intact_tree_gapped) +
+                geom_treescale() +
+                geom_tippoint(aes(color = refstatus)) +
+                theme_tree2() +
+                xlab("% Mutation") +
+                ggtitle(sprintf("%s ORF1&2 Intact Phylogeny", subfam)) + scale_palette
+            mysaveandstore(sprintf("%s/%s_intact_tree_gapped_nolab.pdf", outputdir, subfam), w = 7.5, h = 20)
+            p <- p + geom_tiplab(aes(label = label))
+            mysaveandstore(sprintf("%s/%s_intact_tree_gapped.pdf", outputdir, subfam), w = 7.5, h = 20)
 
-        subfam_intact_aln <- readDNAMultipleAlignment(sprintf("%s/%s_intact.aln.fa", outputdir, subfam), format = "fasta")
-        consensus <- consensusString(subfam_intact_aln)
-        subfam_intact_aln_ss <- as(subfam_intact_aln, "DNAStringSet")
-        temp <- c(subfam_intact_aln_ss %>% as.character(), consensus %>% as.character() %>% setNames("consensus"))
-        subfam_intact_aln_c <- DNAMultipleAlignment(temp)
-        subfam_intact_aln_ss_c <- as(subfam_intact_aln_c, "DNAStringSet")
-        writeXStringSet(subfam_intact_aln_ss_c, file = sprintf("%s/%s_intact_alnWconensus.fa", outputdir, subfam))
+            subfam_intact_aln <- readDNAMultipleAlignment(sprintf("%s/%s_intact.aln.fa", outputdir, subfam), format = "fasta")
+            consensus <- consensusString(subfam_intact_aln)
+            subfam_intact_aln_ss <- as(subfam_intact_aln, "DNAStringSet")
+            temp <- c(subfam_intact_aln_ss %>% as.character(), consensus %>% as.character() %>% setNames("consensus"))
+            subfam_intact_aln_c <- DNAMultipleAlignment(temp)
+            subfam_intact_aln_ss_c <- as(subfam_intact_aln_c, "DNAStringSet")
+            writeXStringSet(subfam_intact_aln_ss_c, file = sprintf("%s/%s_intact_alnWconensus.fa", outputdir, subfam))
 
-        p <- simplot(sprintf("%s/%s_intact_alnWconensus.fa", outputdir, subfam), "consensus", window = 1, group = TRUE, id = 1, sep = "_") +
-            ggtitle("%s Intact Consensus Accuracy") +
-            mtopen
-        mysaveandstore(sprintf("%s/%s_intact_alnWconensus_similarity.pdf", outputdir, subfam), w = 10, h = 5)
+            p <- simplot(sprintf("%s/%s_intact_alnWconensus.fa", outputdir, subfam), "consensus", window = 1, group = TRUE, id = 1, sep = "_") +
+                ggtitle("%s Intact Consensus Accuracy") +
+                mtopen
+            mysaveandstore(sprintf("%s/%s_intact_alnWconensus_similarity.pdf", outputdir, subfam), w = 10, h = 5)
 
-        p <- simplot(sprintf("%s/%s_intact_alnWconensus.fa", outputdir, subfam), "consensus", window = 1, group = TRUE, id = 1, sep = "_") +
-            ggtitle(sprintf("%s Intact Consensus Accuracy", subfam)) +
-            geom_hline(yintercept = 0.95, col = "red", lty = 2) +
-            mtopen
-        mysaveandstore(sprintf("%s/%s_intact_alnWconensus_similarity_ONTdRNAerror.pdf", outputdir, subfam), w = 10, h = 5)
+            p <- simplot(sprintf("%s/%s_intact_alnWconensus.fa", outputdir, subfam), "consensus", window = 1, group = TRUE, id = 1, sep = "_") +
+                ggtitle(sprintf("%s Intact Consensus Accuracy", subfam)) +
+                geom_hline(yintercept = 0.95, col = "red", lty = 2) +
+                mtopen
+            mysaveandstore(sprintf("%s/%s_intact_alnWconensus_similarity_ONTdRNAerror.pdf", outputdir, subfam), w = 10, h = 5)
+        }
     }
 }
 

@@ -46,9 +46,9 @@ for (i in 1:length(er)) {
 df$emptyreadsnum <- emptyreadsnum %>% replace_na(0)
 df <- df %>%
     mutate(fraction_reads_count = UsedReads / (UsedReads + emptyreadsnum)) %>%
-    filter(fraction_reads_count > 0.30) %>%
-    filter(SpanReads > 3) %>%
-    filter(UsedReads > 10) %>%
+    filter(fraction_reads_count > 0.25) %>%
+    filter(SpanReads > 2) %>%
+    filter(UsedReads > 5) %>%
     mutate(faName = paste0("NI_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>%
     filter(!is.na(Family)) %>%
     filter(!is.na(StartTE)) %>%

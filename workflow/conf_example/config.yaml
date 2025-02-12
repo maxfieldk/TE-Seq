@@ -12,8 +12,9 @@ pipelines_to_deploy:
   # - ldna
   # - lrna
 shared:
-  default_palette_condition: "ggsci::default_aaas" #palette must be at least as long as the number of biological conditions you model; paletteer palettes https://emilhvitfeldt.github.io/paletteer/
-  default_palette_descriptive: "ggthemes::few_Dark" #paletteer palettes https://emilhvitfeldt.github.io/paletteer/
+  #leave palette values as empty string for default color
+  default_palette_condition: "" #e.g. "ggsci::default_aaas" palette must be at least as long as the number of biological conditions you model; paletteer palettes https://emilhvitfeldt.github.io/paletteer/
+  default_palette_descriptive: "" #e.g "ggthemes::few_Dark"paletteer palettes https://emilhvitfeldt.github.io/paletteer/
 
 #PIPELINE SETTINGS - Ignore settings for pipelines not being deployed (i.e. not in pipelines_to_deploy)
 aref:
@@ -138,7 +139,7 @@ srna:
     - "PRO_normoxic"
     - "DDIS_8w_low_O2"
 
-  contrasts: #follows the syntax: condition_ + level from "levels" + _vs_ + level from "levels"
+  contrasts: #follows the syntax: condition_ + level from "levels" + _vs_ + level from "levels". The second condition is the base of the contrast.
     - "condition_RS_0w_low_O2_vs_PRO_low_O2"
     - "condition_RS_4w_low_O2_vs_PRO_low_O2"
     - "condition_RS_8w_low_O2_vs_PRO_low_O2"
