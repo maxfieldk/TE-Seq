@@ -280,6 +280,20 @@ if ("srna" %in% modules_run) {
             mtclosed
         mysaveandstore(sprintf("%s/srna_vs_pctM_%s_mean.pdf", outputdir, repeat_family), w = 6, h = 6)
         mysaveandstore(sprintf("%s/srna_vs_pctM_%s_mean.pdf", outputdir, repeat_family), raster = TRUE, w = 6, h = 6)
+    
+        if (repeat_family == "L1HS") {
+            p <- ggscatter(testrnapctMdfmean %>% filter(rte_subfamily == repeat_family),
+                x = "pctM", y = "srna_expressionlog10", add = "reg.line", alpha = 0.25, color = "intactness_req",
+                add.params = list(color = "blue", fill = "lightgray"), # Customize reg. line
+                conf.int = TRUE, # Add confidence interval
+                cor.coef = TRUE, # Add correlation coefficient. see ?stat_cor
+                cor.coeff.args = list(method = "pearson", label.x = 3, label.sep = "\n", color = "red")
+            ) +
+                mtclosed
+            mysaveandstore(sprintf("%s/srna_vs_pctM_%s_mean.pdf", outputdir, repeat_family), w = 4, h = 4)
+            mysaveandstore(sprintf("%s/srna_vs_pctM_%s_mean.pdf", outputdir, repeat_family), raster = TRUE, w = 4, h = 4)
+        
+        }
     }
 }
 
