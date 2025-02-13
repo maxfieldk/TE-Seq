@@ -49,7 +49,8 @@ for (sample in sample_table$sample_name) {
 }
 
 dff <- do.call(rbind, dfs_filtered) %>% tibble()
-
+# write_delim(dff %>% filter(fraction_reads_count < 1) %>% filter(fraction_reads_count > 0.9) %>% mutate(NOTES = "NA") %>% dplyr::relocate(sample_name, Chrom, Start, End, NOTES),
+# "near_homozygous_inserts_check_for_contamination.tsv", delim = "\t")
 
 for (element_type in dff %$% Subfamily %>% unique()) {
     dftemp <- dff %>% filter(Subfamily == element_type)
@@ -95,7 +96,7 @@ for (element_type in dff %$% Subfamily %>% unique()) {
 
 anns <- list()
 for (sample in sample_table$sample_name) {
-    df1 <- read_csv(grep(sprintf("%s_annotations", sample), params$rmann, value = TRUE))
+    df1 <- read_csv(grep(sprintf("%s_annotations", sample), params$rmann_nonref, value = TRUE))
     df1$sample_name <- sample
     df <- df1 %>%
         left_join(sample_table)
