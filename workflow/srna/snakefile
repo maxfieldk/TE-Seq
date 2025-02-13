@@ -250,7 +250,7 @@ rule alignSTAR_PE:
         "star"
     shell:
         """
-STAR --genomeDir {params.index} --readFilesCommand zcat --readFilesIn {input.r1} {input.r2} --outFileNamePrefix $(dirname {output.bam})/ --runThreadN {threads} --winAnchorMultimapNmax 100 --outFilterMultimapNmax 100
+STAR --genomeDir {params.index} --readFilesCommand zcat --readFilesIn {input.r1} {input.r2} --outFileNamePrefix $(dirname {output.bam})/ --runThreadN {threads} --winAnchorMultimapNmax 1000 --outFilterMultimapNmax 1000 --limitOutSAMoneReadBytes 1000000
         """
 
 #tag COUNTS

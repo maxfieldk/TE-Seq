@@ -138,7 +138,7 @@ resultsdf <- resultsdfwithgenes %>% filter(gene_or_te != "gene")
 }
 
 { # new heatmaps
-    if ("L1HS" %in% (resultsdf %$% rte_subfamily %>% unique())) { # asking whether the species is human
+    if ("L1HS" %in% (resultsdf %$% rte_subfamily %>% unique() %>% magrittr::extract(!is.na(.)))) { # asking whether the species is human
         mf <- resultsdf %>%
             filter(rte_family == "L1") %>%
             mutate(cfam = substr(gene_id, 1, 3)) %>%
@@ -242,7 +242,7 @@ resultsdf <- resultsdfwithgenes %>% filter(gene_or_te != "gene")
         mysaveandstore(sprintf("%s/%s/%s/heatmap/l1s_de_col_clust_break2.pdf", outputdir, counttype, "pan_contrast"), 7.5, 10)
     }
 
-    for (rte_family_ in (resultsdf %$% rte_family %>% unique())) {
+    for (rte_family_ in (resultsdf %$% rte_family %>% unique() %>% magrittr::extract(!is.na(.)))) {
         if (rte_family_ == "Other") {
             next()
         }
@@ -371,7 +371,7 @@ resultsdf <- resultsdfwithgenes %>% filter(gene_or_te != "gene")
     }
 
     # now split by req_integrative
-    for (rte_family_ in (resultsdf %$% rte_family %>% unique())) {
+    for (rte_family_ in (resultsdf %$% rte_family %>% unique() %>% magrittr::extract(!is.na(.)))) {
         if (rte_family_ == "Other") {
             next()
         }
