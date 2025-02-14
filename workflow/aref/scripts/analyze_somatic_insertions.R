@@ -778,6 +778,31 @@ somatic_alpha_annotated <- somatic_alpha %>%
     annotate_read_metadata() %>%
     annotate_teend()
 
+
+all_nr$Strand %>% unique()
+all_nr <- dfall %>%
+    filter(!is.na(Subfamily)) %>%
+    mutate(Strand = ifelse(Strand == "None", ".", Strand))
+all_grs <- GRanges(all_nr)
+somatic_alpha_annotated_grs <- somatic_alpha_annotated %>%
+    GRanges() %>%
+    flank(width = 20, both = TRUE)
+other_sample_filter <- list()
+for (sample in somatic_alpha_annotated$sample_name %>% unique()) {
+    sample_somatic_alpha_annotated_grs <- somatic_alpha_annotated %>%
+        filter(sample_name == sample) %>%
+        GRanges() %>%
+        flank(width = 20, both = TRUE)
+    all_grs_besides_sample <- all_grs[mcols(all_grs)$sample_name != sample]
+    surviving_grs <- sample_somatic_alpha_annotated_grs %>% subsetByOverlaps(all_grs_besides_sample, invert = TRUE)
+    surviving_df <- tibble(as.data.frame(surviving_grs))
+    other_sample_filter[[sample]] <- surviving_df
+}
+surv <- purrr::reduce(other_sample_filter, bind_rows)
+somatic_alpha_annotated <- somatic_alpha_annotated %>% mutate(not_found_in_other_samples = ifelse(UUID %in% surv$UUID, TRUE, FALSE))
+
+
+somatic_alpha_annotated %$% not_found_in_other_samples %>% table()
 somatic_alpha_annotated %$% insert_fail_reason_detail
 somatic_alpha_annotated %$% k50_mappable %>% table()
 somatic_alpha_annotated %$% insert_mean_mapqs %>% quantile()
@@ -789,48 +814,51 @@ somatic_alpha_annotated %$% clip_status %>% table()
 somatic_alpha_annotated %$% inrepregion %>% table()
 
 
-somatic_alpha_annotated %$% inrepregion %>% table()
+f1 <- somatic_alpha_annotated %>%
+    filter(not_found_in_other_samples == TRUE) %>%
+    filter(is.na(NonRef))
 
-
-
-somatic_mappable %$% inrepregion %>% table()
-somatic_mappable_less_stringent %$% inrepregion %>% table()
-
-somatic_readfiltered <- somatic_alpha_annotated %>%
-    filter(insert_supplementary_status == TRUE) %>%
-    filter(insert_indel_and_clipping_and_mapq_status == TRUE)
-
-somatic_readfiltered_teendfiltered <- somatic_readfiltered %>%
+f2 <- f1 %>%
     filter(EndTE >= endte_manual_filter | is.na(endte_manual_filter)) %>%
     filter(TEMatch >= 90)
-
-somatic_readfiltered_l1hs_extended <- somatic_readfiltered %>%
+f2 %$% TSD_OK %>% table()
+f2_l1hs_extended <- f1 %>%
     filter(EndTE >= 5600 & EndTE < 5800) %>%
     filter(TEMatch >= 90)
 
-somatic_mappable_readfiltered_teendfiltered <- somatic_readfiltered_teendfiltered %>%
-    filter(is.na(NonRef)) %>%
+f3 <- f2 %>%
+    filter(insert_supplementary_status == TRUE) %>%
+    filter(insert_indel_and_clipping_and_mapq_status == TRUE)
+f3 %$% TSD_OK %>% table()
+
+f3_l1hs_extended <- f2_l1hs_extended %>%
+    filter(insert_supplementary_status == TRUE) %>%
+    filter(insert_indel_and_clipping_and_mapq_status == TRUE)
+
+f4 <- f3 %>%
     filter(insert_mean_mapqs > 55) %>%
     filter(k50_mappable == TRUE) %>%
     mutate(mappability_stringency = "high")
-somatic_mappable_less_stringentreadfiltered_teendfiltered <- somatic_readfiltered_teendfiltered %>%
-    filter(is.na(NonRef)) %>%
+f4 %$% TSD_OK %>% table()
+f4 %>% filter(TSD_OK == TRUE)
+
+
+f4_less_stringent <- f3 %>%
     filter((insert_mean_mapqs > 40 & insert_mean_mapqs <= 55) | (k50_mappable == FALSE & insert_mean_mapqs > 40)) %>%
     mutate(mappability_stringency = "medium")
+f4_less_stringent %$% TSD_OK %>% table()
 
 
-somatic_mappable_readfiltered_teendfiltered_l1hs_extended <- somatic_readfiltered_l1hs_extended %>%
-    filter(is.na(NonRef)) %>%
+f4_l1hs_extended <- f3_l1hs_extended %>%
     filter(insert_mean_mapqs > 55) %>%
     filter(k50_mappable == TRUE) %>%
     mutate(mappability_stringency = "high")
-somatic_mappable_less_stringentreadfiltered_teendfiltered_l1hs_extended <- somatic_readfiltered_l1hs_extended %>%
-    filter(is.na(NonRef)) %>%
+f4_less_stringent_l1hs_extended <- somatic_readfiltered_l1hs_extended %>%
     filter((insert_mean_mapqs > 40 & insert_mean_mapqs <= 55) | (k50_mappable == FALSE & insert_mean_mapqs > 40)) %>%
     mutate(mappability_stringency = "medium")
 
-sdf <- rbind(somatic_mappable_readfiltered_teendfiltered, somatic_mappable_less_stringentreadfiltered_teendfiltered)
-sdf_l1hs_extended <- rbind(somatic_mappable_readfiltered_teendfiltered_l1hs_extended, somatic_mappable_less_stringentreadfiltered_teendfiltered_l1hs_extended)
+sdf <- rbind(f4, f4_less_stringent)
+sdf_l1hs_extended <- rbind(f4_l1hs_extended, f4_less_stringent_l1hs_extended)
 
 
 sdf %$% inrepregion %>% table()
@@ -838,12 +866,15 @@ sdf_l1hs_extended %$% inrepregion %>% table()
 
 plot_group_characteristics(somatic_naught, "no_filter")
 plot_group_characteristics(somatic_alpha, "has_tsd")
-plot_group_characteristics(somatic_readfiltered, "has_tsd_is_readfiltered")
-plot_group_characteristics(somatic_readfiltered_teendfiltered, "has_tsd_is_readfiltered_teendfiltered")
-plot_group_characteristics(somatic_mappable_readfiltered_teendfiltered, "has_tsd_is_mappable_readfiltered_teendfiltered")
-plot_group_characteristics(somatic_mappable_less_stringentreadfiltered_teendfiltered, "has_tsd_is_mappablelowerstringency_readfiltered_teendfiltered")
-plot_group_characteristics(somatic_mappable_readfiltered_teendfiltered_l1hs_extended, "has_tsd_is_mappable_readfiltered_teendfiltered_l1hs_extended")
-plot_group_characteristics(somatic_mappable_less_stringentreadfiltered_teendfiltered_l1hs_extended, "has_tsd_is_mappablelowerstringency_readfiltered_teendfiltered_l1hs_extended")
+plot_group_characteristics(f1, "f1")
+plot_group_characteristics(f2, "f2")
+plot_group_characteristics(f2_l1hs_extended, "f2_l1hs_extended")
+plot_group_characteristics(f3, "f3")
+plot_group_characteristics(f3_l1hs_extended, "f3_l1hs_extended")
+plot_group_characteristics(f4, "f4")
+plot_group_characteristics(f4_l1hs_extended, "f4_l1hs_extended")
+plot_group_characteristics(f4_less_stringent, "f4_less_stringent")
+plot_group_characteristics(f4_less_stringent_l1hs_extended, "f4_less_stringent_l1hs_extended")
 
 
 
@@ -862,13 +893,6 @@ insert_frames_l1hs_extended <- sdf_l1hs_extended %>%
 names(insert_frames_l1hs_extended)
 
 imap(insert_frames_l1hs_extended, ~ analyze_inserts(.x, .y))
-
-# insert_frames <- list(
-#     "germline" = germline_insert_df[1:20, ] %>% filter(Family == "ALU")
-# )
-
-# imap(insert_frames, ~ analyze_inserts(.x, .y))
-
 
 #### transduction mapping
 if (conf$update_ref_with_tldr$per_sample == "yes") {
@@ -1152,7 +1176,7 @@ tdf <- pass %>%
     left_join(sample_table) %>%
     left_join(sample_sequencing_data)
 
-fa
+
 tdf$bases_number / (3 * 10**9)
 haploid_genome_length <- seqinfo(fa) %>%
     data.frame() %$% seqlengths %>%
@@ -1435,14 +1459,6 @@ x <- tibble(OUT = "")
 write_tsv(x, file = outputs$plots)
 
 
-pass %>%
-    filter(Subfamily == "L1HS") %>%
-    print(width = Inf)
-pass_out
-# ctrl6
-
-
-
 
 # # ADDTIONAL FILTERS
 # # I think these are overly restrictive - not applying these
@@ -1469,38 +1485,6 @@ pass_out
 
 
 
-rmann_nr_list <- list()
-for (sample in sample_table$sample_name) {
-    rmann_nr_temp <- read_csv(sprintf("aref/extended/%s_annotations/%s_rmann_nonref.csv", sample, sample))
-    rmann_nr_temp$sample_name <- sample
-    rmann_nr_list[[sample]] <- rmann_nr_temp
-}
-
-rmann_nr <- do.call(rbind, rmann_nr_list) %>%
-    tibble() %>%
-    mutate(gene_id = paste0(sample_name, "___", gene_id)) %>%
-    mutate(seqnames = paste0(sample_name, "___", seqnames))
-
-
-germline_insert_grs <- rmann_nr %$%
-    seqnames %>%
-    str_extract(., "chr[1-9XY].*") %>%
-    str_split("_") %>%
-    map(~ GRanges(tibble(
-        seqnames = .x[1],
-        start = .x[2],
-        stop = .x[3]
-    ))) %>%
-    purrr::reduce(., c)
-
-pass_grs <- pass %>%
-    GRanges() %>%
-    flank(width = 100, both = TRUE)
-
-pass_grs %>% subsetByOverlaps(germline_insert_grs)
-
-
-
 total_cov <- sample_table %>%
     left_join(sample_sequencing_data) %>%
     dplyr::select(-condition, -nanopore_rawdata_dir) %>%
@@ -1508,5 +1492,3 @@ total_cov <- sample_table %>%
     sum()
 
 frost_total_cov <- 7.4 * 18
-
-pass_grs %>% subsetByOverlaps(segdups)
