@@ -132,9 +132,22 @@ touch {output.sym_link_outfile}
         """
 
 #tag BASECALLING
+rule index_dorado_ref:
+    output:
+        reference_fai = lambda wildcards: config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"] + ".fai"
+    benchmark:
+        "aref/benchmarks/index_dorado_ref.tsv"
+    conda: "omics"
+    params:
+        reference = config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"]
+    shell:
+        """
+samtools faidx ${{{output.reference_fai}%.*}}
+        """
+
 rule dorado:
     input:
-        dir = lambda wildcards: sample_table.loc[sample_table["sample_name"] == wildcards.sample, "nanopore_rawdata_dir"].iloc[0]
+        reference_fai = lambda wildcards: config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"] + ".fai"
     output:
         calls = "aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.bam"
     wildcard_constraints:
@@ -147,7 +160,8 @@ rule dorado:
         "aref/benchmarks/dorado/{rate}.{sample}.{type}.{modifications_string}.tsv"
     params:
         dorado = config["aref"]["dorado"],
-        reference = config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"]
+        reference = config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"],
+        input_dir = sample_table.loc[sample_table["sample_name"] == wildcards.sample, "nanopore_rawdata_dir"].iloc[0]
     resources:
         cpus_per_task =12,
         slurm_partition="gpu-he",
@@ -162,7 +176,7 @@ mod_string=$(echo {wildcards.modifications_string} | tr "-" ",")
 {params.dorado} \
 basecaller \
 {wildcards.type},$mod_string \
-{input.dir} \
+{params.input_dir} \
 --recursive \
 --verbose \
 --reference {params.reference} > {output.calls}.unfinished
@@ -188,7 +202,8 @@ rule dorado_resume:
     params:
         dorado = config["aref"]["dorado"],
         basecallingModel = lambda w: config["aref"]["basecallingModel"][w.rate][w.type],
-        reference = config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"]
+        reference = config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"],
+        input_dir = sample_table.loc[sample_table["sample_name"] == wildcards.sample, "nanopore_rawdata_dir"].iloc[0]
     resources:
         cpus_per_task =12,
         slurm_partition="gpu-he",
@@ -202,7 +217,7 @@ mod_string=$(echo {wildcards.modifications_string} | tr "-" ",")
 {params.dorado} \
 basecaller \
 {wildcards.type},$mod_string \
-{input.dir} \
+{params.input_dir} \
 --resume-from {input.unfinished} \
 --recursive \
 --verbose \
