@@ -132,14 +132,12 @@ touch {output.sym_link_outfile}
         """
 
 #tag BASECALLING
-rule index_dorado_ref:
+checkpoint index_dorado_ref:
     output:
-        reference_fai = lambda wildcards: config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"] + ".fai"
+        reference_fai = config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"] + ".fai"
     benchmark:
         "aref/benchmarks/index_dorado_ref.tsv"
     conda: "omics"
-    params:
-        reference = config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"]
     shell:
         """
 samtools faidx ${{{output.reference_fai}%.*}}
@@ -161,7 +159,7 @@ rule dorado:
     params:
         dorado = config["aref"]["dorado"],
         reference = config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"],
-        input_dir = sample_table.loc[sample_table["sample_name"] == wildcards.sample, "nanopore_rawdata_dir"].iloc[0]
+        input_dir = lambda wildcards: sample_table.loc[sample_table["sample_name"] == wildcards.sample, "nanopore_rawdata_dir"].iloc[0]
     resources:
         cpus_per_task =12,
         slurm_partition="gpu-he",
@@ -203,7 +201,7 @@ rule dorado_resume:
         dorado = config["aref"]["dorado"],
         basecallingModel = lambda w: config["aref"]["basecallingModel"][w.rate][w.type],
         reference = config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"],
-        input_dir = sample_table.loc[sample_table["sample_name"] == wildcards.sample, "nanopore_rawdata_dir"].iloc[0]
+        input_dir = lambda wildcards: sample_table.loc[sample_table["sample_name"] == wildcards.sample, "nanopore_rawdata_dir"].iloc[0]
     resources:
         cpus_per_task =12,
         slurm_partition="gpu-he",
@@ -840,10 +838,16 @@ gatk LiftoverVcf -I {params.vcf} -C {params.chain} -O {output} -R {params.ref} -
 #         """
 
 ######### 
-
+def merge_vcfs_input(wildcards):
+    #call checkpoint output just to register rule merge_vcfs as dependent on the move_staring_reference rule
+    checkpoint_output = checkpoints.index_dorado_ref.get().output[0]
+    if os.path.exists(config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"] + ".fai"):
+        return expand("aref/intermediates/{{sample_or_ref}}/pepper/{chromosome}/PEPPER_MARGIN_DEEPVARIANT_FINAL_OUTPUT.vcf.gz", chromosome = [e for e in pd.read_table(config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"] + ".fai", header = None).iloc[:,0] if e != "chrM"])
+    else:
+        return "TEMP"
 rule merge_vcfs:
     input:
-        vcfs = [expand("aref/intermediates/{{sample_or_ref}}/pepper/{chromosome}/PEPPER_MARGIN_DEEPVARIANT_FINAL_OUTPUT.vcf.gz", chromosome = [e for e in pd.read_table(config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"] + ".fai", header = None).iloc[:,0] if e != "chrM"]) if config["aref"]["update_ref_with_tldr"]["response"] == "yes" else ""] #this used to thrown an error if the tldr_input_bam_ref fai did not exist - even if you weren't running the tldr
+        vcfs = merge_vcfs_input
     output:
         vcf = "aref/intermediates/{sample_or_ref}/pepper/merged.vcf.gz"
     conda:
