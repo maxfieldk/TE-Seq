@@ -8,6 +8,7 @@ library(magrittr)
 library(ggpubr)
 library(patchwork)
 
+module_list <- list()
 for (module in c("aref", "srna", "ldna", "lrna")) {
     tryCatch(
         {
@@ -19,10 +20,11 @@ for (module in c("aref", "srna", "ldna", "lrna")) {
                     bf$rule <- dirname(file) %>% basename()
                 } else {
                     data <- readr::read_delim(file, delim = "\t")
-                    data$rule <- dirname(file) %>% basename()
+                    data$rule <- str_extract(file, regex(sprintf("%s/benchmarks/[a-zA-Z0-9_-]*", module))) %>% basename()
                     bf <- dplyr::bind_rows(bf, data)
                 }
             }
+            module_list[[module]] <- bf %>% mutate(module = module)
 
             default_time <- 70
             default_mem <- 12.5
@@ -55,3 +57,10 @@ for (module in c("aref", "srna", "ldna", "lrna")) {
         }
     )
 }
+
+df <- purrr::reduce(module_list, bind_rows)
+
+df %>%
+    group_by(rule) %>%
+    summarise(mean_min = mean(s) / 60) %>%
+    summarise(sum = sum(mean_min) / 60)
