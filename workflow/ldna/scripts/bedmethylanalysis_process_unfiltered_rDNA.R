@@ -323,20 +323,20 @@ stats <- summary(lm(mean_meth ~ condition + sex + age, pf)) %>% broom::tidy()
 mysaveandstore(fn = sprintf("ldna/results/%s/plots/hardtomapregions/rdna_mean_meth_bar1.pdf", params$mod_code), 5, 4, sf = stats)
 
 library(ggrepel)
-p <- pf %>%
-    mutate(sample_name = fct_reorder(paste0(sample_name, "_", age), age)) %>%
-    ggplot(aes(y = sample_name, x = mean_meth, color = condition, shape = sex)) +
-    geom_point(size = 3) +
-    scale_conditions +
-    geom_vline(xintercept = pf %>% filter(condition == "AD") %$% mean_meth %>% mean(), color = "blue", linetype = "dashed") +
-    geom_vline(xintercept = pf %>% filter(condition == "CTRL") %$% mean_meth %>% mean(), color = "grey", linetype = "dashed") +
-    geom_text_repel(aes(label = apoe)) +
-    # new_scale_fill() +
-    # geom_tile(aes(x = -1, fill = sex), width = 2) + # Add metadata strip
-    scale_conditions +
-    mtopen
-stats <- summary(lm(mean_meth ~ condition + sex + age, pf)) %>% broom::tidy()
-mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/pca/mean_meth_point_withage_ordered.pdf", params$mod_code), 5, 4, sf = stats)
+# p <- pf %>%
+#     mutate(sample_name = fct_reorder(paste0(sample_name, "_", age), age)) %>%
+#     ggplot(aes(y = sample_name, x = mean_meth, color = condition, shape = sex)) +
+#     geom_point(size = 3) +
+#     scale_conditions +
+#     geom_vline(xintercept = pf %>% filter(condition == "AD") %$% mean_meth %>% mean(), color = "blue", linetype = "dashed") +
+#     geom_vline(xintercept = pf %>% filter(condition == "CTRL") %$% mean_meth %>% mean(), color = "grey", linetype = "dashed") +
+#     geom_text_repel(aes(label = apoe)) +
+#     # new_scale_fill() +
+#     # geom_tile(aes(x = -1, fill = sex), width = 2) + # Add metadata strip
+#     scale_conditions +
+#     mtopen
+# stats <- summary(lm(mean_meth ~ condition + sex + age, pf)) %>% broom::tidy()
+# mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/pca/mean_meth_point_withage_ordered.pdf", params$mod_code), 5, 4, sf = stats)
 
 
 

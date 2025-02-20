@@ -29,8 +29,7 @@ tryCatch(
     },
     error = function(e) {
         assign("params", list(
-            r_annotation_fragmentsjoined = sprintf("aref/extended/%s_annotations/%s_repeatmasker.gtf.rformatted.fragmentsjoined.csv", sample_table$sample_name, sample_table$sample_name),
-            r_repeatmasker_annotation = sprintf("aref/extended/%s_annotations/%s_repeatmasker_annotation.csv", sample_table$sample_name, sample_table$sample_name),
+            rmann_nonref = sprintf("aref/extended/%s_annotations/%s_rmann_nonref.csv", sample_table$sample_name, sample_table$sample_name),
             filtered_tldr = sprintf("aref/extended/%s.table.kept_in_updated_ref.txt", sample_table$sample_name)
         ), env = globalenv())
         assign("outputs", list(
@@ -50,7 +49,8 @@ for (sample in sample_table$sample_name) {
 }
 
 dff <- do.call(rbind, dfs_filtered) %>% tibble()
-
+# write_delim(dff %>% filter(fraction_reads_count < 1) %>% filter(fraction_reads_count > 0.9) %>% mutate(NOTES = "NA") %>% dplyr::relocate(sample_name, Chrom, Start, End, NOTES),
+# "near_homozygous_inserts_check_for_contamination.tsv", delim = "\t")
 
 for (element_type in dff %$% Subfamily %>% unique()) {
     dftemp <- dff %>% filter(Subfamily == element_type)
@@ -96,19 +96,14 @@ for (element_type in dff %$% Subfamily %>% unique()) {
 
 anns <- list()
 for (sample in sample_table$sample_name) {
-    df1 <- read_csv(grep(sprintf("%s_annotations", sample), params$r_annotation_fragmentsjoined, value = TRUE))
+    df1 <- read_csv(grep(sprintf("%s_annotations", sample), params$rmann_nonref, value = TRUE))
     df1$sample_name <- sample
-    df2 <- read_csv(grep(sprintf("%s_annotations", sample), params$r_repeatmasker_annotation, value = TRUE))
     df <- df1 %>%
-        filter(refstatus == "NonRef") %>%
-        left_join(sample_table) %>%
-        left_join(df2)
+        left_join(sample_table)
     anns[[sample]] <- df
 }
 ann <- do.call(rbind, anns) %>% tibble()
 
-
-nrdf <- ann
 nrdf <- ann %>%
     filter(refstatus == "NonRef") %>%
     dplyr::rename(UUID = nonref_UUID) %>%
@@ -124,6 +119,19 @@ nrdf <- ann %>%
             levels = c("novel", "known", "NotCalled")
         )
     )
+
+# removing the rmann seqnames, start, stop, leaving only the tldr (ref genome coordinate based ones)
+nrdfgrs <- GRanges(nrdf %>% dplyr::rename(rmann_seqnames = seqnames) %>% dplyr::select(-start, -end, -strand))
+reduced_ranges <- reduce(nrdfgrs)
+overlaps <- findOverlaps(nrdfgrs, reduced_ranges)
+group_id <- paste0("GID", as.factor(subjectHits(overlaps)))
+nrdfgrs$group_id <- group_id
+nrdf_new <- tibble(as.data.frame(nrdfgrs)) %>%
+    group_by(group_id) %>%
+    mutate(num_samples_detected = n()) %>%
+    mutate(shared = ifelse(num_samples_detected > 1, "Shared", "NotShared")) %>%
+    relocate(num_samples_detected, shared) %>%
+    ungroup()
 
 p1 <- nrdf %>%
     group_by(rte_family, loc_integrative, sample_name) %>%
@@ -220,6 +228,17 @@ novel_frac_df <- nrdf %>%
     dplyr::filter(known_nonref == "novel") %>%
     mutate(frac_novel = frac_total, frac_known = 1 - frac_total)
 
+shared_frac_df <- nrdf_new %>%
+    group_by(rte_subfamily, shared, .drop = FALSE) %>%
+    summarise(n = n()) %>%
+    ungroup() %>%
+    group_by(rte_subfamily) %>%
+    mutate(family_n = sum(n)) %>%
+    mutate(frac_total = n / family_n) %>%
+    ungroup() %>%
+    dplyr::filter(shared == "Shared") %>%
+    mutate(frac_shared = frac_total, frac_unique = 1 - frac_total)
+
 homozyg_frac_df <- nrdf %>%
     group_by(rte_subfamily, zygosity, .drop = FALSE) %>%
     summarise(n = n()) %>%
@@ -237,6 +256,13 @@ hp <- homozyg_frac_df %>%
     mtclosed + theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
     scale_fill_manual(values = c("tan", "lightblue")) +
     labs(x = "Subfamily")
+sp <- shared_frac_df %>%
+    pivot_longer(cols = c(frac_shared, frac_unique)) %>%
+    ggbarplot(x = "rte_subfamily", y = "value", fill = "name") +
+    mtclosed + theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    scale_fill_manual(values = c("#018458", "#ffc354")) +
+    labs(x = "Subfamily")
+
 np <- novel_frac_df %>%
     pivot_longer(cols = c(frac_novel, frac_known)) %>%
     ggbarplot(x = "rte_subfamily", y = "value", fill = "name") +
@@ -246,13 +272,23 @@ np <- novel_frac_df %>%
 library(patchwork)
 
 mss(pl = hp, sprintf("%s/insertions_subfamily_zygosity.pdf", outputdir), 6, 2, 3, 2.25, plus_void = TRUE)
+mss(pl = sp, sprintf("%s/insertions_subfamily_sharedprop.pdf", outputdir), 6, 2, 3, 2.25, plus_void = TRUE)
 mss(pl = np, sprintf("%s/insertions_subfamily_novelprop.pdf", outputdir), 6, 2, 3, 2.25, plus_void = TRUE)
 ptch <- np / hp + plot_layout(heights = c(0.4, 0.4), axis_titles = "collect")
 mysaveandstore(pl = ptch, sprintf("%s/insertions_subfamily_patch_only_annot.pdf", outputdir), 6, 4, )
+ptch <- sp / hp + plot_layout(heights = c(0.4, 0.4), axis_titles = "collect")
+mysaveandstore(pl = ptch, sprintf("%s/insertions_subfamily_patch_only_annot_shared.pdf", outputdir), 6, 4, )
 
 
 ptch <- p1 / np / hp + plot_layout(heights = c(0.4, 0.4, 0.4), axis_titles = "collect")
 mysaveandstore(pl = ptch, sprintf("%s/insertions_subfamily_patch.pdf", outputdir), 6, 6)
+
+ptch <- p1 / sp / hp + plot_layout(heights = c(0.4, 0.4, 0.4), axis_titles = "collect")
+mysaveandstore(pl = ptch, sprintf("%s/insertions_subfamily_patch_shared.pdf", outputdir), 6, 6)
+
+ptch <- p1 / np / sp / hp + plot_layout(heights = c(0.4, 0.4, 0.4, 0.4), axis_titles = "collect")
+mysaveandstore(pl = ptch, sprintf("%s/insertions_subfamily_patch_all.pdf", outputdir), 6, 8)
+
 
 for (rte in homozyg_frac_df %$% rte_subfamily) {
     pf <- homozyg_frac_df %>%

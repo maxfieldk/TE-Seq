@@ -96,7 +96,7 @@ aref:
   dorado: "/users/mkelsey/data/tools/dorado-0.5.1-linux-x64/bin/dorado"
   rate: "5khz"
   type: "hac"
-  modification_string: "5mCG_5hmCG" #note separete modifications with dashes
+  modification_string: "5mCG_5hmCG" #note separate modifications with dashes (e.g. 5mCG_5hmCG-6ma); see dorado webpage for full details: https://github.com/nanoporetech/dorado
 
 srna:
   prefix: "srna"
