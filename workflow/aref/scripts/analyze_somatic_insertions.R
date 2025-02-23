@@ -735,20 +735,10 @@ somatic_naught <- dfall %>%
     mutate(TSD_OK = ifelse(is.na(TSD), FALSE, ifelse(nchar(TSD) < 21, TRUE, FALSE))) %>%
     # binomial probability that we observe this few reads were it a heterozygous insert
     mutate(prob_fp = ifelse(UsedReads > as.numeric(emptyreadsnum), 1, pbinom(q = UsedReads, size = UsedReads + as.numeric(emptyreadsnum), prob = 0.5))) %>%
-    filter(prob_fp < 0.001) %>%
+    filter(prob_fp < 0.01) %>%
     filter(is.na(NonRef)) %>%
     relocate(prob_fp, UsedReads, emptyreadsnum)
 
-dfall %>%
-    filter(Filter == "PASS") %>%
-    filter(!is.na(EmptyReads)) %>%
-    rowwise() %>%
-    mutate(emptyreadsnum = sum(as.numeric(gsub("\\|", "", unlist(str_extract_all(EmptyReads, pattern = "\\|[0-9]+")))))) %>%
-    ungroup() %>%
-    mutate(sample_name = gsub("\\..*", "", str_extract(SampleReads, paste(conf$samples, collapse = "|")))) %>%
-    mutate(prob_fp = ifelse(UsedReads > as.numeric(emptyreadsnum), 1, dbinom(x = UsedReads, size = UsedReads + as.numeric(emptyreadsnum), prob = 0.5))) %>%
-    filter(prob_fp < 0.001) %>%
-    relocate(prob_fp, UsedReads, emptyreadsnum)
 
 somatic_alpha <- dfall %>%
     filter(!is.na(EmptyReads)) %>%
