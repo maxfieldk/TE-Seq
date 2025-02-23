@@ -1126,7 +1126,8 @@ if (file.exists(curated_elements_path)) {
         left_join(cut_site_df) %>%
         mutate(tsd_length = nchar(TSD)) %>%
         mutate(`Insert Site` = paste0(seqnames, ":", start)) %>%
-        dplyr::select(Subfamily, sample_name, sample_name, `Insert Site`, LengthIns, StartTE, EndTE, tsd_length, UsedReads, emptyreadsnum, `cut_site_seq_-3_+7`, TEMatch, insert_mean_mapqs, MedianMapQ) %>%
+        mutate(Region = "Placeholder") %>%
+        dplyr::select(Subfamily, sample_name, sample_name, `Insert Site`, Region, LengthIns, StartTE, EndTE, tsd_length, UsedReads, emptyreadsnum, `cut_site_seq_-3_+7`, TEMatch, insert_mean_mapqs, MedianMapQ) %>%
         arrange(sample_name, LengthIns) %>%
         dplyr::rename(`Used Reads` = UsedReads) %>%
         dplyr::rename(`Empty Reads` = emptyreadsnum) %>%
