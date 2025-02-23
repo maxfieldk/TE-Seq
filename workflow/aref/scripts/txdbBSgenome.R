@@ -34,10 +34,27 @@ tryCatch(
 
 grs_refseq <- import(inputs$refseq)
 grs_repeatmasker <- import(inputs$repeatmasker)
-grs <- c(grs_refseq, grs_repeatmasker)
-txdb <- makeTxDbFromGRanges(grs)
-txdbrepeatmasker <- makeTxDbFromGRanges(grs_repeatmasker)
+grs_repeatmasker1 <- grs_repeatmasker %>%
+    as.data.frame() %>%
+    tibble() %>%
+    mutate(type = as.character(type)) %>%
+    mutate(type = ifelse(type == "RNA", "transcript", type))
+txdbrepeatmasker <- makeTxDbFromGRanges(grs_repeatmasker1 %>% GRanges())
+txdbrepeatmaskergrs <- asGFF(txdbrepeatmasker)
+mcols(txdbrepeatmaskergrs)$type %>% unique()
+mcols(txdbrefseqgrs)$type %>% unique()
+
 txdbrefseq <- makeTxDbFromGRanges(grs_refseq)
+txdbrefseqgrs <- asGFF(txdbrefseq)
+
+grs <- c(txdbrefseqgrs, txdbrepeatmaskergrs)
+grs1 <- grs %>%
+    as.data.frame() %>%
+    tibble() %>%
+    mutate(type = ifelse(type == "mRNA", "transcript", type))
+txdb <- makeTxDbFromGRanges(grs1 %>% GRanges())
+transcripts(txdb)
+
 saveDb(txdb, file = outputs$txdb)
 saveDb(txdbrefseq, file = outputs$txdbrefseq)
 saveDb(txdbrepeatmasker, file = outputs$txdbrepeatmasker)
