@@ -621,6 +621,7 @@ telomere <- telomeredf %>%
     dplyr::rename(seqnames = X1, start = X2, end = X3) %>%
     GRanges()
 mappability <- import("/users/mkelsey/data/Nanopore/alz/k50.Unique.Mappability.bb")
+refseq <- import(conf$ref_refseq_gff3)
 
 # load sequencing meta data
 rm(sample_sequencing_data)
@@ -768,7 +769,6 @@ somatic_alpha_annotated <- somatic_alpha %>%
     annotate_read_metadata() %>%
     annotate_teend()
 
-
 all_nr <- dfall %>%
     filter(!is.na(Subfamily)) %>%
     mutate(Strand = ifelse(Strand == "None", ".", Strand))
@@ -789,6 +789,9 @@ for (sample in somatic_alpha_annotated$sample_name %>% unique()) {
 }
 surv <- purrr::reduce(other_sample_filter, bind_rows)
 somatic_alpha_annotated <- somatic_alpha_annotated %>% mutate(not_found_in_other_samples = ifelse(UUID %in% surv$UUID, TRUE, FALSE))
+
+write_csv(somatic_alpha_annotated, "aref/results/somatic_insertions/somatic_alpha_annotated.csv")
+
 
 
 somatic_alpha_annotated %$% not_found_in_other_samples %>% table()
@@ -916,15 +919,25 @@ if (file.exists(curated_elements_path)) {
 
     for (UUID in curation_df_complete$UUID) {
         path <- system(sprintf("find aref/results/somatic_insertions/unique_insert_data -name %s", UUID), intern = TRUE)
-        system("mkdir -p aref/results/somatic_insertions/insert_characteristics/curated_elements/insert_data")
-        system(sprintf("cp -r %s aref/results/somatic_insertions/insert_characteristics/curated_elements/insert_data", path))
-        file.exists(path)
+        tryCatch(
+            {
+                system("mkdir -p aref/results/somatic_insertions/insert_characteristics/curated_elements/insert_data")
+                system(sprintf("cp -r %s aref/results/somatic_insertions/insert_characteristics/curated_elements/insert_data", path))
+                file.exists(path)
+            },
+            error = function(e) {
+
+            }
+        )
     }
 
+
+    somatic_alpha_annotated <- read_csv("aref/results/somatic_insertions/somatic_alpha_annotated.csv")
 
     if (is.null(somatic_alpha_annotated$condition)) {
         somatic_alpha_annotated$condition <- conf$levels
     }
+
     pass <- somatic_alpha_annotated %>%
         left_join(curation_df_complete) %>%
         filter(pass_curation == TRUE) %>%
