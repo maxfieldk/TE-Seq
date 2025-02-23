@@ -844,7 +844,7 @@ def merge_vcfs_input(wildcards):
     if os.path.exists(config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"] + ".fai"):
         return expand("aref/intermediates/{{sample_or_ref}}/pepper/{chromosome}/PEPPER_MARGIN_DEEPVARIANT_FINAL_OUTPUT.vcf.gz", chromosome = [e for e in pd.read_table(config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"] + ".fai", header = None).iloc[:,0] if e != "chrM"])
     else:
-        return "TEMP"
+        return []
 rule merge_vcfs:
     input:
         vcfs = merge_vcfs_input
@@ -1001,7 +1001,8 @@ rule vcf_to_table:
         vcf_sml = "aref/intermediates/{sample_or_ref}/snpeff/snpeff_sml.pass.vcf",
         vcf_sv = "aref/intermediates/{sample_or_ref}/snpeff/snpeff_sv.pass.vcf"
     output:
-
+        vcf_sml = "aref/intermediates/{sample_or_ref}/snpeff/snpeff_sml.pass.txt",
+        vcf_sv = "aref/intermediates/{sample_or_ref}/snpeff/snpeff_sv.pass.txt"
     container:
         "docker://broadinstitute/gatk:3.8"
     shell:
@@ -1010,6 +1011,11 @@ bcftools view -f 'PASS' {input.vcf_sml} > {output.vcf_sml}
 bcftools view -f 'PASS' {input.vcf_sv} > {output.vcf_sv}
         """
 
+rule getstuff2:
+    input:
+        [
+        expand("aref/intermediates/{sample_or_ref}/snpeff/snpeff_sv.pass.txt", sample_or_ref = config["aref"]["samples"])
+        ]
 
 ####
 

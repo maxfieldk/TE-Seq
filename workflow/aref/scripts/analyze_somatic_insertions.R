@@ -764,7 +764,7 @@ somatic_alpha <- dfall %>%
     mutate(TSD_OK = ifelse(nchar(TSD) < 21, TRUE, FALSE)) %>%
     # binomial probability that we observe this few reads were it a heterozygous insert
     mutate(prob_fp = ifelse(UsedReads > as.numeric(emptyreadsnum), 1, dbinom(x = UsedReads, size = UsedReads + as.numeric(emptyreadsnum), prob = 0.5))) %>%
-    filter(prob_fp < 0.001) %>%
+    filter(prob_fp < 0.01) %>%
     relocate(prob_fp, UsedReads, emptyreadsnum)
 
 
@@ -779,7 +779,6 @@ somatic_alpha_annotated <- somatic_alpha %>%
     annotate_teend()
 
 
-all_nr$Strand %>% unique()
 all_nr <- dfall %>%
     filter(!is.na(Subfamily)) %>%
     mutate(Strand = ifelse(Strand == "None", ".", Strand))
@@ -853,7 +852,7 @@ f4_l1hs_extended <- f3_l1hs_extended %>%
     filter(insert_mean_mapqs > 55) %>%
     filter(k50_mappable == TRUE) %>%
     mutate(mappability_stringency = "high")
-f4_less_stringent_l1hs_extended <- somatic_readfiltered_l1hs_extended %>%
+f4_less_stringent_l1hs_extended <- f3_l1hs_extended %>%
     filter((insert_mean_mapqs > 40 & insert_mean_mapqs <= 55) | (k50_mappable == FALSE & insert_mean_mapqs > 40)) %>%
     mutate(mappability_stringency = "medium")
 
@@ -933,8 +932,8 @@ if (file.exists(curated_elements_path)) {
     }
 
 
-    if (is.null(dfall$condition)) {
-        dfall$condition <- conf$levels
+    if (is.null(somatic_alpha_annotated$condition)) {
+        somatic_alpha_annotated$condition <- conf$levels
     }
     pass <- somatic_alpha_annotated %>%
         left_join(curation_df_complete) %>%
@@ -1124,50 +1123,40 @@ if (file.exists(curated_elements_path)) {
     p <- pass %>%
         left_join(cut_site_df) %>%
         mutate(tsd_length = nchar(TSD)) %>%
-        dplyr::select(Subfamily, sample_name, sample_name, seqnames, LengthIns, start, StartTE, EndTE, tsd_length, UsedReads, emptyreadsnum, `cut_site_seq_-3_+7`) %>%
+        mutate(`Insert Site` = paste0(seqnames, ":", start)) %>%
+        dplyr::select(Subfamily, sample_name, sample_name, `Insert Site`, LengthIns, StartTE, EndTE, tsd_length, UsedReads, emptyreadsnum, `cut_site_seq_-3_+7`) %>%
+        arrange(sample_name, LengthIns) %>%
         dplyr::rename(`Used Reads` = UsedReads) %>%
         dplyr::rename(`Empty Reads` = emptyreadsnum) %>%
-        arrange(sample_name, LengthIns) %>%
+        dplyr::rename(Sample = sample_name, `Length (bp)` = LengthIns, `TSD Length` = tsd_length, `Cut Site (-3_+7)` = `cut_site_seq_-3_+7`) %>%
         ggtexttable(theme = ttheme("minimal"))
     mysaveandstore(pl = p, sprintf("%s/insert_characteristics/%s/insert_chars.pdf", outputdir, group_name), 12, 5)
 
     p <- pass %>%
         left_join(cut_site_df) %>%
         mutate(tsd_length = nchar(TSD)) %>%
-        dplyr::select(Subfamily, sample_name, seqnames, start, LengthIns, StartTE, EndTE, tsd_length, UsedReads, emptyreadsnum, `cut_site_seq_-3_+7`, TEMatch, insert_mean_mapqs, MedianMapQ) %>%
+        mutate(`Insert Site` = paste0(seqnames, ":", start)) %>%
+        dplyr::select(Subfamily, sample_name, sample_name, `Insert Site`, LengthIns, StartTE, EndTE, tsd_length, UsedReads, emptyreadsnum, `cut_site_seq_-3_+7`, TEMatch, insert_mean_mapqs, MedianMapQ) %>%
+        arrange(sample_name, LengthIns) %>%
         dplyr::rename(`Used Reads` = UsedReads) %>%
         dplyr::rename(`Empty Reads` = emptyreadsnum) %>%
-        arrange(sample_name, LengthIns) %>%
+        dplyr::rename(Sample = sample_name, `Length (bp)` = LengthIns, `TSD Length` = tsd_length, `Cut Site (-3_+7)` = `cut_site_seq_-3_+7`) %>%
         ggtexttable(theme = ttheme("minimal"))
     mysaveandstore(pl = p, sprintf("%s/insert_characteristics/%s/insert_chars_detailed.pdf", outputdir, group_name), 15, 5)
 
     p <- pass %>%
         left_join(cut_site_df) %>%
         mutate(tsd_length = nchar(TSD)) %>%
-        dplyr::select(UUID, Subfamily, sample_name, LengthIns, StartTE, EndTE, tsd_length, UsedReads, emptyreadsnum, `cut_site_seq_-3_+7`, TEMatch, insert_mean_mapqs, MedianMapQ) %>%
+        mutate(`Insert Site` = paste0(seqnames, ":", start)) %>%
+        dplyr::select(UUID, Subfamily, sample_name, sample_name, `Insert Site`, LengthIns, StartTE, EndTE, tsd_length, UsedReads, emptyreadsnum, `cut_site_seq_-3_+7`, TEMatch, insert_mean_mapqs, MedianMapQ) %>%
+        arrange(sample_name, LengthIns) %>%
         dplyr::rename(`Used Reads` = UsedReads) %>%
         dplyr::rename(`Empty Reads` = emptyreadsnum) %>%
-        arrange(sample_name, LengthIns) %>%
+        dplyr::rename(Sample = sample_name, `Length (bp)` = LengthIns, `TSD Length` = tsd_length, `Cut Site (-3_+7)` = `cut_site_seq_-3_+7`) %>%
         ggtexttable(theme = ttheme("minimal"))
     mysaveandstore(pl = p, sprintf("%s/insert_characteristics/%s/insert_chars_detailed1.pdf", outputdir, group_name), 18, 5)
-    p1 <- pass %>%
-        left_join(cut_site_df) %>%
-        mutate(tsd_length = nchar(TSD)) %>%
-        dplyr::select(Subfamily, LengthIns, StartTE, EndTE, tsd_length) %>%
-        arrange(StartTE) %>%
-        ggtexttable(theme = ttheme("minimal"))
-    mysaveandstore(pl = p1, sprintf("%s/insert_characteristics/%s/insert_chars_1.pdf", outputdir, group_name), 6, 4)
-    p2 <- pass %>%
-        left_join(cut_site_df) %>%
-        mutate(tsd_length = nchar(TSD)) %>%
-        dplyr::select(StartTE, UsedReads, emptyreadsnum, `cut_site_seq_-3_+7`) %>%
-        dplyr::rename(`Used Reads` = UsedReads) %>%
-        dplyr::rename(`Empty Reads` = emptyreadsnum) %>%
-        arrange(StartTE) %>%
-        dplyr::select(-StartTE) %>%
-        ggtexttable(theme = ttheme("minimal"))
-    mysaveandstore(pl = p2, sprintf("%s/insert_characteristics/%s/insert_chars_2.pdf", outputdir, group_name), 6, 4)
 }
+
 tdf <- pass %>%
     group_by(sample_name) %>%
     summarise(n = n()) %>%
@@ -1181,7 +1170,13 @@ tdf$bases_number / (3 * 10**9)
 haploid_genome_length <- seqinfo(fa) %>%
     data.frame() %$% seqlengths %>%
     sum()
-tdf %>% mutate(fraction_genomes_with_a_somatic_insert = n / (bases_number / (2 * haploid_genome_length)))
+tdf %>%
+    mutate(fraction_genomes_with_a_somatic_insert = n / (bases_number / (2 * haploid_genome_length))) %>%
+    pw()
+
+
+
+
 
 ########### OLD CODE
 

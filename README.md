@@ -261,7 +261,7 @@ CTRL F to the only occurrence of "conf$species". You will find two blocks of cod
   conda activate snakemake
   snakemake --profile workflow/profile/default -n
   ```
-  If you are happy with this plan of action, deploy the pipeline by calling Snakemake  
+  If you are happy with this plan of action, deploy the pipeline by calling Snakemake. Note that at the onset of the first run, snakemake will pull and build the docker/singularity containers. This can be quite memory intensive - accordingly if you are on a shared / cluster computer, this job may be killed by an "out of memory" error. To get around this, call snakemake from an interactive shell afforded ample memory (200Gb) - this is only necessary on the first call of the pipeline. 
   ```
   snakemake --profile workflow/profile/default
   ```
