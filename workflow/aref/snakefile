@@ -181,6 +181,40 @@ basecaller \
 mv {output.calls}.unfinished {output.calls}
         """
 
+rule dorado_unmappedbam:
+    output:
+        calls = "aref/intermediates/{sample}/unmappedbam/{rate}/{sample}.{type}.{modifications_string}.bam"
+    wildcard_constraints:
+        sample="[0-9A-Za-z_]+",
+        type = "[0-9A-Za-z]+",
+        rate = "[0-9A-Za-z]+",
+        modifications_string = "[0-9A-Za-z_-]+"
+    container: None
+    benchmark:
+        "aref/benchmarks/dorado_fq/{rate}.{sample}.{type}.{modifications_string}.tsv"
+    params:
+        dorado = config["aref"]["dorado"],
+        input_dir = lambda wildcards: sample_table.loc[sample_table["sample_name"] == wildcards.sample, "nanopore_rawdata_dir"].iloc[0]
+    resources:
+        cpus_per_task =12,
+        slurm_partition="gpu-he",
+        mem_mb = 128000,
+        runtime = 5760,
+        slurm_extra="'--gres=gpu:2'"
+    shell:
+        """
+mkdir -p $(dirname {output.calls})
+mod_string=$(echo {wildcards.modifications_string} | tr "-" ",")
+
+{params.dorado} \
+basecaller \
+{wildcards.type},$mod_string \
+{params.input_dir} \
+--recursive \
+--verbose > {output.calls}.unfinished
+mv {output.calls}.unfinished {output.calls}
+        """
+
 rule call_dorado_resume:
     input:
         expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.bam.unfinished", sample = config["aref"]["samples"], rate = config["aref"]["rate"], type = config["aref"]["type"], modifications_string = config["aref"]["modification_string"])
