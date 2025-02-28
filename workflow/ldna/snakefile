@@ -54,24 +54,122 @@ mkdir -p $(dirname {output.fastq})
 samtools fastq -T MM,ML,qs {input.bam} > {output.fastq}
         """
 
-rule align_to_updated_ref:
+
+rule generate_meryl_index:
+    benchmark:
+        "ldna/benchmarks/meryl/ref.tsv"
+    params:
+        meryl = config["aref"]["meryl"],
+        reference = config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"]
+    container: None
+    output:
+        k15_db = directory("ldna/meryl_k15_db"),
+        repetitive_k15 = "ldna/repetitive_k15.txt"
+    resources:
+        cpus_per_task =24,
+        runtime = 1200,
+        mem_mb = 128000
+    shell:
+        """
+mkdir -p $(dirname {output.k15_db})
+{params.meryl} count k=15 threads={resources.cpus_per_task} memory=100 output {output.k15_db} {params.reference}
+{params.meryl} print greater-than distinct=0.9998 {output.k15_db} > {output.repetitive_k15}
+        """
+
+
+
+rule align_to_ref_winnowmap:
     input:
         fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq",
-        aref = ancient("aref.done.outfile")
+        repetitive_k15 = "ldna/repetitive_k15.txt"
+    benchmark:
+        "ldna/benchmarks/winnowmap/{sample}.tsv"
     params:
-        ref = lambda wildcards: "aref/extended/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF.fa"
+        winnowmap = config["aref"]["winnowmap"],
+        reference = config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"]
+    container: None
     output:
-        sam = temp(expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sam",ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]))
+        sam = temp(expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sam",ref_genome = "winnowmap", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]))
     resources:
         cpus_per_task =20,
         runtime = 1200,
         mem_mb = 128000
-    conda: "minimap2"
     shell:
         """
 mkdir -p $(dirname {output.sam})
-minimap2 -a -x map-ont -t 14 -y {params.ref} {input.fastq} > {output.sam}
+{params.winnowmap} -W {input.repetitive_k15} -t {resources.cpus_per_task} -y -ax map-ont {params.reference} {input.fastq} > {output.sam}
         """
+
+rule get_winnowmap:
+    input:
+        expand("ldna/intermediates/{sample}/alignments/5khz/winnowmap/{sample}.hac.5mCG_5hmCG.sorted.bam.bai", sample = samples)
+
+
+
+rule call_tldr_per_sample:
+    input:
+        expand("ldna/tldr/{sample_or_ref}_tldr/{sample_or_ref}.table.txt", sample = config["ldna"]["samples"], sample_or_ref = config["ldna"]["samples"])
+species = config["aref"]["species"]
+rule tldr_per_sample:
+    input:
+        bam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.bam",ref_genome = "winnowmap", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        bai = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.bam.bai",ref_genome = "winnowmap", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+    benchmark:
+        "ldna/benchmarks/tldr_per_sample/{sample}.tsv"
+    params:
+        tldr_input_bam_ref = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"],
+        tldr_te_ref = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_te_ref"][species],
+        known_nonref = lambda w: [config["aref"]["update_ref_with_tldr"]["known_nonref"]["path"] if config["aref"]["update_ref_with_tldr"]["known_nonref"]["response"] == "yes" else "not_provided"][0]
+    output:
+        tldr = "ldna/tldr/{sample}_tldr/{sample}.table.txt"
+    resources:
+        cpus_per_task = 24,
+        mem_mb = 100000,
+        runtime = 300
+    conda:
+        "tldr"
+    shell:
+        """
+echo "params known nonref"
+nonrefavailible={params.known_nonref}
+echo $nonrefavailible
+if [[ $nonrefavailible = "not_provided" ]]
+then
+
+tldr -b {input.bam} \
+-e {params.tldr_te_ref} \
+-r {params.tldr_input_bam_ref} \
+-p 20 \
+--minreads 1 \
+--outbase {wildcards.sample} \
+--detail_output \
+--extend_consensus 4000 \
+--trdcol
+
+else
+
+tldr -b {input.bam} \
+-e {params.tldr_te_ref} \
+-r {params.tldr_input_bam_ref} \
+-p 20 \
+--nonref {params.known_nonref} \
+--minreads 1 \
+--outbase {wildcards.sample} \
+--detail_output \
+--extend_consensus 4000 \
+--trdcol
+
+fi
+
+mkdir -p $(dirname {output.tldr})
+mv {wildcards.sample}.table.txt {output.tldr}
+mv {wildcards.sample} $(dirname {output.tldr})/
+        """
+
+
+
+
+
 
 rule align_to_hg38:
     input:
