@@ -848,6 +848,22 @@ rule genomewide_meth:
         "scripts/bedmethylanalysis.R"
 
 
+rule l1hs_alignment:
+    input:
+        r_annotation_fragmentsjoined = "aref/extended/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
+        r_repeatmasker_annotation = "aref/extended/A.REF_annotations/A.REF_repeatmasker_annotation.csv",
+        ref = "aref/extended/A.REF.fa"
+    output:
+        consensus_map = "ldna/results/m/plots/l1_alignment_meth/L1HS_fl_mapping_to_consensus_table.csv"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 200000,
+        runtime = 400
+    conda:
+        "evo2"
+    script:
+        "scripts/l1hs_alignment.R"
+
 if config["ldna"]["single_condition"] == "yes":
     ruleorder: bedmethylanalysis_process_single_condition > bedmethylanalysis_process
 else:
@@ -857,7 +873,8 @@ rule bedmethylanalysis_process:
         dmrs = "ldna/results/{mod_code}/tables/dmrs.tsv",
         dmls = "ldna/results/{mod_code}/tables/dmls.tsv",
         bedmethylpaths = expand("ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_bedMethyl.bed", sample = samples, ref_genome = "analysis_default"),
-        read_mods = expand('ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_readmods_{context}_{region}.tsv', sample = samples, ref_genome = "analysis_default", region = config["ldna"]["rte_subfamily_read_level_analysis"], context = ["CpG", "NoContext"])
+        read_mods = expand('ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_readmods_{context}_{region}.tsv', sample = samples, ref_genome = "analysis_default", region = config["ldna"]["rte_subfamily_read_level_analysis"], context = ["CpG", "NoContext"]),
+        consensus_map = "ldna/results/m/plots/l1_alignment_meth/L1HS_fl_mapping_to_consensus_table.csv"
     params:
         mod_code = lambda wildcards: wildcards.mod_code
     output:
