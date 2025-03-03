@@ -37,7 +37,7 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            tldroutput = if (conf$update_ref_with_tldr$per_sample == "yes") {
+            tldroutput = if (conf$update_ref_with_tldr$per_sample == "yes" | TRUE) {
                 sprintf("ldna/tldr/%s_tldr/%s.table.txt", conf$samples, conf$samples)
             } else {
                 rep(sprintf("ldna/tldr/%s_tldr/%s.table.txt", "A.REF", "A.REF"), length(sample_table$sample_name))
@@ -133,7 +133,7 @@ dir.create(outputdir, recursive = TRUE, showWarnings = FALSE)
                 mean_mapq <- alndf$mapq %>% mean()
                 insert_mean_mapqs[[insert_id]] <- mean_mapq
                 # insert fails if it was captured in a read which has supplementary alignments
-                if (conf$update_ref_with_tldr$per_sample == "yes") {
+                if (conf$update_ref_with_tldr$per_sample == "yes" | TRUE) {
                     tldr_df <- read_delim(sprintf("ldna/tldr/%s_tldr/%s/%s.detail.out", sample, sample, insert_id))
                 } else {
                     tldr_df <- read_delim(sprintf("ldna/tldr/%s_tldr/%s/%s.detail.out", "A.REF", "A.REF", insert_id))
@@ -703,7 +703,7 @@ germline_insert_df <- GRanges(germline) %>%
 library(BSgenome)
 fa <- Rsamtools::FaFile(conf$ref)
 dflist <- list()
-if (conf$update_ref_with_tldr$per_sample == "yes") {
+if (conf$update_ref_with_tldr$per_sample == "yes" | TRUE) {
     for (sample in sample_table$sample_name) {
         df <- read.table(grep(sprintf("%s_tldr", sample), inputs$tldroutput, value = TRUE), header = TRUE) %>%
             mutate(faName = paste0("NI_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>%
