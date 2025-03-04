@@ -68,22 +68,64 @@ condition2samples <- sample_table[sample_table$condition == conditions[2], ]$sam
 
 
 design <- data.frame(sample_table)
-X <- model.matrix(~ condition + sex + age, design)
+X <- model.matrix(~condition, design)
 
-sampleNames(BSobj)
-DMLfit <- DMLfit.multiFactor(BSobj, design = design, smoothing = TRUE, formula = ~ condition + sex + age)
-colnames(DMLfit$X)
-dmls <- DMLtest.multiFactor(DMLfit, term = "condition")
-dmrs_f1 <- callDMR(dmls, p.threshold = 0.05)
-dmrs_f1$dmr_type <- "t05"
-dmrs_f2 <- callDMR(dmls, p.threshold = 0.05, minCG = 10)
-dmrs_f2$dmr_type <- "t05CG10"
-dmrs_f3 <- callDMR(dmls, p.threshold = 0.01)
-dmrs_f3$dmr_type <- "t01"
-dmrs_f4 <- callDMR(dmls, p.threshold = 0.001)
-dmrs_f4$dmr_type <- "t001"
+if (length(condition1samples) < 3) {
+    tryCatch(
+        {
+            dmlFit <- DMLtest(BSobj, group1 = condition2samples, group2 = condition1samples, smoothing = TRUE)
+            head(dmlFit)
+            dmls <- callDML(dmlFit)
+            dmls <- dmls %>%
+                dplyr::rename(pvals = pval, fdrs = fdr) %>%
+                dplyr::select(chr, pos, stat, pvals, fdrs)
 
-dmrs <- bind_rows(dmrs_f1, dmrs_f2, dmrs_f3, dmrs_f4, dmrs_f5, dmrs_f6)
+            dmrs_f1 <- callDMR(dmlFit, p.threshold = 0.05)
+            dmrs_f1$dmr_type <- "t05"
+            dmrs_f1 <- dmrs_f1 %>%
+                dplyr::rename() %>%
+                dplyr::select(chr, start, end, length, nCG, areaStat, dmr_type)
+
+            dmrs_f2 <- callDMR(dmlFit, p.threshold = 0.05, minCG = 10)
+            dmrs_f2$dmr_type <- "t05CG10"
+            dmrs_f2 <- dmrs_f2 %>%
+                dplyr::rename() %>%
+                dplyr::select(chr, start, end, length, nCG, areaStat, dmr_type)
+
+            dmrs_f3 <- callDMR(dmlFit, p.threshold = 0.01)
+            dmrs_f3$dmr_type <- "t01"
+            dmrs_f3 <- dmrs_f3 %>%
+                dplyr::rename() %>%
+                dplyr::select(chr, start, end, length, nCG, areaStat, dmr_type)
+
+            dmrs_f4 <- callDMR(dmlFit, p.threshold = 0.001)
+            dmrs_f4$dmr_type <- "t001"
+            dmrs_f4 <- dmrs_f4 %>%
+                dplyr::rename() %>%
+                dplyr::select(chr, start, end, length, nCG, areaStat, dmr_type)
+        },
+        error = function(e) {
+            print("no DMLs")
+            dmls <- data.frame()
+        }
+    )
+} else {
+    sampleNames(BSobj)
+    DMLfit <- DMLfit.multiFactor(BSobj, design = design, smoothing = TRUE, formula = ~condition)
+    colnames(DMLfit$X)
+    dmls <- dmlFit.multiFactor(DMLfit, term = "condition")
+    dmrs_f1 <- callDMR(dmls, p.threshold = 0.05)
+    dmrs_f1$dmr_type <- "t05"
+    dmrs_f2 <- callDMR(dmls, p.threshold = 0.05, minCG = 10)
+    dmrs_f2$dmr_type <- "t05CG10"
+    dmrs_f3 <- callDMR(dmls, p.threshold = 0.01)
+    dmrs_f3$dmr_type <- "t01"
+    dmrs_f4 <- callDMR(dmls, p.threshold = 0.001)
+    dmrs_f4$dmr_type <- "t001"
+}
+
+
+dmrs <- bind_rows(dmrs_f1, dmrs_f2, dmrs_f3, dmrs_f4)
 
 options(scipen = 500)
 dir.create(dirname(outputs$dmls), recursive = TRUE, showWarnings = FALSE)
@@ -116,7 +158,6 @@ write_delim(dmrs, outputs$dmrs_unfiltered, delim = "\t", col_names = TRUE)
         CHROMOSOMESINCLUDEDINANALYSIS_REF <- c(autosomes, chrX, chrY)
     }
 }
-
 
 dmls <- dmls %>% filter(chr %in% CHROMOSOMESINCLUDEDINANALYSIS)
 dmrs <- dmrs %>% filter(chr %in% CHROMOSOMESINCLUDEDINANALYSIS)
