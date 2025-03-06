@@ -769,7 +769,9 @@ somatic_alpha_annotated <- somatic_alpha %>%
     annotate_read_metadata() %>%
     annotate_teend()
 
-all_nr <- dfall %>%
+
+dfall_AD <- read_csv("/users/mkelsey/data/Nanopore/alz/RTE/aref/results/dfall_allsamples.csv")
+all_nr <- dfall_AD %>%
     filter(!is.na(Subfamily)) %>%
     mutate(Strand = ifelse(Strand == "None", ".", Strand))
 all_grs <- GRanges(all_nr)

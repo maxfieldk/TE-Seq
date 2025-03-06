@@ -3074,6 +3074,7 @@ ac <- dmrs_meth_df %>%
     group_by(pos, direction, dmr_type, condition) %>%
     summarise(mean_meth = mean(pctM))
 ad <- ac %>%
+    filter(dmr_type %in% c("t01", "t05")) %>%
     pivot_wider(names_from = condition, values_from = mean_meth) %>%
     mutate(dif = !!sym(condition2) - !!sym(condition1)) %>%
     group_by(dmr_type, direction) %>%
