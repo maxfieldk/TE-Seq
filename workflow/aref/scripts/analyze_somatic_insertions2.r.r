@@ -37,7 +37,7 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            tldroutput = if (conf$update_ref_with_tldr$per_sample == "yes" | TRUE) {
+            tldroutput = if (conf$update_ref_with_tldr$per_sample == "yes" | TRUE | TRUE) {
                 sprintf("ldna/tldr/%s_tldr/%s.table.txt", conf$samples, conf$samples)
             } else {
                 rep(sprintf("ldna/tldr/%s_tldr/%s.table.txt", "A.REF", "A.REF"), length(sample_table$sample_name))
@@ -704,6 +704,7 @@ library(BSgenome)
 fa <- Rsamtools::FaFile(conf$ref)
 dflist <- list()
 if (conf$update_ref_with_tldr$per_sample == "yes" | TRUE) {
+if (conf$update_ref_with_tldr$per_sample == "yes" | TRUE) {
     for (sample in sample_table$sample_name) {
         df <- read.table(grep(sprintf("%s_tldr", sample), inputs$tldroutput, value = TRUE), header = TRUE) %>%
             mutate(faName = paste0("NI_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>%
@@ -712,7 +713,7 @@ if (conf$update_ref_with_tldr$per_sample == "yes" | TRUE) {
         df$sample_name <- sample
         df <- df %>%
             filter(grepl(sample, SampleReads)) %>%
-            filter(!grepl(paste(setdiff(sample_table$sample_name, sample), collapse = "|"), SampleReads))
+            filter(!grepl(ifelse(paste(setdiff(sample_table$sample_name, sample), collapse = "|") == "", "OTHER", paste(setdiff(sample_table$sample_name, sample), collapse = "|")), SampleReads))
         dflist[[sample]] <- df
     }
     dfall <- do.call(bind_rows, dflist) %>%
@@ -793,6 +794,7 @@ surv <- purrr::reduce(other_sample_filter, bind_rows)
 somatic_alpha_annotated <- somatic_alpha_annotated %>% mutate(not_found_in_other_samples = ifelse(UUID %in% surv$UUID, TRUE, FALSE))
 
 write_csv(somatic_alpha_annotated, "aref/results_new_somatic/somatic_insertions/somatic_alpha_annotated.csv")
+somatic_alpha_annotated <- read_csv("aref/results_new_somatic/somatic_insertions/somatic_alpha_annotated.csv")
 
 
 
@@ -1493,3 +1495,17 @@ total_cov <- sample_table %>%
     sum()
 
 frost_total_cov <- 7.4 * 18
+
+
+
+#### Test why elements that were in minimap are not in winnowmap
+
+somatic_alpha %>%
+    head(n = 100) %>%
+    print(n = 100)
+dfall %>%
+    filter(Subfamily == "L1HS") %>%
+    filter(Chrom == "chr1")
+
+
+f4 %>% filter(TSD_OK == TRUE)
