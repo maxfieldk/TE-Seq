@@ -723,6 +723,9 @@ if (conf$update_ref_with_tldr$per_sample == "yes") {
         mutate(faName = paste0("NI_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>%
         tibble()
 }
+
+dfall %>% write_csv("aref/results/dfall_allsamples.csv")
+
 somatic_naught <- dfall %>%
     filter(!is.na(EmptyReads)) %>%
     rowwise() %>%
