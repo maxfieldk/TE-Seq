@@ -762,7 +762,6 @@ somatic_alpha <- dfall %>%
     relocate(prob_fp, UsedReads, emptyreadsnum)
 
 
-
 somatic_alpha %>%
     group_by(UsedReads, SpanReads, TSD_OK) %>%
     summarize(n = n())
@@ -772,7 +771,8 @@ somatic_alpha_annotated <- somatic_alpha %>%
     annotate_read_metadata() %>%
     annotate_teend()
 
-all_nr <- dfall %>%
+dfall_AD <- read_csv("/users/mkelsey/data/Nanopore/alz/RTE/aref/results/dfall_allsamples.csv")
+all_nr <- dfall_AD %>%
     filter(!is.na(Subfamily)) %>%
     mutate(Strand = ifelse(Strand == "None", ".", Strand))
 all_grs <- GRanges(all_nr)
@@ -794,6 +794,7 @@ surv <- purrr::reduce(other_sample_filter, bind_rows)
 somatic_alpha_annotated <- somatic_alpha_annotated %>% mutate(not_found_in_other_samples = ifelse(UUID %in% surv$UUID, TRUE, FALSE))
 
 write_csv(somatic_alpha_annotated, "aref/results/somatic_insertions/somatic_alpha_annotated.csv")
+somatic_alpha_annotated <- read_csv("aref/results/somatic_insertions/somatic_alpha_annotated.csv")
 
 
 
@@ -836,7 +837,6 @@ f4 <- f3 %>%
     mutate(mappability_stringency = "high")
 f4 %$% TSD_OK %>% table()
 f4 %>% filter(TSD_OK == TRUE)
-
 
 f4_less_stringent <- f3 %>%
     filter((insert_mean_mapqs > 40 & insert_mean_mapqs <= 55) | (k50_mappable == FALSE & insert_mean_mapqs > 40)) %>%
@@ -941,8 +941,8 @@ if (file.exists(curated_elements_path)) {
         somatic_alpha_annotated$condition <- conf$levels
     }
 
-    pass <- somatic_alpha_annotated %>%
-        left_join(curation_df_complete) %>%
+    pass <- curation_df_complete %>%
+        left_join(somatic_alpha_annotated) %>%
         filter(pass_curation == TRUE) %>%
         mutate(sample_name = factor(sample_name, levels = conf$samples)) %>%
         mutate(condition = factor(condition, levels = conf$levels))
