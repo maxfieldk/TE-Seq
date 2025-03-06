@@ -242,9 +242,6 @@ if (params$tldr_switch == "process_gtf_tldr") {
 
     rmref$nonref_UUID <- "NotApplicable"
     rmnonref_noncentral_elements$nonref_UUID <- "NotApplicable"
-    colnames(rmref)
-    colnames(rmnonrefkeep_central_element)
-    colnames(rmnonref_noncentral_elements)
     rm <- rbind(rmref, rmnonrefkeep_central_element, rmnonref_noncentral_elements)
     write_csv(rm %>% dplyr::relocate(-old_id), outputs$r_annotation_fragmentsjoined)
 
