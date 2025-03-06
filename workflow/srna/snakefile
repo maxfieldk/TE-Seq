@@ -434,6 +434,7 @@ telescope assign \
 --attribute gene_id \
 --ncpu 1 \
 --stranded_mode {params.strandparam} \
+--reassign_mode average \
 --outdir $(dirname {output.counts}) \
 {input.collatedbam} \
 {params.gff}
