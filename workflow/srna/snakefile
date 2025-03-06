@@ -451,14 +451,13 @@ telescope assign \
 {params.gff}
         """
 
-
 rule tetranscripts:
     input:
         sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.bam",
         libtype = "srna/qc/library_type.txt"
     params:
         strandparam = getTEtranscriptsStrandParam(),
-        repeats_gtf = lambda wildcards: "aref/default/%s_repeatmasker/%s_repeatmasker_raw.gtf"%(wildcards.sample, wildcards.sample) if config["srna"]["per_sample_ref"] == "yes" else "aref/default/A.REF_annotations/A.REF_repeatmasker.complete.gtf",
+        repeats_gtf = lambda wildcards: "aref/default/%s_annotations/%s_repeatmasker_tetranscripts.gtf"%(wildcards.sample, wildcards.sample) if config["srna"]["per_sample_ref"] == "yes" else "aref/default/A.REF_annotations/A.REF_repeatmasker_tetranscripts.gtf",
         genes_gtf = config["srna"]['annotation_genes']
     retries: 3
     output:
