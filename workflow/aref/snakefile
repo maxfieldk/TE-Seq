@@ -1575,7 +1575,7 @@ rule annotate_rtes:
 
 rule tetranscripts_gtf:
     input:
-        r_annotation_fragmentsjoined = "aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
+        r_repeatmasker_annotation = "aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_annotation.csv",
         repmask_gff3 = "aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker.gff3"
     output:
         repmask_gtf = "aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_tetranscripts.gtf"

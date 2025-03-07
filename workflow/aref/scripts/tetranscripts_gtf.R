@@ -38,11 +38,16 @@ gff3dfann <- gff3df %>%
     dplyr::select(-Target, -pctdiv, -pctdel) %>%
     left_join(r_repeatmasker_annotation)
 tetranscriptsgr <- gff3dfann %>%
-    mutate(gene_id = map_chr(str_split(old_id, pattern = "/"), ~ .x[length(.x) - 1])) %>%
-    mutate(family_id = map_chr(str_split(old_id, pattern = "/"), ~ .x[length(.x) - 2])) %>%
-    mutate(class_id = map_chr(str_split(old_id, pattern = "/"), ~ .x[length(.x) - 3])) %>%
+    mutate(
+        split_ids = str_split(old_id, pattern = "/"),
+        gene_id = map_chr(split_ids, ~ .x[length(.x) - 1]),
+        family_id = map_chr(split_ids, ~ ifelse(length(.x) >= 2, .x[length(.x) - 2], .x[length(.x) - 1])),
+        class_id = map_chr(split_ids, ~ ifelse(length(.x) >= 3, .x[length(.x) - 3],
+            ifelse(length(.x) >= 2, .x[length(.x) - 2], .x[length(.x) - 1])
+        ))
+    ) %>%
     mutate(gene_name = paste0(map_chr(str_split(old_id, pattern = "/"), ~ .x[length(.x) - 1]), ":TE")) %>%
-    dplyr::select(-Target, -pctdiv, -pctdel, -old_id) %>%
+    dplyr::select(-old_id, -split_ids) %>%
     GRanges()
 
 tetranscriptsgr <- gff3dfann %>%
