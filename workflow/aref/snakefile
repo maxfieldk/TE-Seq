@@ -42,6 +42,7 @@ def aref_complete_input(wildcards):
         expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf",default_or_extended = d_or_e),
         expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gff3",default_or_extended = d_or_e),
         expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker.complete.bed",default_or_extended = d_or_e),
+        expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker_tetranscripts.gtf",default_or_extended = d_or_e),
         expand("aref/{default_or_extended}/A.REF_annotations/A.REF_rte_beds/outfile.txt",default_or_extended = d_or_e),
         expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker_refseq.complete.sqlite",default_or_extended = d_or_e),
         expand("aref/{default_or_extended}/A.REF_annotations/cytobands.bed",default_or_extended = d_or_e),
@@ -63,6 +64,8 @@ def aref_complete_input(wildcards):
             paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.gff3", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
             paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.complete.gff3", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
             paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_indeces/make_star_index.out", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
+            paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_tetranscripts.gtf", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
+
             if config["aref"]["patch_ref"] == "yes":
                 paths.append(expand("aref/{default_or_extended}/{sample_or_ref}.snp_patched_indeces/make_star_index.out", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
         else:
@@ -74,6 +77,7 @@ def aref_complete_input(wildcards):
             paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.gff3", sample_or_ref = "A.REF", default_or_extended = d_or_e))
             paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.complete.gff3", sample_or_ref = "A.REF", default_or_extended = d_or_e))
             paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_indeces/make_star_index.out", sample_or_ref = "A.REF", default_or_extended = d_or_e))
+            paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_tetranscripts.gtf", sample_or_ref = "A.REF", default_or_extended = d_or_e))
             if config["aref"]["patch_ref"] == "yes":
                 paths.append(expand("aref/{default_or_extended}/{sample_or_ref}.snp_patched_indeces/make_star_index.out", sample_or_ref = "A.REF", default_or_extended = d_or_e))
 
@@ -1568,6 +1572,21 @@ rule annotate_rtes:
         "evo2"
     script:
         "scripts/annotate_rtes.R"
+
+rule tetranscripts_gtf:
+    input:
+        r_repeatmasker_annotation = "aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_annotation.csv",
+        repmask_gff3 = "aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker.gff3"
+    output:
+        repmask_gtf = "aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_tetranscripts.gtf"
+    benchmark:
+        "aref/benchmarks/tetranscripts_gtf/{sample_or_ref}_{default_or_extended}.tsv"
+    priority:
+        100
+    conda:
+        "evo2"
+    script:
+        "scripts/tetranscripts_gtf.R"
 
 rule getRTEbeds:
     input:

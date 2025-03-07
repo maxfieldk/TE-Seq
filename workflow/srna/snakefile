@@ -76,6 +76,18 @@ def getTelescopeStrandParam():
         strandParam = "didn't run infer library type yet"
     return strandParam
 
+def getTEtranscriptsStrandParam():
+    libraryType = inferLibraryType()
+    if libraryType == "forward":
+        strandParam = "forward"
+    elif libraryType == "reverse":
+        strandParam = "reverse"
+    elif libraryType == "unstranded":
+        strandParam = "no"
+    else:
+        strandParam = "didn't run infer library type yet"
+    return strandParam
+
 def getFpkmCountStrandParam():
     libraryType = inferLibraryType()
     if libraryType == "forward":
@@ -434,10 +446,50 @@ telescope assign \
 --attribute gene_id \
 --ncpu 1 \
 --stranded_mode {params.strandparam} \
+--reassign_mode average \
 --outdir $(dirname {output.counts}) \
 {input.collatedbam} \
 {params.gff}
         """
+
+rule tetranscripts:
+    input:
+        sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.bam",
+        libtype = "srna/qc/library_type.txt"
+    params:
+        strandparam = getTEtranscriptsStrandParam(),
+        repeats_gtf = lambda wildcards: "aref/default/%s_annotations/%s_repeatmasker_tetranscripts.gtf"%(wildcards.sample, wildcards.sample) if config["srna"]["per_sample_ref"] == "yes" else "aref/default/A.REF_annotations/A.REF_repeatmasker_tetranscripts.gtf",
+        genes_gtf = config["srna"]['annotation_genes']
+    retries: 3
+    output:
+        outfile = "srna/outs/agg/tetranscripts/{sample}/outfile.txt"
+    benchmark:
+        "srna/benchmarks/tetranscripts/{sample}.tsv"
+    threads: 2
+    container:
+        "docker://mhammelllab/tetranscripts:2.2.3"
+    resources:
+        mem_mb  = 50000,
+        runtime = 600
+    shell: 
+        """
+mkdir -p $(dirname {output.outfile})
+
+TEcount --format BAM \
+--sortByPos \
+--mode multi \
+--stranded {params.strandparam} \
+-b {input.sortedbam} \
+--GTF {params.genes_gtf} \
+--TE {params.repeats_gtf} \
+--outdir srna/outs/agg/tetranscripts/{wildcards.sample}
+
+touch {output.outfile} 
+        """
+
+rule call_tetranscripts:
+    input:
+        expand("srna/outs/agg/tetranscripts/{sample}/outfile.txt", sample = samples)
 
 rule tpm:
     input:

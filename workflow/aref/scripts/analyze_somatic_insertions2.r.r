@@ -37,7 +37,7 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            tldroutput = if (conf$update_ref_with_tldr$per_sample == "yes" | TRUE) {
+            tldroutput = if (conf$update_ref_with_tldr$per_sample == "yes" | TRUE | TRUE) {
                 sprintf("ldna/tldr/%s_tldr/%s.table.txt", conf$samples, conf$samples)
             } else {
                 rep(sprintf("ldna/tldr/%s_tldr/%s.table.txt", "A.REF", "A.REF"), length(sample_table$sample_name))
@@ -704,6 +704,7 @@ library(BSgenome)
 fa <- Rsamtools::FaFile(conf$ref)
 dflist <- list()
 if (conf$update_ref_with_tldr$per_sample == "yes" | TRUE) {
+if (conf$update_ref_with_tldr$per_sample == "yes" | TRUE) {
     for (sample in sample_table$sample_name) {
         df <- read.table(grep(sprintf("%s_tldr", sample), inputs$tldroutput, value = TRUE), header = TRUE) %>%
             mutate(faName = paste0("NI_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>%
@@ -768,6 +769,7 @@ somatic_alpha_annotated <- somatic_alpha %>%
     annotate_mappability() %>%
     annotate_read_metadata() %>%
     annotate_teend()
+
 
 dfall_AD <- read_csv("/users/mkelsey/data/Nanopore/alz/RTE/aref/results/dfall_allsamples.csv")
 all_nr <- dfall_AD %>%

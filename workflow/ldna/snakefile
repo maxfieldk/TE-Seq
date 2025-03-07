@@ -92,7 +92,7 @@ rule align_to_ref_winnowmap:
         sam = temp(expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sam",ref_genome = "winnowmap", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]))
     resources:
         cpus_per_task =20,
-        runtime = 1200,
+        runtime = 2400,
         mem_mb = 128000
     shell:
         """
