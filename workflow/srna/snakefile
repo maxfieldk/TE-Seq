@@ -462,7 +462,7 @@ rule tetranscripts:
         genes_gtf = config["srna"]['annotation_genes']
     retries: 3
     output:
-        outfile = "srna/outs/agg/tetranscripts/{sample}/outfile.txt"
+        cnts = "srna/outs/{sample}/tetranscripts/TEtranscripts_out.cntTable"
     benchmark:
         "srna/benchmarks/tetranscripts/{sample}.tsv"
     threads: 2
@@ -473,7 +473,8 @@ rule tetranscripts:
         runtime = 600
     shell: 
         """
-mkdir -p $(dirname {output.outfile})
+outputdir=$(dirname {output.cnts})
+mkdir -p $outputdir
 
 TEcount --format BAM \
 --sortByPos \
@@ -482,9 +483,7 @@ TEcount --format BAM \
 -b {input.sortedbam} \
 --GTF {params.genes_gtf} \
 --TE {params.repeats_gtf} \
---outdir srna/outs/agg/tetranscripts/{wildcards.sample}
-
-touch {output.outfile} 
+--outdir $outputdir
         """
 
 rule call_tetranscripts:
@@ -548,6 +547,41 @@ rule deseq:
             subcategory="{gene_or_te}")
     script:
         "scripts/deseq.R"
+
+rule deseq_tetranscripts:
+    input:
+        counts = expand("srna/outs/{sample}/tetranscripts/TEtranscripts_out.cntTable", sample = samples)
+    params:
+        sample_table = config["srna"]["sample_table"],
+        contrasts = config["srna"]["contrasts"],
+        levels = config["srna"]["levels"],
+        paralellize_bioc = config["srna"]["paralellize_bioc"],
+        genes_gtf = config["srna"]['annotation_genes'],
+        counttype = lambda w: w.counttype,
+        outputdir =lambda w, output: os.path.dirname(os.path.dirname(output.counts_normed)),
+    benchmark:
+        "srna/benchmarks/deseq_tetranscripts/{counttype}.tsv"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 240000,
+        runtime = 1000
+    conda: "deseq"
+    wildcard_constraints:
+        counttype="[A-Za-z0-9_]+"
+    output:
+        results_genes = expand("srna/results/agg/deseq_tetranscripts/{{counttype}}/{contrast}/results_genes.csv", contrast = config["srna"]["contrasts"]),
+        results_rtes = expand("srna/results/agg/deseq_tetranscripts/{{counttype}}/{contrast}/results_rtes.csv", contrast = config["srna"]["contrasts"]),
+        counts_normed = "srna/results/agg/deseq_tetranscripts/{counttype}/counttablesizenormed.csv",
+        sizefactors = "srna/results/agg/deseq_tetranscripts/{counttype}/sizefactors.csv",
+        environment = "srna/results/agg/deseq_tetranscripts/{counttype}/deseq_environment.RData",
+        resultsdf  = "results/agg/tetranscripts/resultsdf.tsv"
+        report = report(
+            directory("srna/results/agg/deseq_tetranscripts/{counttype}"),
+            patterns=["{gene_or_te}/{name}.pdf"],
+            category="Differential Expression {counttype}",
+            subcategory="{gene_or_te}")
+    script:
+        "scripts/deseq_tetranscripts.R"
 
 rule consolidateDeseqResults:
     input:
@@ -634,7 +668,8 @@ rule enrichment_analysis_repeats:
 
 rule repeatanalysis_plots:
     input:
-        resultsdf = "srna/results/agg/deseq/resultsdf.tsv"
+        resultsdf = "srna/results/agg/deseq/resultsdf.tsv",
+        tetranscripts_resultsdf = "results/agg/tetranscripts/resultsdf.tsv"
     params:
         counttype = lambda w: w.counttype,
         contrasts = config["srna"]["contrasts"],
