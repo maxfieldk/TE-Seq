@@ -1587,8 +1587,6 @@ read_analysis2 <- function(
     required_fraction_of_total_cg = 0.75,
     meth_thresholds = c(0.1, 0.25, 0.5),
     context = "CpG") {
-    dir.create(sprintf("ldna/results/%s/tables/reads/%s_to_%s_considering_reads_%s_fraction_%s_%s", params$mod_code, region, region_of_interest_from_start, required_fraction_of_total_cg, mod_code_var, context), recursive = TRUE)
-    dir.create(sprintf("ldna/results/%s/plots/reads/%s_to_%s_considering_reads_%s_fraction_%s_%s", params$mod_code, region, region_of_interest_from_start, required_fraction_of_total_cg, mod_code_var, context), recursive = TRUE)
 
     readsdf1 <- readscg %>% left_join(rmann %>% dplyr::select(gene_id, start, end, strand, rte_length_req, intactness_req) %>% dplyr::rename(element_strand = strand, element_start = start, element_end = end))
     readsdf2 <- readsdf1 %>% filter(rte_length_req == "FL")
@@ -1600,6 +1598,9 @@ read_analysis2 <- function(
     by_gene_id_l <- list()
 
     for (region_of_interest_from_start in regions_of_interest_from_start) {
+        dir.create(sprintf("ldna/results/%s/tables/reads/%s_to_%s_considering_reads_%s_fraction_%s_%s", params$mod_code, region, region_of_interest_from_start, required_fraction_of_total_cg, mod_code_var, context), recursive = TRUE)
+        dir.create(sprintf("ldna/results/%s/plots/reads/%s_to_%s_considering_reads_%s_fraction_%s_%s", params$mod_code, region, region_of_interest_from_start, required_fraction_of_total_cg, mod_code_var, context), recursive = TRUE)
+
         numCGneeded <- ceiling(length(cg_indices[cg_indices <= region_of_interest_from_start]) * required_fraction_of_total_cg)
 
         utr1 <- readsdf1 %>%

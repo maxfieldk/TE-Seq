@@ -85,19 +85,19 @@ if (params$paralellize_bioc) {
 df <- read_delim(inputs[["rte_counts"]][1], comment = "#", col_names = FALSE)
 
 if (counttype == "telescope_multi") {
-    bounddf <- tibble(df[, 1]) %>% rename(gene_id = X1)
+    bounddf <- tibble(df[, 1]) %>% dplyr::rename(gene_id = X1)
     for (sample in conf$samples) {
         path <- gsub("run_stats", "TE_counts", grep(paste0("outs/", sample, "/telescope"), inputs$rte_counts, value = TRUE))
-        bounddf <- full_join(bounddf, read_delim(path, comment = "#", col_names = TRUE) %>% rename(gene_id = transcript), by = "gene_id")
+        bounddf <- full_join(bounddf, read_delim(path, comment = "#", col_names = TRUE) %>% dplyr::rename(gene_id = transcript), by = "gene_id")
     }
     colnames(bounddf) <- c("gene_id", conf$samples)
 }
 
 if (counttype == "telescope_unique") {
-    bounddf <- tibble(df[, 1]) %>% rename(gene_id = X1)
+    bounddf <- tibble(df[, 1]) %>% dplyr::rename(gene_id = X1)
     for (sample in conf$samples) {
         path <- grep(paste0("outs/", sample, "/telescope"), inputs$rte_counts, value = TRUE)
-        bounddf <- full_join(bounddf, read_delim(path, comment = "#", col_names = FALSE) %>% dplyr::select(X1, X6) %>% rename(gene_id = X1), by = "gene_id")
+        bounddf <- full_join(bounddf, read_delim(path, comment = "#", col_names = FALSE) %>% dplyr::select(X1, X6) %>% dplyr::rename(gene_id = X1), by = "gene_id")
     }
     colnames(bounddf) <- c("gene_id", conf$samples)
 }
