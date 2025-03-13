@@ -404,6 +404,23 @@ samtools view -b -F 0x800 -F 0x100 -F 0x400 {input} > {output.bam}
 samtools index {output.bam}
         """ 
 
+rule common_filterForUniqueAlignments:
+    input:
+        "srna/{path}.sorted.bam"
+    output:
+        bam =  "srna/{path}.sorted.unique.bam",
+        bamindex = "srna/{path}.sorted.unique.bam.bai"
+    benchmark:
+        "srna/benchmarks/common_filterForUniqueAlignments/{path}.tsv"
+    threads: 4
+    conda:
+        "omics"
+    shell: 
+        """
+samtools view -h {input} | awk '($0 ~ /^@/ || $0 ~ /NH:i:1[ \t]/)' | samtools view -bS -o {output.bam}
+samtools index {output.bam}
+        """ 
+
 rule collateBam:
     input:
         sortedBam = "srna/outs/{sample}/star_output/{sample}.sorted.bam"
@@ -452,18 +469,17 @@ telescope assign \
 {params.gff}
         """
 
-
 rule tetranscripts:
     input:
         sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.bam",
         libtype = "srna/qc/library_type.txt"
     params:
         strandparam = getTEtranscriptsStrandParam(),
-        repeats_gtf = lambda wildcards: "aref/default/%s_repeatmasker/%s_repeatmasker_raw.gtf"%(wildcards.sample, wildcards.sample) if config["srna"]["per_sample_ref"] == "yes" else "aref/default/A.REF_annotations/A.REF_repeatmasker.complete.gtf",
+        repeats_gtf = lambda wildcards: "aref/default/%s_annotations/%s_repeatmasker_tetranscripts.gtf"%(wildcards.sample, wildcards.sample) if config["srna"]["per_sample_ref"] == "yes" else "aref/default/A.REF_annotations/A.REF_repeatmasker_tetranscripts.gtf",
         genes_gtf = config["srna"]['annotation_genes']
     retries: 3
     output:
-        outfile = "srna/outs/agg/tetranscripts/{sample}/outfile.txt"
+        cnts = "srna/outs/{sample}/tetranscripts/TEtranscripts_out.cntTable"
     benchmark:
         "srna/benchmarks/tetranscripts/{sample}.tsv"
     threads: 2
@@ -474,7 +490,8 @@ rule tetranscripts:
         runtime = 600
     shell: 
         """
-mkdir -p $(dirname {output.outfile})
+outputdir=$(dirname {output.cnts})
+mkdir -p $outputdir
 
 TEcount --format BAM \
 --sortByPos \
@@ -483,9 +500,7 @@ TEcount --format BAM \
 -b {input.sortedbam} \
 --GTF {params.genes_gtf} \
 --TE {params.repeats_gtf} \
---outdir srna/outs/agg/tetranscripts/{wildcards.sample}
-
-touch {output.outfile} 
+--outdir $outputdir
         """
 
 rule call_tetranscripts:
@@ -549,6 +564,41 @@ rule deseq:
             subcategory="{gene_or_te}")
     script:
         "scripts/deseq.R"
+
+rule deseq_tetranscripts:
+    input:
+        counts = expand("srna/outs/{sample}/tetranscripts/TEtranscripts_out.cntTable", sample = samples)
+    params:
+        sample_table = config["srna"]["sample_table"],
+        contrasts = config["srna"]["contrasts"],
+        levels = config["srna"]["levels"],
+        paralellize_bioc = config["srna"]["paralellize_bioc"],
+        genes_gtf = config["srna"]['annotation_genes'],
+        counttype = lambda w: w.counttype,
+        outputdir =lambda w, output: os.path.dirname(os.path.dirname(output.counts_normed)),
+    benchmark:
+        "srna/benchmarks/deseq_tetranscripts/{counttype}.tsv"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 240000,
+        runtime = 1000
+    conda: "deseq"
+    wildcard_constraints:
+        counttype="[A-Za-z0-9_]+"
+    output:
+        results_genes = expand("srna/results/agg/deseq_tetranscripts/{{counttype}}/{contrast}/results_genes.csv", contrast = config["srna"]["contrasts"]),
+        results_rtes = expand("srna/results/agg/deseq_tetranscripts/{{counttype}}/{contrast}/results_rtes.csv", contrast = config["srna"]["contrasts"]),
+        counts_normed = "srna/results/agg/deseq_tetranscripts/{counttype}/counttablesizenormed.csv",
+        sizefactors = "srna/results/agg/deseq_tetranscripts/{counttype}/sizefactors.csv",
+        environment = "srna/results/agg/deseq_tetranscripts/{counttype}/deseq_environment.RData",
+        resultsdf  = "results/agg/tetranscripts/resultsdf_{counttype}.tsv",
+        report = report(
+            directory("srna/results/agg/deseq_tetranscripts/{counttype}"),
+            patterns=["{gene_or_te}/{name}.pdf"],
+            category="Differential Expression {counttype}",
+            subcategory="{gene_or_te}")
+    script:
+        "scripts/deseq_tetranscripts.R"
 
 rule consolidateDeseqResults:
     input:
@@ -635,7 +685,8 @@ rule enrichment_analysis_repeats:
 
 rule repeatanalysis_plots:
     input:
-        resultsdf = "srna/results/agg/deseq/resultsdf.tsv"
+        resultsdf = "srna/results/agg/deseq/resultsdf.tsv",
+        tetranscripts_resultsdf = "results/agg/tetranscripts/resultsdf.tsv"
     params:
         counttype = lambda w: w.counttype,
         contrasts = config["srna"]["contrasts"],
@@ -704,13 +755,13 @@ rule characterize_tpm:
 
 rule getBigWigF:
     input:
-        sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.primary.bam"
+        sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.{alignment_type}.bam"
     params:
         rna_strand_param = lambda w: "reverse" if inferLibraryType() == "forward" else "forward"
     output:
-        bwF = "srna/outs/{sample}/star_output/{sample}.F.bw"
+        bwF = "srna/outs/{sample}/star_output/{sample}.{alignment_type}.F.bw"
     benchmark:
-        "srna/benchmarks/getBigWigF/{sample}.tsv"
+        "srna/benchmarks/getBigWigF/{sample}.{alignment_type}.tsv"
     resources:
         cpus_per_task =10,
         mem_mb = 10000,
@@ -729,13 +780,13 @@ rule getBigWigF:
 
 rule getBigWigR:
     input:
-        sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.primary.bam"
+        sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.{alignment_type}.bam"
     params:
         rna_strand_param = lambda w: "forward" if inferLibraryType() == "forward" else "reverse"
     output:
-        bwR = "srna/outs/{sample}/star_output/{sample}.R.bw"
+        bwR = "srna/outs/{sample}/star_output/{sample}.{alignment_type}.R.bw"
     benchmark:
-        "srna/benchmarks/getBigWigR/{sample}.tsv"
+        "srna/benchmarks/getBigWigR/{sample}.{alignment_type}.tsv"
     resources:
         cpus_per_task =10,
         mem_mb = 10000,
@@ -754,19 +805,19 @@ rule getBigWigR:
 
 rule bigwigplots:
     input:
-        bwF = expand("srna/outs/{sample}/star_output/{sample}.F.bw", sample = samples),
-        bwR = expand("srna/outs/{sample}/star_output/{sample}.R.bw", sample = samples),
+        bwF = expand("srna/outs/{sample}/star_output/{sample}.{{alignment_type}}.F.bw", sample = samples),
+        bwR = expand("srna/outs/{sample}/star_output/{sample}.{{alignment_type}}.R.bw", sample = samples),
         multiqc = "srna/qc/multiqc/multiqc_report.html"
     params:
         r_annotation_fragmentsjoined = config["srna"]["r_annotation_fragmentsjoined"],
         r_repeatmasker_annotation = config["srna"]["r_repeatmasker_annotation"],
-        txdbrefseq = "aref/default/A.REF_annotations/refseq.sqlite"
+        txdbrefseq = "aref/default/A.REF_annotations/refseq.sqlite",
     benchmark:
-        "srna/benchmarks/bigwigplots/bigwigplots.tsv"
+        "srna/benchmarks/bigwigplots/bigwigplots_{alignment_type}.tsv"
     output:
-        environment = "srna/results/agg/bigwig_plots/bigwigplots_environment.RData",
+        outfile = "srna/results/agg/bigwig_plots/{alignment_type}/bigwigplots.txt",
         report = report(
-            directory("srna/results/agg/bigwig_plots"),
+            directory("srna/results/agg/bigwig_plots/{alignment_type}"),
             patterns=["{sub_grouping}/{name}.pdf"],
             category="BigWig Analysis",
             subcategory="{sub_grouping}")

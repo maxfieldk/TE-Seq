@@ -230,7 +230,7 @@ if (params$tldr_switch == "process_gtf_tldr") {
         filter(dist == min(dist)) %>%
         filter(strand == Strand) %>%
         ungroup() %>%
-        dplyr::select(-center, dist, -seqname_ins_type, -ins_type, -contig_length, -seqnames_element_type, -family_element_type) %>%
+        dplyr::select(-center, -dist, -Strand, -seqname_ins_type, -ins_type, -contig_length, -seqnames_element_type, -family_element_type) %>%
         left_join(df_filtered %>% dplyr::select(faName, UUID), by = c("seqnames" = "faName")) %>%
         dplyr::rename(nonref_UUID = UUID)
 
@@ -242,6 +242,9 @@ if (params$tldr_switch == "process_gtf_tldr") {
 
     rmref$nonref_UUID <- "NotApplicable"
     rmnonref_noncentral_elements$nonref_UUID <- "NotApplicable"
+    colnames(rmref)
+    colnames(rmnonrefkeep_central_element)
+    colnames(rmnonref_noncentral_elements)
     rm <- rbind(rmref, rmnonrefkeep_central_element, rmnonref_noncentral_elements)
     write_csv(rm %>% dplyr::relocate(-old_id), outputs$r_annotation_fragmentsjoined)
 

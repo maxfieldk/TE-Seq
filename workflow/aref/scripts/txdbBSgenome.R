@@ -42,7 +42,6 @@ grs_repeatmasker1 <- grs_repeatmasker %>%
 txdbrepeatmasker <- makeTxDbFromGRanges(grs_repeatmasker1 %>% GRanges())
 txdbrepeatmaskergrs <- asGFF(txdbrepeatmasker)
 mcols(txdbrepeatmaskergrs)$type %>% unique()
-mcols(txdbrefseqgrs)$type %>% unique()
 
 txdbrefseq <- makeTxDbFromGRanges(grs_refseq)
 txdbrefseqgrs <- asGFF(txdbrefseq)
