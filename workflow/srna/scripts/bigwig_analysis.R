@@ -60,6 +60,10 @@ tryCatch(
     }
 )
 
+paths_bwF <- inputs$bwF
+paths_bwR <- inputs$bwR
+
+
 outputdir <- dirname(outputs$outfile)
 contrasts <- conf$contrasts
 
@@ -119,13 +123,11 @@ tryCatch(
 }
 
 
-paths_bwF <- inputs$bwF
-paths_bwR <- inputs$bwR
 
 
 grs_list <- list()
 grs_total_score <- list()
-for (sample in sample_table$sample_name) {
+for (sample in conf$samples) {
     bwF <- import(grep(sprintf("/%s/", sample), paths_bwF, value = TRUE))
     strand(bwF) <- "+"
     bwR <- import(grep(sprintf("/%s/", sample), inputs$bwR, value = TRUE))
@@ -561,72 +563,202 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
 
 
 #######
-elements_of_interest <- rmann %>%
-    filter(rte_subfamily %in% c("L1HS", "L1PA2", "L1PA3")) %>%
-    filter(loc_highres_integrative != "Intergenic") %>%
-    filter(rte_length_req == "FL")
-# Define windows for sense transcription
-windows_F <- elements_of_interest %>%
-    filter(strand == "+") %>%
-    mutate(strand = "*") %>%
-    GRanges() %>%
-    promoters(upstream = 6000, downstream = 12000)
+tryCatch(
+    {
+        draw_heatmaps <- function(elements_of_interest, element_set_string) {
+            average_element_length <- elements_of_interest$length %>% median()
+            # Define windows for sense transcription
+            windows_F <- elements_of_interest %>%
+                filter(strand == "+") %>%
+                GRanges() %>%
+                promoters(upstream = average_element_length, downstream = average_element_length * 2)
 
-windows_R <- elements_of_interest %>%
-    filter(strand == "-") %>%
-    mutate(strand = "*") %>%
-    GRanges() %>%
-    promoters(upstream = 6000, downstream = 12000)
+            windows_R <- elements_of_interest %>%
+                filter(strand == "-") %>%
+                GRanges() %>%
+                promoters(upstream = average_element_length, downstream = average_element_length * 2)
+
+            # Define number of bins
+            nbin <- 36
+            sml_senseF <- ScoreMatrixList(targets = paths_bwF, windows = windows_F, strand.aware = TRUE, bin.num = nbin)
+            sml_antisenseF <- ScoreMatrixList(targets = paths_bwR, windows = windows_F, strand.aware = TRUE, bin.num = nbin)
+            sml_senseR <- ScoreMatrixList(targets = paths_bwR, windows = windows_R, strand.aware = TRUE, bin.num = nbin)
+            sml_antisenseR <- ScoreMatrixList(targets = paths_bwF, windows = windows_R, strand.aware = TRUE, bin.num = nbin)
+
+            # no capping or scaling - just 99 percentile - often fails due to unresolved error with the winsorize parameter
+            tryCatch(
+                {
+                    sense_matrices <- purrr::map2(
+                        purrr::map(sml_senseF, ~ .x@.Data),
+                        purrr::map(sml_senseR, ~ .x@.Data),
+                        rbind
+                    )
+                    sm <- as(sense_matrices, "ScoreMatrixList")
+                    sm@names <- conf$samples
+
+                    antisense_matrices <- purrr::map2(
+                        purrr::map(sml_antisenseF, ~ .x@.Data),
+                        purrr::map(sml_antisenseR, ~ .x@.Data),
+                        rbind
+                    )
+                    asm <- as(antisense_matrices, "ScoreMatrixList")
+                    asm@names <- conf$samples
+
+                    p <- wrap_elements(grid.grabExpr(genomation::multiHeatMatrix(sm, xcoords = c(-1, 2), winsorize = c(0, 99), common.scale = TRUE, order = TRUE, col = c("white", "blue"))))
+                    mysaveandstore(pl = p, fn = str_glue("{outputdir}/{element_set_string}_s.pdf"), w = 2 * length(conf$samples), h = 5)
+                    p <- wrap_elements(grid.grabExpr(genomation::multiHeatMatrix(asm, xcoords = c(-1, 2), winsorize = c(0, 99), common.scale = TRUE, order = TRUE, col = c("white", "blue"))))
+                    mysaveandstore(pl = p, fn = str_glue("{outputdir}/{element_set_string}_a.pdf"), w = 2 * length(conf$samples), h = 5)
+                },
+                error = function(e) {
+
+                }
+            )
+
+            # cap at 1
+            cap_at_1 <- function(mat) {
+                mat[mat > 1] <- 1
+                return(mat)
+            }
+            # Apply scaling to ScoreMatrixList
+            sml_senseF_capped_1 <- scaleScoreMatrixList(sml_senseF, scalefun = cap_at_1)
+            sml_senseR_capped_1 <- scaleScoreMatrixList(sml_senseR, scalefun = cap_at_1)
+            sml_antisenseF_capped_1 <- scaleScoreMatrixList(sml_antisenseF, scalefun = cap_at_1)
+            sml_antisenseR_capped_1 <- scaleScoreMatrixList(sml_antisenseR, scalefun = cap_at_1)
+
+            sense_matrices_capped_1 <- purrr::map2(
+                purrr::map(sml_senseF_capped_1, ~ .x@.Data),
+                purrr::map(sml_senseR_capped_1, ~ .x@.Data),
+                rbind
+            )
+            sm_capped_1 <- as(sense_matrices_capped_1, "ScoreMatrixList")
+
+            antisense_matrices_capped_1 <- purrr::map2(
+                purrr::map(sml_antisenseF_capped_1, ~ .x@.Data),
+                purrr::map(sml_antisenseR_capped_1, ~ .x@.Data),
+                rbind
+            )
+            asm_capped_1 <- as(antisense_matrices_capped_1, "ScoreMatrixList")
+
+            p <- wrap_elements(grid.grabExpr(genomation::multiHeatMatrix(sm_capped_1, xcoords = c(-1, 2), grid = TRUE, order = TRUE, col = c("white", "blue"))))
+            mysaveandstore(pl = p, fn = str_glue("{outputdir}/{element_set_string}_s_capped_1.pdf"), w = 2 * length(conf$samples), h = 5)
+            p <- wrap_elements(grid.grabExpr(genomation::multiHeatMatrix(asm_capped_1, xcoords = c(-1, 2), order = TRUE, col = c("white", "blue"))))
+            mysaveandstore(pl = p, fn = str_glue("{outputdir}/{element_set_string}_a_capped_1.pdf"), w = 2 * length(conf$samples), h = 5)
+
+            ## capped at 5
+            cap_at_5 <- function(mat) {
+                mat[mat > 5] <- 5
+                return(mat)
+            }
+            # Apply scaling to ScoreMatrixList
+            sml_senseF_capped_5 <- scaleScoreMatrixList(sml_senseF, scalefun = cap_at_5)
+            sml_senseR_capped_5 <- scaleScoreMatrixList(sml_senseR, scalefun = cap_at_5)
+            sml_antisenseF_capped_5 <- scaleScoreMatrixList(sml_antisenseF, scalefun = cap_at_5)
+            sml_antisenseR_capped_5 <- scaleScoreMatrixList(sml_antisenseR, scalefun = cap_at_5)
+
+            sense_matrices_capped_5 <- purrr::map2(
+                purrr::map(sml_senseF_capped_5, ~ .x@.Data),
+                purrr::map(sml_senseR_capped_5, ~ .x@.Data),
+                rbind
+            )
+            sm_capped_5 <- as(sense_matrices_capped_5, "ScoreMatrixList")
+
+            antisense_matrices_capped_5 <- purrr::map2(
+                purrr::map(sml_antisenseF_capped_5, ~ .x@.Data),
+                purrr::map(sml_antisenseR_capped_5, ~ .x@.Data),
+                rbind
+            )
+            asm_capped_5 <- as(antisense_matrices_capped_5, "ScoreMatrixList")
+
+            p <- wrap_elements(grid.grabExpr(genomation::multiHeatMatrix(sm_capped_5, xcoords = c(-1, 2), grid = TRUE, order = TRUE, col = c("white", "blue"))))
+            mysaveandstore(pl = p, fn = str_glue("{outputdir}/{element_set_string}_s_capped_5.pdf"), w = 2 * length(conf$samples), h = 5)
+            p <- wrap_elements(grid.grabExpr(genomation::multiHeatMatrix(asm_capped_5, xcoords = c(-1, 2), order = TRUE, col = c("white", "blue"))))
+            mysaveandstore(pl = p, fn = str_glue("{outputdir}/{element_set_string}_a_capped_5.pdf"), w = 2 * length(conf$samples), h = 5)
+
+            ## capped at 10
+            cap_at_10 <- function(mat) {
+                mat[mat > 10] <- 10
+                return(mat)
+            }
+            # Apply scaling to ScoreMatrixList
+            sml_senseF_capped_10 <- scaleScoreMatrixList(sml_senseF, scalefun = cap_at_10)
+            sml_senseR_capped_10 <- scaleScoreMatrixList(sml_senseR, scalefun = cap_at_10)
+            sml_antisenseF_capped_10 <- scaleScoreMatrixList(sml_antisenseF, scalefun = cap_at_10)
+            sml_antisenseR_capped_10 <- scaleScoreMatrixList(sml_antisenseR, scalefun = cap_at_10)
+
+            sense_matrices_capped_10 <- purrr::map2(
+                purrr::map(sml_senseF_capped_10, ~ .x@.Data),
+                purrr::map(sml_senseR_capped_10, ~ .x@.Data),
+                rbind
+            )
+            sm_capped_10 <- as(sense_matrices_capped_10, "ScoreMatrixList")
+
+            antisense_matrices_capped_10 <- purrr::map2(
+                purrr::map(sml_antisenseF_capped_10, ~ .x@.Data),
+                purrr::map(sml_antisenseR_capped_10, ~ .x@.Data),
+                rbind
+            )
+            asm_capped_10 <- as(antisense_matrices_capped_10, "ScoreMatrixList")
+
+            p <- wrap_elements(grid.grabExpr(genomation::multiHeatMatrix(sm_capped_10, xcoords = c(-1, 2), grid = TRUE, order = TRUE, col = c("white", "blue"))))
+            mysaveandstore(pl = p, fn = str_glue("{outputdir}/{element_set_string}_s_capped_10.pdf"), w = 2 * length(conf$samples), h = 5)
+            p <- wrap_elements(grid.grabExpr(genomation::multiHeatMatrix(asm_capped_10, xcoords = c(-1, 2), order = TRUE, col = c("white", "blue"))))
+            mysaveandstore(pl = p, fn = str_glue("{outputdir}/{element_set_string}_a_capped_10.pdf"), w = 2 * length(conf$samples), h = 5)
+
+            ## SCALED
+            sml_senseF_scaled <- scaleScoreMatrixList(sml_senseF, row = TRUE)
+            sml_senseR_scaled <- scaleScoreMatrixList(sml_senseR, row = TRUE)
+            sml_antisenseF_scaled <- scaleScoreMatrixList(sml_antisenseF, row = TRUE)
+            sml_antisenseR_scaled <- scaleScoreMatrixList(sml_antisenseR, row = TRUE)
+
+            sense_matrices_scaled <- purrr::map2(
+                purrr::map(sml_senseF_scaled, ~ .x@.Data),
+                purrr::map(sml_senseR_scaled, ~ .x@.Data),
+                rbind
+            )
+            sm_scaled <- as(sense_matrices_scaled, "ScoreMatrixList")
+
+            antisense_matrices_scaled <- purrr::map2(
+                purrr::map(sml_antisenseF_scaled, ~ .x@.Data),
+                purrr::map(sml_antisenseR_scaled, ~ .x@.Data),
+                rbind
+            )
+            asm_scaled <- as(antisense_matrices_scaled, "ScoreMatrixList")
+
+            p <- wrap_elements(grid.grabExpr(genomation::multiHeatMatrix(sm_scaled, xcoords = c(-1, 2), grid = TRUE, order = TRUE, col = c("white", "blue"))))
+            mysaveandstore(pl = p, fn = str_glue("{outputdir}/{element_set_string}_s_scaled.pdf"), w = 2 * length(conf$samples), h = 5)
+            p <- wrap_elements(grid.grabExpr(genomation::multiHeatMatrix(asm_scaled, xcoords = c(-1, 2), order = TRUE, col = c("white", "blue"))))
+            mysaveandstore(pl = p, fn = str_glue("{outputdir}/{element_set_string}_a_scaled.pdf"), w = 2 * length(conf$samples), h = 5)
+        }
 
 
-# Define number of bins
-nbin <- 36
-sml_senseF <- ScoreMatrixList(targets = paths_bwF, windows = windows_F, strand.aware = FALSE, bin.num = nbin)
-sml_antisenseF <- ScoreMatrixList(targets = paths_bwR, windows = windows_F, strand.aware = FALSE, bin.num = nbin)
-sml_senseR <- ScoreMatrixList(targets = paths_bwR, windows = windows_R, strand.aware = FALSE, bin.num = nbin)
-sml_antisenseR <- ScoreMatrixList(targets = paths_bwF, windows = windows_R, strand.aware = FALSE, bin.num = nbin)
+
+
+        elements_of_interest <- rmann %>%
+            filter(rte_family == "L1") %>%
+            filter(req_integrative %in% c("Yng FL", "Yng Intact")) %>%
+            filter(rte_length_req == "FL")
+        included <- elements_of_interest %$% rte_subfamily %>%
+            unique() %>%
+            paste(collapse = "_")
+        draw_heatmaps(elements_of_interest, str_glue("YngL1s_{included}"))
 
 
 
-
-
-mat_list <- lapply(sml_senseF, matrix)
-combined_mat <- do.call(rbind, mat_list)
-q95 <- quantile(combined_mat, probs = 0.999, na.rm = TRUE)
-
-cap_at_1 <- function(mat) {
-    mat[mat > 0] <- 1
-    return(mat)
-}
-# Apply scaling to ScoreMatrixList
-sml_senseF_capped <- scaleScoreMatrixList(sml_senseF, scalefun = cap_at_1)
-sml_senseR_capped <- scaleScoreMatrixList(sml_senseR, scalefun = cap_at_1)
-sml_antisenseF_capped <- scaleScoreMatrixList(sml_antisenseF, scalefun = cap_at_1)
-sml_antisenseR_capped <- scaleScoreMatrixList(sml_antisenseR, scalefun = cap_at_1)
-
-p <- wrap_elements(grid.grabExpr(genomation::multiHeatMatrix(sml_senseF_capped, xcoords = c(0, 18), grid = TRUE, order = TRUE, col = c("white", "blue"))))
-mysaveandstore(fn = "sf1c.pdf", w = 30, h = 5)
-p <- wrap_elements(grid.grabExpr(genomation::multiHeatMatrix(sml_senseR_capped, xcoords = c(0, 18), order = TRUE, col = c("white", "blue"))))
-mysaveandstore(fn = "sr1c.pdf", w = 30, h = 5)
-p <- wrap_elements(grid.grabExpr(genomation::multiHeatMatrix(sml_antisenseF_capped, order = TRUE, col = c("white", "blue"))))
-mysaveandstore(fn = "af1c.pdf", w = 30, h = 5)
-p <- wrap_elements(grid.grabExpr(genomation::multiHeatMatrix(sml_antisenseR_capped, order = TRUE, col = c("white", "blue"))))
-mysaveandstore(fn = "ar1c.pdf", w = 30, h = 5)
-
-sml_senseF_scaled <- scaleScoreMatrixList(sml_senseF, row = TRUE)
-sml_senseR_scaled <- scaleScoreMatrixList(sml_senseR, row = TRUE)
-sml_antisenseF_scaled <- scaleScoreMatrixList(sml_antisenseF, row = TRUE)
-sml_antisenseR_scaled <- scaleScoreMatrixList(sml_antisenseR, row = TRUE)
-# cl2 <- function(x) cutree(hclust(dist(x), method="complete"), k=50)
-p <- wrap_elements(grid.grabExpr(genomation::multiHeatMatrix(sml_senseF_scaled, xcoords = c(0, 18), grid = TRUE, order = TRUE, col = c("white", "blue"))))
-mysaveandstore(fn = "sf1.pdf", w = 30, h = 5)
-p <- wrap_elements(grid.grabExpr(genomation::multiHeatMatrix(sml_senseR_scaled, xcoords = c(0, 18), order = TRUE, col = c("white", "blue"))))
-mysaveandstore(fn = "sr1.pdf", w = 30, h = 5)
-p <- wrap_elements(grid.grabExpr(genomation::multiHeatMatrix(sml_antisenseF_scaled, order = TRUE, col = c("white", "blue"))))
-mysaveandstore(fn = "af1.pdf", w = 30, h = 5)
-p <- wrap_elements(grid.grabExpr(genomation::multiHeatMatrix(sml_antisenseR_scaled, order = TRUE, col = c("white", "blue"))))
-mysaveandstore(fn = "ar1.pdf", w = 30, h = 5)
-
+        for (subfam in rmann %>%
+            filter(rte_subfamily != "Other") %$% rte_subfamily %>%
+            unique()) {
+            print("drawing heatmaps for")
+            print(subfam)
+            elements_of_interest <- rmann %>%
+                filter(rte_subfamily == subfam) %>%
+                filter(rte_length_req == "FL")
+            draw_heatmaps(elements_of_interest, subfam)
+        }
+    },
+    error = function(e) {
+        print("heatmaps did not work")
+    }
+)
 
 
 

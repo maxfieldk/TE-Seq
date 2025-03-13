@@ -106,6 +106,18 @@ def getFpkmCountStrandParam():
         strandParam = "didn't run infer library type yet"
     return strandParam
 
+def getStringTieStrandParam():
+    libraryType = inferLibraryType()
+    if libraryType == "forward":
+        strandParam = "--rf"  # fr-firststrand
+    elif libraryType == "reverse":
+        strandParam = "--fr"  # fr-secondstrand
+    elif libraryType == "unstranded":
+        strandParam = ""  # StringTie assumes unstranded by default
+    else:
+        strandParam = "didn't run infer library type yet"
+    return strandParam
+
 # def enforce_symlink(wildcards):
 #     if config["srna"]["symlink_aref"]["response"] == "yes":
 #         return "aref.symlinked.outfile"
@@ -262,7 +274,16 @@ rule alignSTAR_PE:
         "star"
     shell:
         """
-STAR --genomeDir {params.index} --readFilesCommand zcat --readFilesIn {input.r1} {input.r2} --outFileNamePrefix $(dirname {output.bam})/ --runThreadN {threads} --winAnchorMultimapNmax 1000 --outFilterMultimapNmax 1000 --limitOutSAMoneReadBytes 1000000
+STAR \
+--genomeDir {params.index} \
+--readFilesCommand zcat \
+--readFilesIn {input.r1} {input.r2} \
+--outFileNamePrefix $(dirname {output.bam})/ \
+--runThreadN {threads} \
+--winAnchorMultimapNmax 1000 \
+--outFilterMultimapNmax 1000 \
+--limitOutSAMoneReadBytes 1000000 \
+--outSAMstrandField intronMotif
         """
 
 #tag COUNTS
@@ -425,7 +446,7 @@ rule collateBam:
     input:
         sortedBam = "srna/outs/{sample}/star_output/{sample}.sorted.bam"
     output:
-        collatedbam = "srna/outs/{sample}/star_output/{sample}.collated.bam",
+        collatedbam = temp("srna/outs/{sample}/star_output/{sample}.collated.bam")
     conda:
         "omics"
     benchmark:
@@ -875,4 +896,49 @@ rule fpkm:
         """
 output_path={output.values}
 FPKM_count.py -i {input.sortedbam} -o ${{output_path%.*}} -r {params.bed} -d {params.FpkmCountStrandParam} -q 1
+        """
+
+
+rule stringtie:
+    input:
+        sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.bam"
+    params:
+        refseq = "aref/default/A.REF_annotations/refseq.complete.gff3"
+    output:
+        gtf = "srna/outs/{sample}/stringtie/{sample}.gtf"
+    benchmark:
+        "srna/benchmarks/stringtie/{sample}.tsv"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 10000,
+        runtime = 60
+    container: None
+    conda:
+        "stringtie"
+    shell:
+        """
+stringtie -o {output.gtf} -G {params.refseq} {input.sortedbam}
+        """
+
+
+rule stringtie_merge:
+    input:
+        gtfs = expand("srna/outs/{sample}/stringtie/{sample}.gtf", sample = samples)
+    params:
+        refseq = "aref/default/A.REF_annotations/refseq.complete.gff3",
+        strand_param = getStringTieStrandParam()
+    output:
+        gtf = "srna/outs/agg/stringtie/merged.gtf"
+    benchmark:
+        "srna/benchmarks/stringtie_merge/stringtie_merge.tsv"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 10000,
+        runtime = 60
+    container: None
+    conda:
+        "stringtie"
+    shell:
+        """
+stringtie --merge {params.strand_param} -o {output.gtf} -G {params.refseq} {input.gtfs}
         """
