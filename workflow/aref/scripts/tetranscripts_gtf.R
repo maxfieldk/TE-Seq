@@ -59,8 +59,5 @@ tetranscriptsgr <- gff3dfann %>%
     filter(family_id != "Other") %>%
     GRanges()
 
-tetranscriptsgr %>%
-    filter(rte_subfamily == "L1HS") %>%
-    pw()
 
 rtracklayer::export(tetranscriptsgr, con = outputs$repmask_gtf, format = "GFF2")

@@ -1587,6 +1587,9 @@ rule tetranscripts_gtf:
         "evo2"
     script:
         "scripts/tetranscripts_gtf.R"
+rule gettetranscriptsgtf:
+    input: 
+        expand("aref/default/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_tetranscripts.gtf", sample_or_ref = config["aref"]["samples"])
 
 rule getRTEbeds:
     input:

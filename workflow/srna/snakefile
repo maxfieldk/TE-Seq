@@ -476,12 +476,13 @@ rule tetranscripts:
     params:
         strandparam = getTEtranscriptsStrandParam(),
         repeats_gtf = lambda wildcards: "aref/default/%s_annotations/%s_repeatmasker_tetranscripts.gtf"%(wildcards.sample, wildcards.sample) if config["srna"]["per_sample_ref"] == "yes" else "aref/default/A.REF_annotations/A.REF_repeatmasker_tetranscripts.gtf",
-        genes_gtf = config["srna"]['annotation_genes']
+        genes_gtf = config["srna"]['annotation_genes'],
+        getcounttype = lambda wildcards: "multi" if wildcards.sample == "multi" else "uniq"
     retries: 3
     output:
-        cnts = "srna/outs/{sample}/tetranscripts/TEtranscripts_out.cntTable"
+        cnts = "srna/outs/{sample}/tetranscripts/{counttype}/TEtranscripts_out.cntTable"
     benchmark:
-        "srna/benchmarks/tetranscripts/{sample}.tsv"
+        "srna/benchmarks/tetranscripts/{sample}_{counttype}.tsv"
     threads: 2
     container:
         "docker://mhammelllab/tetranscripts:2.2.3"
@@ -495,7 +496,7 @@ mkdir -p $outputdir
 
 TEcount --format BAM \
 --sortByPos \
---mode multi \
+--mode {params.getcounttype} \
 --stranded {params.strandparam} \
 -b {input.sortedbam} \
 --GTF {params.genes_gtf} \
@@ -565,9 +566,30 @@ rule deseq:
     script:
         "scripts/deseq.R"
 
+rule consolidateDeseqResults:
+    input:
+        results = expand("srna/results/agg/deseq/{counttype}/{contrast}/results_rtes.csv", contrast = config["srna"]["contrasts"], counttype = config["srna"]["counttypes"]),
+        counts_normed = expand("srna/results/agg/deseq/{counttype}/counttablesizenormed.csv", counttype = config["srna"]["counttypes"])
+    params:
+        inputdir = "srna/results/agg/deseq",
+        outputdir = "srna/results/agg/deseq",
+        module_name = "srna"
+    benchmark:
+        "srna/benchmarks/consolidateDeseqResults/consolidateDeseqResults.tsv"
+    conda:
+        "repeatanalysis"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 164000,
+        runtime = 300
+    output:
+        resultsdf = "srna/results/agg/deseq/resultsdf.tsv"
+    script:
+        "scripts/consolidateDeseqResults.R"
+
 rule deseq_tetranscripts:
     input:
-        counts = expand("srna/outs/{sample}/tetranscripts/TEtranscripts_out.cntTable", sample = samples)
+        counts = expand("srna/outs/{sample}/tetranscripts/{{counttype}}/TEtranscripts_out.cntTable", sample = samples)
     params:
         sample_table = config["srna"]["sample_table"],
         contrasts = config["srna"]["contrasts"],
@@ -591,7 +613,7 @@ rule deseq_tetranscripts:
         counts_normed = "srna/results/agg/deseq_tetranscripts/{counttype}/counttablesizenormed.csv",
         sizefactors = "srna/results/agg/deseq_tetranscripts/{counttype}/sizefactors.csv",
         environment = "srna/results/agg/deseq_tetranscripts/{counttype}/deseq_environment.RData",
-        resultsdf  = "results/agg/tetranscripts/resultsdf_{counttype}.tsv",
+        resultsdf  = "results/agg/deseq_tetranscripts/resultsdf_{counttype}.tsv",
         report = report(
             directory("srna/results/agg/deseq_tetranscripts/{counttype}"),
             patterns=["{gene_or_te}/{name}.pdf"],
@@ -600,10 +622,9 @@ rule deseq_tetranscripts:
     script:
         "scripts/deseq_tetranscripts.R"
 
-rule consolidateDeseqResults:
+rule consolidateDeseqTetranscriptsResults:
     input:
-        results = expand("srna/results/agg/deseq/{counttype}/{contrast}/results_rtes.csv", contrast = config["srna"]["contrasts"], counttype = config["srna"]["counttypes"]),
-        counts_normed = expand("srna/results/agg/deseq/{counttype}/counttablesizenormed.csv", counttype = config["srna"]["counttypes"])
+        resultsdf  = expand("results/agg/deseq_tetranscripts/resultsdf_{counttype}.tsv", counttype = ["multi", "uniq"])
     params:
         inputdir = "srna/results/agg/deseq",
         outputdir = "srna/results/agg/deseq",
@@ -617,9 +638,9 @@ rule consolidateDeseqResults:
         mem_mb = 164000,
         runtime = 300
     output:
-        resultsdf = "srna/results/agg/deseq/resultsdf.tsv"
+        resultsdf = "results/agg/deseq_tetranscripts/resultsdf.tsv"
     script:
-        "scripts/consolidateDeseqResults.R"
+        "scripts/consolidateDeseqTetranscriptsResults.R"
 
 #tag ENRICHMENT ANALYSIS
 import os
@@ -686,7 +707,7 @@ rule enrichment_analysis_repeats:
 rule repeatanalysis_plots:
     input:
         resultsdf = "srna/results/agg/deseq/resultsdf.tsv",
-        tetranscripts_resultsdf = "results/agg/tetranscripts/resultsdf.tsv"
+        tetranscripts_resultsdf = "results/agg/deseq_tetranscripts/resultsdf.tsv"
     params:
         counttype = lambda w: w.counttype,
         contrasts = config["srna"]["contrasts"],
@@ -766,6 +787,8 @@ rule getBigWigF:
         cpus_per_task =10,
         mem_mb = 10000,
         runtime = 300
+    wildcard_constraints:
+        alignment_type="[A-Za-z]+"
     conda:
         "deeptools"
     shell: "bamCoverage -b {input.sortedbam} -o {output.bwF} --numberOfProcessors max  --samFlagExclude 256 --filterRNAstrand {params.rna_strand_param} --binSize 50"
@@ -791,6 +814,8 @@ rule getBigWigR:
         cpus_per_task =10,
         mem_mb = 10000,
         runtime = 300
+    wildcard_constraints:
+        alignment_type="[A-Za-z]+"
     conda:
         "deeptools"
     shell: "bamCoverage -b {input.sortedbam} -o {output.bwR} --numberOfProcessors max  --samFlagExclude 256 --filterRNAstrand {params.rna_strand_param} --binSize 50"
@@ -821,9 +846,11 @@ rule bigwigplots:
             patterns=["{sub_grouping}/{name}.pdf"],
             category="BigWig Analysis",
             subcategory="{sub_grouping}")
+    wildcard_constraints:
+        alignment_type="[A-Za-z]+"
     resources:
         cpus_per_task =10,
-        mem_mb = 40000
+        mem_mb = 120000
     conda:
         "repeatanalysis"
     script: "scripts/bigwig_analysis.R"

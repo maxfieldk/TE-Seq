@@ -1664,6 +1664,13 @@ read_analysis2 <- function(
     by_gene_id <- purrr::reduce(by_gene_id_l, bind_rows)
     by_sample <- purrr::reduce(by_sample_l, bind_rows)
 
+    dir.create(dirname(sprintf("ldna/Rintermediates/%s/%s/highly_demethylated_reads_by_cpg.csv", params$mod_code, region)), recursive = TRUE)
+    by_cpg %>% write_csv(sprintf("ldna/Rintermediates/%s/%s/highly_demethylated_reads_by_cpg.csv", params$mod_code, region))
+    by_read %>% write_csv(sprintf("ldna/Rintermediates/%s/%s/highly_demethylated_reads_by_read.csv", params$mod_code, region))
+    by_gene_id %>% write_csv(sprintf("ldna/Rintermediates/%s/%s/highly_demethylated_reads_by_gene_id.csv", params$mod_code, region))
+    by_sample %>% write_csv(sprintf("ldna/Rintermediates/%s/%s/highly_demethylated_reads_by_sample.csv", params$mod_code, region))
+
+
     p <- by_sample %>%
         mutate(meth_threshold = as.character(meth_threshold)) %>%
         ggplot(aes(x = meth_threshold)) +
@@ -3432,6 +3439,9 @@ for (sample in conf$samples) {
         ungroup() %>%
         filter(cpgs_detected_per_element > 50) %>%
         heatmap(gene_id, consensus_pos, pctM, cluster_rows = TRUE, cluster_columns = FALSE) %>%
+        add_tile(genic_loc) %>%
+        add_tile(intactness_req) %>%
+        add_tile(loc_highres_integrative_stranded) %>%
         as_ComplexHeatmap()
     hms[[sample]] <- p
     dir.create(outputdir_meth_clustering, recursive = TRUE)
