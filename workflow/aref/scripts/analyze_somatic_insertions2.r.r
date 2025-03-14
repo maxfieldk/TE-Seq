@@ -704,7 +704,6 @@ library(BSgenome)
 fa <- Rsamtools::FaFile(conf$ref)
 dflist <- list()
 if (conf$update_ref_with_tldr$per_sample == "yes" | TRUE) {
-if (conf$update_ref_with_tldr$per_sample == "yes" | TRUE) {
     for (sample in sample_table$sample_name) {
         df <- read.table(grep(sprintf("%s_tldr", sample), inputs$tldroutput, value = TRUE), header = TRUE) %>%
             mutate(faName = paste0("NI_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>%
