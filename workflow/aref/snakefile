@@ -44,7 +44,7 @@ def aref_complete_input(wildcards):
         expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker.complete.bed",default_or_extended = d_or_e),
         expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker_tetranscripts.gtf",default_or_extended = d_or_e),
         expand("aref/{default_or_extended}/A.REF_annotations/A.REF_rte_beds/outfile.txt",default_or_extended = d_or_e),
-        expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker_refseq.complete.sqlite",default_or_extended = d_or_e),
+        expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker.complete.sqlite",default_or_extended = d_or_e),
         expand("aref/{default_or_extended}/A.REF_annotations/cytobands.bed",default_or_extended = d_or_e),
     ]
 
@@ -1524,7 +1524,6 @@ rule makeTxDB:
         repeatmasker = "aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker.complete.gff3",
         genome2bit = "aref/{default_or_extended}/A.REF.2bit"
     output:
-        txdb = "aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker_refseq.complete.sqlite",
         txdbrefseq = "aref/{default_or_extended}/A.REF_annotations/refseq.sqlite",
         txdbrepeatmasker = "aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker.complete.sqlite"
     benchmark:
