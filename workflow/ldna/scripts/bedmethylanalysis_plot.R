@@ -584,6 +584,88 @@ if ((conf$single_condition == "no") & enough_samples_per_condition_for_stats) {
     mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/repmasker_boxplot_promoters_L1s.pdf", params$mod_code), raster = TRUE, 12, 4)
 }
 
+p <- perelementdf_promoters %>%
+    filter(grepl("^L1HS", rte_subfamily)) %>%
+    group_by(rte_subfamily) %>%
+    ggplot(aes(x = sample, y = mean_meth, color = condition)) +
+    geom_quasirandom(dodge.width = 0.75) +
+    geom_boxplot(alpha = 0.5, outlier.shape = NA) +
+    facet_wrap(~loc_lowres_integrative_stranded) +
+    xlab("") +
+    ylab("Average CpG Methylation Per Element") +
+    ggtitle("L1HS CpG Methylation") +
+    mtopen +
+    scale_conditions
+if ((conf$single_condition == "no") & enough_samples_per_condition_for_stats) {
+    stats <- perelementdf_promoters %>%
+        filter(grepl("^L1HS", rte_subfamily)) %>%
+        group_by(sample, condition, rte_subfamily, loc_lowres_integrative_stranded) %>%
+        summarise(mean_meth = mean(mean_meth)) %>%
+        ungroup() %>%
+        compare_means(mean_meth ~ condition, data = ., method = "t.test", group.by = "rte_subfamily", p.adjust.method = "fdr")
+    mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/repmasker_boxplot_promoters_by_sample_L1HS_loc.pdf", params$mod_code), 12, 6, sf = stats)
+    mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/repmasker_boxplot_promoters_by_sample_L1HS_loc.pdf", params$mod_code), raster = TRUE, 12, 4)
+} else {
+    mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/repmasker_boxplot_promoters_by_sample_L1HS_loc.pdf", params$mod_code), raster = TRUE, 12, 4)
+}
+
+p <- perelementdf_promoters %>%
+    filter(grepl("^L1HS", rte_subfamily)) %>%
+    group_by(rte_subfamily) %>%
+    ggplot(aes(x = loc_lowres_integrative_stranded, y = mean_meth, color = condition)) +
+    geom_quasirandom(dodge.width = 0.75) +
+    geom_boxplot(alpha = 0.5, outlier.shape = NA) +
+    xlab("") +
+    ylab("Average CpG Methylation Per Element") +
+    ggtitle("L1HS CpG Methylation") +
+    mtopen +
+    scale_conditions +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+if ((conf$single_condition == "no") & enough_samples_per_condition_for_stats) {
+    stats <- perelementdf_promoters %>%
+        filter(grepl("^L1HS", rte_subfamily)) %>%
+        group_by(sample, condition, rte_subfamily, loc_lowres_integrative_stranded) %>%
+        summarise(mean_meth = mean(mean_meth)) %>%
+        ungroup() %>%
+        compare_means(mean_meth ~ loc_lowres_integrative_stranded, data = ., method = "t.test", group.by = "rte_subfamily", p.adjust.method = "fdr")
+    mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/repmasker_boxplot_promoters_by_condition_L1HS_loc.pdf", params$mod_code), 6, 4, sf = stats)
+    mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/repmasker_boxplot_promoterse_by_condition_L1HS_loc.pdf", params$mod_code), raster = TRUE, 6, 4)
+} else {
+    mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/repmasker_boxplot_promoters_by_condition_L1HS_loc.pdf", params$mod_code), raster = TRUE, 6, 6)
+}
+
+p <- perelementdf_promoters %>%
+    filter(grepl("^L1HS", rte_subfamily)) %>%
+    mutate(loc_lowres_integrative_stranded = case_when(
+        loc_lowres_integrative_stranded == "Gene_Adj_Antisense" | loc_lowres_integrative_stranded == "Gene_Adj_Sense" ~ "Intergenic",
+        TRUE ~ loc_lowres_integrative_stranded
+    )) %>%
+    group_by(rte_subfamily) %>%
+    ggplot(aes(x = loc_lowres_integrative_stranded, y = mean_meth, color = condition)) +
+    geom_quasirandom(dodge.width = 0.75) +
+    geom_boxplot(alpha = 0.5, outlier.shape = NA) +
+    xlab("") +
+    ylab("Average CpG Methylation Per Element") +
+    ggtitle("L1HS CpG Methylation") +
+    mtopen +
+    scale_conditions +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+if ((conf$single_condition == "no") & enough_samples_per_condition_for_stats) {
+    stats <- perelementdf_promoters %>%
+        filter(grepl("^L1HS", rte_subfamily)) %>%
+        mutate(loc_lowres_integrative_stranded = case_when(
+            loc_lowres_integrative_stranded == "Gene_Adj_Antisense" | loc_lowres_integrative_stranded == "Gene_Adj_Sense" ~ "Intergenic",
+            TRUE ~ loc_lowres_integrative_stranded
+        )) %>%
+        group_by(sample, condition, rte_subfamily, loc_lowres_integrative_stranded) %>%
+        summarise(mean_meth = mean(mean_meth)) %>%
+        ungroup() %>%
+        compare_means(mean_meth ~ loc_lowres_integrative_stranded, data = ., method = "t.test", group.by = "rte_subfamily", p.adjust.method = "fdr")
+    mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/repmasker_boxplot_promoters_by_condition_L1HS_loc_lowres.pdf", params$mod_code), 5, 6, sf = stats)
+    mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/repmasker_boxplot_promoterse_by_condition_L1HS_loc_lowres.pdf", params$mod_code), raster = TRUE, 5, 6)
+} else {
+    mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/repmasker_boxplot_promoters_by_condition_L1HS_loc_lowres.pdf", params$mod_code), raster = TRUE, 5, 6)
+}
 
 p <- perelementdf_promoters %>%
     filter(grepl("^L1HS", rte_subfamily)) %>%
@@ -1587,7 +1669,6 @@ read_analysis2 <- function(
     required_fraction_of_total_cg = 0.75,
     meth_thresholds = c(0.1, 0.25, 0.5),
     context = "CpG") {
-
     readsdf1 <- readscg %>% left_join(rmann %>% dplyr::select(gene_id, start, end, strand, rte_length_req, intactness_req) %>% dplyr::rename(element_strand = strand, element_start = start, element_end = end))
     readsdf2 <- readsdf1 %>% filter(rte_length_req == "FL")
 
