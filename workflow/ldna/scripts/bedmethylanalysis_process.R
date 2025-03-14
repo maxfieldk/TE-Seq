@@ -313,11 +313,14 @@ flFl_Provirus_5LTRgrs <- GRanges(flFl_Provirus_5LTR)
 l1_aln_dir <- "ldna/results/m/plots/l1_alignment_meth"
 fll1hs_consensus_index_long <- read_csv(sprintf("%s/%s_fl_mapping_to_consensus_table.csv", l1_aln_dir, "L1HS"))
 
-filter_by_consensus_pos <- function(fl_grs, pos_mapping, include_up_to_pos) {
+filter_by_consensus_pos <- function(fl_grs, pos_mapping, pos_vec) {
+    pos_start <- pos_vec[1]
+    pos_end <- pos_vec[2]
     pos_genes <- pos_mapping %$% gene_id %>% unique()
     grs_genes <- mcols(fl_grs)$gene_id %>% unique()
     genes_to_map <- intersect(pos_genes, grs_genes)
-    filter_pos_list <- list()
+
+    filter_pos_end_list <- list()
     i <- 0
     for (element in genes_to_map) {
         i <- i + 1
@@ -325,12 +328,12 @@ filter_by_consensus_pos <- function(fl_grs, pos_mapping, include_up_to_pos) {
         print(element)
         dfs <- pos_mapping %>% filter(gene_id == element)
         seqval <- dfs %>%
-            filter(consensus_pos == include_up_to_pos) %$% sequence_pos %>%
+            filter(consensus_pos == pos_end) %$% sequence_pos %>%
             pluck(1)
         if (!is.na(seqval)) {
             filter_pos <- seqval
         } else {
-            start_pos <- include_up_to_pos - 1
+            start_pos <- pos_end - 1
             match <- FALSE
             while (match == FALSE) {
                 seqval <- dfs %>% filter(consensus_pos == start_pos) %$% sequence_pos
@@ -347,16 +350,63 @@ filter_by_consensus_pos <- function(fl_grs, pos_mapping, include_up_to_pos) {
                 }
             }
         }
-        filter_pos_list[[element]] <- filter_pos
+        filter_pos_end_list[[element]] <- filter_pos
     }
-    print("loop done")
-    mapping <- tibble(gene_id = names(filter_pos_list), filter_pos = unlist(filter_pos_list))
-    gene_ids_with_homology <- mapping %>% filter(filter_pos != "NoRegionHomology") %$% gene_id
+    print("end loop done")
+
+    filter_pos_start_list <- list()
+    i <- 0
+    for (element in genes_to_map) {
+        i <- i + 1
+        print(i)
+        print(element)
+        dfs <- pos_mapping %>% filter(gene_id == element)
+        if (pos_start == 0) {
+            filter_pos <- 1
+        } else {
+            seqval <- dfs %>%
+                filter(consensus_pos == pos_start) %$% sequence_pos %>%
+                pluck(1)
+            if (!is.na(seqval)) {
+                filter_pos <- seqval
+            } else {
+                start_pos <- pos_start
+                match <- FALSE
+                while (match == FALSE) {
+                    seqval <- dfs %>% filter(consensus_pos == start_pos) %$% sequence_pos
+                    if (length(seqval) != 0) {
+                        if (!is.na(seqval)) {
+                            filter_pos <- seqval
+                            match <- TRUE
+                        } else {
+                            start_pos <- start_pos + 1
+                        }
+                    } else {
+                        filter_pos <- "NoRegionHomology"
+                        match <- TRUE
+                    }
+                }
+            }
+        }
+        filter_pos_start_list[[element]] <- filter_pos
+    }
+    print("start loop done")
+    elements_keep <- names(filter_pos_start_list) %>% intersect(names(filter_pos_end_list))
+    filter_pos_start <- filter_pos_start_list[elements_keep]
+    filter_pos_end <- filter_pos_end_list[elements_keep]
+    mapping <- tibble(gene_id = elements_keep, filter_pos_start = unlist(filter_pos_start), filter_pos_end = unlist(filter_pos_end))
+    gene_ids_with_homology <- mapping %>%
+        filter(filter_pos_start != "NoRegionHomology") %>%
+        filter(filter_pos_end != "NoRegionHomology") %$% gene_id
     fl_grs_with_homology <- fl_grs[mcols(fl_grs)$gene_id %in% gene_ids_with_homology]
     grlist <- map(seq_along(fl_grs_with_homology), function(x) fl_grs_with_homology[x])
     grlistresized <- map(grlist, function(x) {
         if (mcols(x)$gene_id %in% mapping$gene_id) {
-            return(resize(x, width = (mapping %>% filter(gene_id == mcols(x)$gene_id) %$% filter_pos)))
+            tempdf <- mapping %>% filter(gene_id == mcols(x)$gene_id)
+            final_width <- tempdf$filter_pos_end - tempdf$filter_pos_start + 1
+            fix_end <- resize(x, width = (tempdf %$% filter_pos_end))
+            fix_start <- resize(fix_end, width = final_width, fix = "end")
+            return(fix_start)
         }
     })
     number_omitted <- length(grlist) - nrow(mapping)
@@ -364,9 +414,10 @@ filter_by_consensus_pos <- function(fl_grs, pos_mapping, include_up_to_pos) {
     return(l1hs_resized)
 }
 
-flL1HS5UTR <- filter_by_consensus_pos(fl_grs = flLINE %>% filter(rte_subfamily == "L1HS") %>% filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS) %>% GRanges(), pos_mapping = fll1hs_consensus_index_long, include_up_to_pos = 909)
-flL1HS500 <- filter_by_consensus_pos(flLINE %>% filter(rte_subfamily == "L1HS") %>% filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS) %>% GRanges(), fll1hs_consensus_index_long, 500)
-flL1HS328 <- filter_by_consensus_pos(flLINE %>% filter(rte_subfamily == "L1HS") %>% filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS) %>% GRanges(), fll1hs_consensus_index_long, 328)
+flL1HS5UTR <- filter_by_consensus_pos(fl_grs = flLINE %>% filter(rte_subfamily == "L1HS") %>% filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS) %>% GRanges(), pos_mapping = fll1hs_consensus_index_long, pos_vec = c(0, 909))
+flL1HS500 <- filter_by_consensus_pos(flLINE %>% filter(rte_subfamily == "L1HS") %>% filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS) %>% GRanges(), fll1hs_consensus_index_long, c(0, 500))
+flL1HS328 <- filter_by_consensus_pos(flLINE %>% filter(rte_subfamily == "L1HS") %>% filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS) %>% GRanges(), fll1hs_consensus_index_long, c(0, 328))
+flL1HSASP <- filter_by_consensus_pos(flLINE %>% filter(rte_subfamily == "L1HS") %>% filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS) %>% GRanges(), fll1hs_consensus_index_long, c(400, 600))
 
 flLINENOTL1HS <- flLINE %>%
     filter(rte_subfamily != "L1HS") %>%
@@ -374,12 +425,13 @@ flLINENOTL1HS <- flLINE %>%
     resize(909)
 
 
-flRTEpromotergrs <- c(c(flSINEgrs, flLINENOTL1HS), flFl_Provirus_5LTRgrs, flL1HS5UTR)
+flRTEpromotergrs <- c(c(c(flSINEgrs, flLINENOTL1HS), flFl_Provirus_5LTRgrs), flL1HS5UTR)
 
 mcols(flL1HS5UTR)$region <- "909"
 mcols(flL1HS500)$region <- "500"
 mcols(flL1HS328)$region <- "328"
-l1hs_intra_utr_grs <- c(c(flL1HS328, flL1HS500), flL1HS5UTR)
+mcols(flL1HSASP)$region <- "ASP"
+l1hs_intra_utr_grs <- c(c(c(flL1HS328, flL1HS500), flL1HS5UTR), flL1HSASP)
 
 
 if (conf$single_condition == "no") {

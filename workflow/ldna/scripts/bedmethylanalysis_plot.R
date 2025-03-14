@@ -153,7 +153,7 @@ perelementdf_promoters <- read_delim(sprintf("ldna/Rintermediates/%s/perelementd
 perelementdf_promoters$sample <- factor(perelementdf_promoters$sample, levels = conf$samples)
 perelementdf_promoters$condition <- factor(perelementdf_promoters$condition, levels = conf$levels)
 
-perl1hs_5utr_region <- read_delim(sprintf("ldna/Rintermediates/%s/perl1hs_5utr_region.tsv", params$mod_code), col_names = TRUE) %>% mutate(region = ordered(region, levels = c("328", "500", "909")))
+perl1hs_5utr_region <- read_delim(sprintf("ldna/Rintermediates/%s/perl1hs_5utr_region.tsv", params$mod_code), col_names = TRUE) %>% mutate(region = ordered(region, levels = c("328", "500", "909", "ASP")))
 perl1hs_5utr_region$sample <- factor(perl1hs_5utr_region$sample, levels = conf$samples)
 perl1hs_5utr_region$condition <- factor(perl1hs_5utr_region$condition, levels = conf$levels)
 
@@ -930,6 +930,16 @@ tryCatch(
             broom::tidy() %>%
             mutate(region = 328) %>%
             mutate(model_type = "no_interaction")
+        resASP <- pf %>%
+            group_by(sample, region) %>%
+            summarise(pctM = mean(mean_meth)) %>%
+            filter(region == "ASP") %>%
+            left_join(sample_table %>% mutate(sample = sample_name)) %>%
+            lm(formula(sprintf("%s ~ %s", "pctM", lm_right_hand_side)), data = .) %>%
+            summary() %>%
+            broom::tidy() %>%
+            mutate(region = "ASP") %>%
+            mutate(model_type = "no_interaction")
 
         res909interaction <- pf %>%
             group_by(sample, region) %>%
@@ -961,7 +971,18 @@ tryCatch(
             broom::tidy() %>%
             mutate(region = 328) %>%
             mutate(model_type = "interaction")
-        stats <- bind_rows(res909, res500, res328, res909interaction, res500interaction, res328interaction)
+        resASPinteraction <- pf %>%
+            group_by(sample, region) %>%
+            summarise(pctM = mean(mean_meth)) %>%
+            filter(region == "ASP") %>%
+            left_join(sample_table %>% mutate(sample = sample_name)) %>%
+            lm(formula(sprintf("%s ~ %s", "pctM", ifelse(is.null(conf$linear_model_adjustment_interactions), lm_right_hand_side, paste0(lm_right_hand_side, " + ", paste0(conf$linear_model_adjustment_interactions, collapse = " + "))))), data = .) %>%
+            summary() %>%
+            broom::tidy() %>%
+            mutate(region = "ASP") %>%
+            mutate(model_type = "interaction")
+
+        stats <- bind_rows(res909, res500, res328, resASP, res909interaction, res500interaction, res328interaction, resASPinteraction)
         mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/l1hs_boxplot_5utr_regions.pdf", params$mod_code), 5, 4, sf = stats)
     },
     error = function(e) {
@@ -1583,11 +1604,10 @@ read_analysis2 <- function(
     cg_indices,
     region = "L1HS_intactness_req_ALL",
     mod_code_var = "m",
-    regions_of_interest_from_start = c(328, 500, 909),
+    regions_of_interest = list(c(0, 328), c(0, 500), c(0, 909), c(400, 600)),
     required_fraction_of_total_cg = 0.75,
     meth_thresholds = c(0.1, 0.25, 0.5),
     context = "CpG") {
-
     readsdf1 <- readscg %>% left_join(rmann %>% dplyr::select(gene_id, start, end, strand, rte_length_req, intactness_req) %>% dplyr::rename(element_strand = strand, element_start = start, element_end = end))
     readsdf2 <- readsdf1 %>% filter(rte_length_req == "FL")
 
@@ -1597,17 +1617,20 @@ read_analysis2 <- function(
     by_sample_l <- list()
     by_gene_id_l <- list()
 
-    for (region_of_interest_from_start in regions_of_interest_from_start) {
-        dir.create(sprintf("ldna/results/%s/tables/reads/%s_to_%s_considering_reads_%s_fraction_%s_%s", params$mod_code, region, region_of_interest_from_start, required_fraction_of_total_cg, mod_code_var, context), recursive = TRUE)
-        dir.create(sprintf("ldna/results/%s/plots/reads/%s_to_%s_considering_reads_%s_fraction_%s_%s", params$mod_code, region, region_of_interest_from_start, required_fraction_of_total_cg, mod_code_var, context), recursive = TRUE)
+    for (region_of_interest in regions_of_interest) {
+        roistart <- region_of_interest[1]
+        roiend <- region_of_interest[2]
+        roistring <- paste0(roistart, "to", roiend)
+        dir.create(sprintf("ldna/results/%s/tables/reads/%s_to_%s_considering_reads_%s_fraction_%s_%s", params$mod_code, region, roistring, required_fraction_of_total_cg, mod_code_var, context), recursive = TRUE)
+        dir.create(sprintf("ldna/results/%s/plots/reads/%s_to_%s_considering_reads_%s_fraction_%s_%s", params$mod_code, region, roistring, required_fraction_of_total_cg, mod_code_var, context), recursive = TRUE)
 
-        numCGneeded <- ceiling(length(cg_indices[cg_indices <= region_of_interest_from_start]) * required_fraction_of_total_cg)
+        numCGneeded <- ceiling(length(cg_indices[(cg_indices <= roiend) & (cg_indices >= roistart)]) * required_fraction_of_total_cg)
 
         utr1 <- readsdf1 %>%
             filter(mod_code == mod_code_var) %>%
             filter(case_when(
-                element_strand == "+" ~ (start > element_start) & (start < element_start + region_of_interest_from_start),
-                element_strand == "-" ~ (start > element_end - region_of_interest_from_start) & (start < element_end)
+                element_strand == "+" ~ (start > element_start + roistart) & (start < element_start + roiend),
+                element_strand == "-" ~ (start > element_end - roiend) & (start < element_end - roistart)
             )) %>%
             dplyr::mutate(mod_indicator = ifelse(mod_qual > 0.5, 1, 0))
 
@@ -1624,14 +1647,14 @@ read_analysis2 <- function(
             summarise(fraction_meth = dplyr::first(fraction_meth), strand = dplyr::first(element_strand)) %>%
             ungroup()
 
-        by_cpg_temp$subset <- as.character(region_of_interest_from_start)
-        by_read_temp$subset <- as.character(region_of_interest_from_start)
+        by_cpg_temp$subset <- as.character(roistring)
+        by_read_temp$subset <- as.character(roistring)
 
-        by_cpg_l[[as.character(region_of_interest_from_start)]] <- by_cpg_temp
-        by_read_l[[as.character(region_of_interest_from_start)]] <- by_read_temp
+        by_cpg_l[[as.character(roistring)]] <- by_cpg_temp
+        by_read_l[[as.character(roistring)]] <- by_read_temp
 
         for (meth_threshold in meth_thresholds) {
-            subset_threshold <- paste0(region_of_interest_from_start, "_", meth_threshold)
+            subset_threshold <- paste0(roistring, "_", meth_threshold)
             by_sample_temp <- by_read_temp %>%
                 mutate(unmeth = ifelse(fraction_meth > meth_threshold, 0, 1)) %>%
                 group_by(sample, region, condition) %>%
@@ -1639,7 +1662,7 @@ read_analysis2 <- function(
                 group_by(condition, region) %>%
                 mutate(meanProp = mean(propUnmeth))
             by_sample_temp$meth_threshold <- meth_threshold
-            by_sample_temp$subset <- as.character(region_of_interest_from_start)
+            by_sample_temp$subset <- as.character(roistring)
             by_sample_temp$subset_threshold <- subset_threshold
 
             by_gene_id_temp <- by_read_temp %>%
@@ -1651,7 +1674,7 @@ read_analysis2 <- function(
                 mutate(group_size = n()) %>%
                 ungroup()
             by_gene_id_temp$meth_threshold <- meth_threshold
-            by_gene_id_temp$subset <- as.character(region_of_interest_from_start)
+            by_gene_id_temp$subset <- as.character(roistring)
             by_gene_id_temp$subset_threshold <- subset_threshold
 
             by_sample_l[[subset_threshold]] <- by_sample_temp
@@ -1728,7 +1751,7 @@ read_analysis2 <- function(
         ggplot(aes(x = max_frac, y = ranked_row, color = condition)) +
         geom_point() +
         facet_wrap(vars(subset)) +
-        labs(title = sprintf("Read Methylation", region_of_interest_from_start), y = "Unique Locus Rank", x = sprintf("Reads Fraction < %s methylated", "#")) +
+        labs(title = sprintf("Read Methylation", roistring), y = "Unique Locus Rank", x = sprintf("Reads Fraction < %s methylated", "#")) +
         mtclosedgridh +
         scale_color_brewer(palette = "Paired") +
         anchorbar
@@ -1746,7 +1769,7 @@ read_analysis2 <- function(
         geom_point() +
         xlim(c(0, 0.25)) +
         facet_wrap(vars(subset)) +
-        labs(title = sprintf("Read Methylation", region_of_interest_from_start), y = "Unique Locus Rank", x = sprintf("Reads Fraction < %s methylated", "#")) +
+        labs(title = sprintf("Read Methylation", roistring), y = "Unique Locus Rank", x = sprintf("Reads Fraction < %s methylated", "#")) +
         mtclosedgridh +
         scale_color_brewer(palette = "Paired") +
         anchorbar
@@ -1763,7 +1786,7 @@ read_analysis2 <- function(
         ggplot(aes(x = max_frac, y = ranked_row, color = condition)) +
         geom_point() +
         facet_wrap(vars(subset)) +
-        labs(title = sprintf("Read Methylation", region_of_interest_from_start), y = "Unique Locus Rank", x = sprintf("Reads Fraction < %s methylated", "#")) +
+        labs(title = sprintf("Read Methylation", roistring), y = "Unique Locus Rank", x = sprintf("Reads Fraction < %s methylated", "#")) +
         mtclosedgridh +
         scale_color_brewer(palette = "Paired") +
         anchorbar
@@ -1781,7 +1804,7 @@ read_analysis2 <- function(
         geom_point() +
         xlim(c(0, 0.25)) +
         facet_wrap(vars(subset)) +
-        labs(title = sprintf("Read Methylation", region_of_interest_from_start), y = "Unique Locus Rank", x = sprintf("Reads Fraction < # methylated", "#")) +
+        labs(title = sprintf("Read Methylation", roistring), y = "Unique Locus Rank", x = sprintf("Reads Fraction < # methylated", "#")) +
         mtclosedgridh +
         scale_color_brewer(palette = "Paired") +
         anchorbar
@@ -1844,7 +1867,7 @@ read_analysis2 <- function(
 }
 
 
-read_analysis2(readscg, cg_indices)
+read_analysis2(readscg, cg_indicses)
 
 # read_analysis <- function(
 #     readsdf,

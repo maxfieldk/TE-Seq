@@ -629,17 +629,8 @@ rule deseq_tetranscripts:
     wildcard_constraints:
         counttype="[A-Za-z0-9_]+"
     output:
-        results_genes = expand("srna/results/agg/deseq_tetranscripts/{{counttype}}/{contrast}/results_genes.csv", contrast = config["srna"]["contrasts"]),
-        results_rtes = expand("srna/results/agg/deseq_tetranscripts/{{counttype}}/{contrast}/results_rtes.csv", contrast = config["srna"]["contrasts"]),
         counts_normed = "srna/results/agg/deseq_tetranscripts/{counttype}/counttablesizenormed.csv",
-        sizefactors = "srna/results/agg/deseq_tetranscripts/{counttype}/sizefactors.csv",
-        environment = "srna/results/agg/deseq_tetranscripts/{counttype}/deseq_environment.RData",
-        resultsdf  = "results/agg/deseq_tetranscripts/resultsdf_{counttype}.tsv",
-        report = report(
-            directory("srna/results/agg/deseq_tetranscripts/{counttype}"),
-            patterns=["{gene_or_te}/{name}.pdf"],
-            category="Differential Expression {counttype}",
-            subcategory="{gene_or_te}")
+        resultsdf  = "results/agg/deseq_tetranscripts/resultsdf_{counttype}.tsv"
     script:
         "scripts/deseq_tetranscripts.R"
 
