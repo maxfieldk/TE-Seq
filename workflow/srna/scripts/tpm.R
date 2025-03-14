@@ -44,6 +44,11 @@ tryCatch(
     }
 )
 
+# https://support.bioconductor.org/p/91218/
+tpm <- function(counts, len) {
+    x <- counts / len
+    return(t(t(x) * 1e6 / colSums(x)))
+}
 
 
 counttype <- params[["counttype"]]
@@ -60,25 +65,70 @@ coldata <- read.csv(params[["sample_table"]])
 samples <- conf$samples
 coldata <- coldata[match(conf$samples, coldata$sample_name), ]
 
-df <- read_delim(inputs[["rte_counts"]][1], comment = "#", col_names = FALSE)
+# repeats
+rmfragments <- read_csv(params$r_annotation_fragmentsjoined, col_names = TRUE)
+rmfamilies <- read_csv(params$r_repeatmasker_annotation, col_names = TRUE)
+rmannShared <- left_join(rmfragments, rmfamilies)
+rmannSamples <- list()
+for (sample in sample_table$sample_name) {
+    df <- read_csv(sprintf("aref/default/%s_annotations/%s_rmann_nonref.csv", sample, sample))
+    df$sample_name <- sample
+    df <- df %>%
+        left_join(sample_table) %>%
+        mutate(gene_id = paste0(sample_name, "__", gene_id))
+    rmannSamples[[sample]] <- df
+}
+rmannnonref <- do.call(rbind, rmannSamples) %>% tibble()
+rmann <- bind_rows(rmannShared, rmannnonref) %>%
+    filter(refstatus != "NonCentral")
+repeat_lengths <- rmann %>% dplyr::select(gene_id, length)
 
 if (counttype == "telescope_multi") {
-    bounddf <- tibble(df[, 1]) %>% dplyr::rename(gene_id = X1)
-    for (path in inputs$rte_counts) {
-        bounddf <- full_join(bounddf, read_delim(path, comment = "#", col_names = FALSE) %>% dplyr::select(X1, X3) %>% dplyr::rename(gene_id = X1), by = "gene_id")
+    bounddf <- tibble(gene_id = as.character())
+    for (sample in conf$samples) {
+        path <- gsub("run_stats", "TE_counts", grep(paste0("outs/", sample, "/telescope"), inputs$rte_counts, value = TRUE))
+        tdf <- read_delim(path, comment = "#", col_names = TRUE) %>%
+            dplyr::rename(gene_id = transcript) %>%
+            mutate(gene_id = case_when(
+                grepl("_NI_", gene_id) ~ paste0(sample, "__", gene_id),
+                TRUE ~ gene_id
+            ))
+        bounddf <- full_join(bounddf, tdf, by = "gene_id")
     }
     colnames(bounddf) <- c("gene_id", conf$samples)
 }
 
 if (counttype == "telescope_unique") {
-    bounddf <- tibble(df[, 1]) %>% dplyr::rename(gene_id = X1)
-    for (path in inputs$rte_counts) {
-        bounddf <- full_join(bounddf, read_delim(path, comment = "#", col_names = FALSE) %>% dplyr::select(X1, X6) %>% dplyr::rename(gene_id = X1), by = "gene_id")
+    bounddf <- tibble(gene_id = as.character())
+    for (sample in conf$samples) {
+        path <- grep(paste0("outs/", sample, "/telescope"), inputs$rte_counts, value = TRUE)
+        tdf <- read_delim(path, comment = "#", col_names = FALSE) %>%
+            dplyr::select(X1, X6) %>%
+            dplyr::rename(gene_id = X1) %>%
+            mutate(gene_id = case_when(
+                grepl("_NI_", gene_id) ~ paste0(sample, "__", gene_id),
+                TRUE ~ gene_id
+            ))
+        bounddf <- full_join(bounddf, tdf, by = "gene_id")
     }
     colnames(bounddf) <- c("gene_id", conf$samples)
 }
 
 bounddf1 <- bounddf[bounddf$gene_id != "__no_feature", ]
+
+# genes
+refseq <- import(params$annotation_genes)
+refseqdf <- refseq %>%
+    as.data.frame() %>%
+    tibble()
+refseqexons <- refseq[refseq$type == "exon"]
+refseqgrl <- split(refseqexons, refseqexons$transcript_id)
+gene_length_vec <- width(refseqgrl) %>% sum()
+gene_lengths1 <- tibble(transcript_id = names(gene_length_vec), length = unlist(gene_length_vec))
+gene_lengths2 <- gene_lengths1 %>% left_join(refseqdf %>% dplyr::select(gene_id, transcript_id) %>% distinct())
+gene_lengths <- gene_lengths2 %>%
+    group_by(gene_id) %>%
+    summarize(length = median(length))
 
 gene_cts <- read.delim(inputs$counts)
 str(gene_cts)
@@ -96,41 +146,18 @@ gene_cts <- gene_cts %>%
     dplyr::rename(!!!setNames(cvalues, snames)) %>%
     dplyr::rename(gene_id = Geneid)
 gene_cts <- gene_cts[c("gene_id", sample_table$sample_name)]
+
+
+
+# merge genes and repeats
 cts <- rbind(gene_cts, as.data.frame(bounddf1 %>% replace(is.na(.), 0)))
 rownames(cts) <- cts$gene_id
 cts <- dplyr::select(cts, -gene_id)
 cnames <- colnames(cts)
 
-# https://support.bioconductor.org/p/91218/
-tpm <- function(counts, len) {
-    x <- counts / len
-    return(t(t(x) * 1e6 / colSums(x)))
-}
-
-
-refseq <- import(params$annotation_genes)
-refseqdf <- refseq %>%
-    as.data.frame() %>%
-    tibble()
-refseqexons <- refseq[refseq$type == "exon"]
-refseqgrl <- split(refseqexons, refseqexons$transcript_id)
-gene_length_vec <- width(refseqgrl) %>% sum()
-gene_lengths1 <- tibble(transcript_id = names(gene_length_vec), length = unlist(gene_length_vec))
-gene_lengths2 <- gene_lengths1 %>% left_join(refseqdf %>% dplyr::select(gene_id, transcript_id) %>% distinct())
-gene_lengths <- gene_lengths2 %>%
-    group_by(gene_id) %>%
-    summarize(length = median(length))
-
-
-rmfragments <- read_csv(params$r_annotation_fragmentsjoined, col_names = TRUE)
-rmfamilies <- read_csv(params$r_repeatmasker_annotation, col_names = TRUE)
-rmann <- left_join(rmfragments, rmfamilies)
-repeat_lengths <- rmann %>% dplyr::select(gene_id, length)
-
 lengths <- rbind(gene_lengths, repeat_lengths)
 len_df <- tibble(gene_id = rownames(cts)) %>% left_join(lengths)
 filter_out <- len_df %>% filter(if_any(everything(), is.na)) %$% gene_id
-
 
 tpms <- tpm(cts, len_df %$% length)
 colSums(tpms)

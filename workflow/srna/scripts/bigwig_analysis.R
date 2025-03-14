@@ -51,16 +51,20 @@ tryCatch(
             txdbrefseq = "aref/default/A.REF_annotations/refseq.sqlite"
         ), env = globalenv())
         assign("inputs", list(
-            bwF = sprintf("srna/outs/%s/star_output/%s.F.bw", conf$samples, conf$samples),
-            bwR = sprintf("srna/outs/%s/star_output/%s.R.bw", conf$samples, conf$samples)
+            bwF = sprintf("srna/outs/%s/star_output/%s.unique.F.bw", conf$samples, conf$samples),
+            bwR = sprintf("srna/outs/%s/star_output/%s.unique.R.bw", conf$samples, conf$samples)
         ), env = globalenv())
         assign("outputs", list(
-            "environment" = "srna/results/agg/bigwig_plots/bigwigplots_environment.RData"
+            outfile = "srna/results/agg/bigwig_plots/unique/bigwigplots.txt"
         ), env = globalenv())
     }
 )
 
-outputdir <- params$outputdir
+paths_bwF <- inputs$bwF
+paths_bwR <- inputs$bwR
+
+
+outputdir <- dirname(outputs$outfile)
 contrasts <- conf$contrasts
 
 r_annotation_fragmentsjoined <- read_csv(params$r_annotation_fragmentsjoined)
@@ -119,13 +123,11 @@ tryCatch(
 }
 
 
-paths_bwF <- inputs$bwF
-paths_bwR <- inputs$bwR
 
 
 grs_list <- list()
 grs_total_score <- list()
-for (sample in sample_table$sample_name) {
+for (sample in conf$samples) {
     bwF <- import(grep(sprintf("/%s/", sample), paths_bwF, value = TRUE))
     strand(bwF) <- "+"
     bwR <- import(grep(sprintf("/%s/", sample), inputs$bwR, value = TRUE))
@@ -143,7 +145,9 @@ for (sample in sample_table$sample_name) {
 grs <- Reduce(c, grs_list)
 
 
-total_score_df <- tibble(sample_name = names(grs_total_score), score = unlist(grs_total_score)) %>% mutate(scale_factor = score / 1000000)
+# total_score_df <- tibble(sample_name = names(grs_total_score), score = unlist(grs_total_score)) %>% mutate(scale_factor = score / 1000000)
+# total_score_df$score / max(total_score_df$score)
+# norm_by_aligned_reads$`Mapped &amp; paired` / max(norm_by_aligned_reads$`Mapped &amp; paired`)
 
 txdb <- loadDb(params$txdbrefseq)
 rmgrs <- rmann %>% GRanges()
@@ -214,7 +218,7 @@ p <- pf %>%
         p.adjust.method = "fdr", hide.ns = TRUE
     ) + scale_conditions + mtclosed + anchorbar + labs(x = "", y = "Normalized Read Count")
 
-mysaveandstore(sprintf("srna/results/agg/bigwig_plots/genomic_context/gene_oriented_signal.pdf"), 6, 3.8)
+mysaveandstore(str_glue("{outputdir}/genomic_context/gene_oriented_signal.pdf"), 6, 3.8)
 
 p <- pf %>%
     mutate(condition = factor(condition, levels = conf$levels)) %>%
@@ -225,7 +229,7 @@ p <- pf %>%
         p.adjust.method = "fdr", hide.ns = TRUE
     ) + scale_conditions + mtclosed + anchorbar + labs(x = "", y = "Normalized Read Count")
 
-mysaveandstore(sprintf("srna/results/agg/bigwig_plots/genomic_context/gene_oriented_signal_faceted.pdf"), 8, 3.8)
+mysaveandstore(str_glue("{outputdir}/genomic_context/gene_oriented_signal_faceted.pdf"), 8, 3.8)
 
 pf <- region_annot_rm %>%
     group_by(sample_name, loc_integrative) %>%
@@ -246,7 +250,7 @@ p <- pf %>%
         p.adjust.method = "fdr", hide.ns = TRUE
     ) + scale_conditions + mtclosed + anchorbar + labs(x = "", y = "Normalized Read Count")
 
-mysaveandstore(sprintf("srna/results/agg/bigwig_plots/genomic_context/gene_oriented_signal_rm.pdf"), 6, 3.8)
+mysaveandstore(str_glue("{outputdir}/genomic_context/gene_oriented_signal_rm.pdf"), 6, 3.8)
 
 p <- pf %>%
     mutate(condition = factor(condition, levels = conf$levels)) %>%
@@ -257,7 +261,7 @@ p <- pf %>%
         p.adjust.method = "fdr", hide.ns = TRUE
     ) + scale_conditions + mtclosed + anchorbar + labs(x = "", y = "Normalized Read Count")
 
-mysaveandstore(sprintf("srna/results/agg/bigwig_plots/genomic_context/gene_oriented_signal_faceted_rm.pdf"), 8, 3.8)
+mysaveandstore(str_glue("{outputdir}/genomic_context/gene_oriented_signal_faceted_rm.pdf"), 8, 3.8)
 
 region_annot_rm_rmpriority <- region_annot_rm %>% mutate(loc_integrative = case_when(
     exonic == "Exonic" ~ "Exonic",
@@ -285,20 +289,20 @@ p <- pf %>%
         p.adjust.method = "fdr", hide.ns = TRUE
     ) + scale_conditions + mtclosed + anchorbar + labs(x = "", y = "Normalized Read Count")
 
-mysaveandstore(sprintf("srna/results/agg/bigwig_plots/genomic_context/gene_oriented_signal_rmpriority.pdf"), 6, 3.8)
+mysaveandstore(str_glue("{outputdir}/genomic_context/gene_oriented_signal_rmpriority.pdf"), 6, 3.8)
 
 p <- pf %>%
     mutate(condition = factor(condition, levels = conf$levels)) %>%
     ggbarplot(x = "loc_integrative", y = "score_sum", fill = "sample_name", scales = "free_y", position = position_dodge()) +
     scale_palette + mtclosed + anchorbar + labs(x = "", y = "Normalized Read Count")
-mysaveandstore(sprintf("srna/results/agg/bigwig_plots/genomic_context/gene_oriented_signal_rmpriority_by_sample.pdf"), 6, 3.8)
+mysaveandstore(str_glue("{outputdir}/genomic_context/gene_oriented_signal_rmpriority_by_sample.pdf"), 6, 3.8)
 p <- pf %>%
     mutate(condition = factor(condition, levels = conf$levels)) %>%
     mutate(sample = factor(sample, levels = conf$samples)) %>%
     ggbarplot(x = "sample_name", y = "score_sum", fill = "loc_integrative", scales = "free_y") +
     scale_palette + mtclosed + anchorbar + labs(x = "", y = "Read Fraction") +
     theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
-mysaveandstore(sprintf("srna/results/agg/bigwig_plots/genomic_context/gene_oriented_signal_rmpriority_by_sample_flip.pdf"), 1 + length(conf$samples) / 2.4, h = 5)
+mysaveandstore(str_glue("{outputdir}/genomic_context/gene_oriented_signal_rmpriority_by_sample_flip.pdf"), 1 + length(conf$samples) / 2.4, h = 5)
 
 
 p <- pf %>%
@@ -310,7 +314,7 @@ p <- pf %>%
         p.adjust.method = "fdr", hide.ns = TRUE
     ) + scale_conditions + mtclosed + anchorbar + labs(x = "", y = "Normalized Read Count")
 
-mysaveandstore(sprintf("srna/results/agg/bigwig_plots/genomic_context/gene_oriented_signal_faceted_rmpriority.pdf"), 8, 3.8)
+mysaveandstore(str_glue("{outputdir}/genomic_context/gene_oriented_signal_faceted_rmpriority.pdf"), 8, 3.8)
 
 groups_that_have_been_run <- c()
 groups_not_to_run <- c()
@@ -462,7 +466,7 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
                                 p <- p1
                             }
 
-                            mysaveandstore(sprintf("srna/results/agg/bigwig_plots/rte/%s_profile_by_sample.pdf", signal_group), 8, 6)
+                            mysaveandstore(str_glue("{outputdir}/rte/{signal_group}_profile_by_sample.pdf"), 8, 6)
 
                             p1 <- pf %>%
                                 group_by(x) %>%
@@ -479,7 +483,7 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
                             } else {
                                 p <- p1
                             }
-                            mysaveandstore(sprintf("srna/results/agg/bigwig_plots/rte/%s_profile_all.pdf", signal_group))
+                            mysaveandstore(str_glue("{outputdir}/rte/{signal_group}_profile_all.pdf"))
 
                             p1 <- pf1 %>%
                                 ggplot(aes(x = x, y = condition_value, color = condition)) +
@@ -493,7 +497,7 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
                             } else {
                                 p <- p1
                             }
-                            mysaveandstore(sprintf("srna/results/agg/bigwig_plots/rte/%s_profile_by_condition.pdf", signal_group), 6, 4)
+                            mysaveandstore(str_glue("{outputdir}/rte/{signal_group}_profile_by_condition.pdf"), 6, 4)
 
 
                             p1 <- pfStranded %>%
@@ -509,7 +513,7 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
                             } else {
                                 p <- p1
                             }
-                            mysaveandstore(sprintf("srna/results/agg/bigwig_plots/rte/%s_profile_by_sample_stranded.pdf", signal_group), 8, 6)
+                            mysaveandstore(str_glue("{outputdir}/rte/{signal_group}_profile_by_sample_stranded.pdf"), 8, 6)
 
                             p1 <- pfStranded %>%
                                 group_by(x, strand) %>%
@@ -527,7 +531,7 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
                             } else {
                                 p <- p1
                             }
-                            mysaveandstore(sprintf("srna/results/agg/bigwig_plots/rte/%s_profile_all_stranded.pdf", signal_group), 6, 6)
+                            mysaveandstore(str_glue("{outputdir}/rte/{signal_group}_profile_all_stranded.pdf"), 6, 6)
 
                             p1 <- pfStranded1 %>%
                                 ggplot(aes(x = x, y = condition_value, color = condition)) +
@@ -542,7 +546,7 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
                             } else {
                                 p <- p1
                             }
-                            mysaveandstore(sprintf("srna/results/agg/bigwig_plots/rte/%s_profile_by_condition_stranded.pdf", signal_group), 6, 6)
+                            mysaveandstore(str_glue("{outputdir}/rte/{signal_group}_profile_by_condition_stranded.pdf"), 6, 6)
                         }
                     },
                     error = function(e) {
@@ -556,5 +560,207 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
 
 
 
+
+
+#######
+tryCatch(
+    {
+        draw_heatmaps <- function(elements_of_interest, element_set_string) {
+            average_element_length <- elements_of_interest$length %>% median()
+            # Define windows for sense transcription
+            windows_F <- elements_of_interest %>%
+                filter(strand == "+") %>%
+                GRanges() %>%
+                promoters(upstream = average_element_length, downstream = average_element_length * 2)
+
+            windows_R <- elements_of_interest %>%
+                filter(strand == "-") %>%
+                GRanges() %>%
+                promoters(upstream = average_element_length, downstream = average_element_length * 2)
+
+            # Define number of bins
+            nbin <- 36
+            sml_senseF <- ScoreMatrixList(targets = paths_bwF, windows = windows_F, strand.aware = TRUE, bin.num = nbin)
+            sml_antisenseF <- ScoreMatrixList(targets = paths_bwR, windows = windows_F, strand.aware = TRUE, bin.num = nbin)
+            sml_senseR <- ScoreMatrixList(targets = paths_bwR, windows = windows_R, strand.aware = TRUE, bin.num = nbin)
+            sml_antisenseR <- ScoreMatrixList(targets = paths_bwF, windows = windows_R, strand.aware = TRUE, bin.num = nbin)
+
+            # no capping or scaling - just 99 percentile - often fails due to unresolved error with the winsorize parameter
+            tryCatch(
+                {
+                    sense_matrices <- purrr::map2(
+                        purrr::map(sml_senseF, ~ .x@.Data),
+                        purrr::map(sml_senseR, ~ .x@.Data),
+                        rbind
+                    )
+                    sm <- as(sense_matrices, "ScoreMatrixList")
+                    sm@names <- conf$samples
+
+                    antisense_matrices <- purrr::map2(
+                        purrr::map(sml_antisenseF, ~ .x@.Data),
+                        purrr::map(sml_antisenseR, ~ .x@.Data),
+                        rbind
+                    )
+                    asm <- as(antisense_matrices, "ScoreMatrixList")
+                    asm@names <- conf$samples
+
+                    p <- wrap_elements(grid.grabExpr(genomation::multiHeatMatrix(sm, xcoords = c(-1, 2), winsorize = c(0, 99), common.scale = TRUE, order = TRUE, col = c("white", "blue"))))
+                    mysaveandstore(pl = p, fn = str_glue("{outputdir}/{element_set_string}_s.pdf"), w = 2 * length(conf$samples), h = 5)
+                    p <- wrap_elements(grid.grabExpr(genomation::multiHeatMatrix(asm, xcoords = c(-1, 2), winsorize = c(0, 99), common.scale = TRUE, order = TRUE, col = c("white", "blue"))))
+                    mysaveandstore(pl = p, fn = str_glue("{outputdir}/{element_set_string}_a.pdf"), w = 2 * length(conf$samples), h = 5)
+                },
+                error = function(e) {
+
+                }
+            )
+
+            # cap at 1
+            cap_at_1 <- function(mat) {
+                mat[mat > 1] <- 1
+                return(mat)
+            }
+            # Apply scaling to ScoreMatrixList
+            sml_senseF_capped_1 <- scaleScoreMatrixList(sml_senseF, scalefun = cap_at_1)
+            sml_senseR_capped_1 <- scaleScoreMatrixList(sml_senseR, scalefun = cap_at_1)
+            sml_antisenseF_capped_1 <- scaleScoreMatrixList(sml_antisenseF, scalefun = cap_at_1)
+            sml_antisenseR_capped_1 <- scaleScoreMatrixList(sml_antisenseR, scalefun = cap_at_1)
+
+            sense_matrices_capped_1 <- purrr::map2(
+                purrr::map(sml_senseF_capped_1, ~ .x@.Data),
+                purrr::map(sml_senseR_capped_1, ~ .x@.Data),
+                rbind
+            )
+            sm_capped_1 <- as(sense_matrices_capped_1, "ScoreMatrixList")
+
+            antisense_matrices_capped_1 <- purrr::map2(
+                purrr::map(sml_antisenseF_capped_1, ~ .x@.Data),
+                purrr::map(sml_antisenseR_capped_1, ~ .x@.Data),
+                rbind
+            )
+            asm_capped_1 <- as(antisense_matrices_capped_1, "ScoreMatrixList")
+
+            p <- wrap_elements(grid.grabExpr(genomation::multiHeatMatrix(sm_capped_1, xcoords = c(-1, 2), grid = TRUE, order = TRUE, col = c("white", "blue"))))
+            mysaveandstore(pl = p, fn = str_glue("{outputdir}/{element_set_string}_s_capped_1.pdf"), w = 2 * length(conf$samples), h = 5)
+            p <- wrap_elements(grid.grabExpr(genomation::multiHeatMatrix(asm_capped_1, xcoords = c(-1, 2), order = TRUE, col = c("white", "blue"))))
+            mysaveandstore(pl = p, fn = str_glue("{outputdir}/{element_set_string}_a_capped_1.pdf"), w = 2 * length(conf$samples), h = 5)
+
+            ## capped at 5
+            cap_at_5 <- function(mat) {
+                mat[mat > 5] <- 5
+                return(mat)
+            }
+            # Apply scaling to ScoreMatrixList
+            sml_senseF_capped_5 <- scaleScoreMatrixList(sml_senseF, scalefun = cap_at_5)
+            sml_senseR_capped_5 <- scaleScoreMatrixList(sml_senseR, scalefun = cap_at_5)
+            sml_antisenseF_capped_5 <- scaleScoreMatrixList(sml_antisenseF, scalefun = cap_at_5)
+            sml_antisenseR_capped_5 <- scaleScoreMatrixList(sml_antisenseR, scalefun = cap_at_5)
+
+            sense_matrices_capped_5 <- purrr::map2(
+                purrr::map(sml_senseF_capped_5, ~ .x@.Data),
+                purrr::map(sml_senseR_capped_5, ~ .x@.Data),
+                rbind
+            )
+            sm_capped_5 <- as(sense_matrices_capped_5, "ScoreMatrixList")
+
+            antisense_matrices_capped_5 <- purrr::map2(
+                purrr::map(sml_antisenseF_capped_5, ~ .x@.Data),
+                purrr::map(sml_antisenseR_capped_5, ~ .x@.Data),
+                rbind
+            )
+            asm_capped_5 <- as(antisense_matrices_capped_5, "ScoreMatrixList")
+
+            p <- wrap_elements(grid.grabExpr(genomation::multiHeatMatrix(sm_capped_5, xcoords = c(-1, 2), grid = TRUE, order = TRUE, col = c("white", "blue"))))
+            mysaveandstore(pl = p, fn = str_glue("{outputdir}/{element_set_string}_s_capped_5.pdf"), w = 2 * length(conf$samples), h = 5)
+            p <- wrap_elements(grid.grabExpr(genomation::multiHeatMatrix(asm_capped_5, xcoords = c(-1, 2), order = TRUE, col = c("white", "blue"))))
+            mysaveandstore(pl = p, fn = str_glue("{outputdir}/{element_set_string}_a_capped_5.pdf"), w = 2 * length(conf$samples), h = 5)
+
+            ## capped at 10
+            cap_at_10 <- function(mat) {
+                mat[mat > 10] <- 10
+                return(mat)
+            }
+            # Apply scaling to ScoreMatrixList
+            sml_senseF_capped_10 <- scaleScoreMatrixList(sml_senseF, scalefun = cap_at_10)
+            sml_senseR_capped_10 <- scaleScoreMatrixList(sml_senseR, scalefun = cap_at_10)
+            sml_antisenseF_capped_10 <- scaleScoreMatrixList(sml_antisenseF, scalefun = cap_at_10)
+            sml_antisenseR_capped_10 <- scaleScoreMatrixList(sml_antisenseR, scalefun = cap_at_10)
+
+            sense_matrices_capped_10 <- purrr::map2(
+                purrr::map(sml_senseF_capped_10, ~ .x@.Data),
+                purrr::map(sml_senseR_capped_10, ~ .x@.Data),
+                rbind
+            )
+            sm_capped_10 <- as(sense_matrices_capped_10, "ScoreMatrixList")
+
+            antisense_matrices_capped_10 <- purrr::map2(
+                purrr::map(sml_antisenseF_capped_10, ~ .x@.Data),
+                purrr::map(sml_antisenseR_capped_10, ~ .x@.Data),
+                rbind
+            )
+            asm_capped_10 <- as(antisense_matrices_capped_10, "ScoreMatrixList")
+
+            p <- wrap_elements(grid.grabExpr(genomation::multiHeatMatrix(sm_capped_10, xcoords = c(-1, 2), grid = TRUE, order = TRUE, col = c("white", "blue"))))
+            mysaveandstore(pl = p, fn = str_glue("{outputdir}/{element_set_string}_s_capped_10.pdf"), w = 2 * length(conf$samples), h = 5)
+            p <- wrap_elements(grid.grabExpr(genomation::multiHeatMatrix(asm_capped_10, xcoords = c(-1, 2), order = TRUE, col = c("white", "blue"))))
+            mysaveandstore(pl = p, fn = str_glue("{outputdir}/{element_set_string}_a_capped_10.pdf"), w = 2 * length(conf$samples), h = 5)
+
+            ## SCALED
+            sml_senseF_scaled <- scaleScoreMatrixList(sml_senseF, row = TRUE)
+            sml_senseR_scaled <- scaleScoreMatrixList(sml_senseR, row = TRUE)
+            sml_antisenseF_scaled <- scaleScoreMatrixList(sml_antisenseF, row = TRUE)
+            sml_antisenseR_scaled <- scaleScoreMatrixList(sml_antisenseR, row = TRUE)
+
+            sense_matrices_scaled <- purrr::map2(
+                purrr::map(sml_senseF_scaled, ~ .x@.Data),
+                purrr::map(sml_senseR_scaled, ~ .x@.Data),
+                rbind
+            )
+            sm_scaled <- as(sense_matrices_scaled, "ScoreMatrixList")
+
+            antisense_matrices_scaled <- purrr::map2(
+                purrr::map(sml_antisenseF_scaled, ~ .x@.Data),
+                purrr::map(sml_antisenseR_scaled, ~ .x@.Data),
+                rbind
+            )
+            asm_scaled <- as(antisense_matrices_scaled, "ScoreMatrixList")
+
+            p <- wrap_elements(grid.grabExpr(genomation::multiHeatMatrix(sm_scaled, xcoords = c(-1, 2), grid = TRUE, order = TRUE, col = c("white", "blue"))))
+            mysaveandstore(pl = p, fn = str_glue("{outputdir}/{element_set_string}_s_scaled.pdf"), w = 2 * length(conf$samples), h = 5)
+            p <- wrap_elements(grid.grabExpr(genomation::multiHeatMatrix(asm_scaled, xcoords = c(-1, 2), order = TRUE, col = c("white", "blue"))))
+            mysaveandstore(pl = p, fn = str_glue("{outputdir}/{element_set_string}_a_scaled.pdf"), w = 2 * length(conf$samples), h = 5)
+        }
+
+
+
+
+        elements_of_interest <- rmann %>%
+            filter(rte_family == "L1") %>%
+            filter(req_integrative %in% c("Yng FL", "Yng Intact")) %>%
+            filter(rte_length_req == "FL")
+        included <- elements_of_interest %$% rte_subfamily %>%
+            unique() %>%
+            paste(collapse = "_")
+        draw_heatmaps(elements_of_interest, str_glue("YngL1s_{included}"))
+
+
+
+        for (subfam in rmann %>%
+            filter(rte_subfamily != "Other") %$% rte_subfamily %>%
+            unique()) {
+            print("drawing heatmaps for")
+            print(subfam)
+            elements_of_interest <- rmann %>%
+                filter(rte_subfamily == subfam) %>%
+                filter(rte_length_req == "FL")
+            draw_heatmaps(elements_of_interest, subfam)
+        }
+    },
+    error = function(e) {
+        print("heatmaps did not work")
+    }
+)
+
+
+
 x <- tibble(OUT = "")
-write_tsv(x, file = outputs$environment)
+write_tsv(x, file = outputs$outfile)

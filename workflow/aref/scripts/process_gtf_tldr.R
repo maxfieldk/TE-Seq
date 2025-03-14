@@ -138,8 +138,11 @@ new_id_mapping <- bind_rows(new_id_mapping_ref, new_id_mapping_nonref) %>%
     dplyr::select(gene_id, new_id) %>%
     dplyr::rename(GiesmaID = new_id)
 
-rmgr <- GRanges(rm %>% full_join(new_id_mapping) %>% relocate(GiesmaID, .after = gene_id) %>% dplyr::rename(old_id = gene_id) %>% dplyr::rename(gene_id = GiesmaID) %>% dplyr::relocate(-old_id))
-# write_csv(rm3 %>% full_join(new_id_mapping) %>% relocate(GiesmaID, .after = gene_id) %>% dplyr::select(-gene_id) %>% dplyr::rename(gene_id = GiesmaID), outputs$r_annotation)
+rmgr <- GRanges(rm %>% full_join(new_id_mapping) %>%
+    relocate(GiesmaID, .after = gene_id) %>%
+    dplyr::rename(old_id = gene_id) %>%
+    dplyr::rename(gene_id = GiesmaID) %>%
+    dplyr::relocate(-old_id))
 
 rmfragments <- rmfragments %>%
     full_join(new_id_mapping) %>%
@@ -245,13 +248,133 @@ if (params$tldr_switch == "process_gtf_tldr") {
     colnames(rmref)
     colnames(rmnonrefkeep_central_element)
     colnames(rmnonref_noncentral_elements)
-    rm <- rbind(rmref, rmnonrefkeep_central_element, rmnonref_noncentral_elements)
-    write_csv(rm %>% dplyr::relocate(-old_id), outputs$r_annotation_fragmentsjoined)
+    rmfragments <- rbind(rmref, rmnonrefkeep_central_element, rmnonref_noncentral_elements)
 
-    contigs_to_keep <- rm %$% seqnames %>% unique()
+    # adding L1 antisense promoter annotations
+    if (conf$species %in% c("human")) {
+        # adding ASP annotations - first to rmfragments
+        fulllength_trnc_length_threshold <- conf$fulllength_trnc_length_threshold
+        human_l1_antisense_subfamilies <- c("L1HS", "L1PA2", "L1PA3", "L1PA4", "L1PA5")
+        ASP <- rmfragments %>%
+            filter(grepl(paste(human_l1_antisense_subfamilies, collapse = "|"), gene_id, perl = TRUE)) %>%
+            filter(pctconsensuscovered >= fulllength_trnc_length_threshold) %>%
+            filter(element_start < 300) %>%
+            mutate(gene_id = paste0(gene_id, "__AS")) %>%
+            mutate(family = paste0(family, "__AS"))
+        ASPpos <- ASP %>%
+            filter(strand == "+") %>%
+            GRanges() %>%
+            promoters(upstream = 30, downstream = 500)
+        ASPneg <- ASP %>%
+            filter(strand == "-") %>%
+            GRanges() %>%
+            promoters(upstream = 30, downstream = 500)
+        strand(ASPpos) <- "-"
+        strand(ASPneg) <- "+"
+        ASPfinal <- c(ASPpos, ASPneg) %>%
+            as.data.frame() %>%
+            tibble() %>%
+            dplyr::select(-width)
+        rmfragments <- bind_rows(rmfragments, ASPfinal)
+
+        # now for the fragmented
+        rmgrdf <- rmgr %>%
+            as.data.frame() %>%
+            tibble()
+        ids <- rmfragments %>% filter(grepl("__AS", gene_id, perl = TRUE)) %$% old_id
+        ASPgr <- rmgrdf %>%
+            filter(old_id %in% ids) %>%
+            mutate(Target2 = Target) %>%
+            separate(Target2, into = c("family", "element_start", "element_end", "element_bp_remaining"), sep = " ") %>%
+            dplyr::select(-c("family", "element_end", "element_bp_remaining")) %>%
+            group_by(old_id) %>%
+            arrange(element_start) %>%
+            filter(row_number() == 1) %>%
+            ungroup() %>%
+            dplyr::select(-element_start) %>%
+            mutate(gene_id = paste0(gene_id, "__AS"))
+        ASPposgr <- ASPgr %>%
+            filter(strand == "+") %>%
+            GRanges() %>%
+            promoters(upstream = 30, downstream = 500)
+        ASPneggr <- ASPgr %>%
+            filter(strand == "-") %>%
+            GRanges() %>%
+            promoters(upstream = 30, downstream = 500)
+        strand(ASPposgr) <- "-"
+        strand(ASPneggr) <- "+"
+        ASPfinalgr <- c(ASPposgr, ASPneggr) %>%
+            as.data.frame() %>%
+            tibble() %>%
+            dplyr::select(-width)
+        rmgr <- c(rmgr, GRanges(ASPfinalgr))
+    }
+
+    write_csv(rmfragments %>% dplyr::relocate(-old_id), outputs$r_annotation_fragmentsjoined)
+    contigs_to_keep <- rmfragments %$% seqnames %>% unique()
     rtracklayer::export(rmgr[seqnames(rmgr) %in% contigs_to_keep], con = outputs$repmask_gff2, format = "GFF2")
     rtracklayer::export(rmgr[seqnames(rmgr) %in% contigs_to_keep], con = outputs$repmask_gff3, format = "GFF3")
 } else {
+    # adding L1 antisense promoter annotations
+    if (conf$species %in% c("human")) {
+        # adding ASP annotations - first to rmfragments
+        fulllength_trnc_length_threshold <- conf$fulllength_trnc_length_threshold
+        human_l1_antisense_subfamilies <- c("L1HS", "L1PA2", "L1PA3", "L1PA4", "L1PA5")
+        ASP <- rmfragments %>%
+            filter(grepl(paste(human_l1_antisense_subfamilies, collapse = "|"), gene_id, perl = TRUE)) %>%
+            filter(pctconsensuscovered >= fulllength_trnc_length_threshold) %>%
+            filter(element_start < 300) %>%
+            mutate(gene_id = paste0(gene_id, "__AS")) %>%
+            mutate(family = paste0(family, "__AS"))
+        ASPpos <- ASP %>%
+            filter(strand == "+") %>%
+            GRanges() %>%
+            promoters(upstream = 30, downstream = 500)
+        ASPneg <- ASP %>%
+            filter(strand == "-") %>%
+            GRanges() %>%
+            promoters(upstream = 30, downstream = 500)
+        strand(ASPpos) <- "-"
+        strand(ASPneg) <- "+"
+        ASPfinal <- c(ASPpos, ASPneg) %>%
+            as.data.frame() %>%
+            tibble() %>%
+            dplyr::select(-width)
+        rmfragments <- bind_rows(rmfragments, ASPfinal)
+
+        # now for the fragmented
+        rmgrdf <- rmgr %>%
+            as.data.frame() %>%
+            tibble()
+        ids <- rmfragments %>% filter(grepl("__AS", gene_id, perl = TRUE)) %$% old_id
+        ASPgr <- rmgrdf %>%
+            filter(old_id %in% ids) %>%
+            mutate(Target2 = Target) %>%
+            separate(Target2, into = c("family", "element_start", "element_end", "element_bp_remaining"), sep = " ") %>%
+            dplyr::select(-c("family", "element_end", "element_bp_remaining")) %>%
+            group_by(old_id) %>%
+            arrange(element_start) %>%
+            filter(row_number() == 1) %>%
+            ungroup() %>%
+            dplyr::select(-element_start) %>%
+            mutate(gene_id = paste0(gene_id, "__AS"))
+        ASPposgr <- ASPgr %>%
+            filter(strand == "+") %>%
+            GRanges() %>%
+            promoters(upstream = 30, downstream = 500)
+        ASPneggr <- ASPgr %>%
+            filter(strand == "-") %>%
+            GRanges() %>%
+            promoters(upstream = 30, downstream = 500)
+        strand(ASPposgr) <- "-"
+        strand(ASPneggr) <- "+"
+        ASPfinalgr <- c(ASPposgr, ASPneggr) %>%
+            as.data.frame() %>%
+            tibble() %>%
+            dplyr::select(-width)
+        rmgr <- c(rmgr, GRanges(ASPfinalgr))
+    }
+
     write_csv(rmfragments %>% dplyr::relocate(-old_id), outputs$r_annotation_fragmentsjoined)
     rtracklayer::export(rmgr, con = outputs$repmask_gff2, format = "GFF2")
     rtracklayer::export(rmgr, con = outputs$repmask_gff3, format = "GFF3")

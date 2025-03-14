@@ -74,7 +74,8 @@ tryCatch(
                 "r_repeatmasker_annotation" = conf$r_repeatmasker_annotation
             ), env = globalenv())
             assign("inputs", list(
-                "resultsdf" = "lrna/results/agg/deseq/resultsdf.tsv"
+                "resultsdf" = "lrna/results/agg/deseq/resultsdf.tsv",
+                "resultsdf_tetranscripts" = "results/agg/tetranscripts/resultsdf.tsv"
             ), env = globalenv())
             assign("outputs", list(
                 "environment" = "lrna/results/agg/repeatanalysis/relaxed/repeatanalysisplots_environment.RData"
@@ -91,6 +92,7 @@ counttype <- params$counttype
 
 ## Load Data and add annotations
 resultsdf1 <- read_delim(inputs$resultsdf, delim = "\t") %>% filter(counttype == !!counttype)
+resultsdf_tetranscripts1 <- read_delim(inputs$resultsdf_tetranscripts, delim = "\t")
 r_annotation_fragmentsjoined <- read_csv(params$r_annotation_fragmentsjoined)
 r_repeatmasker_annotation <- read_csv(params$r_repeatmasker_annotation) %>%
     mutate(req_integrative = factor(req_integrative, levels = c("Old Trnc", "Old FL", "Yng Trnc", "Yng FL", "Yng Intact"))) %>%
@@ -105,6 +107,10 @@ resultsdfwithgenes <- resultsdfwithgenes %>%
     replace_na(list(gene_or_te = "repeat"))
 
 resultsdf <- resultsdfwithgenes %>% filter(gene_or_te != "gene")
+
+resultsdf_tetranscripts <- resultsdf_tetranscripts1 %>%
+    mutate(gene_id = gsub(":.*", "", gene_id, perl = TRUE)) %>%
+     left_join(r_repeatmasker_annotation %>% dplyr::select(family, rte_family, rte_superfamily, repeat_superfamily, family_av_pctdiv) %>% mutate(family = gsub(".*/", "", family, perl = TRUE)) %>% dplyr::rename(gene_id = family) %>% dplyr::distinct())
 
 ### ONTOLOGY DEFINITION
 {
@@ -1144,6 +1150,33 @@ tidydf <- resultsdf %>%
     dplyr::rename(sample = name, counts = value) %>%
     mutate(condition = map_chr(sample, ~ as.character(map[[.]])))
 tidydf$condition <- factor(tidydf$condition, levels = conf$levels)
+
+
+colsToKeeptet <- c("gene_id", pvals, l2fc, "family_av_pctdiv")
+tidydftet <- resultsdf_tetranscripts %>%
+    filter(gene_or_te == "repeat") %>%
+    dplyr::select(all_of(colnames(resultsdf_tetranscripts)[(colnames(resultsdf_tetranscripts) %in% sample_table$sample_name) | (colnames(resultsdf_tetranscripts) %in% colsToKeeptet)])) %>%
+    pivot_longer(cols = -colsToKeeptet) %>%
+    dplyr::rename(sample = name, counts = value) %>%
+    mutate(condition = map_chr(sample, ~ as.character(map[[.]])))
+tidydftet$condition <- factor(tidydftet$condition, levels = conf$levels)
+
+# tetranscripts based plots
+for (rep in tidydftet %$% gene_id %>% unique()) {
+    pf <- tidydftet %>% filter(gene_id == rep)
+    p <- pf %>%
+        ggbarplot(x = "condition", y = "counts", fill = "condition", add = c("mean_se", "dotplot")) +
+        labs(x = "", y = "Normalized Counts", subtitle = rep) +
+        theme(legend.position = "none") +
+        mtclosedgridh +
+        scale_conditions +
+        anchorbar +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        guides(fill = "none")
+    sf <- pf
+    mysaveandstore(sprintf("%s/tetranscripts/bar/%s.pdf",outputdir, rep), sf = sf, w = 3+0.33*length(conf$levels))
+}
+
 
 
 # pan TE pan contrast

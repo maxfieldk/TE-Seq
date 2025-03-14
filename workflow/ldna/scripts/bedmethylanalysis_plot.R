@@ -1587,8 +1587,6 @@ read_analysis2 <- function(
     required_fraction_of_total_cg = 0.75,
     meth_thresholds = c(0.1, 0.25, 0.5),
     context = "CpG") {
-    dir.create(sprintf("ldna/results/%s/tables/reads/%s_to_%s_considering_reads_%s_fraction_%s_%s", params$mod_code, region, region_of_interest_from_start, required_fraction_of_total_cg, mod_code_var, context), recursive = TRUE)
-    dir.create(sprintf("ldna/results/%s/plots/reads/%s_to_%s_considering_reads_%s_fraction_%s_%s", params$mod_code, region, region_of_interest_from_start, required_fraction_of_total_cg, mod_code_var, context), recursive = TRUE)
 
     readsdf1 <- readscg %>% left_join(rmann %>% dplyr::select(gene_id, start, end, strand, rte_length_req, intactness_req) %>% dplyr::rename(element_strand = strand, element_start = start, element_end = end))
     readsdf2 <- readsdf1 %>% filter(rte_length_req == "FL")
@@ -1600,6 +1598,9 @@ read_analysis2 <- function(
     by_gene_id_l <- list()
 
     for (region_of_interest_from_start in regions_of_interest_from_start) {
+        dir.create(sprintf("ldna/results/%s/tables/reads/%s_to_%s_considering_reads_%s_fraction_%s_%s", params$mod_code, region, region_of_interest_from_start, required_fraction_of_total_cg, mod_code_var, context), recursive = TRUE)
+        dir.create(sprintf("ldna/results/%s/plots/reads/%s_to_%s_considering_reads_%s_fraction_%s_%s", params$mod_code, region, region_of_interest_from_start, required_fraction_of_total_cg, mod_code_var, context), recursive = TRUE)
+
         numCGneeded <- ceiling(length(cg_indices[cg_indices <= region_of_interest_from_start]) * required_fraction_of_total_cg)
 
         utr1 <- readsdf1 %>%
@@ -1662,6 +1663,13 @@ read_analysis2 <- function(
     by_read <- purrr::reduce(by_read_l, bind_rows)
     by_gene_id <- purrr::reduce(by_gene_id_l, bind_rows)
     by_sample <- purrr::reduce(by_sample_l, bind_rows)
+
+    dir.create(dirname(sprintf("ldna/Rintermediates/%s/%s/highly_demethylated_reads_by_cpg.csv", params$mod_code, region)), recursive = TRUE)
+    by_cpg %>% write_csv(sprintf("ldna/Rintermediates/%s/%s/highly_demethylated_reads_by_cpg.csv", params$mod_code, region))
+    by_read %>% write_csv(sprintf("ldna/Rintermediates/%s/%s/highly_demethylated_reads_by_read.csv", params$mod_code, region))
+    by_gene_id %>% write_csv(sprintf("ldna/Rintermediates/%s/%s/highly_demethylated_reads_by_gene_id.csv", params$mod_code, region))
+    by_sample %>% write_csv(sprintf("ldna/Rintermediates/%s/%s/highly_demethylated_reads_by_sample.csv", params$mod_code, region))
+
 
     p <- by_sample %>%
         mutate(meth_threshold = as.character(meth_threshold)) %>%
@@ -3431,6 +3439,9 @@ for (sample in conf$samples) {
         ungroup() %>%
         filter(cpgs_detected_per_element > 50) %>%
         heatmap(gene_id, consensus_pos, pctM, cluster_rows = TRUE, cluster_columns = FALSE) %>%
+        add_tile(genic_loc) %>%
+        add_tile(intactness_req) %>%
+        add_tile(loc_highres_integrative_stranded) %>%
         as_ComplexHeatmap()
     hms[[sample]] <- p
     dir.create(outputdir_meth_clustering, recursive = TRUE)

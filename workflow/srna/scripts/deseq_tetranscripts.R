@@ -42,26 +42,28 @@ tryCatch(
     error = function(e) {
         assign("params", list(
             "sample_table" = conf$sample_table,
-            "counttype" = "telescope_multi",
+            "counttype" = "multi",
             "contrasts" = conf$contrasts,
             "levels" = conf$levels,
-            "outputdir" = sprintf("%s/results/agg/deseq", conf$prefix),
+            "genes_gtf" = conf$annotation_genes,
+            "outputdir" = sprintf("%s/results/agg/deseq_tetranscripts", conf$prefix),
             "r_annotation_fragmentsjoined" = conf$r_annotation_fragmentsjoined,
             "r_repeatmasker_annotation" = conf$r_repeatmasker_annotation,
             "paralellize_bioc" = 8
         ), env = globalenv())
         assign("outputs", list(
-            plots = sprintf("srna/results/agg/deseq/telescope_multi/deseq_plots.RData"),
-            sizefactors = "srna/results/agg/deseq/telescope_multi/sizefactors.csv"
+            plots = sprintf("srna/results/agg/deseq_tetranscripts/multi/deseq_plots.RData"),
+            sizefactors = "srna/results/agg/deseq_tetranscripts/multi/sizefactors.csv",
+            resultsdf = "results/agg/tetranscripts/resultsdf.tsv"
         ), env = globalenv())
         assign("inputs", list(
-            counts = sprintf("%s/outs/agg/featurecounts_genes/counts.txt", conf$prefix),
-            rte_counts = sprintf("%s/outs/%s/telescope/telescope-run_stats.tsv", conf$prefix, conf$samples)
+            counts = sprintf("%s/outs/%s/tetranscripts/TEtranscripts_out.cntTable", conf$prefix, conf$samples)
         ), env = globalenv())
     }
 )
 
-
+genes_gtf <- rtracklayer::import(params$genes_gtf)
+genes <- mcols(genes_gtf)$gene_id %>% unique()
 
 counttype <- params[["counttype"]]
 
@@ -82,38 +84,17 @@ if (params$paralellize_bioc) {
     register(MulticoreParam(8))
 }
 
-df <- read_delim(inputs[["rte_counts"]][1], comment = "#", col_names = FALSE)
+df <- read_delim(inputs[["counts"]][1], comment = "#", col_names = TRUE)
 
-if (counttype == "telescope_multi") {
-    bounddf <- tibble(df[, 1]) %>% dplyr::rename(gene_id = X1)
-    for (sample in conf$samples) {
-        path <- gsub("run_stats", "TE_counts", grep(paste0("outs/", sample, "/telescope"), inputs$rte_counts, value = TRUE))
-        bounddf <- full_join(bounddf, read_delim(path, comment = "#", col_names = TRUE) %>% dplyr::rename(gene_id = transcript), by = "gene_id")
-    }
-    colnames(bounddf) <- c("gene_id", conf$samples)
+bounddf <- tibble(df[, 1]) %>% rename(gene_id = `gene/TE`)
+for (sample in conf$samples) {
+    path <- grep(paste0("outs/", sample, "/tetranscripts"), inputs$counts, value = TRUE)
+    bounddf <- full_join(bounddf, read_delim(path, comment = "#", col_names = TRUE) %>% rename(gene_id = `gene/TE`), by = "gene_id")
 }
+colnames(bounddf) <- c("gene_id", conf$samples)
 
-if (counttype == "telescope_unique") {
-    bounddf <- tibble(df[, 1]) %>% dplyr::rename(gene_id = X1)
-    for (sample in conf$samples) {
-        path <- grep(paste0("outs/", sample, "/telescope"), inputs$rte_counts, value = TRUE)
-        bounddf <- full_join(bounddf, read_delim(path, comment = "#", col_names = FALSE) %>% dplyr::select(X1, X6) %>% dplyr::rename(gene_id = X1), by = "gene_id")
-    }
-    colnames(bounddf) <- c("gene_id", conf$samples)
-}
 
-bounddf1 <- bounddf[bounddf$gene_id != "__no_feature", ]
-
-gene_cts <- read.delim(inputs$counts)
-str(gene_cts)
-length(gene_cts$gene_id)
-colnames(gene_cts) <- colnames(gene_cts) %>%
-    gsub("Geneid", "gene_id", .) %>%
-    gsub("srna.outs.", "", .) %>%
-    gsub(".star_output.*", "", .)
-gene_cts <- gene_cts %>% dplyr::select(gene_id, conf$samples)
-
-cts <- bind_rows(gene_cts, as.data.frame(bounddf1 %>% replace(is.na(.), 0)))
+cts <- as.data.frame(bounddf)
 rownames(cts) <- cts$gene_id
 cts <- dplyr::select(cts, -gene_id)
 cnames <- colnames(cts)
@@ -154,7 +135,7 @@ colData(dds)
 # sizeFactors(dds) <- calculateSizeFactors(unlist(lib_size))
 
 # I estimate the size factors using genes, and not RTEs, since there are 5M repeats and most have very very low counts
-dds <- estimateSizeFactors(dds, controlGenes = rownames(dds) %in% gene_cts$gene_id)
+dds <- estimateSizeFactors(dds)
 sf <- as.data.frame(sizeFactors(dds)) %>%
     as_tibble(rownames = "sample_name") %>%
     dplyr::rename(sizefactor = `sizeFactors(dds)`)
@@ -163,14 +144,11 @@ write_csv(sf, outputs$sizefactors)
 
 is.na(colnames(dds)) %>% sum()
 colData(dds)
-ddsrtes <- dds[!(rownames(dds) %in% gene_cts$gene_id), ]
-ddsgenes <- dds[rownames(dds) %in% gene_cts$gene_id, ]
 
 
 
 ####
-ddsrteslist <- list()
-ddsgeneslist <- list()
+ddslist <- list()
 # determine all the DESeq calls that will need to be run, a different one for each base level that is used in contrasts
 baselevels <- contrasts %>%
     str_extract("vs_.*") %>%
@@ -180,26 +158,19 @@ for (baselevel in baselevels) {
     levels_temp <- c(baselevel, levels[levels != baselevel])
     # this sets the reference level since its first in the vector
     dds$condition <- factor(dds$condition, levels = levels_temp)
-    ddsrtes$condition <- factor(ddsrtes$condition, levels = levels_temp)
-    ddsgenes$condition <- factor(ddsgenes$condition, levels = levels_temp)
     if (params$paralellize_bioc) {
         # dds <- DESeq(dds, parallel = TRUE, BPPARAM = MulticoreParam(params$paralellize_bioc))
-        ddsrtes <- DESeq(ddsrtes, parallel = TRUE, BPPARAM = MulticoreParam(params$paralellize_bioc))
-        ddsgenes <- DESeq(ddsgenes, parallel = TRUE, BPPARAM = MulticoreParam(params$paralellize_bioc))
-        ddsrteslist[[baselevel]] <- ddsrtes
-        ddsgeneslist[[baselevel]] <- ddsgenes
+        dds <- DESeq(dds, parallel = TRUE, BPPARAM = MulticoreParam(params$paralellize_bioc))
+        ddslist[[baselevel]] <- dds
     } else {
-        ddsrtes <- DESeq(ddsrtes)
-        ddsgenes <- DESeq(ddsgenes)
-        ddsrteslist[[baselevel]] <- ddsrtes
-        ddsgeneslist[[baselevel]] <- ddsgenes
+        dds <- DESeq(dds)
+        ddslist[[baselevel]] <- dds
     }
 }
 
 ####
-counttablesizenormedrtes <- counts(ddsrteslist[[1]], normalized = TRUE)
-counttablesizenormedgenes <- counts(ddsgeneslist[[1]], normalized = TRUE)
-counttablesizenormedbatchnotremoved <- rbind(as.data.frame(counttablesizenormedrtes), as.data.frame(counttablesizenormedgenes))
+counttablesizenormed <- counts(ddslist[[1]], normalized = TRUE)
+counttablesizenormedbatchnotremoved <- counttablesizenormed
 colnames(counttablesizenormedbatchnotremoved) == coldata$sample_name
 
 if (any(grepl("batch", colnames(coldata)))) {
@@ -232,24 +203,18 @@ for (batchnormed in c("yes", "no")) {
     }
 
     for (subset in c("rtes", "genes")) {
-        if (subset == "rtes") {
-            ddstemplist <- ddsrteslist
-        } else {
-            ddstemplist <- ddsgeneslist
-        }
         for (contrast in contrasts) {
             baselevel <- str_extract(contrast, "vs_.*") %>% str_remove("vs_")
-            ddstemp <- ddstemplist[[baselevel]]
+            if (subset == "genes") {
+                ddstemp <- ddslist[[baselevel]]
+                ddstemp <- ddstemp[rownames(ddstemp) %in% genes] 
+                } else {
+                ddstemp <- ddslist[[baselevel]]
+                ddstemp <- ddstemp[!rownames(ddstemp) %in% genes]
+            }
             colData(ddstemp)$condition
             res <- results(ddstemp, name = contrast)
             res <- res[order(res$pvalue), ]
-
-
-            if (subset == "genes") {
-                res <- res[rownames(res) %in% gene_cts$gene_id, ]
-            } else {
-                res <- res[!(rownames(res) %in% gene_cts$gene_id), ]
-            }
 
             respath <- paste(outputdir, counttype, contrast, sprintf("results_%s.csv", subset), sep = "/")
             dir.create(dirname(respath), recursive = TRUE, showWarnings = FALSE)
@@ -402,63 +367,31 @@ for (batchnormed in c("yes", "no")) {
     }
 }
 
-save(ddsrteslist, file = paste(outputdir, counttype, "dds_rtes.RData", sep = "/"))
-save(ddsgeneslist, file = paste(outputdir, counttype, "dds_genes.RData", sep = "/"))
-
-x <- tibble(OUT = "")
-write_tsv(x, file = outputs$environment)
 
 
 
+contrastl <- list()
+for (contrast in contrasts) {
+    ddsres_rtes <- read_csv(paste(params$outputdir, counttype, contrast, "results_rtes.csv", sep = "/"))
+    ddsres_rtes$gene_or_te <- "repeat"
+    ddsres_genes <- read_csv(paste(params$outputdir, counttype, contrast, "results_genes.csv", sep = "/"))
+    ddsres_genes$gene_or_te <- "gene"
+    ddsres <- bind_rows(ddsres_rtes, ddsres_genes)
+    ddsresmod <- ddsres %>%
+        dplyr::rename(gene_id = ...1) %>%
+        mutate(Significance = ifelse(padj < 0.05, ifelse(padj < 0.001, "< 0.001", "< 0.05"), "> 0.05")) %>%
+        dplyr::select(c(gene_id, log2FoldChange, stat, padj, Significance, gene_or_te)) %>%
+        dplyr::rename(!!paste0("log2FoldChange_", contrast) := log2FoldChange) %>%
+        dplyr::rename(!!paste0("stat_", contrast) := stat) %>%
+        dplyr::rename(!!paste0("padj_", contrast) := padj) %>%
+        dplyr::rename(!!paste0("Significance_", contrast) := Significance)
+    contrastl[[contrast]] <- ddsresmod
+}
+ddsrestetype <- Reduce(function(x, y) merge(x, y, by = c("gene_id", "gene_or_te")), contrastl, accumulate = FALSE)
+ddsrestetype <- ddsrestetype %>% mutate(counttype = counttype)
+ddscounts <- read_csv(paste(params$outputdir, counttype, "counttablesizenormed.csv", sep = "/")) %>%
+    rename(gene_id = ...1) 
 
-tryCatch(
-    {
-        library(patchwork)
-        names(mysaveandstoreplots)
-        p1 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/genes/batchRemoved_no/pca.pdf"]]
-        p2 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/genes/batchRemoved_no/screeplot.pdf"]]
-        p3 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/genes/batchRemoved_no/sample_dist_heatmap.pdf"]]
-        ptch <- ((p1 / p2) | p3) + plot_layout(guides = "collect")
-        mysaveandstore(pl = ptch, fn = "srna/results/agg/deseq/telescope_multi/figs/f32.pdf", w = 8, h = 6)
-
-        paste0("RTE/", names(mysaveandstoreplots))
-
-        p1 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/genes/batchRemoved_no/pca.pdf"]]
-        p2 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/genes/batchRemoved_no/screeplot.pdf"]]
-        p3 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/genes/batchRemoved_no/sample_dist_heatmap.pdf"]]
-        ptch <- ((p1 / p2) | p3) + plot_layout(guides = "collect")
-        mysaveandstore(pl = ptch, fn = "srna/results/agg/deseq/telescope_multi/figs/f32.pdf", w = 8, h = 6)
-
-        p1 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/genes/batchRemoved_no/pca.pdf"]]
-        p2 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/genes/batchRemoved_no/screeplot.pdf"]]
-        ptch <- (p1 | p2) + plot_layout(guides = "collect")
-        mysaveandstore(pl = ptch, fn = "srna/results/agg/deseq/telescope_multi/figs/pca_scree.pdf", w = 9, h = 3.4)
-
-        ptch <- wrap_plots(mysaveandstoreplots[names(mysaveandstoreplots) %>%
-            grep("genes", ., value = TRUE) %>%
-            grep("maplot", ., value = TRUE) %>%
-            grep(paste(contrasts, collapse = "|"), ., value = TRUE)])
-        mysaveandstore(pl = ptch, fn = "srna/results/agg/deseq/telescope_multi/figs/maplots_genes.pdf", raster = TRUE, w = 14, h = 6)
-
-        ptch <- wrap_plots(mysaveandstoreplots[names(mysaveandstoreplots) %>%
-            grep("genes", ., value = TRUE) %>%
-            grep("maplot", ., value = TRUE) %>%
-            grep(paste(contrasts, collapse = "|"), ., value = TRUE)])
-        mysaveandstore(pl = ptch, fn = "srna/results/agg/deseq/telescope_multi/figs/maplots_genes.pdf", raster = TRUE, w = 14, h = 6)
-
-        # ptch <- wrap_plots(mysaveandstoreplots[names(mysaveandstoreplots) %>% grep("rtes", ., value = TRUE) %>% grep("maplot", ., value = TRUE) %>% grep(paste(contrasts, collapse = "|"), ., value = TRUE)])
-        # mysaveandstore(pl = ptch, fn = "srna/results/agg/deseq/telescope_multi/figs/maplots_rtes.pdf", w = 14, h = 6)
-
-        ptch <- wrap_plots(mysaveandstoreplots[names(mysaveandstoreplots) %>%
-            grep("genes", ., value = TRUE) %>%
-            grep("deplot", ., value = TRUE) %>%
-            grep(paste(contrasts, collapse = "|"), ., value = TRUE)])
-        mysaveandstore(pl = ptch, fn = "srna/results/agg/deseq/telescope_multi/figs/volcano_genes.pdf", raster = TRUE, w = 14, h = 6)
-
-        # ptch <- wrap_plots(mysaveandstoreplots[names(mysaveandstoreplots) %>% grep("rtes", ., value = TRUE) %>% grep("deplot", ., value = TRUE) %>% grep(paste(contrasts, collapse = "|"), ., value = TRUE)])
-        # mysaveandstore(pl = ptch, fn = "srna/results/agg/deseq/telescope_multi/figs/volcano_rtes.pdf", w = 14, h = 6)
-    },
-    error = function(e) {
-
-    }
-)
+resultsdf <- full_join(ddsrestetype, ddscounts, by = c("gene_id"))
+dir.create(dirname(outputs$resultsdf), recursive = TRUE)
+write_tsv(resultsdf, outputs$resultsdf)

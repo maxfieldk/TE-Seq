@@ -137,7 +137,7 @@ for pipeline in config["pipelines_to_deploy"]:
         counttypes = config["srna"]["counttypes"]
 
         def srna_rally():
-            bigwigs = "srna/results/agg/bigwig_plots/bigwigplots_environment.RData"
+            bigwigs = ["srna/results/agg/bigwig_plots/primary/bigwigplots.txt","srna/results/agg/bigwig_plots/unique/bigwigplots.txt"]
             mqc_report_file = "srna/qc/multiqc/multiqc_report.html"
             tpm_characterization = expand("srna/results/agg/tpm_sources/{counttype}/characterize_tpm_environment.RData",counttype = config["srna"]["counttypes"])
             if len(config["srna"]["levels"]) > 1:
