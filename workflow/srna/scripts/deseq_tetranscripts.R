@@ -54,10 +54,10 @@ tryCatch(
         assign("outputs", list(
             plots = sprintf("srna/results/agg/deseq_tetranscripts/multi/deseq_plots.RData"),
             sizefactors = "srna/results/agg/deseq_tetranscripts/multi/sizefactors.csv",
-            resultsdf = "results/agg/tetranscripts/resultsdf.tsv"
+            resultsdf = "results/agg/deseq_tetranscripts/multi/resultsdf.tsv"
         ), env = globalenv())
         assign("inputs", list(
-            counts = sprintf("%s/outs/%s/tetranscripts/TEtranscripts_out.cntTable", conf$prefix, conf$samples)
+            counts = sprintf("%s/outs/%s/tetranscripts/multi/TEtranscripts_out.cntTable", conf$prefix, conf$samples)
         ), env = globalenv())
     }
 )
@@ -159,12 +159,21 @@ for (baselevel in baselevels) {
     # this sets the reference level since its first in the vector
     dds$condition <- factor(dds$condition, levels = levels_temp)
     if (params$paralellize_bioc) {
-        # dds <- DESeq(dds, parallel = TRUE, BPPARAM = MulticoreParam(params$paralellize_bioc))
-        dds <- DESeq(dds, parallel = TRUE, BPPARAM = MulticoreParam(params$paralellize_bioc))
-        ddslist[[baselevel]] <- dds
+        tryCatch(
+            {
+                # dds <- DESeq(dds, parallel = TRUE, BPPARAM = MulticoreParam(params$paralellize_bioc))
+                dds <- DESeq(dds, parallel = TRUE, BPPARAM = MulticoreParam(params$paralellize_bioc))
+                ddslist[[baselevel]] <<- dds
+            },
+            error = function(e) {
+                # dds <- DESeq(dds, parallel = TRUE, BPPARAM = MulticoreParam(params$paralellize_bioc))
+                dds <- DESeq(dds)
+                ddslist[[baselevel]] <<- dds
+            }
+        )
     } else {
         dds <- DESeq(dds)
-        ddslist[[baselevel]] <- dds
+        ddslist[[baselevel]] <<- dds
     }
 }
 
@@ -207,8 +216,8 @@ for (batchnormed in c("yes", "no")) {
             baselevel <- str_extract(contrast, "vs_.*") %>% str_remove("vs_")
             if (subset == "genes") {
                 ddstemp <- ddslist[[baselevel]]
-                ddstemp <- ddstemp[rownames(ddstemp) %in% genes] 
-                } else {
+                ddstemp <- ddstemp[rownames(ddstemp) %in% genes]
+            } else {
                 ddstemp <- ddslist[[baselevel]]
                 ddstemp <- ddstemp[!rownames(ddstemp) %in% genes]
             }
@@ -390,7 +399,7 @@ for (contrast in contrasts) {
 ddsrestetype <- Reduce(function(x, y) merge(x, y, by = c("gene_id", "gene_or_te")), contrastl, accumulate = FALSE)
 ddsrestetype <- ddsrestetype %>% mutate(counttype = counttype)
 ddscounts <- read_csv(paste(params$outputdir, counttype, "counttablesizenormed.csv", sep = "/")) %>%
-    rename(gene_id = ...1) 
+    rename(gene_id = ...1)
 
 resultsdf <- full_join(ddsrestetype, ddscounts, by = c("gene_id"))
 dir.create(dirname(outputs$resultsdf), recursive = TRUE)
