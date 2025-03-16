@@ -60,7 +60,8 @@ tryCatch(
                 "r_repeatmasker_annotation" = conf$r_repeatmasker_annotation
             ), env = globalenv())
             assign("inputs", list(
-                "resultsdf" = "srna/results/agg/deseq/resultsdf.tsv"
+                "resultsdf" = "srna/results/agg/deseq/resultsdf.tsv",
+                "resultsdf_tetranscripts" = "srna/results/agg/deseq_tetranscripts/resultsdf.tsv"
             ), env = globalenv())
             assign("outputs", list(
                 "environment" = "srna/results/agg/repeatanalysis/telescope_multi/repeatanalysisplots_environment.RData"
@@ -89,17 +90,17 @@ tryCatch(
 outputdir <- params$outputdir
 contrasts <- conf$contrasts
 counttype <- params$counttype
-
+r_repeatmasker_annotation <- read_csv(params$r_repeatmasker_annotation)
 ## Load Data and add annotations
 resultsdf1 <- read_delim(inputs$resultsdf, delim = "\t") %>% filter(counttype == !!counttype)
 resultsdf_tetranscripts1 <- read_delim(inputs$resultsdf_tetranscripts, delim = "\t")
-r_annotation_fragmentsjoined <- read_csv(params$r_annotation_fragmentsjoined)
-r_repeatmasker_annotation <- read_csv(params$r_repeatmasker_annotation) %>%
-    mutate(req_integrative = factor(req_integrative, levels = c("Old Trnc", "Old FL", "Yng Trnc", "Yng FL", "Yng Intact"))) %>%
-    mutate(ltr_viral_status = factor(ltr_viral_status, levels = c("Int (Has 5LTR)", "Int (No 5'LTR)", "5'LTR (FL Int)", "3'LTR (FL Int)", "5'LTR (Trnc Int)", "3'LTR (Trnc Int)", "LTR (Solo)", "Other")))
+rmann <- get_repeat_annotations(
+    default_or_extended = "default",
+    keep_non_central = FALSE,
+    append_NI_samplename_modifier = FALSE
+)
 resultsdfwithgenes <- resultsdf1 %>%
-    full_join(r_annotation_fragmentsjoined) %>%
-    full_join(r_repeatmasker_annotation)
+    full_join(rmann)
 resultsdfwithgenes <- resultsdfwithgenes %>%
     mutate(across(all_of(conf$samples), ~ replace_na(., 0))) %>%
     mutate(across(matches(paste0("log2FoldChange_", conf$contrasts)), ~ replace_na(., 0))) %>%
@@ -110,8 +111,97 @@ resultsdf <- resultsdfwithgenes %>% filter(gene_or_te != "gene")
 
 resultsdf_tetranscripts <- resultsdf_tetranscripts1 %>%
     mutate(gene_id = gsub(":.*", "", gene_id, perl = TRUE)) %>%
-     left_join(r_repeatmasker_annotation %>% dplyr::select(family, rte_family, rte_superfamily, repeat_superfamily, family_av_pctdiv) %>% mutate(family = gsub(".*/", "", family, perl = TRUE)) %>% dplyr::rename(gene_id = family) %>% dplyr::distinct())
+    left_join(r_repeatmasker_annotation %>% dplyr::select(family, rte_family, rte_superfamily, repeat_superfamily, family_av_pctdiv) %>% mutate(family = gsub(".*/", "", family, perl = TRUE)) %>% dplyr::rename(gene_id = family) %>% dplyr::distinct())
 
+counttype_label <- gsub("telescope_", "", counttype) %>%
+    gsub("counttype_", "", .) %>%
+    str_to_title()
+
+#### GETTING TIDY DATA
+map <- setNames(sample_table$condition, sample_table$sample_name)
+pvals <- colnames(resultsdf)[str_detect(colnames(resultsdf), "padj_condition")]
+l2fc <- colnames(resultsdf)[str_detect(colnames(resultsdf), "log2FoldChange_condition")]
+annotations <- c("length", "seqnames", "start", "end", "strand", colnames(r_repeatmasker_annotation))
+strictly_annotations <- annotations[!(annotations %in% c("gene_id", "family"))]
+colsToKeep <- c("gene_id", "family", "refstatus", pvals, l2fc, strictly_annotations)
+
+tidydf <- resultsdf %>%
+    filter(counttype == !!counttype) %>%
+    select(all_of(colnames(resultsdf)[(colnames(resultsdf) %in% sample_table$sample_name) | (colnames(resultsdf) %in% colsToKeep)])) %>%
+    pivot_longer(cols = -colsToKeep) %>%
+    dplyr::rename(sample = name, counts = value) %>%
+    mutate(condition = map_chr(sample, ~ as.character(map[[.]])))
+tidydf$condition <- factor(tidydf$condition, levels = conf$levels)
+
+tryCatch(
+    {
+        tidy_ASP <- tidydf %>%
+            filter(grepl("__AS$", gene_id)) %>%
+            dplyr::select(sample, counts, gene_id) %>%
+            dplyr::rename(ASP_counts = counts) %>%
+            mutate(gene_id = case_when(
+                TRUE ~ gsub("__AS$", "", gene_id)
+            )) %>%
+            left_join(tidydf)
+
+
+        p <- tidy_ASP %>%
+            filter(rte_subfamily == "L1HS") %>%
+            ggplot(aes(x = counts, y = ASP_counts)) +
+            geom_point() +
+            facet_wrap(~loc_lowres_integrative_stranded) +
+            mtclosed
+        mysaveandstore(w = 10, h = 6)
+
+        p <- tidy_ASP %>%
+            filter(rte_subfamily == "L1HS") %>%
+            ggplot(aes(x = log(counts + 1), y = log(ASP_counts + 1))) +
+            geom_point() +
+            facet_wrap(~loc_lowres_integrative_stranded) +
+            mtclosed
+        mysaveandstore(w = 10, h = 6)
+
+
+        p <- tidy_ASP %>%
+            filter(rte_subfamily == "L1HS") %>%
+            ggplot(aes(x = log(counts + 1), y = log(ASP_counts + 1))) +
+            geom_point() +
+            facet_wrap(~loc_lowres_integrative_stranded) +
+            mtclosed
+        mysaveandstore(w = 10, h = 6)
+
+
+        tidy_ASP %>%
+            arrange(-ASP_counts) %>%
+            filter(rte_subfamily == "L1HS") %>%
+            filter(sample == "CTRL6") %>%
+            relocate(start, end)
+        tASP <- tidy_ASP %>%
+            dplyr::select(-counts) %>%
+            dplyr::rename(counts = ASP_counts)
+        pancontrastbarplots(ontology_column = "rte_subfamily", ontology_column_value = "L1HS", facetvars = c("req_integrative", "loc_lowres_integrative_stranded"), refstatus_to_include = c("Ref", "NonRef"))
+    },
+    error = function(e) {
+
+    }
+)
+
+colsToKeeptet <- c("gene_id", pvals, l2fc, "family_av_pctdiv")
+tidydftet <- resultsdf_tetranscripts %>%
+    filter(gene_or_te == "repeat") %>%
+    filter(counttype == gsub("ue$", "", gsub("telescope_", "", !!counttype))) %>%
+    dplyr::select(all_of(colnames(resultsdf_tetranscripts)[(colnames(resultsdf_tetranscripts) %in% sample_table$sample_name) | (colnames(resultsdf_tetranscripts) %in% colsToKeeptet)])) %>%
+    pivot_longer(cols = -colsToKeeptet) %>%
+    dplyr::rename(sample = name, counts = value) %>%
+    mutate(condition = map_chr(sample, ~ as.character(map[[.]])))
+tidydftet$condition <- factor(tidydftet$condition, levels = conf$levels)
+
+tidydf <- tidydf %>%
+    filter(!grepl("__AS$", gene_id))
+resultsdf <- resultsdf %>%
+    filter(!grepl("__AS$", gene_id))
+resultsdfwithgenes <- resultsdfwithgenes %>%
+    filter(!grepl("__AS$", gene_id))
 ### ONTOLOGY DEFINITION
 {
     annot_colnames <- colnames(r_repeatmasker_annotation)
@@ -1132,34 +1222,7 @@ myheatmap_allsamples <- function(df, facet_var = "ALL", filter_var = "ALL", DEva
 # mysave("temp1.pdf", 8, 8)
 
 
-counttype_label <- gsub("telescope_", "", counttype) %>%
-    gsub("counttype_", "", .) %>%
-    str_to_title()
-#### GETTING TIDY DATA
-map <- setNames(sample_table$condition, sample_table$sample_name)
-pvals <- colnames(resultsdf)[str_detect(colnames(resultsdf), "padj_condition")]
-l2fc <- colnames(resultsdf)[str_detect(colnames(resultsdf), "log2FoldChange_condition")]
-annotations <- c("length", colnames(r_repeatmasker_annotation))
-strictly_annotations <- annotations[!(annotations %in% c("gene_id", "family"))]
-colsToKeep <- c("gene_id", "family", "refstatus", pvals, l2fc, strictly_annotations)
 
-tidydf <- resultsdf %>%
-    filter(counttype == !!counttype) %>%
-    select(all_of(colnames(resultsdf)[(colnames(resultsdf) %in% sample_table$sample_name) | (colnames(resultsdf) %in% colsToKeep)])) %>%
-    pivot_longer(cols = -colsToKeep) %>%
-    dplyr::rename(sample = name, counts = value) %>%
-    mutate(condition = map_chr(sample, ~ as.character(map[[.]])))
-tidydf$condition <- factor(tidydf$condition, levels = conf$levels)
-
-
-colsToKeeptet <- c("gene_id", pvals, l2fc, "family_av_pctdiv")
-tidydftet <- resultsdf_tetranscripts %>%
-    filter(gene_or_te == "repeat") %>%
-    dplyr::select(all_of(colnames(resultsdf_tetranscripts)[(colnames(resultsdf_tetranscripts) %in% sample_table$sample_name) | (colnames(resultsdf_tetranscripts) %in% colsToKeeptet)])) %>%
-    pivot_longer(cols = -colsToKeeptet) %>%
-    dplyr::rename(sample = name, counts = value) %>%
-    mutate(condition = map_chr(sample, ~ as.character(map[[.]])))
-tidydftet$condition <- factor(tidydftet$condition, levels = conf$levels)
 
 # tetranscripts based plots
 for (rep in tidydftet %$% gene_id %>% unique()) {
@@ -1174,7 +1237,7 @@ for (rep in tidydftet %$% gene_id %>% unique()) {
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         guides(fill = "none")
     sf <- pf
-    mysaveandstore(sprintf("%s/tetranscripts/bar/%s.pdf",outputdir, rep), sf = sf, w = 3+0.33*length(conf$levels))
+    mysaveandstore(sprintf("%s/tetranscripts/bar/%s.pdf", outputdir, rep), sf = sf, w = 3 + 0.33 * length(conf$levels))
 }
 
 
@@ -1293,18 +1356,18 @@ for (group_var in c("repeat_superfamily", "rte_subfamily", "rte_family", "l1_sub
 
 
 # pan contrast
-pancontrastbarplots <- function(ontology_column = "rte_subfamily", ontology_column_value = "L1HS", facetvars = c("req_integrative", "genic_loc"), refstatus_to_include = c("Ref", "NonRef")) {
+pancontrastbarplots <- function(tdf = tidydf, ontology_column = "rte_subfamily", ontology_column_value = "L1HS", facetvars = c("req_integrative", "genic_loc"), refstatus_to_include = c("Ref", "NonRef")) {
     # Generated many variants of a simple grouped barplot with and without various statistics
     facetvarsstring <- paste(facetvars, collapse = "_")
     refstatusstring <- paste(refstatus_to_include, collapse = "_")
     nconditions <- length(conf$levels)
-    nhorizontalfacets <- tidydf[[facetvars[2]]] %>%
+    nhorizontalfacets <- tdf[[facetvars[2]]] %>%
         unique() %>%
         length()
     width <- 4 * 1 / 3 * nconditions * 1 / 2 * nhorizontalfacets
     height <- 8
     # Apply filters and transformations
-    df <- tidydf %>%
+    df <- tdf %>%
         filter(!!sym(ontology_column) == ontology_column_value) %>%
         mutate(refstatus = as.character(refstatus)) # Convert refstatus to character if it's a factor
     resultsdf %>% filter(rte_subfamily == "L1HS")

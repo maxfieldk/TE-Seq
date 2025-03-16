@@ -31,7 +31,7 @@ set-resources:
     srna_deseq:
         mem_mb: attempt * 60000
     srna_bigwigplots:
-        mem_mb: attempt * 100000
+        mem_mb: attempt * 125000
     srna_common_sortIndexBam:
         mem_mb: attempt * 35000
     srna_alignSTAR_PE:

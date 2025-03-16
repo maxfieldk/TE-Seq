@@ -77,6 +77,9 @@ aref:
     - "N2102EP1"
   levels:
     - "N2102EP"
+
+  rmann_shared: "aref/default/A.REF_annotations/A.REF_rmann.csv"
+
   #if you would like snps to be incorporated into the reference? Only use if you have at least 20X long read coverage
   patch_ref: "no"
   update_ref_with_tldr:

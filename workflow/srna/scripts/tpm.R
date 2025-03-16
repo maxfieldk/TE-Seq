@@ -66,45 +66,12 @@ samples <- conf$samples
 coldata <- coldata[match(conf$samples, coldata$sample_name), ]
 
 # repeats
-rmfragments <- read_csv(params$r_annotation_fragmentsjoined, col_names = TRUE)
-rmfamilies <- read_csv(params$r_repeatmasker_annotation, col_names = TRUE)
-rmannShared <- left_join(rmfragments, rmfamilies)
+rmann <- get_repeat_annotations(
+    default_or_extended = "default",
+    keep_non_central = FALSE,
+    append_NI_samplename_modifier = TRUE
+)
 
-if (confALL$aref$update_ref_with_tldr$response == "yes") {
-    if (confALL$aref$update_ref_with_tldr$per_sample == "yes") {
-        rmannSamples <- list()
-        for (sample in confALL$aref$samples) {
-            df <- read_csv(sprintf("aref/extended/%s_annotations/%s_rmann_nonref.csv", sample, sample))
-            df$sample_name <- sample
-            df <- df %>%
-                left_join(sample_table) %>%
-                mutate(gene_id = paste0(sample_name, "__", gene_id))
-            rmannSamples[[sample]] <- df
-        }
-        rmannnonref <- do.call(rbind, rmannSamples) %>% tibble()
-        rmann <- bind_rows(rmannShared, rmannnonref) %>%
-            filter(refstatus != "NonCentral")
-    } else if (confALL$aref$update_ref_with_tldr$per_sample == "no") {
-        rmann <- rmannShared %>%
-            filter(refstatus != "NonCentral")
-    }
-} else {
-    rmann <- rmannShared
-}
-
-
-rmannSamples <- list()
-for (sample in sample_table$sample_name) {
-    df <- read_csv(sprintf("aref/default/%s_annotations/%s_rmann_nonref.csv", sample, sample))
-    df$sample_name <- sample
-    df <- df %>%
-        left_join(sample_table) %>%
-        mutate(gene_id = paste0(sample_name, "__", gene_id))
-    rmannSamples[[sample]] <- df
-}
-rmannnonref <- do.call(rbind, rmannSamples) %>% tibble()
-rmann <- bind_rows(rmannShared, rmannnonref) %>%
-    filter(refstatus != "NonCentral")
 repeat_lengths <- rmann %>% dplyr::select(gene_id, length)
 
 if (counttype == "telescope_multi") {

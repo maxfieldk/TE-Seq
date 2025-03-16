@@ -167,7 +167,7 @@ rte_promoter_meth_by_condition <- rte_promoter_meth_by_gene %>%
 
 l1hs_promoterregion_meth_by_gene_tidy <- read_delim(sprintf("ldna/Rintermediates/%s/perl1hs_5utr_region.tsv", params$mod_code), col_names = TRUE) %>%
     dplyr::rename(sample_name = sample) %>%
-    mutate(region = ordered(region, levels = c("328", "500", "909"))) %>%
+    mutate(region = ordered(region, levels = c("328", "500", "909", "ASP"))) %>%
     mutate(gene_id = case_when(
         grepl("NI_", gene_id) ~ paste0(sample_name, "_", gene_id),
         TRUE ~ gene_id
@@ -199,14 +199,36 @@ srna_gene_expression_tidy <- srna_df %>%
         TRUE ~ gene_id
     ))
 
-fll1hs_gene_expression_tidy <- srna_gene_expression_tidy %>% filter(gene_id %in% (RMdf %>% filter(rte_subfamily == "L1HS") %>% filter(rte_length_req == "FL") %$% gene_id))
+fll1hs_gene_expression_tidy <- srna_gene_expression_tidy %>%
+    filter(gene_id %in% (RMdf %>% filter(rte_subfamily == "L1HS") %>% filter(rte_length_req == "FL") %$% gene_id)) %>%
+    left_join(RMdf)
+srna_gene_expression_tidy %>% filter(grepl("__AS$", gene_id))
+
+srna_gene_expression_tidy_ASP <- srna_gene_expression_tidy %>%
+    filter(grepl("__AS$", gene_id)) %>%
+    dplyr::select(sample, counts, gene_id) %>%
+    dplyr::rename(ASP_counts = counts) %>%
+    mutate(gene_id = case_when(
+        TRUE ~ gsub("__AS$", "", gene_id)
+    )) %>%
+    left_join(tidydf)
+
 fll1hs_gene_expression_by_sample_tidy <- fll1hs_gene_expression_tidy %>%
     group_by(sample_name) %>%
     summarise(srna_expression = mean(srna_expression))
+fll1hs_gene_expression_tidy %>% filter(is.na(loc_lowres_integrative_stranded))
 
+fll1hs_gene_expression_by_sample_tidy_nointronsense <- fll1hs_gene_expression_tidy %>%
+    filter(loc_lowres_integrative_stranded != "Genic_Sense") %>%
+    group_by(sample_name) %>%
+    summarise(srna_expression = mean(srna_expression))
+
+fll1hs_gene_expression_by_sample_tidy_nointronantisense <- fll1hs_gene_expression_tidy %>%
+    filter(loc_lowres_integrative_stranded != "Genic_Antisense") %>%
+    group_by(sample_name) %>%
+    summarise(srna_expression = mean(srna_expression))
 # genes
-
-
+fll1hs_gene_expression_tidy %$% loc_lowres_integrative_stranded %>% unique()
 
 # rtes
 

@@ -630,13 +630,15 @@ rule deseq_tetranscripts:
         counttype="[A-Za-z0-9_]+"
     output:
         counts_normed = "srna/results/agg/deseq_tetranscripts/{counttype}/counttablesizenormed.csv",
-        resultsdf  = "results/agg/deseq_tetranscripts/resultsdf_{counttype}.tsv"
+        resultsdf  = "srna/results/agg/deseq_tetranscripts/resultsdf_{counttype}.tsv",
+        sizefactors = "srna/results/agg/deseq_tetranscripts/{counttype}/sizefactors.csv",
+
     script:
         "scripts/deseq_tetranscripts.R"
 
 rule consolidateDeseqTetranscriptsResults:
     input:
-        resultsdf  = expand("results/agg/deseq_tetranscripts/resultsdf_{counttype}.tsv", counttype = ["multi", "uniq"])
+        resultsdf  = expand("srna/results/agg/deseq_tetranscripts/resultsdf_{counttype}.tsv", counttype = ["multi", "uniq"])
     params:
         inputdir = "srna/results/agg/deseq",
         outputdir = "srna/results/agg/deseq",
@@ -719,7 +721,7 @@ rule enrichment_analysis_repeats:
 rule repeatanalysis_plots:
     input:
         resultsdf = "srna/results/agg/deseq/resultsdf.tsv",
-        tetranscripts_resultsdf = "results/agg/deseq_tetranscripts/resultsdf.tsv"
+        tetranscripts_resultsdf = "srna/results/agg/deseq_tetranscripts/resultsdf.tsv"
     params:
         counttype = lambda w: w.counttype,
         contrasts = config["srna"]["contrasts"],
