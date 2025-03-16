@@ -652,7 +652,7 @@ rule consolidateDeseqTetranscriptsResults:
         mem_mb = 164000,
         runtime = 300
     output:
-        resultsdf = "results/agg/deseq_tetranscripts/resultsdf.tsv"
+        resultsdf = "srna/results/agg/deseq_tetranscripts/resultsdf.tsv"
     script:
         "scripts/consolidateDeseqTetranscriptsResults.R"
 
