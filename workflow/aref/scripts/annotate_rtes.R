@@ -37,7 +37,7 @@ rmfragments <- read_csv(inputs$r_annotation_fragmentsjoined, col_names = TRUE)
 rmfamilies <- rmfragments %>%
     dplyr::select(gene_id, family) %>%
     mutate(repeat_superfamily = case_when(
-        str_detect(family, "^LINE") ~ "LINE",
+        str_detect(family, "^LINE/") ~ "LINE",
         str_detect(family, "^SINE") ~ "SINE",
         str_detect(family, "^LTR") ~ "LTR",
         str_detect(family, "^Retroposon") ~ "Retroposon",
@@ -48,7 +48,7 @@ rmfamilies <- rmfragments %>%
     )) %>%
     mutate(repeat_superfamily = replace_na(repeat_superfamily, "Other")) %>%
     mutate(rte_superfamily = case_when(
-        str_detect(family, "^LINE") ~ "LINE",
+        str_detect(family, "^LINE/") ~ "LINE",
         str_detect(family, "^SINE") ~ "SINE",
         str_detect(family, "^LTR") ~ "LTR"
     )) %>%
@@ -881,7 +881,22 @@ region_annot <- region_annot %>%
         loc_integrative == "NoncdgTxAdj" & noncoding_tx_adjacent_orientation == "Antisense" ~ "Gene_Adj_Antisense",
         loc_integrative == "Intergenic" ~ "Intergenic",
         TRUE ~ "Other"
+    )) %>%
+    mutate(loc_superlowres_integrative_stranded = case_when(
+        loc_integrative == "Exonic" & exonic_orientation == "Sense" ~ "Genic_Sense",
+        loc_integrative == "Intronic" & intronic_orientation == "Sense" ~ "Genic_Sense",
+        loc_integrative == "NoncdgTx" & noncoding_tx_orientation == "Sense" ~ "Genic_Sense",
+        loc_integrative == "Exonic" & exonic_orientation == "Antisense" ~ "Genic_Antisense",
+        loc_integrative == "Intronic" & intronic_orientation == "Antisense" ~ "Genic_Antisense",
+        loc_integrative == "NoncdgTx" & noncoding_tx_orientation == "Antisense" ~ "Genic_Antisense",
+        loc_integrative == "CdgTxAdj" & coding_tx_adjacent_orientation == "Sense" ~ "Intergenic",
+        loc_integrative == "NoncdgTxAdj" & noncoding_tx_adjacent_orientation == "Sense" ~ "Intergenic",
+        loc_integrative == "CdgTxAdj" & coding_tx_adjacent_orientation == "Antisense" ~ "Intergenic",
+        loc_integrative == "NoncdgTxAdj" & noncoding_tx_adjacent_orientation == "Antisense" ~ "Intergenic",
+        loc_integrative == "Intergenic" ~ "Intergenic",
+        TRUE ~ "Other"
     ))
+
 
 
 ########################################################## RECORD INFORAMTION ABOUT NEAREST TRANSCRIPTS
@@ -937,7 +952,11 @@ annots <- rmfamilies %>%
     full_join(ltr_viral_status) %>%
     full_join(ltr_proviral_groups) %>%
     full_join(region_annot %>% rename_at(vars(-gene_id, -loc_integrative, -loc_lowres_integrative, -loc_highres_integrative, -loc_integrative_stranded, -loc_lowres_integrative_stranded, -loc_highres_integrative_stranded), ~ paste0(., "_loc"))) %>%
-    full_join(dist_to_nearest_txs_df)
+    full_join(dist_to_nearest_txs_df) %>%
+    mutate(asp = case_when(
+        grepl("__AS$", gene_id) ~ "asp",
+        TRUE ~ "Other"
+    ))
 
 
 region_annot %$% gene_id %>%

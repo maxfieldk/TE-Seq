@@ -196,7 +196,7 @@ for (sample in sample_table$sample_name) {
             # filter(Alignment.Length == max(Alignment.Length))
 
 
-            l1grs <- GRanges(rmann %>% filter(sample_name == sample) %>% filter(grepl("L1HS|L1PA[2]", rte_subfamily)))
+            l1grs <- GRanges(rmann %>% filter(sample_name == sample) %>% filter(grepl("L1HS$|L1PA[2]$", rte_subfamily)))
 
             bres_hits_grs_prep <- bres_hits %>%
                 mutate(seqnames = SubjectID) %>%

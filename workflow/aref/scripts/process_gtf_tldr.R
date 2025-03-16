@@ -260,7 +260,10 @@ if (params$tldr_switch == "process_gtf_tldr") {
             filter(pctconsensuscovered >= fulllength_trnc_length_threshold) %>%
             filter(element_start < 300) %>%
             mutate(gene_id = paste0(gene_id, "__AS")) %>%
-            mutate(family = paste0(family, "__AS"))
+            mutate(family = family %>%
+                str_split("/") %>%
+                map(~ paste0(.x, "__AS")) %>%
+                map_chr(~ paste(.x, collapse = "/")))
         ASPpos <- ASP %>%
             filter(strand == "+") %>%
             GRanges() %>%
@@ -293,6 +296,7 @@ if (params$tldr_switch == "process_gtf_tldr") {
             ungroup() %>%
             dplyr::select(-element_start) %>%
             mutate(gene_id = paste0(gene_id, "__AS"))
+
         ASPposgr <- ASPgr %>%
             filter(strand == "+") %>%
             GRanges() %>%
@@ -325,7 +329,11 @@ if (params$tldr_switch == "process_gtf_tldr") {
             filter(pctconsensuscovered >= fulllength_trnc_length_threshold) %>%
             filter(element_start < 300) %>%
             mutate(gene_id = paste0(gene_id, "__AS")) %>%
-            mutate(family = paste0(family, "__AS"))
+            mutate(family = family %>%
+                str_split("/") %>%
+                map(~ paste0(.x, "__AS")) %>%
+                map_chr(~ paste(.x, collapse = "/")))
+
         ASPpos <- ASP %>%
             filter(strand == "+") %>%
             GRanges() %>%
@@ -358,6 +366,7 @@ if (params$tldr_switch == "process_gtf_tldr") {
             ungroup() %>%
             dplyr::select(-element_start) %>%
             mutate(gene_id = paste0(gene_id, "__AS"))
+
         ASPposgr <- ASPgr %>%
             filter(strand == "+") %>%
             GRanges() %>%
