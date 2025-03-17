@@ -45,6 +45,8 @@ set-resources:
         mem_mb: attempt * 35000
     aref_process_gtf:
         mem_mb: attempt * 35000
+    aref_element_analysis:
+        mem_mb: attempt * 50000
     aref_merge_genes_and_repeats_gtf:
         mem_mb: attempt * 120000
         runtime: attempt * 300
