@@ -761,7 +761,7 @@ rule characterize_tpm:
         annotation_genes = config["srna"]["annotation_genes"],
         module_name = "srna"
     benchmark:
-        "srna/benchmarks/repeatanalysis_plots/{counttype}.tsv"
+        "srna/benchmarks/characterize_tpm/{counttype}.tsv"
     conda:
         "repeatanalysis"
     resources:

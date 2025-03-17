@@ -631,6 +631,7 @@ tryCatch(
                 rbind
             )
             sm_capped_1 <- as(sense_matrices_capped_1, "ScoreMatrixList")
+            sm_capped_1@names <- conf$samples
 
             antisense_matrices_capped_1 <- purrr::map2(
                 purrr::map(sml_antisenseF_capped_1, ~ .x@.Data),
@@ -638,6 +639,7 @@ tryCatch(
                 rbind
             )
             asm_capped_1 <- as(antisense_matrices_capped_1, "ScoreMatrixList")
+            asm_capped_1@names <- conf$samples
 
             p <- wrap_elements(grid.grabExpr(genomation::multiHeatMatrix(sm_capped_1, xcoords = c(-1, 2), grid = TRUE, order = TRUE, col = c("white", "blue"))))
             mysaveandstore(pl = p, fn = str_glue("{outputdir}/{element_set_string}_s_capped_1.pdf"), w = 2 * length(conf$samples), h = 5)
@@ -661,6 +663,7 @@ tryCatch(
                 rbind
             )
             sm_capped_5 <- as(sense_matrices_capped_5, "ScoreMatrixList")
+            sm_capped_5@names <- conf$samples
 
             antisense_matrices_capped_5 <- purrr::map2(
                 purrr::map(sml_antisenseF_capped_5, ~ .x@.Data),
@@ -668,6 +671,7 @@ tryCatch(
                 rbind
             )
             asm_capped_5 <- as(antisense_matrices_capped_5, "ScoreMatrixList")
+            asm_capped_5@names <- conf$samples
 
             p <- wrap_elements(grid.grabExpr(genomation::multiHeatMatrix(sm_capped_5, xcoords = c(-1, 2), grid = TRUE, order = TRUE, col = c("white", "blue"))))
             mysaveandstore(pl = p, fn = str_glue("{outputdir}/{element_set_string}_s_capped_5.pdf"), w = 2 * length(conf$samples), h = 5)
@@ -691,6 +695,7 @@ tryCatch(
                 rbind
             )
             sm_capped_10 <- as(sense_matrices_capped_10, "ScoreMatrixList")
+            sm_capped_10@names <- conf$samples
 
             antisense_matrices_capped_10 <- purrr::map2(
                 purrr::map(sml_antisenseF_capped_10, ~ .x@.Data),
@@ -698,6 +703,7 @@ tryCatch(
                 rbind
             )
             asm_capped_10 <- as(antisense_matrices_capped_10, "ScoreMatrixList")
+            asm_capped_10@names <- conf$samples
 
             p <- wrap_elements(grid.grabExpr(genomation::multiHeatMatrix(sm_capped_10, xcoords = c(-1, 2), grid = TRUE, order = TRUE, col = c("white", "blue"))))
             mysaveandstore(pl = p, fn = str_glue("{outputdir}/{element_set_string}_s_capped_10.pdf"), w = 2 * length(conf$samples), h = 5)
@@ -716,6 +722,7 @@ tryCatch(
                 rbind
             )
             sm_scaled <- as(sense_matrices_scaled, "ScoreMatrixList")
+            sm_scaled@names <- conf$samples
 
             antisense_matrices_scaled <- purrr::map2(
                 purrr::map(sml_antisenseF_scaled, ~ .x@.Data),
@@ -723,6 +730,7 @@ tryCatch(
                 rbind
             )
             asm_scaled <- as(antisense_matrices_scaled, "ScoreMatrixList")
+            asm_scaled@names <- conf$samples
 
             p <- wrap_elements(grid.grabExpr(genomation::multiHeatMatrix(sm_scaled, xcoords = c(-1, 2), grid = TRUE, order = TRUE, col = c("white", "blue"))))
             mysaveandstore(pl = p, fn = str_glue("{outputdir}/{element_set_string}_s_scaled.pdf"), w = 2 * length(conf$samples), h = 5)
