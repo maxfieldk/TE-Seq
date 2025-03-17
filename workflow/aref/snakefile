@@ -1612,6 +1612,10 @@ rule element_analysis:
         l13 = config["aref"]["l13fasta"]
     output:
         plots = "aref/default/{sample_or_ref}_Analysis/l1element_analysis.rds"
+    resources:
+        cpus_per_task = 2,
+        mem_mb = 50000,
+        runtime = 300
     benchmark:
         "aref/benchmarks/element_analysis/{sample_or_ref}.tsv"
     conda:
