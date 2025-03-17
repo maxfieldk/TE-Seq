@@ -87,6 +87,209 @@ wgenes <- genes
 resultsdf <- wrepeats
 tidydf <- trepeats
 library(ggpubr)
+
+
+
+# pan contrast
+pancontrastbarplots <- function(tdf = tidydf, ontology_column = "rte_subfamily", ontology_column_value = "L1HS", ontology_column_value_modifier = "", facetvars = c("req_integrative", "genic_loc"), refstatus_to_include = c("Ref", "NonRef")) {
+    # Generated many variants of a simple grouped barplot with and without various statistics
+    facetvarsstring <- paste(facetvars, collapse = "_")
+    refstatusstring <- paste(refstatus_to_include, collapse = "_")
+    nconditions <- length(conf$levels)
+    nhorizontalfacets <- tdf[[facetvars[2]]] %>%
+        unique() %>%
+        length()
+    width <- 4 * 1 / 3 * nconditions * 1 / 2 * nhorizontalfacets
+    height <- 8
+    # Apply filters and transformations
+    df <- tdf %>%
+        filter(!!sym(ontology_column) == ontology_column_value) %>%
+        mutate(refstatus = as.character(refstatus)) # Convert refstatus to character if it's a factor
+
+    ontology_column_value <- paste0(ontology_column_value, ontology_column_value_modifier)
+    # Perform filtering
+    pf <- df %>%
+        filter(refstatus %in% refstatus_to_include) %>%
+        group_by(sample, condition, across(all_of(facetvars))) %>%
+        summarise(sample_sum = sum(tpm), condition = dplyr::first(condition), n = n()) %>%
+        ungroup() %>%
+        filter(if_all(all_of(facetvars), ~ . != "Other")) %>%
+        arrange(across(all_of(facetvars)))
+
+    p <- pf %>%
+        ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = facetvars, add = c("mean_se", "dotplot"), scales = "free_y") +
+        geom_text(aes(x = -Inf, y = Inf, label = paste0("N = ", n)),
+            hjust = -0.1, vjust = 1.5, inherit.aes = FALSE
+        ) +
+        labs(x = "", y = "Sum TPM", subtitle = counttype_label, title = ontology_column_value) +
+        mtclosedgridh +
+        scale_conditions +
+        scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_sum/%s/%s_bar_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring), width, height)
+
+    p <- pf %>%
+        ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = facetvars, add = c("mean_se", "dotplot"), scales = "free_y") +
+        geom_text(aes(x = -Inf, y = Inf, label = paste0("N = ", n)),
+            hjust = -0.1, vjust = 1.5, inherit.aes = FALSE
+        ) +
+        labs(x = "", y = "Sum TPM", subtitle = counttype_label, title = ontology_column_value) +
+        mtclosedgridh +
+        scale_conditions +
+        scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
+    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_sum/%s/%s_bar_stats_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring), width, height)
+    p <- pf %>%
+        ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = facetvars, add = c("mean_se", "dotplot"), scales = "free_y") +
+        geom_text(aes(x = -Inf, y = Inf, label = paste0("N = ", n)),
+            hjust = -0.1, vjust = 1.5, inherit.aes = FALSE
+        ) +
+        labs(x = "", y = "Sum TPM", subtitle = counttype_label, title = ontology_column_value) +
+        mtclosedgridh +
+        scale_conditions +
+        scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, bracket.nudge.y = -0.1, step.increase = .1)
+    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_sum/%s/%s_bar_stats_allcomps_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring), width, height)
+
+    p <- pf %>%
+        ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = facetvars, add = c("mean_se", "dotplot"), scales = "free_y") +
+        geom_text(aes(x = -Inf, y = Inf, label = paste0("N = ", n)),
+            hjust = -0.1, vjust = 1.5, inherit.aes = FALSE
+        ) +
+        labs(x = "", y = "Sum TPM", subtitle = counttype_label, title = ontology_column_value) +
+        mtclosedgridh +
+        scale_conditions +
+        scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = FALSE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
+    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_sum/%s/%s_bar_stats_allsigannot_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring), width, height)
+    p <- pf %>%
+        ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = facetvars, add = c("mean_se", "dotplot"), scales = "free_y") +
+        geom_text(aes(x = -Inf, y = Inf, label = paste0("N = ", n)),
+            hjust = -0.1, vjust = 1.5, inherit.aes = FALSE
+        ) +
+        labs(x = "", y = "Sum TPM", subtitle = counttype_label, title = ontology_column_value) +
+        mtclosedgridh +
+        scale_conditions +
+        scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, bracket.nudge.y = -0.1, step.increase = .1)
+    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_sum/%s/%s_bar_stats_allsigannot_allcomps_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring), width, height)
+
+    # now mean across elements
+    pf <- df %>%
+        filter(refstatus %in% refstatus_to_include) %>%
+        group_by(sample, condition, across(all_of(facetvars))) %>%
+        summarise(sample_mean = mean(tpm), condition = dplyr::first(condition), n = n()) %>%
+        ungroup() %>%
+        filter(if_all(all_of(facetvars), ~ . != "Other")) %>%
+        arrange(across(all_of(facetvars)))
+
+    p <- pf %>%
+        ggbarplot(x = "condition", y = "sample_mean", fill = "condition", facet.by = facetvars, add = c("mean_se", "dotplot"), scales = "free_y") +
+        geom_text(aes(x = -Inf, y = Inf, label = paste0("N = ", n)),
+            hjust = -0.1, vjust = 1.5, inherit.aes = FALSE
+        ) +
+        labs(x = "", y = "Mean TPM", subtitle = counttype_label, title = ontology_column_value) +
+        mtclosedgridh +
+        scale_conditions +
+        scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_mean/%s/%s_bar_%s_%s4.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring), width, height)
+
+    p <- pf %>%
+        ggbarplot(x = "condition", y = "sample_mean", fill = "condition", facet.by = facetvars, add = c("mean_se", "dotplot"), scales = "free_y") +
+        geom_text(aes(x = -Inf, y = Inf, label = paste0("N = ", n)),
+            hjust = -0.1, vjust = 1.5, inherit.aes = FALSE
+        ) +
+        labs(x = "", y = "Mean TPM", subtitle = counttype_label, title = ontology_column_value) +
+        mtclosedgridh +
+        scale_conditions +
+        scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
+    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_mean/%s/%s_bar_stats_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring), width, height)
+    p <- pf %>%
+        ggbarplot(x = "condition", y = "sample_mean", fill = "condition", facet.by = facetvars, add = c("mean_se", "dotplot"), scales = "free_y") +
+        geom_text(aes(x = -Inf, y = Inf, label = paste0("N = ", n)),
+            hjust = -0.1, vjust = 1.5, inherit.aes = FALSE
+        ) +
+        labs(x = "", y = "Mean TPM", subtitle = counttype_label, title = ontology_column_value) +
+        mtclosedgridh +
+        scale_conditions +
+        scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, bracket.nudge.y = -0.1, step.increase = .1)
+    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_mean/%s/%s_bar_stats_allcomps_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring), width, height)
+
+    p <- pf %>%
+        ggbarplot(x = "condition", y = "sample_mean", fill = "condition", facet.by = facetvars, add = c("mean_se", "dotplot"), scales = "free_y") +
+        geom_text(aes(x = -Inf, y = Inf, label = paste0("N = ", n)),
+            hjust = -0.1, vjust = 1.5, inherit.aes = FALSE
+        ) +
+        labs(x = "", y = "Mean TPM", subtitle = counttype_label, title = ontology_column_value) +
+        mtclosedgridh +
+        scale_conditions +
+        scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = FALSE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
+    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_mean/%s/%s_bar_stats_allsigannot_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring), width, height)
+    p <- pf %>%
+        ggbarplot(x = "condition", y = "sample_mean", fill = "condition", facet.by = facetvars, add = c("mean_se", "dotplot"), scales = "free_y") +
+        geom_text(aes(x = -Inf, y = Inf, label = paste0("N = ", n)),
+            hjust = -0.1, vjust = 1.5, inherit.aes = FALSE
+        ) +
+        labs(x = "", y = "Mean TPM", subtitle = counttype_label, title = ontology_column_value) +
+        mtclosedgridh +
+        scale_conditions +
+        scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, bracket.nudge.y = -0.1, step.increase = .1)
+    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_mean/%s/%s_bar_stats_allsigannot_allcomps_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring), width, height)
+}
+
+tryCatch(
+    {
+        tidy_ASP <- tidydf %>%
+            filter(grepl("__AS$", gene_id)) %>%
+            dplyr::select(sample, tpm, gene_id) %>%
+            dplyr::rename(ASP_tpm = tpm) %>%
+            mutate(gene_id = case_when(
+                TRUE ~ gsub("__AS$", "", gene_id)
+            )) %>%
+            left_join(tidydf)
+
+
+        p <- tidy_ASP %>%
+            filter(rte_subfamily == "L1HS") %>%
+            ggplot(aes(x = tpm, y = ASP_tpm)) +
+            geom_point() +
+            facet_wrap(~loc_lowres_integrative_stranded) +
+            mtclosed
+        mysaveandstore(str_glue("{outputdir}/L1HS_SP_ASP_cor.pdf"), w = 10, h = 6)
+
+        p <- tidy_ASP %>%
+            filter(rte_subfamily == "L1HS") %>%
+            ggplot(aes(x = log(tpm + 1), y = log(ASP_tpm + 1))) +
+            geom_point() +
+            facet_wrap(~loc_lowres_integrative_stranded) +
+            mtclosed
+        mysaveandstore(str_glue("{outputdir}/L1HS_SP_ASP_log_cor.pdf"), w = 10, h = 6)
+
+
+        tASP <- tidy_ASP %>%
+            dplyr::select(-tpm) %>%
+            dplyr::rename(tpm = ASP_tpm) %>%
+            left_join(sample_table %>% dplyr::rename(sample = sample_name))
+        pancontrastbarplots(tdf = tASP, ontology_column = "rte_subfamily", ontology_column_value = "L1HS", ontology_column_value_modifier = "_ASP", facetvars = c("req_integrative", "loc_lowres_integrative_stranded"), refstatus_to_include = c("Ref", "NonRef"))
+    },
+    error = function(e) {
+
+    }
+)
+
 # pan contrast
 for (g_var in c("rte_family", "rte_subfamily")) {
     groups <- tidydf[[g_var]] %>%
