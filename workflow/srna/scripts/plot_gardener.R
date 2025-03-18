@@ -65,8 +65,8 @@ tryCatch(
         ), env = globalenv())
         assign("inputs", list(
             "resultsdf" = "srna/results/agg/deseq/resultsdf.tsv",
-            bwF = sprintf("srna/outs/%s/star_output/%s.F.bw", conf$samples, conf$samples),
-            bwR = sprintf("srna/outs/%s/star_output/%s.R.bw", conf$samples, conf$samples)
+            bwF = sprintf("srna/outs/%s/star_output/%s.primary.F.bw", conf$samples, conf$samples),
+            bwR = sprintf("srna/outs/%s/star_output/%s.primary.R.bw", conf$samples, conf$samples)
         ), env = globalenv())
         assign("outputs", list(
             "outfile" = "outfiles/genomebrowserplots.out"
@@ -170,13 +170,19 @@ p <- resultsdf_unique %>%
 p <- resultsdf_unique %>%
     filter(gene_id %in% gois) %>%
     pw()
+
+n_to_plot <- resultsdf %>%
+    filter(rte_subfamily == "L1HS") %>%
+    filter(rte_length_req == "FL") %>%
+    filter(if_any(starts_with("padj_"), ~ . <= 0.05)) %>%
+    nrow()
 p <- resultsdf %>%
     filter(rte_subfamily == "L1HS") %>%
     filter(rte_length_req == "FL") %>%
     filter(if_any(starts_with("padj_"), ~ . <= 0.05)) %>%
     dplyr::select(gene_id, conf$samples, starts_with("Significance"), loc_integrative_stranded, nearest_coding_tx, dist_to_nearest_coding_tx, nearest_noncoding_tx, dist_to_nearest_noncoding_tx) %>%
     ggtexttable()
-mysaveandstore(sprintf("%s/plotted_insert_df2.pdf", params$outputdir), h = 5, w = 40)
+mysaveandstore(sprintf("%s/plotted_insert_df2.pdf", params$outputdir), h = 5 * n_to_plot / 15, w = 40)
 
 p <- resultsdf %>%
     filter(rte_subfamily == "L1HS") %>%
@@ -184,7 +190,7 @@ p <- resultsdf %>%
     filter(if_any(starts_with("padj_"), ~ . <= 0.05)) %>%
     dplyr::select(gene_id, seqnames, start, end, strand, loc_integrative_stranded, nearest_coding_tx, dist_to_nearest_coding_tx, nearest_noncoding_tx, dist_to_nearest_noncoding_tx) %>%
     ggtexttable()
-mysaveandstore(sprintf("%s/plotted_insert_df_geneinfo2.pdf", params$outputdir), h = 5, w = 40)
+mysaveandstore(sprintf("%s/plotted_insert_df_geneinfo2.pdf", params$outputdir), h = 5 * n_to_plot / 15, w = 40)
 
 
 ##### plotting config
