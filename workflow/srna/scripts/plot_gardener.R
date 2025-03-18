@@ -56,8 +56,6 @@ tryCatch(
         print("not sourced snake variables")
         assign("params", list(
             "outputdir" = "srna/results/agg/genomebrowserplots",
-            "regions_of_interest" = "conf/integrated_regions_of_interest.bed",
-            "rmann" = conf$rmann,
             "txdbrefseq" = "aref/default/A.REF_annotations/refseq.sqlite",
             "txdbrep" = "aref/default/A.REF_annotations/A.REF_repeatmasker.complete.sqlite",
             "txdb" = "aref/default/A.REF_annotations/A.REF_repeatmasker_refseq.complete.sqlite",
@@ -93,72 +91,80 @@ tryCatch(
     }
 )
 
-paths_bwF <- inputs$bwF
-paths_bwR <- inputs$bwR
+
+tryCatch(
+    {
+        paths_bwF <- inputs$bwF
+        paths_bwR <- inputs$bwR
 
 
-grs_list <- list()
-grs_total_score <- list()
-for (sample in sample_table$sample_name) {
-    bwF <- import(grep(sprintf("/%s/", sample), paths_bwF, value = TRUE))
-    strand(bwF) <- "+"
-    bwR <- import(grep(sprintf("/%s/", sample), inputs$bwR, value = TRUE))
-    strand(bwR) <- "-"
-    grstemp <- c(bwF, bwR)
-    grstemp <- grstemp[!grepl("^NI", seqnames(grstemp))]
-    seqlevels(grstemp, pruning.mode = "coarse") <- seqlevelsInUse(grstemp)
-    mcols(grstemp)$sample_name <- sample
-    score <- grstemp$score %>% sum()
-    grs_total_score[[sample]] <- score
-    mcols(grstemp)$score <- mcols(grstemp)$score / score
-    # mcols(grstemp)$score <- mcols(grstemp)$score / norm_by_aligned_reads$scale_factor[norm_by_aligned_reads$sample_name == sample]
-    grs_list[[sample]] <- grstemp
-}
-grs <- Reduce(c, grs_list)
+        grs_list <- list()
+        grs_total_score <- list()
+        for (sample in sample_table$sample_name) {
+            bwF <- import(grep(sprintf("/%s/", sample), paths_bwF, value = TRUE))
+            strand(bwF) <- "+"
+            bwR <- import(grep(sprintf("/%s/", sample), inputs$bwR, value = TRUE))
+            strand(bwR) <- "-"
+            grstemp <- c(bwF, bwR)
+            grstemp <- grstemp[!grepl("^NI", seqnames(grstemp))]
+            seqlevels(grstemp, pruning.mode = "coarse") <- seqlevelsInUse(grstemp)
+            mcols(grstemp)$sample_name <- sample
+            score <- grstemp$score %>% sum()
+            grs_total_score[[sample]] <- score
+            mcols(grstemp)$score <- mcols(grstemp)$score / score
+            # mcols(grstemp)$score <- mcols(grstemp)$score / norm_by_aligned_reads$scale_factor[norm_by_aligned_reads$sample_name == sample]
+            grs_list[[sample]] <- grstemp
+        }
+        grs <- Reduce(c, grs_list)
 
 
-counttype <- params$counttype
-r_annotation_fragmentsjoined <- read_csv(conf$r_annotation_fragmentsjoined)
-r_repeatmasker_annotation <- read_csv(conf$r_repeatmasker_annotation)
-rmann <- left_join(r_annotation_fragmentsjoined, r_repeatmasker_annotation)
+        alignment_type <- params$alignment_type
+        if (alignment_type == "unique") {
+            counttype <- "telescope_unique"
+        } else {
+            counttype <- "telescope_multi"
+        }
+        r_annotation_fragmentsjoined <- read_csv(conf$r_annotation_fragmentsjoined)
+        r_repeatmasker_annotation <- read_csv(conf$r_repeatmasker_annotation)
+        rmann <- left_join(r_annotation_fragmentsjoined, r_repeatmasker_annotation)
 
-resultsdf1 <- read_delim(inputs$resultsdf, delim = "\t")
-resultsdf <- resultsdf1 %>%
-    filter(counttype == !!counttype) %>%
-    full_join(rmann)
+        resultsdf1 <- read_delim(inputs$resultsdf, delim = "\t")
+        resultsdf <- resultsdf1 %>%
+            filter(counttype == !!counttype) %>%
+            full_join(rmann)
 
-txdbrefseq <- loadDb(params$txdbrefseq)
-txdbrep <- loadDb(params$txdbrep)
-seqlevels(txdbrep)
-# columns(txdb)
-# keys <- keys(txdb) %>% head()
-# AnnotationDbi::select(txdb, keys = keys, columns = "TXNAME", keytype = "GENEID")
-library(BSgenome.Hsapiens.NCBI.T2T.CHM13v2.0)
-assembly <- assembly(Genome = "custom", TxDb = txdbrefseq, OrgDb = "org.Hs.eg.db", BSgenome = BSgenome.Hsapiens.NCBI.T2T.CHM13v2.0, gene.id.column = "GENEID", display.column = "GENEID")
-assemblyrep <- assembly(Genome = "custom", TxDb = txdbrep, OrgDb = "org.Hs.eg.db", BSgenome = BSgenome.Hsapiens.NCBI.T2T.CHM13v2.0, gene.id.column = "GENEID", display.column = "GENEID")
+        txdbrefseq <- loadDb(params$txdbrefseq)
+        txdbrep <- loadDb(params$txdbrep)
+        seqlevels(txdbrep)
+        # columns(txdb)
+        # keys <- keys(txdb) %>% head()
+        # AnnotationDbi::select(txdb, keys = keys, columns = "TXNAME", keytype = "GENEID")
+        library(BSgenome.Hsapiens.NCBI.T2T.CHM13v2.0)
+        assembly <- assembly(Genome = "custom", TxDb = txdbrefseq, OrgDb = "org.Hs.eg.db", BSgenome = BSgenome.Hsapiens.NCBI.T2T.CHM13v2.0, gene.id.column = "GENEID", display.column = "GENEID")
+        assemblyrep <- assembly(Genome = "custom", TxDb = txdbrep, OrgDb = "org.Hs.eg.db", BSgenome = BSgenome.Hsapiens.NCBI.T2T.CHM13v2.0, gene.id.column = "GENEID", display.column = "GENEID")
 
-samples_to_plot <- conf$samples
+        samples_to_plot <- conf$samples
 
-rnasignallistF <- list()
-for (sample in samples_to_plot) {
-    path <- grep(sprintf("/%s/", sample), inputs$bwF, value = TRUE)
-    temp <- readBigwig(path)
-    temp$strand <- "+"
-    rnasignallistF[[sample]] <- temp
-}
-rnasignallistR <- list()
-for (sample in samples_to_plot) {
-    path <- grep(sprintf("/%s/", sample), inputs$bwR, value = TRUE)
-    temp <- readBigwig(path)
-    temp$strand <- "-"
-    rnasignallistR[[sample]] <- temp
-}
+        rnasignallistF <- list()
+        for (sample in samples_to_plot) {
+            path <- grep(sprintf("/%s/", sample), inputs$bwF, value = TRUE)
+            temp <- readBigwig(path)
+            temp$strand <- "+"
+            rnasignallistF[[sample]] <- temp
+        }
+        rnasignallistR <- list()
+        for (sample in samples_to_plot) {
+            path <- grep(sprintf("/%s/", sample), inputs$bwR, value = TRUE)
+            temp <- readBigwig(path)
+            temp$strand <- "-"
+            rnasignallistR[[sample]] <- temp
+        }
 
-gois <- resultsdf %>%
-    filter(rte_subfamily == "L1HS") %>%
-    filter(rte_length_req == "FL") %>%
-    filter(if_any(starts_with("padj_"), ~ . <= 0.05)) %$%
-    gene_id
+        gois <- resultsdf %>%
+            filter(rte_subfamily == "L1HS") %>%
+            filter(rte_length_req == "FL") %>%
+            filter(if_any(starts_with("padj_"), ~ . <= 0.05)) %$%
+            gene_id
 
 resultsdf_unique <- resultsdf1 %>%
     filter(counttype == "telescope_unique") %>%
@@ -193,158 +199,164 @@ p <- resultsdf %>%
 mysaveandstore(sprintf("%s/plotted_insert_df_geneinfo2.pdf", params$outputdir), h = 5 * n_to_plot / 15, w = 40)
 
 
-##### plotting config
+        ##### plotting config
 
-plotrm <- function(rnasignallistF, rnasignallistR, row, max_sig = TRUE, flank = 10000, samples_to_plot = conf$samples, levels = conf$levels) {
-    margin <- 0.2
-    labelright <- 1
-    xval <- margin
-    yval <- margin
-    pagewidth <- 6
-    trackwidth <- pagewidth - 2 * xval - labelright
-    height <- 0.3
-    y_padding <- 0.05
-    genesheight <- 2
-    total_height <- (length(conf$levels) + length(samples_to_plot)) * (height + y_padding) + 2 * yval + genesheight + genesheight + 0.1
+        plotrm <- function(rnasignallistF, rnasignallistR, row, max_sig = TRUE, flank = 10000, samples_to_plot = conf$samples, levels = conf$levels) {
+            margin <- 0.2
+            labelright <- 1
+            xval <- margin
+            yval <- margin
+            pagewidth <- 6
+            trackwidth <- pagewidth - 2 * xval - labelright
+            height <- 0.3
+            y_padding <- 0.05
+            genesheight <- 2
+            total_height <- (length(conf$levels) + length(samples_to_plot)) * (height + y_padding) + 2 * yval + genesheight + genesheight + 0.1
 
-    chr <- row$seqnames
-    roi_not_ext_grs <- GRanges(row)
-    strand <- row$strand
-    start <- row$start - flank
-    end <- row$end + flank
-    roi <- GRanges(paste0(chr, ":", start, "-", end))
-    # genes_in_region <- genes(txdbrep, filter = list(tx_chrom = "chr14")) %>%
-    #     subsetByOverlaps(roi) %>%
-    #     as.data.frame() %>%
-    #     tibble() %>%
-    #     filter(gene_id != element)
-    # genes_in_region_sense <- genes_in_region %>%
-    #     filter(strand == "+") %>%
-    #     mutate(color = "blue")
-    # genes_in_region_antisense <- genes_in_region %>%
-    #     filter(strand == "-") %>%
-    #     mutate(color = "green")
-    # highlight_df <- tibble(gene = c(row$old_id, genes_in_region_sense$gene_id, genes_in_region_antisense$gene_id), color = c("red", genes_in_region_sense$color, genes_in_region_antisense$color))
+            chr <- row$seqnames
+            roi_not_ext_grs <- GRanges(row)
+            strand <- row$strand
+            start <- row$start - flank
+            end <- row$end + flank
+            roi <- GRanges(paste0(chr, ":", start, "-", end))
+            # genes_in_region <- genes(txdbrep, filter = list(tx_chrom = "chr14")) %>%
+            #     subsetByOverlaps(roi) %>%
+            #     as.data.frame() %>%
+            #     tibble() %>%
+            #     filter(gene_id != element)
+            # genes_in_region_sense <- genes_in_region %>%
+            #     filter(strand == "+") %>%
+            #     mutate(color = "blue")
+            # genes_in_region_antisense <- genes_in_region %>%
+            #     filter(strand == "-") %>%
+            #     mutate(color = "green")
+            # highlight_df <- tibble(gene = c(row$old_id, genes_in_region_sense$gene_id, genes_in_region_antisense$gene_id), color = c("red", genes_in_region_sense$color, genes_in_region_antisense$color))
 
-    highlight_df <- tibble(gene = c(row$old_id), color = c("red"))
-    if (max_sig == TRUE) {
-        roi_to_norm <- roi
-    } else {
-        roi_to_norm <- roi_not_ext_grs
-    }
-    maxscore <- 0
-    for (ii in c(1:length(samples_to_plot))) {
-        scoreF <- GRanges(rnasignallistF[[sample]]) %>%
-            subsetByOverlaps(roi_to_norm) %>%
-            as.data.frame() %>%
-            tibble() %$% score %>%
-            max()
-        scoreR <- GRanges(rnasignallistR[[sample]]) %>%
-            subsetByOverlaps(roi_to_norm) %>%
-            as.data.frame() %>%
-            tibble() %$% score %>%
-            max()
-        maxscore <- max(scoreF, scoreR, maxscore)
-        print(maxscore)
-    }
+            highlight_df <- tibble(gene = c(row$old_id), color = c("red"))
+            if (max_sig == TRUE) {
+                roi_to_norm <- roi
+            } else {
+                roi_to_norm <- roi_not_ext_grs
+            }
+            maxscore <- 0
+            for (ii in c(1:length(samples_to_plot))) {
+                scoreF <- GRanges(rnasignallistF[[sample]]) %>%
+                    subsetByOverlaps(roi_to_norm) %>%
+                    as.data.frame() %>%
+                    tibble() %$% score %>%
+                    max()
+                scoreR <- GRanges(rnasignallistR[[sample]]) %>%
+                    subsetByOverlaps(roi_to_norm) %>%
+                    as.data.frame() %>%
+                    tibble() %$% score %>%
+                    max()
+                maxscore <- max(scoreF, scoreR, maxscore)
+                print(maxscore)
+            }
 
-    {
-        path <- sprintf("%s/%s.png", params$outputdir, element)
-        dir.create(dirname(path), recursive = TRUE)
-        pdf(sprintf("%s/%s_flank_%s_maxsig_%s.pdf", params$outputdir, element, flank, ifelse(max_sig == TRUE, "T", "F")), width = pagewidth, height = total_height)
-        pageCreate(width = pagewidth, height = total_height, default.units = "inches")
-        i <- 0
-        for (ii in c(1:length(samples_to_plot))) {
-            sample <- samples_to_plot[ii]
-            print(sample)
-            condition <- sample_table %>% filter(sample_name == sample) %$% condition
-            plotSignal(
-                data = rnasignallistF[[sample]],
-                assembly = assembly,
-                chrom = chr, chromstart = start, chromend = end,
-                x = xval, y = yval + (height + y_padding) * (i + ii - 1),
-                width = trackwidth, height = height / 2,
-                baseline = FALSE,
-                scale = TRUE,
-                range = c(0, ifelse(maxscore == 0, 10, ceiling(1.1 * maxscore))),
-                linecolor = "blue",
-                default.units = "inches"
-            )
-            plotText(
-                label = paste0(sample, " +"), fonsize = 10, fontcolor = "black",
-                x = xval + trackwidth, y = yval + (height + y_padding) * (i + ii - 1) + height / 4,
-                just = c("left", "center"),
-                default.units = "inches"
-            )
-            plotSignal(
-                data = rnasignallistR[[sample]],
-                assembly = assembly,
-                chrom = chr, chromstart = start, chromend = end,
-                x = xval, y = yval + (height + y_padding) * (i + ii - 1) + height / 2,
-                width = trackwidth, height = height / 2,
-                baseline = FALSE,
-                scale = TRUE,
-                range = c(0, ifelse(maxscore == 0, 10, ceiling(1.1 * maxscore))),
-                linecolor = "green",
-                default.units = "inches"
-            )
-            plotText(
-                label = paste0(sample, " -"), fonsize = 10, fontcolor = "black",
-                x = xval + trackwidth, y = yval + (height + y_padding) * (i + ii - 1) + height / 2 + height / 4, just = c("left", "center"),
-                default.units = "inches"
+            {
+                path <- sprintf("%s/%s.png", params$outputdir, element)
+                dir.create(dirname(path), recursive = TRUE)
+                pdf(sprintf("%s/%s_flank_%s_maxsig_%s.pdf", params$outputdir, element, flank, ifelse(max_sig == TRUE, "T", "F")), width = pagewidth, height = total_height)
+                pageCreate(width = pagewidth, height = total_height, default.units = "inches")
+                i <- 0
+                for (ii in c(1:length(samples_to_plot))) {
+                    sample <- samples_to_plot[ii]
+                    print(sample)
+                    condition <- sample_table %>% filter(sample_name == sample) %$% condition
+                    plotSignal(
+                        data = rnasignallistF[[sample]],
+                        assembly = assembly,
+                        chrom = chr, chromstart = start, chromend = end,
+                        x = xval, y = yval + (height + y_padding) * (i + ii - 1),
+                        width = trackwidth, height = height / 2,
+                        baseline = FALSE,
+                        scale = TRUE,
+                        range = c(0, ifelse(maxscore == 0, 10, ceiling(1.1 * maxscore))),
+                        linecolor = "blue",
+                        default.units = "inches"
+                    )
+                    plotText(
+                        label = paste0(sample, " +"), fonsize = 10, fontcolor = "black",
+                        x = xval + trackwidth, y = yval + (height + y_padding) * (i + ii - 1) + height / 4,
+                        just = c("left", "center"),
+                        default.units = "inches"
+                    )
+                    plotSignal(
+                        data = rnasignallistR[[sample]],
+                        assembly = assembly,
+                        chrom = chr, chromstart = start, chromend = end,
+                        x = xval, y = yval + (height + y_padding) * (i + ii - 1) + height / 2,
+                        width = trackwidth, height = height / 2,
+                        baseline = FALSE,
+                        scale = TRUE,
+                        range = c(0, ifelse(maxscore == 0, 10, ceiling(1.1 * maxscore))),
+                        linecolor = "green",
+                        default.units = "inches"
+                    )
+                    plotText(
+                        label = paste0(sample, " -"), fonsize = 10, fontcolor = "black",
+                        x = xval + trackwidth, y = yval + (height + y_padding) * (i + ii - 1) + height / 2 + height / 4, just = c("left", "center"),
+                        default.units = "inches"
+                    )
+                }
+                tryCatch(
+                    {
+                        plotGenes(
+                            chrom = chr, chromstart = start, chromend = end,
+                            assembly = assembly,
+                            x = xval, y = yval + (height + y_padding) * (i + ii), width = trackwidth, height = genesheight, just = c("left", "top"),
+                            default.units = "inches",
+                            fontsize = 6
+                        )
+                    },
+                    error = function(e) {
+                        print(e)
+                    }
+                )
+                tryCatch(
+                    {
+                        plotGenes(
+                            chrom = chr, chromstart = start, chromend = end,
+                            assembly = assemblyrep,
+                            x = xval, y = yval + (height + y_padding) * (i + ii) + genesheight, width = trackwidth, height = genesheight, just = c("left", "top"),
+                            default.units = "inches",
+                            fontsize = 6
+                        )
+                    },
+                    error = function(e) {
+                        print(e)
+                    }
+                )
+                plotGenomeLabel(
+                    chrom = chr,
+                    chromstart = start, chromend = end,
+                    assembly = assembly,
+                    x = xval, y = yval + (height + y_padding) * (i + ii) + genesheight + genesheight, length = trackwidth,
+                    default.units = "inches"
+                )
+                pageGuideHide()
+                dev.off()
+            }
+        }
+
+        for (element in gois) {
+            row <- rmann %>% filter(gene_id == element)
+            plotrm(rnasignallistF,
+                rnasignallistR,
+                row,
+                flank = 10000,
+                max_sig = FALSE,
+                samples_to_plot = conf$samples,
+                levels = conf$levels
             )
         }
-        tryCatch(
-            {
-                plotGenes(
-                    chrom = chr, chromstart = start, chromend = end,
-                    assembly = assembly,
-                    x = xval, y = yval + (height + y_padding) * (i + ii), width = trackwidth, height = genesheight, just = c("left", "top"),
-                    default.units = "inches",
-                    fontsize = 6
-                )
-            },
-            error = function(e) {
-                print(e)
-            }
-        )
-        tryCatch(
-            {
-                plotGenes(
-                    chrom = chr, chromstart = start, chromend = end,
-                    assembly = assemblyrep,
-                    x = xval, y = yval + (height + y_padding) * (i + ii) + genesheight, width = trackwidth, height = genesheight, just = c("left", "top"),
-                    default.units = "inches",
-                    fontsize = 6
-                )
-            },
-            error = function(e) {
-                print(e)
-            }
-        )
-        plotGenomeLabel(
-            chrom = chr,
-            chromstart = start, chromend = end,
-            assembly = assembly,
-            x = xval, y = yval + (height + y_padding) * (i + ii) + genesheight + genesheight, length = trackwidth,
-            default.units = "inches"
-        )
-        pageGuideHide()
-        dev.off()
+    },
+    error = function(e) {
+        print("something went wrong")
     }
-}
+)
 
-for (element in gois) {
-    row <- rmann %>% filter(gene_id == element)
-    plotrm(rnasignallistF,
-        rnasignallistR,
-        row,
-        flank = 10000,
-        max_sig = FALSE,
-        samples_to_plot = conf$samples,
-        levels = conf$levels
-    )
-}
 
 
 

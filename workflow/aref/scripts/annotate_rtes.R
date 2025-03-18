@@ -25,8 +25,8 @@ tryCatch(
         ), env = globalenv())
         assign("outputs", list(
             r_repeatmasker_annotation = "aref/default/A.REF_annotations/A.REF_repeatmasker_annotation.csv",
-            rmann_nonref = "aref/default/A.REF_annotations/A.REF_repeatmasker_rmann_nonref.csv",
-            rmann = "aref/default/A.REF_annotations/A.REF_repeatmasker_rmann.csv"
+            rmann_nonref = "aref/default/A.REF_annotations/A.REF_rmann_nonref.csv",
+            rmann = "aref/default/A.REF_annotations/A.REF_rmann.csv"
         ), env = globalenv())
     }
 )
@@ -656,9 +656,12 @@ library(genomation)
 refseq <- import(conf$ref_refseq_gtf)
 coding_transcripts <- refseq[(mcols(refseq)$type == "transcript" & grepl("^NM", mcols(refseq)$transcript_id))]
 noncoding_transcripts <- refseq[(mcols(refseq)$type == "transcript" & grepl("^NR", mcols(refseq)$transcript_id))]
+all_transcripts_incl_pred <- refseq[(mcols(refseq)$type == "transcript")]
+
 if (length(coding_transcripts) == 0) { # incase ensemble annotation is used against guidance..
     coding_transcripts <<- refseq[(mcols(refseq)$type == "transcript" & grepl("protein_coding", mcols(refseq)$gene_biotype))]
     noncoding_transcripts <<- refseq[(mcols(refseq)$type == "transcript" & !grepl("protein_coding", mcols(refseq)$gene_biotype))]
+    all_transcripts_incl_pred <- refseq[(mcols(refseq)$type == "transcript")]
 }
 transcripts <- c(coding_transcripts, noncoding_transcripts)
 
@@ -754,6 +757,7 @@ getannotation <- function(to_be_annotated, regions_of_interest, property, name_i
 }
 
 genic_annot <- getannotation(rmfragmentsgr_properinsertloc, transcripts, "genic", "Genic", "Intergenic")
+genicinclpred_annot <- getannotation(rmfragmentsgr_properinsertloc, all_transcripts_incl_pred, "genicinclpred", "Genic", "Intergenic")
 coding_tx_annot <- getannotation(rmfragmentsgr_properinsertloc, coding_transcripts, "coding_tx", "CdgTx", "NotCdgTx")
 noncoding_tx_annot <- getannotation(rmfragmentsgr_properinsertloc, noncoding_transcripts, "noncoding_tx", "NoncdgTx", "NotNonCdgTx")
 coding_tx_adjacent_annot <- getannotation(rmfragmentsgr_properinsertloc, coding_transcript_adjacent, "coding_tx_adjacent", "CdgTxAdj", "NotCdgTxAdj")
@@ -775,7 +779,8 @@ genic_annot %$% genic %>% table()
 cent_annot %$% centromeric %>% table()
 telo_annot %$% telomeric %>% table()
 
-region_annot <- full_join(genic_annot, coding_tx_annot) %>%
+region_annot <- full_join(genic_annot, genicinclpred_annot) %>%
+    full_join(coding_tx_annot) %>%
     full_join(noncoding_tx_annot) %>%
     full_join(coding_tx_adjacent_annot) %>%
     full_join(coding_tx_upstream_annot) %>%
@@ -895,6 +900,22 @@ region_annot <- region_annot %>%
         loc_integrative == "NoncdgTxAdj" & noncoding_tx_adjacent_orientation == "Antisense" ~ "Intergenic",
         loc_integrative == "Intergenic" ~ "Intergenic",
         TRUE ~ "Other"
+    )) %>%
+    mutate(loc_superlowres_integrative_stranded_incl_pred = case_when(
+        loc_integrative == "Exonic" & exonic_orientation == "Sense" ~ "Genic_Sense",
+        loc_integrative == "Intronic" & intronic_orientation == "Sense" ~ "Genic_Sense",
+        loc_integrative == "NoncdgTx" & noncoding_tx_orientation == "Sense" ~ "Genic_Sense",
+        loc_integrative == "Exonic" & exonic_orientation == "Antisense" ~ "Genic_Antisense",
+        loc_integrative == "Intronic" & intronic_orientation == "Antisense" ~ "Genic_Antisense",
+        loc_integrative == "NoncdgTx" & noncoding_tx_orientation == "Antisense" ~ "Genic_Antisense",
+        genicinclpred == "Genic" & genicinclpred_orientation == "Sense" ~ "GenicPred_Sense",
+        genicinclpred == "Genic" & genicinclpred_orientation == "Antisense" ~ "GenicPred_Antisense",
+        loc_integrative == "CdgTxAdj" & coding_tx_adjacent_orientation == "Sense" ~ "Intergenic",
+        loc_integrative == "NoncdgTxAdj" & noncoding_tx_adjacent_orientation == "Sense" ~ "Intergenic",
+        loc_integrative == "CdgTxAdj" & coding_tx_adjacent_orientation == "Antisense" ~ "Intergenic",
+        loc_integrative == "NoncdgTxAdj" & noncoding_tx_adjacent_orientation == "Antisense" ~ "Intergenic",
+        loc_integrative == "Intergenic" ~ "Intergenic",
+        TRUE ~ "Other"
     ))
 
 
@@ -931,12 +952,25 @@ result <- rep(NA, length(nearest_indices))
 result[valid_indices] <- mcols(transcripts[nearest_indices[valid_indices]])$gene_id
 nearest_tx_df <- tibble(gene_id = mcols(rmfragmentsgr_properinsertloc)$gene_id, nearest_tx = result)
 
+
+dist_to_nearest_allinclpredtx <- distanceToNearest(rmfragmentsgr_properinsertloc, all_transcripts_incl_pred, ignore.strand = TRUE) %>%
+    as.data.frame() %>%
+    tibble()
+dist_to_nearest_allinclpredtx_df <- tibble(gene_id = mcols(rmfragmentsgr_properinsertloc[dist_to_nearest_allinclpredtx$queryHits, ])$gene_id, dist_to_nearest_allinclpredtx = dist_to_nearest_allinclpredtx$distance)
+nearest_indices <- nearest(rmfragmentsgr_properinsertloc, all_transcripts_incl_pred, ignore.strand = TRUE)
+valid_indices <- !is.na(nearest_indices)
+result <- rep(NA, length(nearest_indices))
+result[valid_indices] <- mcols(all_transcripts_incl_pred[nearest_indices[valid_indices]])$gene_id
+nearest_allinclpredtx_df <- tibble(gene_id = mcols(rmfragmentsgr_properinsertloc)$gene_id, nearest_allinclpredtx = result)
+
+
 dist_to_nearest_txs_df <- left_join(rmfamilies %>% dplyr::select(gene_id), dist_to_nearest_coding_tx_df) %>%
     left_join(dist_to_nearest_noncoding_tx_df) %>%
     left_join(dist_to_nearest_tx_df) %>%
     left_join(nearest_coding_tx_df) %>%
     left_join(nearest_noncoding_tx_df) %>%
-    left_join(nearest_tx_df)
+    left_join(nearest_tx_df) %>%
+    left_join(nearest_allinclpredtx_df)
 
 
 
@@ -951,7 +985,8 @@ annots <- rmfamilies %>%
     full_join(req_annot) %>%
     full_join(ltr_viral_status) %>%
     full_join(ltr_proviral_groups) %>%
-    full_join(region_annot %>% rename_at(vars(-gene_id, -loc_integrative, -loc_lowres_integrative, -loc_highres_integrative, -loc_integrative_stranded, -loc_lowres_integrative_stranded, -loc_highres_integrative_stranded), ~ paste0(., "_loc"))) %>%
+    full_join(region_annot %>%
+        rename_with(~ paste0(., "_loc"), .cols = !matches("^loc_|^gene_id$"))) %>%
     full_join(dist_to_nearest_txs_df) %>%
     mutate(asp = case_when(
         grepl("__AS$", gene_id) ~ "asp",

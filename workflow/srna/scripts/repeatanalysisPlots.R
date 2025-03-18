@@ -76,7 +76,7 @@ tryCatch(
             ), env = globalenv())
             assign("inputs", list(
                 "resultsdf" = "lrna/results/agg/deseq/resultsdf.tsv",
-                "resultsdf_tetranscripts" = "results/agg/tetranscripts/resultsdf.tsv"
+                "tetranscripts_resultsdf" = "results/agg/tetranscripts/resultsdf.tsv"
             ), env = globalenv())
             assign("outputs", list(
                 "environment" = "lrna/results/agg/repeatanalysis/relaxed/repeatanalysisplots_environment.RData"
@@ -93,7 +93,7 @@ counttype <- params$counttype
 r_repeatmasker_annotation <- read_csv(params$r_repeatmasker_annotation)
 ## Load Data and add annotations
 resultsdf1 <- read_delim(inputs$resultsdf, delim = "\t") %>% filter(counttype == !!counttype)
-resultsdf_tetranscripts1 <- read_delim(inputs$resultsdf_tetranscripts, delim = "\t")
+resultsdf_tetranscripts1 <- read_delim(inputs$tetranscripts_resultsdf, delim = "\t")
 rmann <- get_repeat_annotations(
     default_or_extended = "default",
     keep_non_central = FALSE,

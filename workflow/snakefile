@@ -145,7 +145,8 @@ for pipeline in config["pipelines_to_deploy"]:
                 enrichment_analysis = "srna/results/agg/enrichment_analysis/enrichment_analysis_environment.RData"
                 enrichment_analysis_repeats = expand("srna/results/agg/enrichment_analysis_repeats/{counttype}/enrichment_analysis_repeats_environment.RData", counttype = config["srna"]["counttypes"])
                 repeatanalysisplots = expand("srna/results/agg/repeatanalysis/{counttype}/repeatanalysisplots_environment.RData", counttype = config["srna"]["counttypes"])
-                return list(flatten([bigwigs, tpm_characterization, deseq, enrichment_analysis, enrichment_analysis_repeats, repeatanalysisplots, mqc_report_file]))
+                genomebrowserplots = expand("srna/results/agg/genomebrowserplots/{alignment_type}/outfile.txt", alignment_type = ["primary", "unique"])
+                return list(flatten([bigwigs, tpm_characterization, genomebrowserplots, deseq, enrichment_analysis, enrichment_analysis_repeats, repeatanalysisplots, mqc_report_file]))
             else:
                 return list(flatten([bigwigs,tpm_characterization, mqc_report_file]))
 
@@ -162,4 +163,4 @@ rule all:
     default_target: True
 
 
-include: "rules.smk"
+# include: "rules.smk"
