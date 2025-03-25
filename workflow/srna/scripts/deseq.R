@@ -190,8 +190,23 @@ for (baselevel in baselevels) {
     ddsgenes$condition <- factor(ddsgenes$condition, levels = levels_temp)
     if (params$paralellize_bioc) {
         # dds <- DESeq(dds, parallel = TRUE, BPPARAM = MulticoreParam(params$paralellize_bioc))
-        ddsrtes <- DESeq(ddsrtes, parallel = TRUE, BPPARAM = MulticoreParam(params$paralellize_bioc))
-        ddsgenes <- DESeq(ddsgenes, parallel = TRUE, BPPARAM = MulticoreParam(params$paralellize_bioc))
+        tryCatch(
+            {
+                ddsrtes <<- DESeq(ddsrtes, parallel = TRUE, BPPARAM = MulticoreParam(params$paralellize_bioc))
+            },
+            error = function(e) {
+                ddsrtes <<- DESeq(ddsrtes, parallel = FALSE)
+            }
+        )
+
+        tryCatch(
+            {
+                ddsgenes <<- DESeq(ddsgenes, parallel = TRUE, BPPARAM = MulticoreParam(params$paralellize_bioc))
+            },
+            error = function(e) {
+                ddsgenes <<- DESeq(ddsgenes, parallel = FALSE)
+            }
+        )
         ddsrteslist[[baselevel]] <- ddsrtes
         ddsgeneslist[[baselevel]] <- ddsgenes
     } else {
