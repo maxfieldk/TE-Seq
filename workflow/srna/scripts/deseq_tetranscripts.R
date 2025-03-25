@@ -78,6 +78,9 @@ print(countspath)
 coldata <- read.csv(params[["sample_table"]])
 samples <- conf$samples
 coldata <- coldata[match(conf$samples, coldata$sample_name), ]
+continuous_cov <- colnames(coldata)[grepl("batchCon", colnames(coldata))]
+coldata <- coldata %>%
+    mutate(across(all_of(continuous_cov), ~ as.numeric(scale(.)))) # center and scale continuous covariates
 
 if (params$paralellize_bioc) {
     library(BiocParallel)
@@ -183,13 +186,58 @@ counttablesizenormedbatchnotremoved <- counttablesizenormed
 colnames(counttablesizenormedbatchnotremoved) == coldata$sample_name
 
 if (any(grepl("batch", colnames(coldata)))) {
-    if (sum(grepl("batch", colnames(coldata))) == 2) {
+    if (sum(grepl("batchCat", colnames(coldata))) > 2) {
+        print("ERROR: too many categorical batch variables")
+    } else if (sum(grepl("batchCat", colnames(coldata))) == 2) {
         batches <- grep("batch", colnames(coldata), value = TRUE)
+        categorical_vars <- grep("batchCat", colnames(coldata), value = TRUE)
         batch_vector <- coldata[[batches[1]]]
         batch2_vector <- coldata[[batches[2]]]
-        counttablesizenormed <- removeBatchEffect(counttablesizenormedbatchnotremoved, batch = batch_vector, batch2 = batch2_vector, design = model.matrix(~ coldata$condition))
+
+        if (any(grepl("batchCon", colnames(coldata)))) {
+            continous_vars <- grep("batchCon", colnames(coldata), value = TRUE)
+            batch_formula <- as.formula(paste("~", paste(continous_vars, collapse = " + ")))
+            covariates_matrix <- model.matrix(batch_formula, data = coldata)
+            counttablesizenormed <- removeBatchEffect(counttablesizenormedbatchnotremoved,
+                batch = batch_vector,
+                batch2 = batch2_vector,
+                covariates = covariates_matrix[, -1],
+                design = model.matrix(~ coldata$condition)
+            )
+        } else {
+            counttablesizenormed <- removeBatchEffect(counttablesizenormedbatchnotremoved,
+                batch = batch_vector,
+                batch2 = batch2_vector,
+                design = model.matrix(~ coldata$condition)
+            )
+        }
+    } else if (sum(grepl("batchCat", colnames(coldata))) == 1) {
+        batches <- grep("batch", colnames(coldata), value = TRUE)
+        categorical_vars <- grep("batchCat", colnames(coldata), value = TRUE)
+        batch_vector <- coldata[[batches[1]]]
+        if (any(grepl("batchCon", colnames(coldata)))) {
+            continous_vars <- grep("batchCon", colnames(coldata), value = TRUE)
+            batch_formula <- as.formula(paste("~", paste(continous_vars, collapse = " + ")))
+            covariates_matrix <- model.matrix(batch_formula, data = coldata)
+            counttablesizenormed <- removeBatchEffect(counttablesizenormedbatchnotremoved,
+                batch = batch_vector,
+                covariates = covariates_matrix[, -1],
+                design = model.matrix(~ coldata$condition)
+            )
+        } else {
+            counttablesizenormed <- removeBatchEffect(counttablesizenormedbatchnotremoved,
+                batch = batch_vector,
+                design = model.matrix(~ coldata$condition)
+            )
+        }
     } else {
-        counttablesizenormed <- removeBatchEffect(counttablesizenormedbatchnotremoved, batch = coldata$batch, design = model.matrix(~ coldata$condition))
+        continous_vars <- grep("batchCon", colnames(coldata), value = TRUE)
+        batch_formula <- as.formula(paste("~", paste(continous_vars, collapse = " + ")))
+        covariates_matrix <- model.matrix(batch_formula, data = coldata)
+        counttablesizenormed <- removeBatchEffect(counttablesizenormedbatchnotremoved,
+            covariates = covariates_matrix[, -1],
+            design = model.matrix(~ coldata$condition)
+        )
     }
     countsbatchnotremovedpath <- paste(outputdir, counttype, "counttablesizenormedbatchnotremoved.csv", sep = "/")
     dir.create(dirname(countsbatchnotremovedpath), recursive = TRUE, showWarnings = FALSE)
@@ -215,13 +263,14 @@ for (batchnormed in c("yes", "no")) {
         for (contrast in contrasts) {
             baselevel <- str_extract(contrast, "vs_.*") %>% str_remove("vs_")
             if (subset == "genes") {
-                ddstemp <- ddslist[[baselevel]]
-                ddstemp <- ddstemp[rownames(ddstemp) %in% genes]
+                ddstemp <<- ddslist[[baselevel]]
+                ddstemp <<- ddstemp[rownames(ddstemp) %in% genes]
+                coldatatemp <<- colData(ddstemp)
             } else {
-                ddstemp <- ddslist[[baselevel]]
-                ddstemp <- ddstemp[!rownames(ddstemp) %in% genes]
+                ddstemp <<- ddslist[[baselevel]]
+                ddstemp <<- ddstemp[!rownames(ddstemp) %in% genes]
+                coldatatemp <<- colData(ddstemp)
             }
-            colData(ddstemp)$condition
             res <- results(ddstemp, name = contrast)
             res <- res[order(res$pvalue), ]
 
@@ -267,15 +316,57 @@ for (batchnormed in c("yes", "no")) {
         vst <- varianceStabilizingTransformation(ddstemp, blind = FALSE)
         vst_assay <- assay(vst)
         if (batchnormed == "yes") {
-            if (sum(grepl("batch", colnames(coldata))) == 2) {
+            if (sum(grepl("batchCat", colnames(coldata))) == 2) {
                 batches <- grep("batch", colnames(coldata), value = TRUE)
+                categorical_vars <- grep("batchCat", colnames(coldata), value = TRUE)
                 batch_vector <- coldata[[batches[1]]]
                 batch2_vector <- coldata[[batches[2]]]
-                vst_assay <- removeBatchEffect(vst_assay, batch = batch_vector, batch2 = batch2_vector, design = model.matrix(~ colData(ddstemp)$condition))
+
+                if (any(grepl("batchCon", colnames(coldatatemp)))) {
+                    continous_vars <- grep("batchCon", colnames(coldatatemp), value = TRUE)
+                    batch_formula <- as.formula(paste("~", paste(continous_vars, collapse = " + ")))
+                    covariates_matrix <- model.matrix(batch_formula, data = coldatatemp)
+                    vst_assay <- removeBatchEffect(vst_assay,
+                        batch = batch_vector,
+                        batch2 = batch2_vector,
+                        covariates = covariates_matrix[, -1],
+                        design = model.matrix(~ coldatatemp$condition)
+                    )
+                } else {
+                    vst_assay <- removeBatchEffect(vst_assay,
+                        batch = batch_vector,
+                        batch2 = batch2_vector,
+                        design = model.matrix(~ coldatatemp$condition)
+                    )
+                }
+            } else if (sum(grepl("batchCat", colnames(coldatatemp))) == 1) {
+                batches <- grep("batch", colnames(coldatatemp), value = TRUE)
+                categorical_vars <- grep("batchCat", colnames(coldatatemp), value = TRUE)
+                batch_vector <- coldatatemp[[batches[1]]]
+                if (any(grepl("batchCon", colnames(coldatatemp)))) {
+                    continous_vars <- grep("batchCon", colnames(coldatatemp), value = TRUE)
+                    batch_formula <- as.formula(paste("~", paste(continous_vars, collapse = " + ")))
+                    covariates_matrix <- model.matrix(batch_formula, data = coldatatemp)
+                    vst_assay <- removeBatchEffect(vst_assay,
+                        batch = batch_vector,
+                        covariates = covariates_matrix[, -1],
+                        design = model.matrix(~ coldatatemp$condition)
+                    )
+                } else {
+                    vst_assay <- removeBatchEffect(vst_assay,
+                        batch = batch_vector,
+                        design = model.matrix(~ coldatatemp$condition)
+                    )
+                }
             } else {
-                vst_assay <- removeBatchEffect(vst_assay, batch = colData(ddstemp)$batch, design = model.matrix(~ colData(ddstemp)$condition))
+                continous_vars <- grep("batchCon", colnames(coldatatemp), value = TRUE)
+                batch_formula <- as.formula(paste("~", paste(continous_vars, collapse = " + ")))
+                covariates_matrix <- model.matrix(batch_formula, data = coldatatemp)
+                vst_assay <- removeBatchEffect(vst_assay,
+                    covariates = covariates_matrix[, -1],
+                    design = model.matrix(~ coldatatemp$condition)
+                )
             }
-            vst_assay <- removeBatchEffect(vst_assay, batch = colData(ddstemp)$batch, design = model.matrix(~ colData(ddstemp)$condition))
         }
 
         p <- vsn::meanSdPlot(vst_assay)
@@ -296,36 +387,39 @@ for (batchnormed in c("yes", "no")) {
         ) + mtopen
         mysaveandstore(paste(outputdir, counttype, subset, sprintf("batchRemoved_%s", batchnormed), "loadings.pdf", sep = "/"), 10, 7)
 
-        if (any(grepl("batch", colnames(coldata)))) {
-            p <- biplot(pcaObj,
-                showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0,
-                colby = "condition", legendPosition = "right", shape = "batch",
-                labSize = 5, pointSize = 5, sizeLoadingsNames = 5
-            ) + mtopen + scale_conditions
-            mysaveandstore(paste(outputdir, counttype, subset, sprintf("batchRemoved_%s", batchnormed), "pca.pdf", sep = "/"), 5, 5)
+        if (any(grepl("batchCat", colnames(coldata)))) {
+            categorical_batch_vars <- grep("batchCat", colnames(coldata), value = TRUE)
+            for (catbatchvar in categorical_batch_vars) {
+                p <- biplot(pcaObj,
+                    showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0,
+                    colby = "condition", legendPosition = "right", shape = catbatchvar,
+                    labSize = 5, pointSize = 5, sizeLoadingsNames = 5
+                ) + mtopen + scale_conditions
+                mysaveandstore(paste(outputdir, counttype, subset, sprintf("batchRemoved_%s", batchnormed), str_glue("pca_shapeby_{catbatchvar}.pdf"), sep = "/"), 5, 5)
 
-            p <- biplot(pcaObj,
-                showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0,
-                colby = "batch", legendPosition = "right",
-                labSize = 5, pointSize = 5, sizeLoadingsNames = 5
-            ) + mtopen
-            mysaveandstore(paste(outputdir, counttype, subset, sprintf("batchRemoved_%s", batchnormed), "pca_batch.pdf", sep = "/"), 5, 5)
+                p <- biplot(pcaObj,
+                    showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0,
+                    colby = catbatchvar, legendPosition = "right",
+                    labSize = 5, pointSize = 5, sizeLoadingsNames = 5
+                ) + mtopen
+                mysaveandstore(paste(outputdir, counttype, subset, sprintf("batchRemoved_%s", batchnormed), str_glue("pca_batch_colorby_{catbatchvar}.pdf"), sep = "/"), 5, 5)
 
-            p <- biplot(pcaObj,
-                showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0,
-                colby = "batch", legendPosition = "right",
-                labSize = 5, pointSize = 5, sizeLoadingsNames = 5
-            ) + mtopen
-            mysaveandstore(paste(outputdir, counttype, subset, sprintf("batchRemoved_%s", batchnormed), "pca_batch_large.pdf", sep = "/"), 16, 16)
+                p <- biplot(pcaObj,
+                    showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0,
+                    colby = catbatchvar, legendPosition = "right",
+                    labSize = 5, pointSize = 5, sizeLoadingsNames = 5
+                ) + mtopen
+                mysaveandstore(paste(outputdir, counttype, subset, sprintf("batchRemoved_%s", batchnormed), str_glue("pca_batch_large_colorby_{catbatchvar}.pdf"), sep = "/"), 16, 16)
 
-            p <- pairsplot(pcaObj, colby = "batch", title = "Batch", legendPosition = "right")
-            mysaveandstore(paste(outputdir, counttype, subset, sprintf("batchRemoved_%s", batchnormed), "pca_pairs_batch.pdf", sep = "/"), 15, 15)
-
-            p <- eigencorplot(pcaObj, metavars = c("batch", "condition"))
-            mysaveandstore(paste(outputdir, counttype, subset, sprintf("batchRemoved_%s", batchnormed), "pca_pairs.pdf", sep = "/"), 8, 4)
+                p <- pairsplot(pcaObj, colby = catbatchvar, title = "Batch", legendPosition = "right")
+                mysaveandstore(paste(outputdir, counttype, subset, sprintf("batchRemoved_%s", batchnormed), str_glue("pca_pairs_batch_colorby_{catbatchvar}.pdf"), sep = "/"), 15, 15)
+            }
         } else {
-            print("no batch")
+            print("no batchCat")
         }
+        batchestemp <- grep("batch", colnames(coldatatemp), value = TRUE)
+        p <- eigencorplot(pcaObj, metavars = c(batchestemp, "condition"))
+        mysaveandstore(paste(outputdir, counttype, subset, sprintf("batchRemoved_%s", batchnormed), "eigencor.pdf", sep = "/"), 8, 4)
 
         p <- biplot(pcaObj,
             showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0,

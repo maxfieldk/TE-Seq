@@ -81,7 +81,14 @@ asc <- ifelse(is.null(adjustment_set_categorical), "", adjustment_set_categorica
     }
 }
 #################### functions and themes
+named_group_split <- function(.tbl, ...) {
+    grouped <- group_by(.tbl, ...)
+    names <- rlang::inject(paste(!!!group_keys(grouped), sep = " / "))
 
+    grouped %>%
+        group_split() %>%
+        rlang::set_names(names)
+}
 tryCatch(
     {
         params <- snakemake@params
@@ -128,6 +135,8 @@ rte_subfamily_read_level_analysis <- conf$rte_subfamily_read_level_analysis
 r_annotation_fragmentsjoined <- read_csv(conf$r_annotation_fragmentsjoined)
 r_repeatmasker_annotation <- read_csv(conf$r_repeatmasker_annotation)
 rmann <- left_join(r_annotation_fragmentsjoined, r_repeatmasker_annotation)
+
+
 flRTEpromoter <- read_delim(sprintf("ldna/Rintermediates/%s/flRTEpromoter.tsv", params$mod_code), col_names = TRUE)
 
 RMdf <- read_delim(sprintf("ldna/Rintermediates/%s/RMdf.tsv", params$mod_code), col_names = TRUE)
@@ -973,7 +982,7 @@ pf <- perl1hs_5utr_region
 
 p <- pf %>%
     ggplot(aes(x = region, y = mean_meth, color = condition)) +
-    geom_quasirandom(dodge.width = 0.75) +
+    ggbeeswarm::geom_quasirandom(dodge.width = 0.75) +
     geom_boxplot(alpha = 0.5, outlier.shape = NA) +
     xlab("") +
     ylab("Average CpG Methylation Per Element") +
@@ -1072,6 +1081,43 @@ tryCatch(
     }
 )
 
+
+p <- pf %>%
+    left_join(rmann) %>%
+    filter(region == "909") %>%
+    ggplot(aes(x = loc_lowres_integrative_stranded, y = mean_meth, color = condition)) +
+    ggbeeswarm::geom_quasirandom(dodge.width = 0.75) +
+    geom_boxplot(alpha = 0.5, outlier.shape = NA) +
+    xlab("") +
+    ylab("Average CpG Methylation Per Element") +
+    ggtitle("L1HS CpG Methylation") +
+    mtopen +
+    scale_conditions
+tryCatch(
+    {
+        res <- pf %>%
+            left_join(rmann) %>% # Join with rmann
+            filter(region == "909") %>% # Filter for region 909
+            group_by(sample, loc_lowres_integrative_stranded) %>%
+            summarise(pctM = mean(mean_meth), .groups = "drop") %>% # Summarize mean methylation
+            left_join(sample_table %>% mutate(sample = sample_name)) %>% # Join sample table
+            nest(data = -loc_lowres_integrative_stranded) %>% # Nest data for each locus
+            mutate(
+                model_results = map(
+                    data,
+                    ~ lm(formula(sprintf("%s ~ %s", "pctM", lm_right_hand_side)), data = .x) %>%
+                        summary() %>%
+                        broom::tidy()
+                )
+            ) %>%
+            select(-data) %>% # Drop nested data
+            unnest(model_results)
+        mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/l1hs_boxplot_5utr_gene_loc.pdf", params$mod_code), 5, 4, sf = res)
+    },
+    error = function(e) {
+        mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/l1hs_boxplot_5utr_gene_loc.pdf", params$mod_code), 5, 4)
+    }
+)
 
 
 ########## PCA
@@ -1684,14 +1730,19 @@ cg_indices <- consensus_ss %>%
 read_analysis2 <- function(
     readscg,
     cg_indices,
-    region = "L1HS_intactness_req_ALL",
     mod_code_var = "m",
     regions_of_interest = list(c(0, 328), c(0, 500), c(0, 909), c(400, 600)),
     required_fraction_of_total_cg = 0.75,
     meth_thresholds = c(0.1, 0.25, 0.5),
     context = "CpG") {
-    readsdf1 <- readscg %>% left_join(rmann %>% dplyr::select(gene_id, start, end, strand, rte_length_req, intactness_req) %>% dplyr::rename(element_strand = strand, element_start = start, element_end = end))
-    readsdf2 <- readsdf1 %>% filter(rte_length_req == "FL")
+    dir.create(sprintf("ldna/results/%s/tables/reads_new/%s_%s", params$mod_code, region, required_fraction_of_total_cg), recursive = TRUE)
+    region <- "L1HS_FL"
+    sprintf("ldna/results/%s/tables/reads_new/%s_%s/by_gene.csv", params$mod_code, region, required_fraction_of_total_cg)
+    readsdf1 <- readscg %>%
+        left_join(rmann %>%
+            dplyr::select(gene_id, start, end, strand, rte_length_req, intactness_req) %>%
+            dplyr::rename(element_strand = strand, element_start = start, element_end = end)) %>%
+        filter(rte_length_req == "FL")
 
 
     by_cpg_l <- list()
@@ -1703,8 +1754,6 @@ read_analysis2 <- function(
         roistart <- region_of_interest[1]
         roiend <- region_of_interest[2]
         roistring <- paste0(roistart, "to", roiend)
-        dir.create(sprintf("ldna/results/%s/tables/reads/%s_to_%s_considering_reads_%s_fraction_%s_%s", params$mod_code, region, roistring, required_fraction_of_total_cg, mod_code_var, context), recursive = TRUE)
-        dir.create(sprintf("ldna/results/%s/plots/reads/%s_to_%s_considering_reads_%s_fraction_%s_%s", params$mod_code, region, roistring, required_fraction_of_total_cg, mod_code_var, context), recursive = TRUE)
 
         numCGneeded <- ceiling(length(cg_indices[(cg_indices <= roiend) & (cg_indices >= roistart)]) * required_fraction_of_total_cg)
 
@@ -1777,11 +1826,37 @@ read_analysis2 <- function(
 
 
     p <- by_sample %>%
+        filter(subset != "400to600") %>%
         mutate(meth_threshold = as.character(meth_threshold)) %>%
         ggplot(aes(x = meth_threshold)) +
         stat_summary(aes(y = propUnmeth, group = condition, fill = condition), color = "black", fun = "mean", geom = "bar", position = position_dodge(width = 0.9)) +
         geom_point(aes(y = propUnmeth, group = condition), position = position_dodge(width = 0.9)) +
-        facet_wrap(vars(subset)) +
+        facet_wrap(vars(subset), nrow = 1) +
+        geom_pwc(aes(x = meth_threshold, y = propUnmeth, group = condition), tip.length = 0, method = "wilcox_test") +
+        labs(x = "Methylation Threshold", y = sprintf("Reads Fraction < # methylated")) +
+        ggtitle(sprintf("Read Methylation")) +
+        mtclosedgridh +
+        scale_conditions +
+        anchorbar
+    if (enough_samples_per_condition_for_stats) {
+        stats <- by_sample %>%
+            filter(subset != "400to600") %>%
+            ungroup() %>%
+            left_join(sample_table %>% dplyr::rename(sample = sample_name)) %>%
+            group_split(subset_threshold) %>%
+            set_names(unique(by_sample %>% filter(subset != "400to600") %$% subset_threshold)) %>%
+            map(~ broom::tidy(summary(lm(formula(sprintf("%s ~ %s", "propUnmeth", lm_right_hand_side)), .x)))) %>%
+            imap_dfr(~ .x %>% mutate(subset = .y))
+        mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/barplot.pdf", params$mod_code, region, required_fraction_of_total_cg, context), 9, 4, pl = p, sf = stats)
+    } else {
+        mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/barplot.pdf", params$mod_code, region, required_fraction_of_total_cg, context), 9, 4, pl = p)
+    }
+    p <- by_sample %>%
+        mutate(meth_threshold = as.character(meth_threshold)) %>%
+        ggplot(aes(x = meth_threshold)) +
+        stat_summary(aes(y = propUnmeth, group = condition, fill = condition), color = "black", fun = "mean", geom = "bar", position = position_dodge(width = 0.9)) +
+        geom_point(aes(y = propUnmeth, group = condition), position = position_dodge(width = 0.9)) +
+        facet_wrap(vars(subset), nrow = 1) +
         geom_pwc(aes(x = meth_threshold, y = propUnmeth, group = condition), tip.length = 0, method = "wilcox_test") +
         labs(x = "Methylation Threshold", y = sprintf("Reads Fraction < # methylated")) +
         ggtitle(sprintf("Read Methylation")) +
@@ -1794,23 +1869,23 @@ read_analysis2 <- function(
             left_join(sample_table %>% dplyr::rename(sample = sample_name)) %>%
             group_split(subset_threshold) %>%
             set_names(unique(by_sample$subset_threshold)) %>%
-            map(~ broom::tidy(summary(lm(formula(sprintf("%s ~ %s", "propUnmeth", lm_right_hand_side))), .))) %>%
+            map(~ broom::tidy(summary(lm(formula(sprintf("%s ~ %s", "propUnmeth", lm_right_hand_side)), .x)))) %>%
             imap_dfr(~ .x %>% mutate(subset = .y))
-        mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/barplot.pdf", params$mod_code, region, required_fraction_of_total_cg, context), 9, 4, pl = p, sf = stats)
+        mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/barplot_wasp.pdf", params$mod_code, region, required_fraction_of_total_cg, context), 9, 4, pl = p, sf = stats)
     } else {
-        mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/barplot.pdf", params$mod_code, region, required_fraction_of_total_cg, context), 9, 4, pl = p)
+        mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/barplot_wasp.pdf", params$mod_code, region, required_fraction_of_total_cg, context), 9, 4, pl = p)
     }
 
     p <- by_read %>%
         mutate(condition = factor(condition, levels = c(condition2, condition1))) %>%
         ggplot() +
         geom_density(aes(x = fraction_meth, fill = condition), alpha = 0.7) +
-        facet_wrap(vars(subset)) +
+        facet_wrap(vars(subset), nrow = 1) +
         ggtitle(sprintf("Read Density")) +
         labs(x = "", y = sprintf("Read Density")) +
         mtclosed +
         scale_conditions
-    mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/density.pdf", params$mod_code, region, required_fraction_of_total_cg, context), 8, 4, pl = p, sf = stats)
+    mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/density.pdf", params$mod_code, region, required_fraction_of_total_cg, context), 8, 4, pl = p)
 
     by_gene_id %>%
         group_by(gene_id, meth_threshold, condition, subset) %>%
@@ -1823,6 +1898,7 @@ read_analysis2 <- function(
 
 
     p <- by_gene_id %>%
+        filter(subset != "400to600") %>%
         group_by(gene_id, meth_threshold, condition, subset) %>%
         summarise(max_frac = max(propUnmeth)) %>%
         left_join(rmann) %>%
@@ -1832,7 +1908,7 @@ read_analysis2 <- function(
         mutate(condition = paste0(meth_threshold, "\n", condition)) %>%
         ggplot(aes(x = max_frac, y = ranked_row, color = condition)) +
         geom_point() +
-        facet_wrap(vars(subset)) +
+        facet_wrap(vars(subset), nrow = 1) +
         labs(title = sprintf("Read Methylation", roistring), y = "Unique Locus Rank", x = sprintf("Reads Fraction < %s methylated", "#")) +
         mtclosedgridh +
         scale_color_brewer(palette = "Paired") +
@@ -1849,13 +1925,49 @@ read_analysis2 <- function(
         mutate(condition = paste0(meth_threshold, "\n", condition)) %>%
         ggplot(aes(x = max_frac, y = ranked_row, color = condition)) +
         geom_point() +
+        facet_wrap(vars(subset), nrow = 1) +
+        labs(title = sprintf("Read Methylation", roistring), y = "Unique Locus Rank", x = sprintf("Reads Fraction < %s methylated", "#")) +
+        mtclosedgridh +
+        scale_color_brewer(palette = "Paired") +
+        anchorbar
+    mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/roc_wasp.pdf", params$mod_code, region, required_fraction_of_total_cg), 9, 4, pl = p)
+
+    p <- by_gene_id %>%
+        filter(subset != "400to600") %>%
+        group_by(gene_id, meth_threshold, condition, subset) %>%
+        summarise(max_frac = max(propUnmeth)) %>%
+        left_join(rmann) %>%
+        group_by(meth_threshold, condition, subset) %>%
+        arrange(max_frac) %>%
+        mutate(ranked_row = row_number()) %>%
+        mutate(condition = paste0(meth_threshold, "\n", condition)) %>%
+        ggplot(aes(x = max_frac, y = ranked_row, color = condition)) +
+        geom_point() +
         xlim(c(0, 0.25)) +
-        facet_wrap(vars(subset)) +
+        facet_wrap(vars(subset), nrow = 1) +
         labs(title = sprintf("Read Methylation", roistring), y = "Unique Locus Rank", x = sprintf("Reads Fraction < %s methylated", "#")) +
         mtclosedgridh +
         scale_color_brewer(palette = "Paired") +
         anchorbar
     mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/roc_xlim.pdf", params$mod_code, region, required_fraction_of_total_cg), 9, 4, pl = p)
+
+    p <- by_gene_id %>%
+        group_by(gene_id, meth_threshold, condition, subset) %>%
+        summarise(max_frac = max(propUnmeth)) %>%
+        left_join(rmann) %>%
+        group_by(meth_threshold, condition, subset) %>%
+        arrange(max_frac) %>%
+        mutate(ranked_row = row_number()) %>%
+        mutate(condition = paste0(meth_threshold, "\n", condition)) %>%
+        ggplot(aes(x = max_frac, y = ranked_row, color = condition)) +
+        geom_point() +
+        xlim(c(0, 0.25)) +
+        facet_wrap(vars(subset), nrow = 1) +
+        labs(title = sprintf("Read Methylation", roistring), y = "Unique Locus Rank", x = sprintf("Reads Fraction < %s methylated", "#")) +
+        mtclosedgridh +
+        scale_color_brewer(palette = "Paired") +
+        anchorbar
+    mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/roc_xlim_wasp.pdf", params$mod_code, region, required_fraction_of_total_cg), 9, 4, pl = p)
 
     p <- by_gene_id %>%
         group_by(gene_id, meth_threshold, condition, subset) %>%
@@ -1867,7 +1979,25 @@ read_analysis2 <- function(
         mutate(condition = paste0(meth_threshold, "\n", condition)) %>%
         ggplot(aes(x = max_frac, y = ranked_row, color = condition)) +
         geom_point() +
-        facet_wrap(vars(subset)) +
+        facet_wrap(vars(subset), nrow = 1) +
+        labs(title = sprintf("Read Methylation", roistring), y = "Unique Locus Rank", x = sprintf("Reads Fraction < %s methylated", "#")) +
+        mtclosedgridh +
+        scale_color_brewer(palette = "Paired") +
+        anchorbar
+    mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/roc_mean_wasp.pdf", params$mod_code, region, required_fraction_of_total_cg), 9, 4, pl = p)
+
+    p <- by_gene_id %>%
+        filter(subset != "400to600") %>%
+        group_by(gene_id, meth_threshold, condition, subset) %>%
+        summarise(max_frac = mean(propUnmeth)) %>%
+        left_join(rmann) %>%
+        group_by(meth_threshold, condition, subset) %>%
+        arrange(max_frac) %>%
+        mutate(ranked_row = row_number()) %>%
+        mutate(condition = paste0(meth_threshold, "\n", condition)) %>%
+        ggplot(aes(x = max_frac, y = ranked_row, color = condition)) +
+        geom_point() +
+        facet_wrap(vars(subset), nrow = 1) +
         labs(title = sprintf("Read Methylation", roistring), y = "Unique Locus Rank", x = sprintf("Reads Fraction < %s methylated", "#")) +
         mtclosedgridh +
         scale_color_brewer(palette = "Paired") +
@@ -1885,13 +2015,31 @@ read_analysis2 <- function(
         ggplot(aes(x = max_frac, y = ranked_row, color = condition)) +
         geom_point() +
         xlim(c(0, 0.25)) +
-        facet_wrap(vars(subset)) +
+        facet_wrap(vars(subset), nrow = 1) +
+        labs(title = sprintf("Read Methylation", roistring), y = "Unique Locus Rank", x = sprintf("Reads Fraction < # methylated", "#")) +
+        mtclosedgridh +
+        scale_color_brewer(palette = "Paired") +
+        anchorbar
+    mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/roc_mean_xlim_wasp.pdf", params$mod_code, region, required_fraction_of_total_cg), 9, 4, pl = p)
+
+    p <- by_gene_id %>%
+        filter(subset != "400to600") %>%
+        group_by(gene_id, meth_threshold, condition, subset) %>%
+        summarise(max_frac = mean(propUnmeth)) %>%
+        left_join(rmann) %>%
+        group_by(meth_threshold, condition, subset) %>%
+        arrange(max_frac) %>%
+        mutate(ranked_row = row_number()) %>%
+        mutate(condition = paste0(meth_threshold, "\n", condition)) %>%
+        ggplot(aes(x = max_frac, y = ranked_row, color = condition)) +
+        geom_point() +
+        xlim(c(0, 0.25)) +
+        facet_wrap(vars(subset), nrow = 1) +
         labs(title = sprintf("Read Methylation", roistring), y = "Unique Locus Rank", x = sprintf("Reads Fraction < # methylated", "#")) +
         mtclosedgridh +
         scale_color_brewer(palette = "Paired") +
         anchorbar
     mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/roc_mean_xlim.pdf", params$mod_code, region, required_fraction_of_total_cg), 9, 4, pl = p)
-
 
     named_group_split <- function(.tbl, ...) {
         grouped <- group_by(.tbl, ...)
@@ -1923,6 +2071,7 @@ read_analysis2 <- function(
         map(~ broom::tidy(summary(lm(formula(sprintf("%s ~ %s", "propUnmeth", lm_right_hand_side)), .)))) %>%
         imap_dfr(~ .x %>% mutate(subset = .y)) %>%
         tidyr::separate(subset, into = c("gene_id", "subset", "meth_threshold"), sep = "/", convert = TRUE)
+    write_csv(stats, sprintf("ldna/results/%s/tables/reads_new/%s_%s/by_gene.csv", params$mod_code, region, required_fraction_of_total_cg))
 
 
     tryCatch(
@@ -1932,9 +2081,29 @@ read_analysis2 <- function(
                 filter(p.value <= 0.05) %>%
                 filter(grepl("condition", term)) %>%
                 mutate(dir_stat = factor(ifelse(statistic > 0, "Hypo", "Hyper"), levels = c("Hyper", "Hypo"))) %>%
-                ggplot(aes(x = as.character(meth_threshold), fill = dir_stat, group = dir_stat)) +
-                geom_bar(position = "dodge", color = "black") +
-                facet_wrap(vars(subset)) +
+                count(meth_threshold, subset, dir_stat) %>%
+                complete(meth_threshold, subset, dir_stat, fill = list(n = 0)) %>%
+                ggplot(aes(x = as.character(meth_threshold), y = n, fill = dir_stat)) +
+                geom_col(position = "dodge", color = "black") +
+                facet_wrap(vars(subset), nrow = 1) +
+                ggtitle(sprintf("Significant Loci")) +
+                labs(x = "Meth Threshold", y = sprintf("Number DM")) +
+                mtclosed +
+                anchorbar +
+                scale_methylation
+            mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/num_de_wasp.pdf", params$mod_code, region, required_fraction_of_total_cg), 5.5, 4, pl = p)
+
+            p <- stats %>%
+                filter(subset != "400to600") %>%
+                mutate(p.value = ifelse(is.nan(p.value), 1, p.value)) %>%
+                filter(p.value <= 0.05) %>%
+                filter(grepl("condition", term)) %>%
+                mutate(dir_stat = factor(ifelse(statistic > 0, "Hypo", "Hyper"), levels = c("Hyper", "Hypo"))) %>%
+                count(meth_threshold, subset, dir_stat) %>%
+                complete(meth_threshold, subset, dir_stat, fill = list(n = 0)) %>%
+                ggplot(aes(x = as.character(meth_threshold), y = n, fill = dir_stat)) +
+                geom_col(position = "dodge", color = "black") +
+                facet_wrap(vars(subset), nrow = 1) +
                 ggtitle(sprintf("Significant Loci")) +
                 labs(x = "Meth Threshold", y = sprintf("Number DM")) +
                 mtclosed +
@@ -1949,7 +2118,7 @@ read_analysis2 <- function(
 }
 
 
-read_analysis2(readscg, cg_indicses)
+read_analysis2(readscg, cg_indices)
 
 # read_analysis <- function(
 #     readsdf,
@@ -2414,9 +2583,10 @@ if ((conf$single_condition == "no") & enough_samples_per_condition_for_stats) {
 
     {
         gs <- msigdbr("human")
-        get_gs_enrichments <- function(gs, gs_ontology_level, outputdir, dmrsgr, et, et_mode_string) {
-            mydir <- file.path(outputdir, gs_ontology_level, et_mode_string)
-            print(mydir)
+        get_gs_enrichments <- function(gs, gs_ontology_level, outputdir, dmrsgr, et, et_mode_string, directions = c("Hypo", "Hyper", "Dif")) {
+            outputdirplots <- file.path(outputdir, gs_ontology_level, et_mode_string)
+            outputdirtables <- file.path(gsub("m/plots/great", "m/tables/great", outputdir), gs_ontology_level, et_mode_string)
+            print(outputdirplots)
             tablesMsigdb <- list()
             genecollections <- gs %>%
                 pluck(gs_ontology_level) %>%
@@ -2425,8 +2595,8 @@ if ((conf$single_condition == "no") & enough_samples_per_condition_for_stats) {
                 print(collection)
                 tryCatch(
                     {
-                        dir.create(paste(mydir, collection, sep = "/"), recursive = TRUE)
-                        dir.create(paste(mydirtables, collection, sep = "/"), recursive = TRUE)
+                        dir.create(paste(outputdirplots, collection, sep = "/"), recursive = TRUE)
+                        dir.create(paste(outputdirtables, collection, sep = "/"), recursive = TRUE)
                         genesets <- gs %>%
                             filter(!!sym(gs_ontology_level) == collection) %>%
                             dplyr::select(gs_name, gene_symbol) %>%
@@ -2434,11 +2604,13 @@ if ((conf$single_condition == "no") & enough_samples_per_condition_for_stats) {
                             as.data.frame()
                         for (direction in directions) {
                             if (direction == "Hypo") {
-                                regions <- dmrsgr[grepl("Hypo", dmrsgr$direction)]
-                            } else if (direction == "Hyper") {
-                                regions <- dmrsgr[grepl("Hyper", dmrsgr$direction)]
-                            } else {
-                                regions <- dmrsgr
+                                regions <<- dmrsgr[grepl("Hypo", dmrsgr$direction)]
+                            }
+                            if (direction == "Hyper") {
+                                regions <<- dmrsgr[grepl("Hyper", dmrsgr$direction)]
+                            }
+                            if (direction == "Dif") {
+                                regions <<- dmrsgr
                             }
 
 
@@ -2447,13 +2619,13 @@ if ((conf$single_condition == "no") & enough_samples_per_condition_for_stats) {
                             if (nrow(tb) != 0) {
                                 tb <- tb %>% dplyr::arrange(p_adjust)
                                 tablesMsigdb[[collection]][[direction]] <- tb
-                                write_delim(tb, paste(mydirtables, collection, paste0(direction, "great_enrichment.tsv"), sep = "/"))
+                                write_delim(tb, paste(outputdirtables, collection, paste0(direction, "great_enrichment.tsv"), sep = "/"))
 
-                                png(paste(mydir, collection, paste0(direction, "volcano.png"), sep = "/"), height = 5, width = 5, res = 300, units = "in")
+                                png(paste(outputdirplots, collection, paste0(direction, "volcano.png"), sep = "/"), height = 5, width = 5, res = 300, units = "in")
                                 plotVolcano(res)
                                 dev.off()
 
-                                png(paste(mydir, collection, paste0(direction, "associations.png"), sep = "/"), height = 5, width = 10, res = 300, units = "in")
+                                png(paste(outputdirplots, collection, paste0(direction, "associations.png"), sep = "/"), height = 5, width = 10, res = 300, units = "in")
                                 plotRegionGeneAssociations(res)
                                 dev.off()
 
@@ -2476,7 +2648,7 @@ if ((conf$single_condition == "no") & enough_samples_per_condition_for_stats) {
                                     labs(x = "", title = sprintf("%s", collection), subtitle = sprintf("Direction: %s", ifelse(direction == "Dif", "Hypo|Hyper", direction))) +
                                     mtclosed +
                                     anchorbar
-                                mysaveandstore(pl = p, fn = paste(mydir, collection, paste0(direction, "lollipop.pdf"), sep = "/"), 6.5, 6)
+                                mysaveandstore(pl = p, fn = paste(outputdirplots, collection, paste0(direction, "lollipop.pdf"), sep = "/"), 6.5, 6)
                                 p <- tbnames %>%
                                     head(n = 10) %>%
                                     mutate(id = str_wrap(as.character(id) %>% gsub("_", " ", .), width = 40)) %>%
@@ -2488,7 +2660,7 @@ if ((conf$single_condition == "no") & enough_samples_per_condition_for_stats) {
                                     labs(x = "", title = sprintf("%s", collection), subtitle = sprintf("Direction: %s", ifelse(direction == "Dif", "Hypo|Hyper", direction))) +
                                     mtclosed +
                                     anchorbar
-                                mysaveandstore(pl = p, fn = paste(mydir, collection, paste0(direction, "lollipop_no_color.pdf"), sep = "/"), 6, 6)
+                                mysaveandstore(pl = p, fn = paste(outputdirplots, collection, paste0(direction, "lollipop_no_color.pdf"), sep = "/"), 6, 6)
 
                                 p <- tbnames %>%
                                     head(n = 5) %>%
@@ -2503,7 +2675,7 @@ if ((conf$single_condition == "no") & enough_samples_per_condition_for_stats) {
                                     anchorbar +
                                     theme(axis.text.y = element_text(family = "mono"))
 
-                                mysaveandstore(pl = p, fn = paste(mydir, collection, paste0(direction, "lollipop5.pdf"), sep = "/"), 6.5, 4)
+                                mysaveandstore(pl = p, fn = paste(outputdirplots, collection, paste0(direction, "lollipop5.pdf"), sep = "/"), 6.5, 4)
                                 p <- tbnames %>%
                                     head(n = 5) %>%
                                     mutate(id = str_wrap(as.character(id) %>% gsub("_", " ", .), width = 40)) %>%
@@ -2516,21 +2688,25 @@ if ((conf$single_condition == "no") & enough_samples_per_condition_for_stats) {
                                     mtclosed +
                                     anchorbar +
                                     theme(axis.text.y = element_text(family = "mono"))
-                                mysaveandstore(pl = p, fn = paste(mydir, collection, paste0(direction, "lollipop_no_color5.pdf"), sep = "/"), 6, 4)
+                                mysaveandstore(pl = p, fn = paste(outputdirplots, collection, paste0(direction, "lollipop_no_color5.pdf"), sep = "/"), 6, 4)
                             }
                         }
                     },
-                    error = function(e) {}
+                    error = function(e) {
+                        print(e)
+                    }
                 )
             }
-            save(file = sprintf("ldna/Rintermediates/%s/tablesMsigdb_%s_%s.rds", params$mod_code, gs_ontology_level, et_mode_string), tablesMsigdb)
+            # save(file = sprintf("ldna/Rintermediates/%s/tablesMsigdb_%s_%s.rds", params$mod_code, gs_ontology_level, et_mode_string), tablesMsigdb)
+            save(file = sprintf("%s/tablesMsigdb.rds", outputdirtables), tablesMsigdb)
+
             return(tablesMsigdb)
         }
 
         for (dmrtype in dmrs$dmr_type %>% unique()) {
             tryCatch(
                 {
-                    get_gs_enrichments(gs, "gs_cat", sprintf("%s/%s", mydir, dmrtype), dmrsgr[mcols(dmrsgr)$dmr_type == dmrtype], et_noextension, "et_noextension")
+                    get_gs_enrichments(gs, gs_ontology_level = "gs_cat", outputdir = sprintf("%s/%s", mydir, dmrtype), dmrsgr[mcols(dmrsgr)$dmr_type == dmrtype], et_noextension, "et_noextension")
                 },
                 error = function(e) {}
             )
@@ -2543,7 +2719,8 @@ if ((conf$single_condition == "no") & enough_samples_per_condition_for_stats) {
                         outputdir = sprintf("%s/%s", mydir, dmrtype),
                         dmrsgr = dmrsgr[mcols(dmrsgr)$dmr_type == dmrtype],
                         et = et_noextension,
-                        et_mode_string = "et_noextension"
+                        et_mode_string = "et_noextension",
+                        directions = c("Hyper", "Hypo", "Dif")
                     )
                 },
                 error = function(e) {}

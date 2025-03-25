@@ -74,7 +74,8 @@ library(dplyr)
 # load results
 resultsdf1 <- read_delim(inputs$resultsdf, delim = "\t")
 resultsdf1 <- resultsdf1[resultsdf1$gene_id != "__no_feature", ]
-res <- resultsdf1 %>% filter(counttype == counttype[1])
+counttypes <- resultsdf1 %$% counttype %>% unique()
+res <- resultsdf1 %>% filter(counttype == counttypes[1])
 res <- res %>% filter(gene_or_te == "gene")
 
 if (conf$gtf_id_mapping$response == "yes") {
@@ -353,7 +354,9 @@ tryCatch(
             res <- res %>% arrange(-!!sym(contrast_stat))
 
             for (collec in genecollections) {
-                gse <- gse_df %>% filter(collection == collec) %>% filter(contrast == !!contrast)
+                gse <- gse_df %>%
+                    filter(collection == collec) %>%
+                    filter(contrast == !!contrast)
                 df <- arrange(gse, -abs(NES)) %>%
                     group_by(sign(NES)) %>%
                     slice(1:n_top_sets)
@@ -499,7 +502,7 @@ tryCatch(
                             # these two self-defined legends are added to the plot by `annotation_legend_list`
                             p <- wrap_elements(grid.grabExpr(draw(hm, auto_adjust = FALSE, annotation_legend_list = list(lgd_pvalue_adj, lgd_sig), heatmap_legend_side = "right", annotation_legend_side = "right")))
                             mysaveandstore(sprintf("%s/%s/gsea/%s/all_genes/heatmap_%s.pdf", params[["outputdir"]], contrast, collection, set_title), w = min(0.75 * dim(scaledm)[2], 12), h = min(dim(scaledm)[1] / 7.5, 20), res = 300)
-                            
+
                             rownames(scaledm)[row_order(hm)]
                         },
                         error = function(e) {
@@ -688,7 +691,7 @@ for (contrast in params[["contrasts"]]) {
                 msigdbr_t2g <- msigdbr_df %>%
                     dplyr::distinct(gs_name, gene_symbol) %>%
                     as.data.frame()
-                gse <- GSEA(ordered_by_stat, TERM2GENE = msigdbr_t2g, maxGSSize = 100000, minGSSize = 1)
+                gse <- GSEA(ordered_by_stat, TERM2GENE = msigdbr_t2g, maxGSSize = 100000, minGSSize = 1, pvalueCutoff = 1)
                 df <- gse@result %>% tibble()
                 df$collection <- collection
                 df$contrast <- contrast

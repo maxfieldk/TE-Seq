@@ -148,9 +148,13 @@ cnames <- colnames(cts)
 
 lengths <- rbind(gene_lengths, repeat_lengths)
 len_df <- tibble(gene_id = rownames(cts)) %>% left_join(lengths)
+
 filter_out <- len_df %>% filter(if_any(everything(), is.na)) %$% gene_id
 
-tpms <- tpm(cts, len_df %$% length)
+
+cts1 <- cts[!(rownames(cts) %in% filter_out), ]
+len_df1 <- len_df %>% filter(!(gene_id %in% filter_out))
+tpms <- tpm(cts1, len_df1 %$% length)
 colSums(tpms)
 tpmdf <- tpms %>%
     as.data.frame() %>%
