@@ -464,8 +464,12 @@ for (batchnormed in c("yes", "no")) {
             print("no batchCat")
         }
         batchestemp <- grep("batch", colnames(coldatatemp), value = TRUE)
-        p <- eigencorplot(pcaObj, metavars = c(batchestemp, "condition"))
+        tryCatch({
+        p <- eigencorplot(pcaObj, metavars = c(batchestemp,"condition"))
         mysaveandstore(paste(outputdir, counttype, subset, sprintf("batchRemoved_%s", batchnormed), "eigencor.pdf", sep = "/"), 8, 4)
+        }, error = function(e) {
+            print("eigencorplot fail")
+        })
 
         p <- biplot(pcaObj,
             showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0,

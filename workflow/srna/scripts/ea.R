@@ -537,116 +537,122 @@ for (geneset in names(params[["genesets_for_heatmaps"]])) {
         mutate(sample_name = factor(sample_name, levels = conf$samples)) %>%
         mutate(condition = factor(condition, levels = conf$levels))
 
+    tryCatch(
+        {
+            if (length(rownames(barplotpf)) > 0) {
+                p <- barplotpf %>% ggbarplot(
+                    x = "condition", y = "counts", fill = "condition", add = c("mean_se", "dotplot"),
+                    facet.by = "gene_id", scales = "free", ncol = 4
+                ) +
+                    labs(title = set_title, x = element_blank()) +
+                    mtclosedgridh + scale_conditions + anchorbar +
+                    theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+                mysaveandstore(sprintf("%s/barplot_%s.pdf", params[["outputdir"]], set_title), 8, 2 * round(ngenes / ncol))
 
-    if (length(rownames(barplotpf)) > 0) {
-        p <- barplotpf %>% ggbarplot(
-            x = "condition", y = "counts", fill = "condition", add = c("mean_se", "dotplot"),
-            facet.by = "gene_id", scales = "free", ncol = 4
-        ) +
-            labs(title = set_title, x = element_blank()) +
-            mtclosedgridh + scale_conditions + anchorbar +
-            theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
-        mysaveandstore(sprintf("%s/barplot_%s.pdf", params[["outputdir"]], set_title), 8, 2 * round(ngenes / ncol))
+                heatmapprep <- res %>% filter(gene_id %in% genestoplot)
+                m <- as.matrix(heatmapprep %>% dplyr::select(conf$samples))
+                rownames(m) <- heatmapprep %$% gene_id
+                scaledm <- t(scale(t(m))) %>% na.omit()
 
-        heatmapprep <- res %>% filter(gene_id %in% genestoplot)
-        m <- as.matrix(heatmapprep %>% dplyr::select(conf$samples))
-        rownames(m) <- heatmapprep %$% gene_id
-        scaledm <- t(scale(t(m))) %>% na.omit()
+                conditions <- sample_table[match(colnames(m), sample_table$sample_name), ]$condition
+                topAnn <- ComplexHeatmap::HeatmapAnnotation(Condition = conditions, col = list(Condition = condition_palette))
 
-        conditions <- sample_table[match(colnames(m), sample_table$sample_name), ]$condition
-        topAnn <- ComplexHeatmap::HeatmapAnnotation(Condition = conditions, col = list(Condition = condition_palette))
+                hm <- scaledm %>%
+                    Heatmap(
+                        name = "Normalized Count Z-score",
+                        cluster_rows = FALSE,
+                        cluster_columns = FALSE,
+                        show_row_names = TRUE,
+                        show_column_names = TRUE,
+                        column_names_rot = 90,
+                        top_annotation = topAnn,
+                        row_title = set_title,
+                        border_gp = gpar(col = "black")
+                    )
+                p <- wrap_elements(grid.grabExpr(draw(hm, heatmap_legend_side = "bottom", annotation_legend_side = "bottom")))
+                hmscalew <- 0.7
+                hmscaleh <- 0.7
+                mysaveandstore(sprintf("%s/heatmap_%s.pdf", params[["outputdir"]], set_title), w = min(dim(scaledm)[2] * hmscalew, 12), h = min(max(dim(scaledm)[1], 1) * hmscaleh, 12), res = 300)
 
-        hm <- scaledm %>%
-            Heatmap(
-                name = "Normalized Count Z-score",
-                cluster_rows = FALSE,
-                cluster_columns = FALSE,
-                show_row_names = TRUE,
-                show_column_names = TRUE,
-                column_names_rot = 90,
-                top_annotation = topAnn,
-                row_title = set_title,
-                border_gp = gpar(col = "black")
-            )
-        p <- wrap_elements(grid.grabExpr(draw(hm, heatmap_legend_side = "bottom", annotation_legend_side = "bottom")))
-        hmscalew <- 0.7
-        hmscaleh <- 0.7
-        mysaveandstore(sprintf("%s/heatmap_%s.pdf", params[["outputdir"]], set_title), w = min(dim(scaledm)[2] * hmscalew, 12), h = min(dim(scaledm)[1] * hmscaleh, 12), res = 300)
+                # now for each contrast
+                for (contrast in params[["contrasts"]]) {
+                    contrast_of_interest <- contrast
+                    contrast_level_2 <- contrast_of_interest %>%
+                        gsub("condition_", "", .) %>%
+                        gsub("_vs_.*", "", .)
+                    contrast_level_1 <- contrast_of_interest %>%
+                        gsub(".*_vs_", "", .)
+                    contrast_string <- gsub("condition_", "", contrast) %>% str_replace_all("_vs_", " vs ")
+                    contrast_stat <- paste0("stat_", contrast)
+                    contrast_l2fc <- paste0("log2FoldChange_", contrast)
+                    contrast_padj <- paste0("padj_", contrast)
+                    contrast_samples <- sample_table %>%
+                        filter(condition %in% c(contrast_level_1, contrast_level_2)) %>%
+                        pull(sample_name)
+                    condition_vec <- sample_table %>% filter(sample_name %in% contrast_samples) %$% condition
+                    res <- res %>% arrange(-!!sym(contrast_stat))
 
-        # now for each contrast
-        for (contrast in params[["contrasts"]]) {
-            contrast_of_interest <- contrast
-            contrast_level_2 <- contrast_of_interest %>%
-                gsub("condition_", "", .) %>%
-                gsub("_vs_.*", "", .)
-            contrast_level_1 <- contrast_of_interest %>%
-                gsub(".*_vs_", "", .)
-            contrast_string <- gsub("condition_", "", contrast) %>% str_replace_all("_vs_", " vs ")
-            contrast_stat <- paste0("stat_", contrast)
-            contrast_l2fc <- paste0("log2FoldChange_", contrast)
-            contrast_padj <- paste0("padj_", contrast)
-            contrast_samples <- sample_table %>%
-                filter(condition %in% c(contrast_level_1, contrast_level_2)) %>%
-                pull(sample_name)
-            condition_vec <- sample_table %>% filter(sample_name %in% contrast_samples) %$% condition
-            res <- res %>% arrange(-!!sym(contrast_stat))
+                    contrastconditions <- gsub("condition_", "", contrast) %>%
+                        str_split("_vs_") %>%
+                        pluck(1)
+                    sample_vec <- sample_table %>%
+                        filter(condition %in% contrastconditions) %>%
+                        pull(sample_name)
+                    condition_vec <- sample_table %>%
+                        filter(sample_name %in% sample_vec) %>%
+                        pull(condition)
 
-            contrastconditions <- gsub("condition_", "", contrast) %>%
-                str_split("_vs_") %>%
-                pluck(1)
-            sample_vec <- sample_table %>%
-                filter(condition %in% contrastconditions) %>%
-                pull(sample_name)
-            condition_vec <- sample_table %>%
-                filter(sample_name %in% sample_vec) %>%
-                pull(condition)
+                    heatmapprep <- res %>% filter(gene_id %in% genestoplot)
+                    m <- as.matrix(heatmapprep %>% dplyr::select(sample_vec))
+                    rownames(m) <- heatmapprep %$% gene_id
+                    scaledm <- t(scale(t(m))) %>% na.omit()
 
-            heatmapprep <- res %>% filter(gene_id %in% genestoplot)
-            m <- as.matrix(heatmapprep %>% dplyr::select(sample_vec))
-            rownames(m) <- heatmapprep %$% gene_id
-            scaledm <- t(scale(t(m))) %>% na.omit()
+                    pvals <- heatmapprep %>%
+                        filter(gene_id %in% rownames(scaledm)) %>%
+                        pull(!!sym(contrast_padj))
+                    pch <- ifelse(pvals < 0.05, "*", "ns")
+                    row_ha <- rowAnnotation(pvalue = anno_simple(pch, pch = pch), col = list(pvalue = c("ns" = "grey", "*" = "red")))
 
-            pvals <- heatmapprep %>%
-                filter(gene_id %in% rownames(scaledm)) %>%
-                pull(!!sym(contrast_padj))
-            pch <- ifelse(pvals < 0.05, "*", "ns")
-            row_ha <- rowAnnotation(pvalue = anno_simple(pch, pch = pch), col = list(pvalue = c("ns" = "grey", "*" = "red")))
-
-            pvalue_adj <- heatmapprep %>%
-                filter(gene_id %in% rownames(scaledm)) %>%
-                pull(!!sym(contrast_padj))
-            is_sig <- pvalue_adj < 0.05
-            pch <- rep("*", length(pvalue_adj))
-            pch[!is_sig] <- NA
-            pvalue_adj_col_fun <- colorRamp2(c(0, 2, 3), c("white", "blue", "red"))
-            ha <- rowAnnotation(pvalue_adj = anno_simple(-log10(pvalue_adj), col = pvalue_adj_col_fun, pch = pch))
-            conditions <- sample_table[match(colnames(m), sample_table$sample_name), ]$condition
-            topAnn <- ComplexHeatmap::HeatmapAnnotation(Condition = conditions, col = list(Condition = condition_palette))
-            hm <- scaledm %>%
-                Heatmap(
-                    name = "Normalized Counts Z-score",
-                    cluster_rows = FALSE,
-                    cluster_columns = FALSE,
-                    show_row_names = TRUE,
-                    show_column_names = TRUE,
-                    column_names_rot = 90,
-                    split = pch,
-                    top_annotation = topAnn,
-                    right_annotation = ha,
-                    row_title = set_title,
-                    border_gp = gpar(col = "black")
-                )
-            lgd_pvalue_adj <- Legend(
-                title = "p-value", col_fun = pvalue_adj_col_fun, at = c(0, 1, 2, 3),
-                labels = c("1", "0.1", "0.01", "0.001")
-            )
-            # and one for the significant p-values
-            lgd_sig <- Legend(pch = "*", type = "points", labels = "< 0.05")
-            # these two self-defined legends are added to the plot by `annotation_legend_list`
-            p <- wrap_elements(grid.grabExpr(draw(hm, annotation_legend_list = list(lgd_pvalue_adj, lgd_sig), heatmap_legend_side = "bottom", annotation_legend_side = "bottom")))
-            mysaveandstore(sprintf("%s/%s/heatmap_%s.pdf", params[["outputdir"]], contrast, set_title), w = min(dim(scaledm)[2] * hmscalew, 12), h = min(dim(scaledm)[1] * hmscaleh, 12), res = 300)
+                    pvalue_adj <- heatmapprep %>%
+                        filter(gene_id %in% rownames(scaledm)) %>%
+                        pull(!!sym(contrast_padj))
+                    is_sig <- pvalue_adj < 0.05
+                    pch <- rep("*", length(pvalue_adj))
+                    pch[!is_sig] <- NA
+                    pvalue_adj_col_fun <- colorRamp2(c(0, 2, 3), c("white", "blue", "red"))
+                    ha <- rowAnnotation(pvalue_adj = anno_simple(-log10(pvalue_adj), col = pvalue_adj_col_fun, pch = pch))
+                    conditions <- sample_table[match(colnames(m), sample_table$sample_name), ]$condition
+                    topAnn <- ComplexHeatmap::HeatmapAnnotation(Condition = conditions, col = list(Condition = condition_palette))
+                    hm <- scaledm %>%
+                        Heatmap(
+                            name = "Normalized Counts Z-score",
+                            cluster_rows = FALSE,
+                            cluster_columns = FALSE,
+                            show_row_names = TRUE,
+                            show_column_names = TRUE,
+                            column_names_rot = 90,
+                            split = pch,
+                            top_annotation = topAnn,
+                            right_annotation = ha,
+                            row_title = set_title,
+                            border_gp = gpar(col = "black")
+                        )
+                    lgd_pvalue_adj <- Legend(
+                        title = "p-value", col_fun = pvalue_adj_col_fun, at = c(0, 1, 2, 3),
+                        labels = c("1", "0.1", "0.01", "0.001")
+                    )
+                    # and one for the significant p-values
+                    lgd_sig <- Legend(pch = "*", type = "points", labels = "< 0.05")
+                    # these two self-defined legends are added to the plot by `annotation_legend_list`
+                    p <- wrap_elements(grid.grabExpr(draw(hm, annotation_legend_list = list(lgd_pvalue_adj, lgd_sig), heatmap_legend_side = "bottom", annotation_legend_side = "bottom")))
+                    mysaveandstore(sprintf("%s/%s/heatmap_%s.pdf", params[["outputdir"]], contrast, set_title), w = min(max(dim(scaledm)[2], 1) * hmscalew, 12), h = min(max(dim(scaledm)[1], 1) * hmscaleh, 12), res = 300)
+                }
+            }
+        },
+        error = function(e) {
+            print("targetted gene set for heatmap fail")
         }
-    }
+    )
 }
 
 
