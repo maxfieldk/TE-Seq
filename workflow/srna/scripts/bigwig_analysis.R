@@ -205,6 +205,21 @@ pf <- region_annot1 %>%
     left_join(sample_table) %>%
     ungroup()
 
+RINcol <- colnames(pf)[colnames(pf) == "RIN" | colnames(pf) == "batchCon_RIN"]
+if (length(RINcol) > 0) {
+    RINcoltmp <- RINcol[1]
+    p <- pf %>% ggplot(aes(x = score_sum, y = !!sym(RINcoltmp))) +
+        stat_smooth(method = "lm", formula = y ~ x, color = "green", se = TRUE) +
+        ggpmisc::stat_poly_eq(aes(label = paste(..rr.label.., ..p.value.label.., sep = "~~~~")),
+            formula = y ~ x, parse = TRUE, label.y.npc = "top"
+        ) +
+        geom_point(aes(color = condition)) +
+        facet_wrap(~loc_integrative, scales = "free_x") +
+        scale_conditions +
+        mtclosed
+    mysaveandstore(str_glue("{outputdir}/genomic_context/gene_oriented_signal_RIN_cor.pdf"), 8, 3.8)
+}
+
 barframe <- pf %>%
     group_by(condition, loc_integrative) %>%
     summarise(score_condition_mean = mean(score_sum))
@@ -236,6 +251,35 @@ pf <- region_annot_rm %>%
     summarise(score_sum = sum(score)) %>%
     left_join(sample_table) %>%
     ungroup()
+
+RINcol <- colnames(pf)[colnames(pf) == "RIN" | colnames(pf) == "batchCon_RIN"]
+if (length(RINcol) > 0) {
+    RINcoltmp <- RINcol[1]
+    p <- pf %>% ggplot(aes(x = score_sum, y = !!sym(RINcoltmp))) +
+        stat_smooth(method = "lm", formula = y ~ x, color = "green", se = TRUE) +
+        ggpmisc::stat_poly_eq(aes(label = paste(..rr.label.., ..p.value.label.., sep = "~~~~")),
+            formula = y ~ x, parse = TRUE, label.y.npc = "top"
+        ) +
+        geom_point(aes(color = condition)) +
+        facet_wrap(~loc_integrative, scales = "free_x") +
+        scale_conditions +
+        mtclosed
+    mysaveandstore(str_glue("{outputdir}/genomic_context/gene_oriented_signal_RM_RIN_cor.pdf"), 7, 5)
+
+    p <- pf %>%
+        mutate(condition = factor(condition, levels = conf$levels)) %>%
+        ggboxplot(x = "condition", y = "RIN", color = "condition") +
+        geom_point() +
+        geom_pwc(aes(group = condition),
+            tip.length = 0,
+            method = "t.test", label = "{p.adj.format}",
+            p.adjust.method = "fdr", p.adjust.by = "panel",
+            hide.ns = FALSE
+        ) +
+        scale_conditions +
+        mtclosed
+    mysaveandstore(str_glue("{outputdir}/RIN_by_condition.pdf"), 4, 4)
+}
 
 barframe <- pf %>%
     group_by(condition, loc_integrative) %>%
@@ -276,6 +320,22 @@ pf <- region_annot_rm_rmpriority %>%
     left_join(sample_table) %>%
     ungroup()
 
+RINcol <- colnames(pf)[colnames(pf) == "RIN" | colnames(pf) == "batchCon_RIN"]
+if (length(RINcol) > 0) {
+    RINcoltmp <- RINcol[1]
+    p <- pf %>% ggplot(aes(x = score_sum, y = !!sym(RINcoltmp))) +
+        stat_smooth(method = "lm", formula = y ~ x, color = "green", se = TRUE) +
+        ggpmisc::stat_poly_eq(aes(label = paste(..rr.label.., ..p.value.label.., sep = "~~~~")),
+            formula = y ~ x, parse = TRUE, label.y.npc = "top"
+        ) +
+        geom_point(aes(color = condition)) +
+        facet_wrap(~loc_integrative) +
+        scale_conditions +
+        mtclosed
+    mysaveandstore(str_glue("{outputdir}/genomic_context/gene_oriented_signal_rmpriority_RIN_cor.pdf"), 6, 3.8)
+}
+
+
 barframe <- pf %>%
     group_by(condition, loc_integrative) %>%
     summarise(score_condition_mean = mean(score_sum))
@@ -315,6 +375,10 @@ p <- pf %>%
     ) + scale_conditions + mtclosed + anchorbar + labs(x = "", y = "Normalized Read Count")
 
 mysaveandstore(str_glue("{outputdir}/genomic_context/gene_oriented_signal_faceted_rmpriority.pdf"), 8, 3.8)
+
+
+
+
 
 groups_that_have_been_run <- c()
 groups_not_to_run <- c()

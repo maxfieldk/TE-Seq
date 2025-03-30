@@ -1,4 +1,4 @@
-sample_name,condition,fq_sample_name,batch
+sample_name,condition,fq_sample_name,batchCat
 PRO_low_O2_1,PRO_low_O2,round1_JS1,A
 PRO_low_O2_2,PRO_low_O2,round1_JS2,A
 PRO_low_O2_3,PRO_low_O2,round1_JS3,A

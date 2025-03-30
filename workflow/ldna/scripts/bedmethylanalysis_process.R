@@ -574,7 +574,7 @@ for (region in conf$rte_subfamily_read_level_analysis) {
         readslist <- c(readslist, list(df1))
     }
 }
-reads <- Reduce(rbind, readslist)
+reads <- Reduce(rbind, readslist) %>% filter(mod_code == params$mod_code)
 write_delim(reads, sprintf("ldna/Rintermediates/%s/reads_context_all.tsv", params$mod_code), col_names = TRUE)
 # reads <- read_delim(sprintf("ldna/Rintermediates/%s/reads_context_cpg.tsv", params$mod_code), col_names = TRUE)
 
@@ -605,6 +605,6 @@ for (region in conf$rte_subfamily_read_level_analysis) {
     }
 }
 
-readscg <- Reduce(rbind, readslistcg)
+readscg <- Reduce(rbind, readslistcg) %>% filter(mod_code == params$mod_code)
 write_delim(readscg, sprintf("ldna/Rintermediates/%s/reads_context_cpg.tsv", params$mod_code), col_names = TRUE)
 # readscg <- read_delim(sprintf("ldna/Rintermediates/%s/reads_context_cpg.tsv", params$mod_code), col_names = TRUE)
