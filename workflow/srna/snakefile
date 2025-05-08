@@ -963,3 +963,260 @@ rule stringtie_merge:
         """
 stringtie --merge {params.strand_param} -o {output.gtf} -G {params.refseq} {input.gtfs}
         """
+
+
+### CHIP
+rule bowtie2_index:
+    input:
+        aref = "aref.done.outfile"
+    params:
+        fasta = "aref/default/A.REF.fa"
+    output:
+        index= "srna/bowtie2/A.REF.1.bt2"
+    conda:
+        "omics"
+    resources:
+        cpus_per_task =20,
+        mem_mb = 10000,
+        runtime = 120
+    benchmark:
+        "srna/benchmarks/bowtie2_index/aref.tsv"
+    shell:
+        """
+mkdir -p $(dirname {output.index})
+index_temp={output.index}
+index_prefix=${{index_temp%.1.bt2}}
+bowtie2-build --threads 20 {params.fasta} $index_prefix
+        """
+
+rule chip_bowtie2:
+    input:
+        r1 = "srna/outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz",
+        r2 = "srna/outs/{sample}/trimmedReads/{sample}_2.trimmed.fastq.gz",
+        index = "srna/bowtie2/A.REF.1.bt2"
+    output:
+        bam = "srna/outs/{sample}/bowtie2/{sample}.sorted.bam",
+        stats = "srna/outs/{sample}/bowtie2/{sample}.sorted.bam.stats.txt"
+    benchmark:
+        "srna/benchmarks/chip_bowtie2/{sample}.tsv"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 100000,
+        runtime = 120
+    conda:
+        "omics"
+    shell:
+        """
+mkdir -p $(dirname {output.bam})
+index_temp={input.index}
+index_prefix=${{index_temp%.1.bt2}}
+bowtie2 --threads 10  --very-sensitive -k 1 -x $index_prefix \
+    -1 {input.r1} -2 {input.r2} | samtools view -@8 -bS - > {output.bam}.temp
+samtools sort -@8 -m4g {output.bam}.temp > {output.bam}
+rm {output.bam}.temp
+samtools index -@6 {output.bam}
+samtools idxstat -@6 {output.bam}
+samtools stats {output.bam} > {output.bam}.stats.txt
+        """
+
+rule extract_number_reads_prop_pair:
+    input:
+        stats = expand("srna/outs/{sample}/bowtie2/{sample}.sorted.bam.stats.txt", sample=samples)
+    output:
+        reads_prop_paired = "srna/outs/qc/chip/reads_prop_paired.tsv"
+    shell:
+        """
+(
+    echo -e "file\treads_properly_paired"
+    for f in {input.stats}; do
+        awk -F '\\t' '$2 == "reads properly paired:" {{ print f "\\t" $3 }}' f="$f" "$f"
+    done
+) > {output.reads_prop_paired}
+        """
+
+rule getbt2bam:
+    input:
+        expand("srna/outs/{sample}/bowtie2/{sample}.sorted.bam", sample = samples)
+
+
+rule featurecounts_genes_PE_chip:
+    input:
+        primaryBams = expand("srna/outs/{sample}/bowtie2/{sample}.sorted.bam", sample = samples)
+    output:
+        countsmessy = "srna/outs/agg/featurecounts_genes_chip/counts_messy.txt",
+        counts = "srna/outs/agg/featurecounts_genes_chip/counts.txt"
+        # readassignment = expand("srna/outs/agg/featurecounts_genes_chip/{sample}.sorted.primary.bam.featureCounts", sample = samples)
+    benchmark:
+        "srna/benchmarks/featurecounts_genes_PE_chip/featurecounts_genes_PE.tsv"
+    params: 
+        gtf = "/users/mkelsey/data/cgasnes/TE-Seq/srna/refseq_mt.gtf",
+        featureCountsstrandparam = 0
+    conda: "omics"
+    threads: 4
+    shell: 
+        """
+mkdir -p $(dirname {output.counts})
+echo {params.featureCountsstrandparam}
+featureCounts -p -s {params.featureCountsstrandparam} -M -T {threads} -t exon -a {params.gtf} -o {output.countsmessy} --primary {input.primaryBams}
+cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
+        """
+
+rule featurecounts_rtes_chip:
+#for non-telescope based counts for RTEs
+    input:
+        sortedbams = expand("srna/outs/{sample}/bowtie2/{sample}.sorted.bam", sample = samples),
+    output:
+        countsmessy = "srna/outs/agg/featurecounts_rtes_chip/counts_messy.txt",
+        counts = "srna/outs/agg/featurecounts_rtes_chip/counts.txt",
+    params: 
+        gtf = lambda wildcards: "aref/default/%s_annotations/%s_repeatmasker.complete.gtf"%(wildcards.sample, wildcards.sample) if config["srna"]["per_sample_ref"] == "yes" else "aref/default/A.REF_annotations/A.REF_repeatmasker.complete.gtf",
+        featureCountsstrandparam = 0
+    benchmark:
+        "srna/benchmarks/featurecounts_rtes_chip/featurecounts_rtes_chip.tsv"
+    conda:
+        "omics"
+    resources:
+        cpus_per_task =10,
+        runtime = 3000,
+        mem_mb = 32000,
+    shell: 
+        """
+echo {params.featureCountsstrandparam}
+featureCounts -p -s {params.featureCountsstrandparam} -M -T 8 --primary --largestOverlap -a {params.gtf} -o {output.countsmessy} {input.sortedbams}
+cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
+        """
+
+rule featurecounts_rtes_genes_chip:
+#for non-telescope based counts for RTEs
+    input:
+        sortedbams = expand("srna/outs/{sample}/bowtie2/{sample}.sorted.bam", sample = samples),
+    output:
+        countsmessy = "srna/outs/agg/featurecounts_rtes_genes_chip/counts_messy.txt",
+        counts = "srna/outs/agg/featurecounts_rtes_genes_chip/counts.txt",
+    params: 
+        rtes_gtf = lambda wildcards: "aref/default/%s_annotations/%s_repeatmasker.complete.gtf"%(wildcards.sample, wildcards.sample) if config["srna"]["per_sample_ref"] == "yes" else "aref/default/A.REF_annotations/A.REF_repeatmasker.complete.gtf",
+        genes_gtf = "aref/default/A.REF_annotations/refseq.complete.gtf"
+        featureCountsstrandparam = 0
+    benchmark:
+        "srna/benchmarks/featurecounts_rtes_chip/featurecounts_rtes_chip.tsv"
+    conda:
+        "omics"
+    resources:
+        cpus_per_task =10,
+        runtime = 3000,
+        mem_mb = 32000,
+    shell: 
+        """
+cat {params.rtes_gtf} {params.genes_gtf} > rtes_genes.temp.gtf
+echo {params.featureCountsstrandparam}
+featureCounts -p -s {params.featureCountsstrandparam} -M -T 8 --primary --largestOverlap -a rtes_genes.temp.gtf -o {output.countsmessy} {input.sortedbams}
+cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
+        """
+
+
+rule collateBam_chip:
+    input:
+        sortedBam = "srna/outs/{sample}/bowtie2/{sample}.sorted.bam"
+    output:
+        collatedbam = temp("srna/outs/{sample}/bowtie2/{sample}.collated.bam")
+    conda:
+        "omics"
+    benchmark:
+        "srna/benchmarks/collateBam/{sample}.tsv"
+    resources:
+        mem_mb  = 128000,
+        runtime = 60
+    shell:
+        """
+samtools collate -o {output.collatedbam} {input.sortedBam}
+        """
+
+rule telescope_chip:
+    input:
+        collatedbam = "srna/outs/{sample}/bowtie2/{sample}.collated.bam",
+    params:
+        gff = lambda wildcards: "aref/default/%s_annotations/%s_repeatmasker.gff2"%(wildcards.sample, wildcards.sample) if config["srna"]["per_sample_ref"] == "yes" else "aref/default/A.REF_annotations/A.REF_repeatmasker.gff2"
+    retries: 3
+    output:
+        counts = "srna/outs/{sample}/telescope_chip/telescope-run_stats.tsv"
+    benchmark:
+        "srna/benchmarks/telescope/{sample}.tsv"
+    conda:
+        "telescope3"
+    resources:
+        cpus_per_task = 4,
+        mem_mb  = 200000,
+        runtime = 600
+    shell: 
+        """
+mkdir -p $(dirname {output.counts})
+telescope assign \
+--attribute gene_id \
+--ncpu 1 \
+--stranded_mode None \
+--reassign_mode average \
+--outdir $(dirname {output.counts}) \
+{input.collatedbam} \
+{params.gff}
+        """
+
+
+
+##
+treatment_samples = ["CGAS1", "CGAS2"]
+rule merge_bams_treatment:
+    input:
+        expand("srna/outs/{sample}/bowtie2/{sample}.sorted.bam", sample = treatment_samples)
+    output:
+        merged_bam = "srna/outs/merged/treatment.sorted.bam",
+        merged_bam_index = "srna/outs/merged/treatment.sorted.bam.bai"
+    benchmark:
+        "srna/benchmarks/merge_bams/merge_bams_treatment.tsv"
+    conda:
+        "omics"
+    resources:
+        cpus_per_task = 20,
+        mem_mb  = 128000,
+        runtime = 200
+    shell:
+        """
+mkdir -p $(dirname {output.merged_bam})
+samtools merge -@8 -f {output.merged_bam}.temp {input}
+samtools sort -@8 -o {output.merged_bam} {output.merged_bam}.temp
+samtools index {output.merged_bam}
+rm {output.merged_bam}.temp 
+        """
+
+rule call_macs2:
+    input:
+        treatment_bam = "srna/outs/merged/treatment.sorted.bam",
+        input_bam = "srna/outs/CTRL1/bowtie2/CTRL1.sorted.bam"
+    output:
+        narrowpeak = "srna/outs/merged/macs2/results_peaks.narrowPeak"
+    benchmark:
+        "srna/benchmarks/macs2/macs2.tsv"
+    resources:
+        cpus_per_task = 20,
+        mem_mb  = 128000,
+        runtime = 600
+    container: None
+    conda:
+        "macs2env"
+    shell:
+        """
+mkdir -p $(dirname {output.narrowpeak})
+macs2 callpeak -t {input.treatment_bam} -c {input.input_bam} \
+    -f BAM -g hs --outdir $(dirname {output.narrowpeak}) -n results \
+    --keep-dup all --nomodel --extsize 200
+        """
+
+
+rule get_chip_counts_and_peaks:
+    input:
+        telescope = expand("srna/outs/{sample}/telescope_chip/telescope-run_stats.tsv", sample = samples)
+        # fc = "srna/outs/agg/featurecounts_genes_chip/counts_messy.txt",
+        # peaks = "srna/outs/merged/macs2/results_peaks.narrowPeak"
+
+
+
+
