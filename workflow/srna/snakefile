@@ -1,4 +1,4 @@
-container: "docker://maxfieldkelsey/te-seq:v1.1"
+container: "docker://maxfieldkelsey/te-seq:v1.3"
 
 import os
 import pandas as pd
@@ -577,6 +577,7 @@ rule deseq:
         results_genes = expand("srna/results/agg/deseq/{{counttype}}/{contrast}/results_genes.csv", contrast = config["srna"]["contrasts"]),
         results_rtes = expand("srna/results/agg/deseq/{{counttype}}/{contrast}/results_rtes.csv", contrast = config["srna"]["contrasts"]),
         counts_normed = "srna/results/agg/deseq/{counttype}/counttablesizenormed.csv",
+        counts_normed_vst = "srna/results/agg/deseq/{counttype}/vstcounttablesizenormed.csv",
         sizefactors = "srna/results/agg/deseq/{counttype}/sizefactors.csv",
         environment = "srna/results/agg/deseq/{counttype}/deseq_environment.RData",
         report = report(
@@ -734,6 +735,8 @@ rule repeatanalysis_plots:
         "srna/benchmarks/repeatanalysis_plots/{counttype}.tsv"
     conda:
         "repeatanalysis"
+    wildcard_constraints:
+        counttype="[A-Za-z_]+"
     resources:
         cpus_per_task =10,
         mem_mb = 200000,
@@ -747,6 +750,24 @@ rule repeatanalysis_plots:
     script:
         "scripts/repeatanalysisPlots.R"
 
+rule repeatanalysis_family_statistics:
+    input:
+        rte_counts = expand("srna/outs/{sample}/telescope/telescope-run_stats.tsv", sample = samples),
+        sizefactors = "srna/results/agg/deseq/{counttype}/sizefactors.csv"
+    params:
+        counttype = lambda w: w.counttype,
+    benchmark:
+        "srna/benchmarks/repeatanalysis_family_statistics/{counttype}.tsv"
+    conda:
+        "deseq"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 100000,
+        runtime = 120
+    output:
+        stats = "srna/results/agg/repeatanalysis/{counttype}/te_group_stats.csv",
+    script:
+        "scripts/aggregate_count_statistics.R"
 
 rule characterize_tpm:
     input:

@@ -568,6 +568,21 @@ if ((conf$single_condition == "no") & enough_samples_per_condition_for_stats) {
 } else {
     mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/repmasker_boxplot_promoters_1.pdf", params$mod_code), raster = TRUE, 14, 6)
 }
+### CUSTOM
+p <- perelementdf_promoters %>%
+    filter(condition == condition1) %>%
+    filter(grepl("^L1", rte_subfamily)) %>%
+    group_by(rte_subfamily) %>%
+    ggplot(aes(x = rte_subfamily, y = mean_meth, color = condition)) +
+    geom_quasirandom(dodge.width = 0.75) +
+    geom_boxplot(alpha = 0.5, outlier.shape = NA) +
+    xlab("") +
+    ylab("Average CpG Methylation Per Element") +
+    ggtitle("L1 CpG Methylation") +
+    mtopen +
+    scale_conditions
+mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/repmasker_boxplot_promoters_L1s_condition1only.pdf", params$mod_code), raster = TRUE, 12, 4)
+#####
 
 p <- perelementdf_promoters %>%
     filter(grepl("^L1", rte_subfamily)) %>%
