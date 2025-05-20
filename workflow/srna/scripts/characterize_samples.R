@@ -74,12 +74,14 @@ genes <- tpmdf %>% filter(!(gene_id %in% c(rmann %$% gene_id)))
 trepeats <- repeats %>%
     pivot_longer(cols = -gene_id) %>%
     dplyr::rename(sample = name, tpm = value) %>%
+    filter(sample %in% conf$samples) %>%
     mutate(gene_or_te = "repeat") %>%
     left_join(rmann)
 wrepeats <- repeats %>% left_join(rmann)
 tgenes <- genes %>%
     pivot_longer(cols = -gene_id) %>%
     dplyr::rename(sample = name, tpm = value) %>%
+    filter(sample %in% conf$samples) %>%
     mutate(gene_or_te = "gene")
 wgenes <- genes
 
@@ -197,7 +199,7 @@ pancontrastbarplots <- function(tdf = tidydf, ontology_column = "rte_subfamily",
         scale_conditions +
         scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1))
-    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_mean/%s/%s_bar_%s_%s4.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring), width, height)
+    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_mean/%s/%s_bar_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring), width, height)
 
     p <- pf %>%
         ggbarplot(x = "condition", y = "sample_mean", fill = "condition", facet.by = facetvars, add = c("mean_se", "dotplot"), scales = "free_y") +

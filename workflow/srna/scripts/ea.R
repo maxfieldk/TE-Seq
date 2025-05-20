@@ -891,6 +891,7 @@ for (collec in gse_df %$% collection %>% unique()) {
         mutate(ID = fct_reorder(ID, NES)) %>%
         ggplot(aes(x = label, y = ID)) +
         geom_tile(aes(fill = NES), color = "black") +
+        geom_text(aes(label = sig), color = "black", size = 5) +
         theme(legend.position = "none") +
         scale_fill_gradient2(high = "red", mid = "white", low = "blue") +
         mtclosed +
@@ -921,6 +922,7 @@ for (collec in gse_df %$% collection %>% unique()) {
         mutate(ID = fct_reorder(ID, NES)) %>%
         ggplot(aes(x = label, y = ID)) +
         geom_tile(aes(fill = NES), color = "black") +
+        geom_text(aes(label = sig), color = "black", size = 5) +
         theme(legend.position = "none") +
         scale_fill_gradient2(high = "red", mid = "white", low = "blue") +
         mtclosed +
@@ -931,6 +933,65 @@ for (collec in gse_df %$% collection %>% unique()) {
     mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/unbiased/gsea_top_%s_grid_1_2.pdf", collec), 6, 0.5 * length(sigIDs))
     mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/unbiased/gsea_top_%s_grid_2_2.pdf", collec), 6, 0.75 * length(sigIDs))
     mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/unbiased/gsea_top_%s_grid_3_2.pdf", collec), 6, 1 * length(sigIDs))
+
+    # now all contrasts
+    grestemp <- gres %>%
+        filter(collection == collec) %>%
+        left_join(contrast_label_map)
+    sigIDs <- grestemp %>%
+        mutate(direction = ifelse(NES > 0, "UP", "DOWN")) %>%
+        group_by(contrast, direction) %>%
+        arrange(p.adjust) %>%
+        slice_head(n = 5) %$% ID %>%
+        unique()
+    p <- grestemp %>%
+        dplyr::filter(ID %in% sigIDs) %>%
+        mutate(sig = ifelse(p.adjust < 0.05, "*", "")) %>%
+        mutate(ID = str_wrap(as.character(ID) %>% gsub("_", " ", .), width = 40)) %>%
+        mutate(label = factor(contrast, levels = conf$contrasts)) %>%
+        mutate(ID = fct_reorder(ID, NES)) %>%
+        ggplot(aes(x = label, y = ID)) +
+        geom_tile(aes(fill = NES), color = "black") +
+        geom_text(aes(label = sig), color = "black", size = 5) +
+        theme(legend.position = "none") +
+        scale_fill_gradient2(high = "red", mid = "white", low = "blue") +
+        mtclosed +
+        theme(axis.text.x = element_text(colour = "black"), axis.text.y = element_text(colour = "black", hjust = 1)) +
+        labs(x = "", y = "", title = collec) +
+        theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+        coord_equal()
+    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/unbiased/gsea_allcontrasts_top_%s_grid_1.pdf", collec), 6, 0.5 * length(sigIDs))
+    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/unbiased/gsea_allcontrasts_top_%s_grid_2.pdf", collec), 6, 0.75 * length(sigIDs))
+    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/unbiased/gsea_allcontrasts_top_%s_grid_3.pdf", collec), 6, 1 * length(sigIDs))
+
+    grestemp <- gres %>%
+        filter(collection == collec) %>%
+        left_join(contrast_label_map)
+    sigIDs <- grestemp %>%
+        mutate(direction = ifelse(NES > 0, "UP", "DOWN")) %>%
+        group_by(contrast, direction) %>%
+        arrange(p.adjust) %>%
+        slice_head(n = 10) %$% ID %>%
+        unique()
+    p <- grestemp %>%
+        dplyr::filter(ID %in% sigIDs) %>%
+        mutate(sig = ifelse(p.adjust < 0.05, "*", "")) %>%
+        mutate(ID = str_wrap(as.character(ID) %>% gsub("_", " ", .), width = 40)) %>%
+        mutate(label = factor(contrast, levels = conf$contrasts)) %>%
+        mutate(ID = fct_reorder(ID, NES)) %>%
+        ggplot(aes(x = label, y = ID)) +
+        geom_tile(aes(fill = NES), color = "black") +
+        geom_text(aes(label = sig), color = "black", size = 5) +
+        theme(legend.position = "none") +
+        scale_fill_gradient2(high = "red", mid = "white", low = "blue") +
+        mtclosed +
+        theme(axis.text.x = element_text(colour = "black"), axis.text.y = element_text(colour = "black", hjust = 1)) +
+        labs(x = "", y = "", title = collec) +
+        theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+        coord_equal()
+    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/unbiased/gsea_allcontrasts_top_%s_grid_1_2.pdf", collec), 6, 0.5 * length(sigIDs))
+    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/unbiased/gsea_allcontrasts_top_%s_grid_2_2.pdf", collec), 6, 0.75 * length(sigIDs))
+    mysaveandstore(sprintf("srna/results/agg/enrichment_analysis/unbiased/gsea_allcontrasts_top_%s_grid_3_2.pdf", collec), 6, 1 * length(sigIDs))
 }
 
 x <- tibble(OUT = "")

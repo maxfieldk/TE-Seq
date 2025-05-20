@@ -70,6 +70,118 @@ pw <- function(to_be_printed) {
 pm <- function(to_be_printed) {
     print(to_be_printed, n = 200)
 }
+
+inspect_plot_structure <- function(plot_obj) {
+    p_build <- ggplot_build(plot_obj)
+
+    # Number of facets
+    nfacets <- nrow(p_build$layout$layout)
+    ncol_facets <- length(unique(p_build$layout$layout$COL))
+    nrow_facets <- length(unique(p_build$layout$layout$ROW))
+
+    # Number of bars per facet
+    plot_data <- p_build$data[[1]]
+    bars_per_facet <- length(unique(plot_data[["group"]]))
+
+    # Extract titles and subtitles
+    plot_labels <- plot_obj$labels
+    title_present_t_or_f <- !is.null(plot_labels$title) && plot_labels$title != ""
+    subtitle_present_t_or_f <- !is.null(plot_labels$subtitle) && plot_labels$subtitle != ""
+
+    # legend titles
+    legend_present_t_or_f <- !is.null(p_build$plot$labels$color) || !is.null(p_build$plot$labels$fill) || !is.null(p_build$plot$labels$shape)
+    if (legend_present_t_or_f) {
+        vars_to_check <- c(
+            p_build$plot$labels$fill,
+            p_build$plot$labels$color,
+            p_build$plot$labels$shape
+        ) %>% as.character()
+
+        vals <- list()
+        for (var in vars_to_check) {
+            vals[[var]] <- plot_obj$data %>%
+                pull(var) %>%
+                unique() %>%
+                as.character()
+        }
+        maxnchar_vals <- vals %>%
+            map(~ max(nchar(.x))) %>%
+            unlist()
+        ## assuming ggplot puts the legends side by side
+        max_legend_text_len <- sum(maxnchar_vals)
+    }
+
+    # Check if facet titles are present
+    facet_title_present_t_or_f <- !is.null(plot_obj$facet$params$facets) ||
+        !is.null(plot_obj$facet$params$rows) ||
+        !is.null(plot_obj$facet$params$cols)
+
+    # Extract axis text (x-axis and y-axis) and compute max length
+    x_axis_labels <- p_build$layout$panel_params[[1]]$x$get_labels()
+    y_axis_labels <- p_build$layout$panel_params[[1]]$y$get_labels()
+
+    max_xaxis_text_len <- if (!is.null(x_axis_labels)) max(nchar(as.character(x_axis_labels)), na.rm = TRUE) else 0
+    max_yaxis_text_len <- if (!is.null(y_axis_labels)) max(nchar(as.character(y_axis_labels)), na.rm = TRUE) else 0
+
+    # detemine whether x axis is rotated
+    theme_info <- ggplot2:::plot_theme(plot_obj)
+    x_text_element <- theme_info$axis.text.x
+    x_angle <- x_text_element$angle
+
+    # Check for axis titles
+    x_axis_title_present_t_or_f <- !is.null(plot_labels$x) && plot_labels$x != ""
+    y_axis_title_present_t_or_f <- !is.null(plot_labels$y) && plot_labels$y != ""
+
+    # Return extracted information as a list
+    list(
+        nfacets = nfacets,
+        ncol_facets = ncol_facets,
+        nrow_facets = nrow_facets,
+        bars_per_facet = bars_per_facet,
+        title_present = title_present_t_or_f,
+        subtitle_present = subtitle_present_t_or_f,
+        facet_title_present = facet_title_present_t_or_f,
+        max_xaxis_text_len = max_xaxis_text_len,
+        max_yaxis_text_len = max_yaxis_text_len,
+        x_axis_title_present = x_axis_title_present_t_or_f,
+        y_axis_title_present = y_axis_title_present_t_or_f,
+        x_angle = x_angle,
+        max_legend_text_len = max_legend_text_len,
+        legend_present_t_or_f = legend_present_t_or_f
+    )
+}
+
+get_print_dims <- function(plot_inspection_res, room_for_stats = FALSE) {
+    nfacets <- plot_inspection_res$nfacets
+    ncol_facets <- plot_inspection_res$ncol_facets
+    nrow_facets <- plot_inspection_res$nrow_facets
+    bars_per_facet <- plot_inspection_res$bars_per_facet
+    title_present <- plot_inspection_res$title_present
+    subtitle_present <- plot_inspection_res$subtitle_present
+    facet_title_present <- plot_inspection_res$facet_title_present
+    max_xaxis_text_len <- plot_inspection_res$max_xaxis_text_len
+    max_yaxis_text_len <- plot_inspection_res$max_yaxis_text_len
+    x_angle <- plot_inspection_res$x_angle
+    x_axis_title_present <- plot_inspection_res$x_axis_title_present
+    y_axis_title_present <- plot_inspection_res$y_axis_title_present
+    legend_present_t_or_f <- plot_inspection_res$legend_present_t_or_f
+    max_legend_text_len <- plot_inspection_res$max_legend_text_len
+
+    width_intercept <- 1 + (y_axis_title_present * 2 / 8) + (max_yaxis_text_len / 10) + (!is.null(nrow_facets)) * 2 / 8
+    width_legend <- legend_present_t_or_f * ((max_legend_text_len / 10))
+    width_plot <- ncol_facets * bars_per_facet * 2 / 8
+    total_width <- width_intercept + width_legend + width_plot
+
+    height_intercept <- 1 + (x_axis_title_present * 2 / 8) + (title_present * 2 / 8) + (subtitle_present * 2 / 8) + ifelse(!(is.null(x_angle)), sin((x_angle) * pi / 180) * max_xaxis_text_len / 10, 2 / 8) + (!is.null(ncol_facets)) * 2 / 8
+    height_plot <- ifelse(room_for_stats, nrow_facets * 2.25, nrow_facets * 1.5)
+    total_height <- height_intercept + height_plot
+
+    list(
+        w = total_width,
+        h = total_height
+    )
+}
+
 mysave <- function(fn = "ztmp.pdf", w = 5, h = 5, res = 600, pl = p, store = store_var, raster = FALSE) {
     dn <- dirname(fn)
     dir.create(dn, showWarnings = FALSE, recursive = TRUE)
@@ -119,10 +231,32 @@ mysave <- function(fn = "ztmp.pdf", w = 5, h = 5, res = 600, pl = p, store = sto
     }
 }
 store_var <- "no"
-mysaveandstore <- function(fn = "ztmp.pdf", w = 5, h = 5, res = 600, pl = p, store = store_var, raster = FALSE, sf = NULL, sfm = NULL) {
+mysaveandstore <- function(fn = "ztmp.pdf", w = 5, h = 5, res = 600, pl = p, store = store_var, raster = FALSE, sf = NULL, sfm = NULL, auto_width = FALSE, auto_height = FALSE, auto_dims_stats = FALSE) {
     dn <- dirname(fn)
     dir.create(dn, showWarnings = FALSE, recursive = TRUE)
+    if (auto_width || auto_height) {
+        auto_dims <- tryCatch(
+            {
+                get_print_dims(plot_inspection_res = inspect_plot_structure(plot_obj = pl), room_for_stats = auto_dims_stats)
+            },
+            error = function(e) {
+                print("autodims error")
+                NULL # Return NULL if an error occurs
+            }
+        )
 
+        if (!is.null(auto_dims)) {
+            if (auto_width) {
+                w <- auto_dims$w
+            }
+            if (auto_height) {
+                h <- auto_dims$h
+            }
+        }
+    }
+    # print("getprintdims")
+    # print(sprintf("%s", w))
+    # print(sprintf("%s", h))
     if (raster == TRUE) {
         tryCatch(
             {

@@ -39,8 +39,8 @@ def aref_complete_input(wildcards):
         "aref/default/A.REF_annotations/refseq_select.complete.bed.gz.tbi",
         expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker.complete.gff3.gz.tbi",default_or_extended = d_or_e),
         expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker.complete.gtf.gz.tbi",default_or_extended = d_or_e),
-        expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf",default_or_extended = d_or_e),
-        expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gff3",default_or_extended = d_or_e),
+        # expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf",default_or_extended = d_or_e),
+        # expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gff3",default_or_extended = d_or_e),
         expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker.complete.bed",default_or_extended = d_or_e),
         expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker_tetranscripts.gtf",default_or_extended = d_or_e),
         expand("aref/{default_or_extended}/A.REF_annotations/A.REF_rte_beds/outfile.txt",default_or_extended = d_or_e),
@@ -60,9 +60,9 @@ def aref_complete_input(wildcards):
             paths.append(expand("aref/{sample_or_ref}_tldr/{sample_or_ref}.table.txt", sample_or_ref = config["aref"]["samples"]))
             
             paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_rte_beds/outfile.txt", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
-            paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.complete.gtf", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
-            paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.gff3", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
-            paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.complete.gff3", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
+            # paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.complete.gtf", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
+            # paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.gff3", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
+            # paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.complete.gff3", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
             paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_indeces/make_star_index.out", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
             paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_tetranscripts.gtf", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
 
@@ -73,9 +73,9 @@ def aref_complete_input(wildcards):
             paths.append(expand("aref/default/{sample_or_ref}_Analysis/tldr_plots/transduction_mapping.rds", sample_or_ref = "A.REF"))
             
             paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_rte_beds/outfile.txt", sample_or_ref = "A.REF", default_or_extended = d_or_e))
-            paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.complete.gtf", sample_or_ref = "A.REF", default_or_extended = d_or_e))
-            paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.gff3", sample_or_ref = "A.REF", default_or_extended = d_or_e))
-            paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.complete.gff3", sample_or_ref = "A.REF", default_or_extended = d_or_e))
+            # paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.complete.gtf", sample_or_ref = "A.REF", default_or_extended = d_or_e))
+            # paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.gff3", sample_or_ref = "A.REF", default_or_extended = d_or_e))
+            # paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.complete.gff3", sample_or_ref = "A.REF", default_or_extended = d_or_e))
             paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_indeces/make_star_index.out", sample_or_ref = "A.REF", default_or_extended = d_or_e))
             paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_tetranscripts.gtf", sample_or_ref = "A.REF", default_or_extended = d_or_e))
             if config["aref"]["patch_ref"] == "yes":
@@ -1301,8 +1301,8 @@ rule move_refseq:
         ref_refseq_gff3 = config["aref"]["ref_refseq_gff3"],
         ref_refseq_gtf = config["aref"]["ref_refseq_gtf"]
     output:
-        refseq_gff3 = "aref/{default_or_extended}/{sample_or_ref}_annotations/refseq.possibly_unsorted.gff3",
-        refseq_gtf = "aref/{default_or_extended}/{sample_or_ref}_annotations/refseq.possibly_unsorted.gtf"
+        refseq_gff3 = temp("aref/{default_or_extended}/{sample_or_ref}_annotations/refseq.possibly_unsorted.gff3"),
+        refseq_gtf = temp("aref/{default_or_extended}/{sample_or_ref}_annotations/refseq.possibly_unsorted.gtf")
     benchmark:
         "aref/benchmarks/move_refseq/{sample_or_ref}_{default_or_extended}.tsv"
     shell:
