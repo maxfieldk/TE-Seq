@@ -1,4 +1,4 @@
-container: "docker://maxfieldkelsey/te-seq:v1.3"
+container: "docker://maxfieldkelsey/te-seq:v1.2"
 import os
 import pandas as pd
 import csv
