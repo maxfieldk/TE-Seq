@@ -131,8 +131,8 @@ cts <- cts %>% mutate(across(everything(), ~ as.integer(round(.))))
 
 # ensure batch variables used in linear model have more than one level!
 batch_vars_to_use <- c()
-if (any(grepl("batch", colnames(coldata)))) {
-    for (value in colnames(coldata)[grepl("batch", colnames(coldata))]) {
+if (any(grepl("^batch", colnames(coldata)) | grepl("^covariate", colnames(coldata)))) {
+    for (value in colnames(coldata)[grepl("^batch", colnames(coldata)) | grepl("^covariate", colnames(coldata))]) {
         number_unique_vals <- coldata[, value] %>%
             unique() %>%
             length()

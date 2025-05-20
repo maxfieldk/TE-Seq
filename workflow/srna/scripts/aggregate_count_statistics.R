@@ -112,9 +112,9 @@ if (is.null(conf$rte_subfamilies_for_aggregate_rte_stats) | conf$rte_subfamilies
 
 # ensure batch variables used in linear model have more than one level!
 batch_vars_to_use <- c()
-if (any(grepl("batch", colnames(sample_table)))) {
-    for (value in colnames(sample_table)[grepl("batch", colnames(coldata))]) {
-        number_unique_vals <- sample_table[, value] %>%
+if (any(grepl("^batch", colnames(coldata)) | grepl("^covariate", colnames(coldata)))) {
+    for (value in colnames(coldata)[grepl("^batch", colnames(coldata)) | grepl("^covariate", colnames(coldata))]) {
+        number_unique_vals <- coldata[, value] %>%
             unique() %>%
             length()
         if (number_unique_vals > 1) {
