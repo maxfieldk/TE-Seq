@@ -67,8 +67,11 @@ rm2granges <- function(regex, rm, filter = c("length > 0", "length > 0")) {
 pw <- function(to_be_printed) {
     print(to_be_printed, width = Inf)
 }
-pm <- function(to_be_printed) {
+pl <- function(to_be_printed) {
     print(to_be_printed, n = 200)
+}
+pwl <- function(to_be_printed) {
+    print(to_be_printed, n = 200, width = Inf)
 }
 mysave <- function(fn = "ztmp.pdf", w = 5, h = 5, res = 600, pl = p, store = store_var, raster = FALSE) {
     dn <- dirname(fn)
@@ -292,6 +295,12 @@ mss <- function(fn = "ztmp.pdf", w = 5, h = 5, wv = 4, hv = 4, res = 600, pl = p
         write_delim(sf, gsub(".pdf", "_stats.tsv", fn), delim = "\t", col_names = TRUE)
         print(paste(getwd(), gsub(".pdf", "_stats.tsv", fn), sep = "/"))
     }
+}
+
+
+write_mycsv <- function(table, fn) {
+    dir.create(dirname(fn), recursive = TRUE)
+    write_csv(table, fn)
 }
 
 # VARIABLES

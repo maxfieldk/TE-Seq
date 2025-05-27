@@ -112,10 +112,10 @@ if (confALL$aref$update_ref_with_tldr$per_sample == "yes") {
     grs_fl_nonref <- grs_fl %>%
         filter(refstatus == "NonRef") %>%
         GRanges()
-    grs_fl_nonref_ss <- getSeq(fa, grs_fl_nonref)
-    names(grs_fl_nonref_ss) <- mcols(grs_fl_nonref)$gene_id
+    grs_fl_ss_nonref <- getSeq(fa, grs_fl_nonref)
+    names(grs_fl_ss_nonref) <- mcols(grs_fl_nonref)$gene_id
 }
-grs_fl_ss <- c(grs_fl_ss_ref, grs_fl_nonref_ss)
+grs_fl_ss <- c(grs_fl_ss_ref, grs_fl_ss_nonref)
 
 fl_fa_path <- sprintf("%s/alignments/%s_fl.fa", outputdir, subfam)
 dir.create(dirname(fl_fa_path), recursive = TRUE)

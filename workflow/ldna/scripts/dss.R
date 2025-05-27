@@ -113,7 +113,7 @@ if (length(condition1samples) < 3) {
     sampleNames(BSobj)
     DMLfit <- DMLfit.multiFactor(BSobj, design = design, smoothing = TRUE, formula = ~condition)
     colnames(DMLfit$X)
-    dmls <- dmlFit.multiFactor(DMLfit, term = "condition")
+    dmls <- DMLtest.multiFactor(DMLfit, term = "condition")
     dmrs_f1 <- callDMR(dmls, p.threshold = 0.05)
     dmrs_f1$dmr_type <- "t05"
     dmrs_f2 <- callDMR(dmls, p.threshold = 0.05, minCG = 10)
