@@ -52,7 +52,7 @@ counttype <- params[["counttype"]]
 rmann <- get_repeat_annotations(
     default_or_extended = "default",
     keep_non_central = FALSE,
-    append_NI_samplename_modifier = if (conf$per_sample_ref == TRUE) TRUE else FALSE
+    append_NI_samplename_modifier = if (conf$per_sample_ref == "yes") TRUE else FALSE
 )
 
 if (counttype == "telescope_multi") {
@@ -88,10 +88,12 @@ tidydf <- cts %>%
     pivot_longer(-gene_id, names_to = "sample_name", values_to = "counts") %>%
     {
         if (conf$per_sample_ref == "yes") {
-            . %>% mutate(gene_id = case_when(
-                grepl("_NI_", gene_id) ~ paste0(sample_name, "__", gene_id),
-                TRUE ~ gene_id
-            ))
+            mutate(.,
+                gene_id = case_when(
+                    grepl("_NI_", gene_id) ~ paste0(sample_name, "__", gene_id),
+                    TRUE ~ gene_id
+                )
+            )
         } else {
             .
         }
