@@ -52,7 +52,7 @@ counttype <- params[["counttype"]]
 rmann <- get_repeat_annotations(
     default_or_extended = "default",
     keep_non_central = FALSE,
-    append_NI_samplename_modifier = FALSE
+    append_NI_samplename_modifier = if (conf$per_sample_ref == TRUE) TRUE else FALSE
 )
 
 if (counttype == "telescope_multi") {
@@ -84,12 +84,19 @@ cts <- as.data.frame(bounddf1 %>% replace(is.na(.), 0)) %>%
     mutate(across(-gene_id, ~ as.integer(round(.))))
 rm(bounddf1)
 
-resdftemp <- cts %>%
-    full_join(rmann)
 tidydf <- cts %>%
     pivot_longer(-gene_id, names_to = "sample_name", values_to = "counts") %>%
-    left_join(rmann)
-tidydf <- tidydf %>%
+    {
+        if (conf$per_sample_ref == "yes") {
+            . %>% mutate(gene_id = case_when(
+                grepl("_NI_", gene_id) ~ paste0(sample_name, "__", gene_id),
+                TRUE ~ gene_id
+            ))
+        } else {
+            .
+        }
+    } %>%
+    left_join(rmann %>% dplyr::rename(nonrefinsert_sample_name = sample_name)) %>%
     filter(!grepl("__AS$", gene_id))
 
 size_factors <- read_csv(inputs$sizefactors)
@@ -113,8 +120,9 @@ if (is.null(conf$rte_subfamilies_for_aggregate_rte_stats) | conf$rte_subfamilies
 # ensure batch variables used in linear model have more than one level!
 batch_vars_to_use <- c()
 if (any(grepl("batch", colnames(sample_table)))) {
-    for (value in colnames(sample_table)[grepl("batch", colnames(coldata))]) {
-        number_unique_vals <- sample_table[, value] %>%
+    for (value in colnames(sample_table)[grepl("batch", colnames(sample_table))]) {
+        number_unique_vals <- sample_table %>%
+            pull(value) %>%
             unique() %>%
             length()
         if (number_unique_vals > 1) {
@@ -153,7 +161,7 @@ for (i in 1:nrow(options)) {
             group_by(across(all_of(strat_vars)), .add = TRUE) %>%
             nest() %>%
             mutate(
-                model = map(data, ~ glmmTMB(counts ~ formula(sprintf("condition + %s + offset(log(sizefactor))", paste0(batch_vars_to_use, collapse = " + "))), family = nbinom2, data = .x))
+                model = map(data, ~ glmmTMB(formula(sprintf("counts ~ condition + %s + offset(log(sizefactor))", paste0(batch_vars_to_use, collapse = " + "))), family = nbinom2, data = .x))
             )
     }
 

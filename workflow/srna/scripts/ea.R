@@ -659,7 +659,7 @@ for (geneset in names(params[["genesets_for_heatmaps"]])) {
 # GSEA untargeted
 tryCatch(
     {
-        gene_sets <- msigdbr(species = confALL$aref$species)
+        gene_sets <<- msigdbr(species = confALL$aref$species)
     },
     error = function(e) {
         gene_sets <<- msigdbr(species = "human")
@@ -688,7 +688,7 @@ for (contrast in params[["contrasts"]]) {
     ordered_by_stat <- setNames(res[[contrast_stat]], res$gene_id) %>% na.omit()
     resl2fc <- res %>% arrange(-!!sym(contrast_l2fc))
     ordered_by_l2fc <- setNames(resl2fc[[contrast_l2fc]], resl2fc$gene_id) %>% na.omit()
-    for (category in gene_sets %$% gs_cat %>% unique()) {
+    for (category in unique(gene_sets$gs_cat)) {
         cat(category, "\n")
         tryCatch(
             {

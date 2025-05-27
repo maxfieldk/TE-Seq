@@ -1,4 +1,4 @@
-container: "docker://maxfieldkelsey/te-seq:v1.2"
+container: "docker://maxfieldkelsey/te-seq:v1.3"
 
 import os
 import pandas as pd
@@ -577,7 +577,6 @@ rule deseq:
         results_genes = expand("srna/results/agg/deseq/{{counttype}}/{contrast}/results_genes.csv", contrast = config["srna"]["contrasts"]),
         results_rtes = expand("srna/results/agg/deseq/{{counttype}}/{contrast}/results_rtes.csv", contrast = config["srna"]["contrasts"]),
         counts_normed = "srna/results/agg/deseq/{counttype}/counttablesizenormed.csv",
-        counts_normed_vst = "srna/results/agg/deseq/{counttype}/vstcounttablesizenormed.csv",
         sizefactors = "srna/results/agg/deseq/{counttype}/sizefactors.csv",
         environment = "srna/results/agg/deseq/{counttype}/deseq_environment.RData",
         report = report(
