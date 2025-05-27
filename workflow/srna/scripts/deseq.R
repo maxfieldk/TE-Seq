@@ -190,8 +190,23 @@ for (baselevel in baselevels) {
     ddsgenes$condition <- factor(ddsgenes$condition, levels = levels_temp)
     if (params$paralellize_bioc) {
         # dds <- DESeq(dds, parallel = TRUE, BPPARAM = MulticoreParam(params$paralellize_bioc))
-        ddsrtes <- DESeq(ddsrtes, parallel = TRUE, BPPARAM = MulticoreParam(params$paralellize_bioc))
-        ddsgenes <- DESeq(ddsgenes, parallel = TRUE, BPPARAM = MulticoreParam(params$paralellize_bioc))
+        tryCatch(
+            {
+                ddsrtes <<- DESeq(ddsrtes, parallel = TRUE, BPPARAM = MulticoreParam(params$paralellize_bioc))
+            },
+            error = function(e) {
+                ddsrtes <<- DESeq(ddsrtes, parallel = FALSE)
+            }
+        )
+
+        tryCatch(
+            {
+                ddsgenes <<- DESeq(ddsgenes, parallel = TRUE, BPPARAM = MulticoreParam(params$paralellize_bioc))
+            },
+            error = function(e) {
+                ddsgenes <<- DESeq(ddsgenes, parallel = FALSE)
+            }
+        )
         ddsrteslist[[baselevel]] <- ddsrtes
         ddsgeneslist[[baselevel]] <- ddsgenes
     } else {
@@ -449,8 +464,12 @@ for (batchnormed in c("yes", "no")) {
             print("no batchCat")
         }
         batchestemp <- grep("batch", colnames(coldatatemp), value = TRUE)
-        p <- eigencorplot(pcaObj, metavars = c(batchestemp, "condition"))
+        tryCatch({
+        p <- eigencorplot(pcaObj, metavars = c(batchestemp,"condition"))
         mysaveandstore(paste(outputdir, counttype, subset, sprintf("batchRemoved_%s", batchnormed), "eigencor.pdf", sep = "/"), 8, 4)
+        }, error = function(e) {
+            print("eigencorplot fail")
+        })
 
         p <- biplot(pcaObj,
             showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0,

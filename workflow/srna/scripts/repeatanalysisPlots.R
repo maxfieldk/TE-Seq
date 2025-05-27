@@ -1303,17 +1303,11 @@ for (group_var in c("repeat_superfamily", "rte_subfamily", "rte_family", "l1_sub
 
 
 # pan contrast
-# pan contrast
-pancontrastbarplots <- function(tdf = tidydf, ontology_column = "rte_subfamily", ontology_column_value = "L1HS", ontology_column_value_modifier = "", facetvars = c("req_integrative", "genic_loc"), refstatus_to_include = c("Ref", "NonRef")) {
+pancontrastbarplots <- function(tdf = tidydf, ontology_column = "rte_subfamily", ontology_column_value = "L1HS", ontology_column_value_modifier = "", facetvars = c("req_integrative", "genic_loc"), refstatus_to_include = c("Ref", "NonRef"), element_subttypes_to_remove = c()) {
     # Generated many variants of a simple grouped barplot with and without various statistics
     facetvarsstring <- paste(facetvars, collapse = "_")
     refstatusstring <- paste(refstatus_to_include, collapse = "_")
-    nconditions <- length(conf$levels)
-    nhorizontalfacets <- tdf[[facetvars[2]]] %>%
-        unique() %>%
-        length()
-    width <- 4 * 1 / 3 * nconditions * 1 / 2 * nhorizontalfacets
-    height <- 8
+
     # Apply filters and transformations
     df <- tdf %>%
         filter(!!sym(ontology_column) == ontology_column_value) %>%
@@ -1328,68 +1322,64 @@ pancontrastbarplots <- function(tdf = tidydf, ontology_column = "rte_subfamily",
         ungroup() %>%
         filter(if_all(all_of(facetvars), ~ . != "Other")) %>%
         arrange(across(all_of(facetvars)))
+    if (!is.null(element_subttypes_to_remove)) {
+        element_subtype_to_remove_filename_append <<- paste0("FilterOut_", element_subttypes_to_remove, collapse = "_")
+        for (i in seq_along(element_subttypes_to_remove)) {
+            col_to_use <- names(element_subttypes_to_remove)[i]
+            val_to_remove <- element_subttypes_to_remove[[i]]
+            pf <- pf %>% filter(!!sym(col_to_use) != val_to_remove)
+        }
+    } else {
+        element_subtype_to_remove_filename_append <<- paste0("FilterOut_Nothing")
+    }
 
     p <- pf %>%
         ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = facetvars, add = c("mean_se", "dotplot"), scales = "free_y") +
-        geom_text(aes(x = -Inf, y = Inf, label = paste0("N = ", n)),
-            hjust = -0.1, vjust = 1.5, inherit.aes = FALSE
-        ) +
         labs(x = "", y = "Sum Normalized Counts", subtitle = counttype_label, title = ontology_column_value) +
         mtclosedgridh +
         scale_conditions +
         scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1))
-    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_sum/%s/%s_bar_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring), width, height)
-
+    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_sum/%s/%s_bar_%s_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring, element_subtype_to_remove_filename_append), auto_width = TRUE, auto_height = TRUE)
+    # inspect_plot_structure(p)
+    # get_print_dims(inspect_plot_structure(p))
     p <- pf %>%
         ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = facetvars, add = c("mean_se", "dotplot"), scales = "free_y") +
-        geom_text(aes(x = -Inf, y = Inf, label = paste0("N = ", n)),
-            hjust = -0.1, vjust = 1.5, inherit.aes = FALSE
-        ) +
         labs(x = "", y = "Sum Normalized Counts", subtitle = counttype_label, title = ontology_column_value) +
         mtclosedgridh +
         scale_conditions +
         scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
-    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_sum/%s/%s_bar_stats_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring), width, height)
+    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_sum/%s/%s_bar_stats_%s_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring, element_subtype_to_remove_filename_append), auto_width = TRUE, auto_height = TRUE, auto_dims_stats = TRUE)
     p <- pf %>%
         ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = facetvars, add = c("mean_se", "dotplot"), scales = "free_y") +
-        geom_text(aes(x = -Inf, y = Inf, label = paste0("N = ", n)),
-            hjust = -0.1, vjust = 1.5, inherit.aes = FALSE
-        ) +
         labs(x = "", y = "Sum Normalized Counts", subtitle = counttype_label, title = ontology_column_value) +
         mtclosedgridh +
         scale_conditions +
         scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, bracket.nudge.y = -0.1, step.increase = .1)
-    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_sum/%s/%s_bar_stats_allcomps_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring), width, height)
+    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_sum/%s/%s_bar_stats_allcomps_%s_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring, element_subtype_to_remove_filename_append), auto_width = TRUE, auto_height = TRUE, auto_dims_stats = TRUE)
 
     p <- pf %>%
         ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = facetvars, add = c("mean_se", "dotplot"), scales = "free_y") +
-        geom_text(aes(x = -Inf, y = Inf, label = paste0("N = ", n)),
-            hjust = -0.1, vjust = 1.5, inherit.aes = FALSE
-        ) +
         labs(x = "", y = "Sum Normalized Counts", subtitle = counttype_label, title = ontology_column_value) +
         mtclosedgridh +
         scale_conditions +
         scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = FALSE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
-    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_sum/%s/%s_bar_stats_allsigannot_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring), width, height)
+    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_sum/%s/%s_bar_stats_allsigannot_%s_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring, element_subtype_to_remove_filename_append), auto_width = TRUE, auto_height = TRUE, auto_dims_stats = TRUE)
     p <- pf %>%
         ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = facetvars, add = c("mean_se", "dotplot"), scales = "free_y") +
-        geom_text(aes(x = -Inf, y = Inf, label = paste0("N = ", n)),
-            hjust = -0.1, vjust = 1.5, inherit.aes = FALSE
-        ) +
         labs(x = "", y = "Sum Normalized Counts", subtitle = counttype_label, title = ontology_column_value) +
         mtclosedgridh +
         scale_conditions +
         scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, bracket.nudge.y = -0.1, step.increase = .1)
-    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_sum/%s/%s_bar_stats_allsigannot_allcomps_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring), width, height)
+    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_sum/%s/%s_bar_stats_allsigannot_allcomps_%s_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring, element_subtype_to_remove_filename_append), auto_width = TRUE, auto_height = TRUE, auto_dims_stats = TRUE)
 
     # now mean across elements
     pf <- df %>%
@@ -1399,68 +1389,63 @@ pancontrastbarplots <- function(tdf = tidydf, ontology_column = "rte_subfamily",
         ungroup() %>%
         filter(if_all(all_of(facetvars), ~ . != "Other")) %>%
         arrange(across(all_of(facetvars)))
+    if (!is.null(element_subttypes_to_remove)) {
+        element_subtype_to_remove_filename_append <<- paste0("FilterOut_", element_subttypes_to_remove, collapse = "_")
+        for (i in seq_along(element_subttypes_to_remove)) {
+            col_to_use <- names(element_subttypes_to_remove)[i]
+            val_to_remove <- element_subttypes_to_remove[[i]]
+            pf <- pf %>% filter(!!sym(col_to_use) != val_to_remove)
+        }
+    } else {
+        element_subtype_to_remove_filename_append <<- paste0("FilterOut_Nothing")
+    }
 
     p <- pf %>%
         ggbarplot(x = "condition", y = "sample_mean", fill = "condition", facet.by = facetvars, add = c("mean_se", "dotplot"), scales = "free_y") +
-        geom_text(aes(x = -Inf, y = Inf, label = paste0("N = ", n)),
-            hjust = -0.1, vjust = 1.5, inherit.aes = FALSE
-        ) +
         labs(x = "", y = "Mean counts", subtitle = counttype_label, title = ontology_column_value) +
         mtclosedgridh +
         scale_conditions +
         scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1))
-    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_mean/%s/%s_bar_%s_%s4.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring), width, height)
+    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_mean/%s/%s_bar_%s_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring, element_subtype_to_remove_filename_append), auto_width = TRUE, auto_height = TRUE)
 
     p <- pf %>%
         ggbarplot(x = "condition", y = "sample_mean", fill = "condition", facet.by = facetvars, add = c("mean_se", "dotplot"), scales = "free_y") +
-        geom_text(aes(x = -Inf, y = Inf, label = paste0("N = ", n)),
-            hjust = -0.1, vjust = 1.5, inherit.aes = FALSE
-        ) +
         labs(x = "", y = "Mean counts", subtitle = counttype_label, title = ontology_column_value) +
         mtclosedgridh +
         scale_conditions +
         scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
-    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_mean/%s/%s_bar_stats_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring), width, height)
+    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_mean/%s/%s_bar_stats_%s_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring, element_subtype_to_remove_filename_append), auto_width = TRUE, auto_height = TRUE, auto_dims_stats = TRUE)
     p <- pf %>%
         ggbarplot(x = "condition", y = "sample_mean", fill = "condition", facet.by = facetvars, add = c("mean_se", "dotplot"), scales = "free_y") +
-        geom_text(aes(x = -Inf, y = Inf, label = paste0("N = ", n)),
-            hjust = -0.1, vjust = 1.5, inherit.aes = FALSE
-        ) +
         labs(x = "", y = "Mean counts", subtitle = counttype_label, title = ontology_column_value) +
         mtclosedgridh +
         scale_conditions +
         scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, bracket.nudge.y = -0.1, step.increase = .1)
-    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_mean/%s/%s_bar_stats_allcomps_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring), width, height)
+    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_mean/%s/%s_bar_stats_allcomps_%s_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring, element_subtype_to_remove_filename_append), auto_width = TRUE, auto_height = TRUE, auto_dims_stats = TRUE)
 
     p <- pf %>%
         ggbarplot(x = "condition", y = "sample_mean", fill = "condition", facet.by = facetvars, add = c("mean_se", "dotplot"), scales = "free_y") +
-        geom_text(aes(x = -Inf, y = Inf, label = paste0("N = ", n)),
-            hjust = -0.1, vjust = 1.5, inherit.aes = FALSE
-        ) +
         labs(x = "", y = "Mean counts", subtitle = counttype_label, title = ontology_column_value) +
         mtclosedgridh +
         scale_conditions +
         scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = FALSE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
-    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_mean/%s/%s_bar_stats_allsigannot_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring), width, height)
+    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_mean/%s/%s_bar_stats_allsigannot_%s_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring, element_subtype_to_remove_filename_append), auto_width = TRUE, auto_height = TRUE, auto_dims_stats = TRUE)
     p <- pf %>%
         ggbarplot(x = "condition", y = "sample_mean", fill = "condition", facet.by = facetvars, add = c("mean_se", "dotplot"), scales = "free_y") +
-        geom_text(aes(x = -Inf, y = Inf, label = paste0("N = ", n)),
-            hjust = -0.1, vjust = 1.5, inherit.aes = FALSE
-        ) +
         labs(x = "", y = "Mean counts", subtitle = counttype_label, title = ontology_column_value) +
         mtclosedgridh +
         scale_conditions +
         scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
         stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, bracket.nudge.y = -0.1, step.increase = .1)
-    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_mean/%s/%s_bar_stats_allsigannot_allcomps_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring), width, height)
+    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_mean/%s/%s_bar_stats_allsigannot_allcomps_%s_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring, element_subtype_to_remove_filename_append), auto_width = TRUE, auto_height = TRUE, auto_dims_stats = TRUE)
 }
 
 rte_subfams <- tidydf %$% rte_subfamily %>%
@@ -1469,9 +1454,11 @@ rte_subfams <- tidydf %$% rte_subfamily %>%
 rte_subfams <- rte_subfams[rte_subfams != "Other"]
 for (rte_subfam in rte_subfams) {
     pancontrastbarplots(ontology_column = "rte_subfamily", ontology_column_value = rte_subfam, facetvars = c("req_integrative", "genic_loc"), refstatus_to_include = c("Ref", "NonRef"))
+    pancontrastbarplots(ontology_column = "rte_subfamily", ontology_column_value = rte_subfam, facetvars = c("req_integrative", "genic_loc"), refstatus_to_include = c("Ref", "NonRef"), element_subttypes_to_remove = c("genic_loc" = "Genic"))
     pancontrastbarplots(ontology_column = "rte_subfamily", ontology_column_value = rte_subfam, facetvars = c("req_integrative", "genic_loc"), refstatus_to_include = c("NonRef"))
     pancontrastbarplots(ontology_column = "rte_subfamily", ontology_column_value = rte_subfam, facetvars = c("req_integrative", "loc_highres_integrative_stranded"), refstatus_to_include = c("Ref", "NonRef"))
     pancontrastbarplots(ontology_column = "rte_subfamily", ontology_column_value = rte_subfam, facetvars = c("req_integrative", "loc_lowres_integrative_stranded"), refstatus_to_include = c("Ref", "NonRef"))
+    pancontrastbarplots(ontology_column = "rte_subfamily", ontology_column_value = rte_subfam, facetvars = c("req_integrative", "loc_lowres_integrative_stranded"), refstatus_to_include = c("Ref", "NonRef"), element_subttypes_to_remove = c("loc_lowres_integrative_stranded" = "Genic_Sense"))
     if (tidydf %>% filter(rte_subfamily == rte_subfam) %$% rte_superfamily %>% unique() == "LTR") {
         pancontrastbarplots(ontology_column = "rte_subfamily", ontology_column_value = rte_subfam, facetvars = c("ltr_viral_status", "genic_loc"), refstatus_to_include = c("Ref", "NonRef"))
     }
@@ -1681,16 +1668,24 @@ for (contrast in contrasts) {
                                     mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_log2labels.pdf", outputdir, counttype, contrast, function_name, group, filter_var, facet_var), plot_width + 2, plot_height + 2)
                                 }
                                 if (function_name == "stripp") {
+                                    # nconditions <- length(conf$levels)
+                                    # nhorizontalfacets <- pf[[facetvars[2]]] %>%
+                                    #     unique() %>%
+                                    #     length()
+                                    # max_condition_text_length <- conf$levels %>%
+                                    #     nchar() %>%
+                                    #     max(c(., nchar("condition"))) * 1 / 10
+                                    # width <- 1.5 + (max_condition_text_length * 1.1) + (1 / 5 * nconditions * nhorizontalfacets)
                                     p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var) + ggtitle(plot_title)
-                                    mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s.pdf", outputdir, counttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height)
+                                    mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s.pdf", outputdir, counttype, contrast, function_name, group, filter_var, facet_var), auto_width = TRUE, auto_height = TRUE)
                                     p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, stats = "yes") + ggtitle(plot_title)
-                                    mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_stats.pdf", outputdir, counttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height + 0.5)
+                                    mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_stats.pdf", outputdir, counttype, contrast, function_name, group, filter_var, facet_var), auto_width = TRUE, auto_height = TRUE, auto_dims_stats = TRUE)
                                     p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, stats = "no") + ggtitle(plot_title) +
                                         geom_pwc(
                                             method = "t_test", label = "p.adj.format",
                                             p.adjust.method = "fdr", hide.ns = TRUE
                                         )
-                                    mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_stats_allcomps.pdf", outputdir, counttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height + 1)
+                                    mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_stats_allcomps.pdf", outputdir, counttype, contrast, function_name, group, filter_var, facet_var), auto_width = TRUE, auto_height = TRUE, auto_dims_stats = TRUE)
                                 }
                             },
                             error = function(e) {

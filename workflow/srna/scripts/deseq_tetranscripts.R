@@ -375,7 +375,7 @@ for (batchnormed in c("yes", "no")) {
         sampleDists <- dist(t(vst_assay))
 
         ## PCA plots
-        pcaObj <- pca(vst_assay, metadata = colData(ddstemp), removeVar = 0.1)
+        pcaObj <- pca(vst_assay, metadata = as.data.frame(colData(ddstemp)), removeVar = 0.1)
 
         p <- screeplot(pcaObj, title = "") + mtopen + anchorbar
         mysaveandstore(paste(outputdir, counttype, subset, sprintf("batchRemoved_%s", batchnormed), "screeplot.pdf", sep = "/"), 4, 4)
@@ -418,8 +418,15 @@ for (batchnormed in c("yes", "no")) {
             print("no batchCat")
         }
         batchestemp <- grep("batch", colnames(coldatatemp), value = TRUE)
-        p <- eigencorplot(pcaObj, metavars = c(batchestemp, "condition"))
-        mysaveandstore(paste(outputdir, counttype, subset, sprintf("batchRemoved_%s", batchnormed), "eigencor.pdf", sep = "/"), 8, 4)
+        tryCatch(
+            {
+                p <- eigencorplot(pcaObj, metavars = c(batchestemp, "condition"))
+                mysaveandstore(paste(outputdir, counttype, subset, sprintf("batchRemoved_%s", batchnormed), "eigencor.pdf", sep = "/"), 8, 4)
+            },
+            error = function(e) {
+                print("eigencorplot fail")
+            }
+        )
 
         p <- biplot(pcaObj,
             showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0,

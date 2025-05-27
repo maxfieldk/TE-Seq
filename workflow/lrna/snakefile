@@ -3,6 +3,7 @@ import pandas as pd
 from pathlib import Path
 samples = config["lrna"]["samples"]
 
+sample_table = pd.read_csv(config["lrna"]["sample_table"])
 #tag FILESTRUCTURE
 paths = [
     "lrna/qc",
@@ -239,10 +240,10 @@ mv {wildcards.sample}_temp_fq.txt.gz {output.fq}
 
 rule dorado:
     input:
-        dir = "lrna/rawdata/{rate}/{sample}",
         aref = "aref.done.outfile"
     params:
         dorado = config["lrna"]["dorado"],
+        input_dir = lambda wildcards: sample_table.loc[sample_table["sample_name"] == wildcards.sample, "nanopore_rawdata_dir"].iloc[0],
         reference = lambda wildcards: "aref/default/%s.fa"%(wildcards.sample) if config["lrna"]["per_sample_ref"] == "yes" else "aref/default/A.REF.fa"
     output:
         "lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.bam"
@@ -267,24 +268,44 @@ if [[ {wildcards.modification_string} == "unmod" ]]; then
     {params.dorado} \
     basecaller \
     {wildcards.type} \
-    {input.dir} \
+    {params.input_dir} \
     --recursive \
     --verbose \
     --estimate-poly-a \
     --reference {params.reference} \
-    --mm2-preset "splice" > {output}
+    --mm2-opts "-x splice -k 14" > {output}
 else
     mod_string=$(echo {wildcards.modification_string} | tr "-" ",")
     {params.dorado} \
     basecaller \
     {wildcards.type},$mod_string \
-    {input.dir} \
+    {params.input_dir} \
     --recursive \
     --verbose \
     --estimate-poly-a \
     --reference {params.reference} \
-    --mm2-preset "splice" > {output}
+    --mm2-opts "-x splice -k 14" > {output}
 fi
+        """
+
+rule getunmapped_reads:
+    input:
+        sortedbam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["lrna"]["rate"], type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"])
+    output: 
+        reads = expand("lrna/intermediates/{{sample}}/fastqs/{rate}/{{sample}}.unmapped.fq.gz", rate = config["lrna"]["rate"])
+    wildcard_constraints:
+        sample="[0-9A-Za-z_]+",
+        type = "[0-9A-Za-z]+",
+        rate = "[0-9A-Za-z]+",
+        modification_string = "[0-9A-Za-z_-]+"
+    resources:
+        cpus_per_task =8,
+        runtime = 100,
+        mem_mb = 50000
+    conda: "omics"
+    shell:
+        """
+samtools view -f 4 -b {input.sortedbam} | samtools fastq -@ 8 - | gzip > {output.reads}
         """
 
 rule dorado_fastq:
@@ -367,91 +388,99 @@ rule call_dorado:
 # touch {output}
 #         """
 
-# rule fq_to_DNA_fasta_for_repeatmasker:
-#     input:
-#         fq = "lrna/intermediates/{sample}/fastqs/{alignmenttype}/{sample}.fq.gz"
-#     output:
-#         fa = "lrna/intermediates/{sample}/fastqs/{alignmenttype}/{sample}.fa"
-#     resources:
-#         cpus_per_task =20,
-#         runtime = 900,
-#         mem_mb = 80000
-#     conda:
-#         "omics"
-#     shell:
-#         """
-# seqkit fq2fa {input.fq} > {output.fa}.temp
-# seqkit seq --rna2dna {output.fa}.temp > {output.fa}
-# rm {output.fa}.temp
-#         """
+rule fq_to_DNA_fasta_for_repeatmasker:
+    input:
+        fq = "lrna/intermediates/{sample}/fastqs/{alignmenttype}/{sample}.unmapped.fq.gz"
+    output:
+        fa = "lrna/intermediates/{sample}/fastqs/{alignmenttype}/{sample}.fa"
+    resources:
+        cpus_per_task =20,
+        runtime = 900,
+        mem_mb = 80000
+    conda:
+        "omics"
+    shell:
+        """
+seqkit fq2fa {input.fq} > {output.fa}.temp
+seqkit seq --rna2dna {output.fa}.temp > {output.fa}
+rm {output.fa}.temp
+        """
 
-# def inputToMergeGTFs(wildcards):
-#     checkpoint_output = checkpoints.split_reads_fasta.get(**wildcards).output[0]
-#     sample = wildcards.sample
-#     alignmenttype = wildcards.alignmenttype
-#     part_nums=glob_wildcards(os.path.join(checkpoint_output, "%s.part_{part_num}.fa"%sample)).part_num
-#     expand_call = expand("lrna/intermediates/{{wildcards.sample}}/fastqs/repeatmasker/{{wildcards.alignmenttype}}/{part_num}/{{wildcards.sample}}.part_{part_num}.fa.gtf",part_num = part_nums)
-#     list_call = ["lrna/intermediates/%s/repeatmasker/%s/%s/%s.part_%s.fa.gtf"%(sample, alignmenttype, part_num, sample, part_num) for part_num in part_nums]
-#     return(list_call)
-
-
-# checkpoint split_reads_fasta:
-#     input:
-#         fa = "lrna/intermediates/{sample}/fastqs/{alignmenttype}/{sample}.fa"
-#     output:
-#         directory("lrna/intermediates/{sample}/fastqs/{alignmenttype}/split")
-#     conda:
-#         "omics"
-#     shell:
-#         """
-# mkdir -p {output}
-# seqkit split2 {input.fa} -p 4 -f --out-dir {output}
-#         """
-
-# rule repeatmasker:
-#     input:
-#         chr_fasta = "lrna/intermediates/{sample}/fastqs/{alignmenttype}/split/{sample}.part_{part_num}.fa"
-#     output:
-#         rmout = "lrna/intermediates/{sample}/repeatmasker/{alignmenttype}/{part_num}/{sample}.part_{part_num}.fa.out"
-#     resources:
-#         cpus_per_task =20,
-#         runtime = 1200,
-#         mem_mb = 50000
-#     conda:
-#         "omics"
-#     shell:
-#         """
-# mkdir -p $(dirname {output})
-# /oscar/data/jsedivy/mkelsey/tools/RepeatMasker/RepeatMasker -species human -pa {resources.cpus_per_task} -gff {input.chr_fasta} -dir $(dirname {output})
-#         """
+def inputToMergeGTFs(wildcards):
+    checkpoint_output = checkpoints.split_reads_fasta.get(**wildcards).output[0]
+    sample = wildcards.sample
+    alignmenttype = wildcards.alignmenttype
+    part_nums=glob_wildcards(os.path.join(checkpoint_output, "%s.part_{part_num}.fa"%sample)).part_num
+    expand_call = expand("lrna/intermediates/{{wildcards.sample}}/fastqs/repeatmasker/{{wildcards.alignmenttype}}/{part_num}/{{wildcards.sample}}.part_{part_num}.fa.gtf",part_num = part_nums)
+    list_call = ["lrna/intermediates/%s/repeatmasker/%s/%s/%s.part_%s.fa.gtf"%(sample, alignmenttype, part_num, sample, part_num) for part_num in part_nums]
+    return(list_call)
 
 
-# rule getGtfs:
-#     input:
-#         rmout = "lrna/intermediates/{sample}/repeatmasker/{alignmenttype}/{part_num}/{sample}.part_{part_num}.fa.out"
-#     output:
-#         gtfout = "lrna/intermediates/{sample}/repeatmasker/{alignmenttype}/{part_num}/{sample}.part_{part_num}.fa.gtf"
-#     conda:
-#         "evo2"
-#     shell:
-#         """
-# scripts/outToGtf.sh {input.rmout} {output.gtfout}
-#         """
+checkpoint split_reads_fasta:
+    input:
+        fa = "lrna/intermediates/{sample}/fastqs/{alignmenttype}/{sample}.fa"
+    output:
+        directory("lrna/intermediates/{sample}/fastqs/{alignmenttype}/split")
+    conda:
+        "omics"
+    shell:
+        """
+mkdir -p {output}
+seqkit split2 {input.fa} -p 4 -f --out-dir {output}
+        """
 
-# rule mergeGtfsandCleanupRM:
-#     input:
-#         inputToMergeGTFs
-#     output:
-#         gtf = "lrna/intermediates/{sample}/repeatmasker/{alignmenttype}/{sample}_repeatmasker.gtf"
-#     conda:
-#         "evo2"
-#     shell:
-#         """
-# cat {input} > {output.gtf}
-# sort -k1,1V -k4,4n -k5,5n {output.gtf} > tmp.gtf
-# mv tmp.gtf {output.gtf}
-# find aref/ -type d -name 'RM_*' -exec rm -r {} +
-#         """
+rule repeatmasker:
+    input:
+        chr_fasta = "lrna/intermediates/{sample}/fastqs/{alignmenttype}/split/{sample}.part_{part_num}.fa"
+    output:
+        rmout = "lrna/intermediates/{sample}/repeatmasker/{alignmenttype}/{part_num}/{sample}.part_{part_num}.fa.out"
+    resources:
+        cpus_per_task =20,
+        runtime = 2000,
+        mem_mb = 50000
+    container: "docker://dfam/tetools:1.88.5"
+    params:
+        species = config["aref"]["species"]
+    shell:
+        """
+if [[ {params.species} == mouse ]]
+then
+species="Mus musculus"
+else
+species={params.species}
+fi
+mkdir -p $(dirname {output})
+RepeatMasker -species "$species" -pa {resources.cpus_per_task} -gff {input.chr_fasta} -dir $(dirname {output})
+        """
+
+
+
+rule getGtfs:
+    input:
+        rmout = "lrna/intermediates/{sample}/repeatmasker/{alignmenttype}/{part_num}/{sample}.part_{part_num}.fa.out"
+    output:
+        gtfout = "lrna/intermediates/{sample}/repeatmasker/{alignmenttype}/{part_num}/{sample}.part_{part_num}.fa.gtf"
+    conda:
+        "evo2"
+    shell:
+        """
+workflow/aref/scripts/outToGtf.sh {input.rmout} {output.gtfout}
+        """
+
+rule mergeGtfsandCleanupRM:
+    input:
+        inputToMergeGTFs
+    output:
+        gtf = "lrna/intermediates/{sample}/repeatmasker/{alignmenttype}/{sample}_repeatmasker.gtf"
+    conda:
+        "evo2"
+    shell:
+        """
+cat {input} > {output.gtf}
+sort -k1,1V -k4,4n -k5,5n {output.gtf} > tmp.gtf
+mv tmp.gtf {output.gtf}
+find aref/ -type d -name 'RM_*' -exec rm -r {{}} +
+        """
 
 # rule analyzeRepeatMaskedReads:
 #     input:
@@ -621,7 +650,7 @@ rule fc_stringent:
         """
 echo {params.featureCountsstrandparam}
 mkdir -p $(dirname {output.counts})
-featureCounts -s {params.featureCountsstrandparam} -L -O -M --primary --ignoreDup --largestOverlap --fracOverlapFeature 0.5 --fracOverlap 0.5 -R CORE -a {params.annotation_genesandrtes} -o {output.countsmessy} {input.sortedbam}
+featureCounts -s {params.featureCountsstrandparam} -L -O -M --primary --ignoreDup --largestOverlap --fracOverlapFeature 0.1 --fracOverlap 0.1 -R CORE -a {params.annotation_genesandrtes} -o {output.countsmessy} {input.sortedbam}
 cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
         """
 
@@ -1009,6 +1038,51 @@ rule dorado_seqsummary:
 {params.dorado} summary {input.sortedbam} > {output}
         """
 
+rule read_distribution_rseqc:
+    input:
+        sortedbam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["lrna"]["rate"], type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"]),
+        sortedbambai = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam.bai", rate = config["lrna"]["rate"], type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"])
+    params:
+        genemodel_bed = "/users/mkelsey/data/Nanopore/alz/gencodeV35hs1.bed"
+    output:
+        outfile = "lrna/qc/{sample}/{sample}.read_distribution_rseqc.txt"
+    benchmark:
+        "lrna/benchmarks/read_distribution_rseqc/{sample}.tsv"
+    resources:
+        cpus_per_task =4,
+        mem_mb = 50000
+    conda:
+        "rseqc"
+    shell:
+        """
+read_distribution.py  -i {input.sortedbam} -r {params.genemodel_bed}
+touch {output.outfile}
+        """
+
+rule geneBody_coverage:
+    input:
+        sortedbams = expand("lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam", sample = samples, rate = config["lrna"]["rate"], type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"]),
+        sortedbambais = expand("lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam.bai", sample = samples, rate = config["lrna"]["rate"], type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"])
+    params:
+        genemodel_bed = "/users/mkelsey/data/Nanopore/alz/gencodeV35hs1.bed"
+    output:
+        outfile = "lrna/qc/geneBody_coverage/geneBody_coverage.txt"
+    benchmark:
+        "lrna/benchmarks/geneBody_coverage/geneBody_coverage.tsv"
+    resources:
+        cpus_per_task =4,
+        mem_mb = 50000
+    conda:
+        "rseqc"
+    shell:
+        """
+outfiledir=$(dirname {output.outfile})/plots
+geneBody_coverage.py -r {params.genemodel_bed} -i {input.sortedbams}  -o $outfiledir
+touch {output.outfile}
+        """
+
+
+
 rule pycoQC:
     input:
         seqsummary = "lrna/qc/{sample}/{sample}.doradosummary.txt",
@@ -1019,6 +1093,9 @@ rule pycoQC:
         "lrna/benchmarks/pycoQC/{sample}.tsv"
     conda:
         "pycoQC"
+    resources:
+        cpus_per_task =4,
+        mem_mb = 128000
     shell:
         """
 pycoQC --summary_file {input.seqsummary} --bam_file {input.sortedbam} --html_outfile {output} --min_pass_qual 10

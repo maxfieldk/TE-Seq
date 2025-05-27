@@ -6,8 +6,9 @@ samples = config["ldna"]["samples"]
 #tag BASECALLING
 rule dorado:
     input:
-        dir = "ldna/rawdata/{rate}/{sample}",
         aref = ancient("aref.done.outfile")
+    params:
+        input_dir = lambda wildcards: sample_table.loc[sample_table["sample_name"] == wildcards.sample, "nanopore_rawdata_dir"].iloc[0]
     output:
         calls = expand("ldna/intermediates/{{sample}}/alignments/{{rate}}/{ref_genome}/{{sample}}.{{type}}.{{modification_string}}.bam", ref_genome = "analysis_default")
     wildcard_constraints:
@@ -33,7 +34,7 @@ mod_string=$(echo {wildcards.modification_string} | tr "-" ",")
 {params.dorado} \
 basecaller \
 {wildcards.type},$mod_string \
-{input.dir} \
+{params.input_dir} \
 --recursive \
 --verbose \
 --reference {params.reference} > {output.calls}

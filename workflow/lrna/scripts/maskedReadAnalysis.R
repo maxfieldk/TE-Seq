@@ -27,24 +27,28 @@ tryCatch(
     }
 )
 
-sample <- "sen1"
+sample <- "SEN1"
 rm <- read_csv(params$r_annotation_fragmentsjoined)
 rmgrs <- rm %>%
     filter(grepl("L1HS|L1PA", gene_id)) %>%
     GRanges()
 
-maskedreadsgr <- import(inputs$gtf)
+maskedreadsgr <- import("/users/mkelsey/data/LF1/RTE/lrna/intermediates/SEN1/repeatmasker/4khz/004/SEN1.part_004.fa.gtf")
 maskedreadsdf <- as.data.frame(maskedreadsgr) %>% tibble()
 
 
 maskedreadsdf %>%
-    filter(str_detect(gene_id, "L1HS")) %>%
-    filter(width > 1000) %>%
-    select(-seqnames)
+    filter(grepl("L1H", gene_id)) %>%
+    select(-seqnames) %>%
+    print(n = 400)
+
+maskedreadsdf %>%
+    filter(grepl("L1HS|L1PA", gene_id)) %>%
+    filter(width > 100)
 
 maskedreadsdffilterapplied <- maskedreadsdf %>%
-    filter(str_detect(gene_id, "L1HS|L1PA")) %>%
-    filter(width > 3000)
+    filter(grepl("L1HS|L1PA", gene_id)) %>%
+    filter(width > 100)
 
 seqnamesforfilter <- maskedreadsdffilterapplied %>%
     select(seqnames)
