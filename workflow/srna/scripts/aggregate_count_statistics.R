@@ -52,7 +52,7 @@ counttype <- params[["counttype"]]
 rmann <- get_repeat_annotations(
     default_or_extended = "default",
     keep_non_central = FALSE,
-    append_NI_samplename_modifier = if (conf$per_sample_ref == "yes") TRUE else FALSE
+    append_NI_samplename_modifier = if (conf$per_sample_ref == "yes") TRUE else if (conf$per_sample_ref == "yes") TRUE else FALSE
 )
 
 if (counttype == "telescope_multi") {
@@ -83,8 +83,6 @@ cts <- as.data.frame(bounddf1 %>% replace(is.na(.), 0)) %>%
     tibble() %>%
     mutate(across(-gene_id, ~ as.integer(round(.))))
 rm(bounddf1)
-
-
 
 tidydf <- cts %>%
     pivot_longer(-gene_id, names_to = "sample_name", values_to = "counts") %>%
@@ -125,7 +123,8 @@ if (is.null(conf$rte_subfamilies_for_aggregate_rte_stats) | conf$rte_subfamilies
 batch_vars_to_use <- c()
 if (any(grepl("batch", colnames(sample_table)))) {
     for (value in colnames(sample_table)[grepl("batch", colnames(sample_table))]) {
-        number_unique_vals <- sample_table[, value] %>%
+        number_unique_vals <- sample_table %>%
+            pull(value) %>%
             unique() %>%
             length()
         if (number_unique_vals > 1) {

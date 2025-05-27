@@ -133,7 +133,7 @@ cts <- cts %>% mutate(across(everything(), ~ as.integer(round(.))))
 batch_vars_to_use <- c()
 if (any(grepl("batch", colnames(coldata)))) {
     for (value in colnames(coldata)[grepl("batch", colnames(coldata))]) {
-        number_unique_vals <- coldata[, value] %>%
+        number_unique_vals <- coldata %>% pull(value) %>%
             unique() %>%
             length()
         if (number_unique_vals > 1) {
@@ -439,6 +439,7 @@ for (subset in c("rtes", "genes")) {
                 )
             }
         }
+        dir.create(paste(outputdir, counttype, subset, sprintf("batchRemoved_%s", batchnormed), sep = "/"), recursive = TRUE)
         write_csv(as.data.frame(vst_assay) %>% rownames_to_column(var = "gene_id"), paste(outputdir, counttype, subset, sprintf("batchRemoved_%s", batchnormed), "vst_counts.csv", sep = "/"))
         p <- vsn::meanSdPlot(vst_assay)
         mysaveandstore(paste(outputdir, counttype, subset, sprintf("batchRemoved_%s", batchnormed), "vstmeansdplot.pdf", sep = "/"), 6, 6)
