@@ -133,7 +133,8 @@ cts <- cts %>% mutate(across(everything(), ~ as.integer(round(.))))
 batch_vars_to_use <- c()
 if (any(grepl("batch", colnames(coldata)))) {
     for (value in colnames(coldata)[grepl("batch", colnames(coldata))]) {
-        number_unique_vals <- coldata %>% pull(value) %>%
+        number_unique_vals <- coldata %>%
+            pull(value) %>%
             unique() %>%
             length()
         if (number_unique_vals > 1) {
@@ -309,20 +310,43 @@ for (subset in c("rtes", "genes")) {
         if (params$paralellize_bioc) {
             tryCatch(
                 {
-                    resshrunk <<- lfcShrink(
+                    resshrunk <- lfcShrink(
                         ddstemp,
                         coef = contrast,
                         type = "apeglm",
                         parallel = TRUE,
                         BPPARAM = bpparam()
                     )
+                    if (subset == "genes") {
+                        resshrunk <- resshrunk[rownames(resshrunk) %in% gene_cts$gene_id, ]
+                    } else {
+                        resshrunk <- resshrunk[!(rownames(resshrunk) %in% gene_cts$gene_id), ]
+                    }
+                    resshrunkpath <- paste(outputdir, counttype, contrast, sprintf("results_shrunkl2fc_%s.csv", subset), sep = "/")
+                    dir.create(dirname(resshrunkpath), recursive = TRUE, showWarnings = FALSE)
+                    write.csv(as.data.frame(resshrunk), file = resshrunkpath)
                 },
                 error = function(e) {
-                    resshrunk <<- lfcShrink(
-                        ddstemp,
-                        coef = contrast,
-                        type = "apeglm",
-                        parallel = FALSE,
+                    tryCatch(
+                        {
+                            resshrunk <- lfcShrink(
+                                ddstemp,
+                                coef = contrast,
+                                type = "apeglm",
+                                parallel = FALSE,
+                            )
+                            if (subset == "genes") {
+                                resshrunk <- resshrunk[rownames(resshrunk) %in% gene_cts$gene_id, ]
+                            } else {
+                                resshrunk <- resshrunk[!(rownames(resshrunk) %in% gene_cts$gene_id), ]
+                            }
+                            resshrunkpath <- paste(outputdir, counttype, contrast, sprintf("results_shrunkl2fc_%s.csv", subset), sep = "/")
+                            dir.create(dirname(resshrunkpath), recursive = TRUE, showWarnings = FALSE)
+                            write.csv(as.data.frame(resshrunk), file = resshrunkpath)
+                        },
+                        error = function(e) {
+                            print("error in getting shrunk l2fc estimates")
+                        }
                     )
                 }
             )
@@ -331,19 +355,13 @@ for (subset in c("rtes", "genes")) {
 
         if (subset == "genes") {
             res <- res[rownames(res) %in% gene_cts$gene_id, ]
-            resshrunk <- resshrunk[rownames(resshrunk) %in% gene_cts$gene_id, ]
         } else {
             res <- res[!(rownames(res) %in% gene_cts$gene_id), ]
-            resshrunk <- resshrunk[!(rownames(resshrunk) %in% gene_cts$gene_id), ]
         }
 
         respath <- paste(outputdir, counttype, contrast, sprintf("results_%s.csv", subset), sep = "/")
         dir.create(dirname(respath), recursive = TRUE, showWarnings = FALSE)
         write.csv(as.data.frame(res), file = respath)
-
-        resshrunkpath <- paste(outputdir, counttype, contrast, sprintf("results_shrunkl2fc_%s.csv", subset), sep = "/")
-        dir.create(dirname(resshrunkpath), recursive = TRUE, showWarnings = FALSE)
-        write.csv(as.data.frame(resshrunk), file = resshrunkpath)
 
         DE_UP <- res %>%
             as.data.frame() %>%
