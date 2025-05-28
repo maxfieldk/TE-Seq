@@ -128,7 +128,7 @@ pancontrastbarplots <- function(tdf = tidydf, ontology_column = "rte_subfamily",
         scale_conditions +
         scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1))
-    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_sum/%s/%s_bar_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring), width, height)
+    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_sum/%s/%s_bar_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring), auto_width = TRUE, auto_height = TRUE)
 
     p <- pf %>%
         ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = facetvars, add = c("mean_se", "dotplot"), scales = "free_y") +
@@ -138,47 +138,9 @@ pancontrastbarplots <- function(tdf = tidydf, ontology_column = "rte_subfamily",
         labs(x = "", y = "Sum TPM", subtitle = counttype_label, title = ontology_column_value) +
         mtclosedgridh +
         scale_conditions +
-        scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
-        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-        stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
-    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_sum/%s/%s_bar_stats_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring), width, height)
-    p <- pf %>%
-        ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = facetvars, add = c("mean_se", "dotplot"), scales = "free_y") +
-        geom_text(aes(x = -Inf, y = Inf, label = paste0("N = ", n)),
-            hjust = -0.1, vjust = 1.5, inherit.aes = FALSE
-        ) +
-        labs(x = "", y = "Sum TPM", subtitle = counttype_label, title = ontology_column_value) +
-        mtclosedgridh +
-        scale_conditions +
-        scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
-        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-        stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, bracket.nudge.y = -0.1, step.increase = .1)
-    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_sum/%s/%s_bar_stats_allcomps_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring), width, height)
-
-    p <- pf %>%
-        ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = facetvars, add = c("mean_se", "dotplot"), scales = "free_y") +
-        geom_text(aes(x = -Inf, y = Inf, label = paste0("N = ", n)),
-            hjust = -0.1, vjust = 1.5, inherit.aes = FALSE
-        ) +
-        labs(x = "", y = "Sum TPM", subtitle = counttype_label, title = ontology_column_value) +
-        mtclosedgridh +
-        scale_conditions +
-        scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
-        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-        stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = FALSE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
-    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_sum/%s/%s_bar_stats_allsigannot_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring), width, height)
-    p <- pf %>%
-        ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = facetvars, add = c("mean_se", "dotplot"), scales = "free_y") +
-        geom_text(aes(x = -Inf, y = Inf, label = paste0("N = ", n)),
-            hjust = -0.1, vjust = 1.5, inherit.aes = FALSE
-        ) +
-        labs(x = "", y = "Sum TPM", subtitle = counttype_label, title = ontology_column_value) +
-        mtclosedgridh +
-        scale_conditions +
-        scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
-        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-        stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, bracket.nudge.y = -0.1, step.increase = .1)
-    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_sum/%s/%s_bar_stats_allsigannot_allcomps_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring), width, height)
+        scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .15))) +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_sum/%s/%s_bar_stats_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring), auto_width = TRUE, auto_height = TRUE, auto_dims_stats = TRUE)
 
     # now mean across elements
     pf <- df %>%
@@ -199,7 +161,7 @@ pancontrastbarplots <- function(tdf = tidydf, ontology_column = "rte_subfamily",
         scale_conditions +
         scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1))
-    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_mean/%s/%s_bar_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring), width, height)
+    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_mean/%s/%s_bar_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring), auto_width = TRUE, auto_height = TRUE)
 
     p <- pf %>%
         ggbarplot(x = "condition", y = "sample_mean", fill = "condition", facet.by = facetvars, add = c("mean_se", "dotplot"), scales = "free_y") +
@@ -209,47 +171,9 @@ pancontrastbarplots <- function(tdf = tidydf, ontology_column = "rte_subfamily",
         labs(x = "", y = "Mean TPM", subtitle = counttype_label, title = ontology_column_value) +
         mtclosedgridh +
         scale_conditions +
-        scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
-        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-        stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
-    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_mean/%s/%s_bar_stats_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring), width, height)
-    p <- pf %>%
-        ggbarplot(x = "condition", y = "sample_mean", fill = "condition", facet.by = facetvars, add = c("mean_se", "dotplot"), scales = "free_y") +
-        geom_text(aes(x = -Inf, y = Inf, label = paste0("N = ", n)),
-            hjust = -0.1, vjust = 1.5, inherit.aes = FALSE
-        ) +
-        labs(x = "", y = "Mean TPM", subtitle = counttype_label, title = ontology_column_value) +
-        mtclosedgridh +
-        scale_conditions +
-        scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
-        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-        stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, bracket.nudge.y = -0.1, step.increase = .1)
-    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_mean/%s/%s_bar_stats_allcomps_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring), width, height)
-
-    p <- pf %>%
-        ggbarplot(x = "condition", y = "sample_mean", fill = "condition", facet.by = facetvars, add = c("mean_se", "dotplot"), scales = "free_y") +
-        geom_text(aes(x = -Inf, y = Inf, label = paste0("N = ", n)),
-            hjust = -0.1, vjust = 1.5, inherit.aes = FALSE
-        ) +
-        labs(x = "", y = "Mean TPM", subtitle = counttype_label, title = ontology_column_value) +
-        mtclosedgridh +
-        scale_conditions +
-        scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
-        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-        stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = FALSE, ref.group = conf$levels[1], bracket.nudge.y = -0.1, step.increase = .1)
-    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_mean/%s/%s_bar_stats_allsigannot_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring), width, height)
-    p <- pf %>%
-        ggbarplot(x = "condition", y = "sample_mean", fill = "condition", facet.by = facetvars, add = c("mean_se", "dotplot"), scales = "free_y") +
-        geom_text(aes(x = -Inf, y = Inf, label = paste0("N = ", n)),
-            hjust = -0.1, vjust = 1.5, inherit.aes = FALSE
-        ) +
-        labs(x = "", y = "Mean TPM", subtitle = counttype_label, title = ontology_column_value) +
-        mtclosedgridh +
-        scale_conditions +
-        scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .075))) +
-        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-        stat_pwc(method = "t_test", label = "p.adj.format", p.adjust.method = "fdr", hide.ns = TRUE, bracket.nudge.y = -0.1, step.increase = .1)
-    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_mean/%s/%s_bar_stats_allsigannot_allcomps_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring), width, height)
+        scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .15))) +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_mean/%s/%s_bar_stats_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring), auto_width = TRUE, auto_height = TRUE, auto_dims_stats = TRUE)
 }
 
 tryCatch(
