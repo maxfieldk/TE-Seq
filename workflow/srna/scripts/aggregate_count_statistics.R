@@ -93,12 +93,12 @@ tidydf <- cts %>%
                     grepl("_NI_", gene_id) ~ paste0(sample_name, "__", gene_id),
                     TRUE ~ gene_id
                 )
-            )
+            ) %>%
+                left_join(rmann %>% dplyr::rename(nonrefinsert_sample_name = sample_name))
         } else {
-            .
+            left_join(., rmann)
         }
     } %>%
-    left_join(rmann %>% dplyr::rename(nonrefinsert_sample_name = sample_name)) %>%
     filter(!grepl("__AS$", gene_id))
 
 size_factors <- read_csv(inputs$sizefactors)
