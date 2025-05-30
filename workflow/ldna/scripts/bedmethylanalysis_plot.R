@@ -178,6 +178,17 @@ readscg <- read_delim(sprintf("ldna/Rintermediates/%s/reads_context_cpg.tsv", pa
     mutate(sample = factor(sample, levels = sample_table$sample_name)) %>%
     mutate(condition = factor(condition, levels = conf$levels))
 
+refseq_gr <- import(conf$refseq_unaltered)
+genes_gr <- refseq_gr[mcols(refseq_gr)[, "type"] == "gene", ]
+genes_gr <- genes_gr[seqnames(genes_gr) %in% CHROMOSOMESINCLUDEDINANALYSIS, ]
+genes_gr <- genes_gr[mcols(genes_gr)[, "source"] %in% c("BestRefSeq", "Curated Genomic", "Gnomon"), ]
+mcols(genes_gr)$gene_id <- mcols(genes_gr)$Name
+mcols(genes_gr) %>% colnames()
+mcols(genes_gr) <- mcols(genes_gr)[, c("gene_id", "ID", "gene_biotype", "source")]
+promoters <- promoters(genes_gr, upstream = 5000, downstream = 1000)
+write_delim(tibble(as.data.frame(promoters)) %>% mutate(score = 1000) %>% dplyr::select(seqnames, start, end, gene_id, score, strand), sprintf("ldna/Rintermediates/%s/promoters.bed", params$mod_code), col_names = FALSE, delim = "\t")
+
+
 if ((conf$single_condition == "no")) {
     dmrs <- read_delim(params$dmrs, delim = "\t", col_names = TRUE) %>% filter(dmr_type %in% c("t01", "t05"))
     dmls <- read_delim(params$dmls, delim = "\t", col_names = TRUE) %>% filter(fdrs <= 0.2)
@@ -210,19 +221,6 @@ cg_indices <- consensus_ss %>%
     as.numeric()
 cg_positions_df <- consensus_index_long %>% filter(consensus_pos %in% cg_indices)
 
-get_region_enrichment <- function(dmrstemp, rangestemp, genome_size = 3.1e9) {
-    n_overlap <- dmrstemp %>%
-        subsetByOverlaps(rangestemp) %>%
-        as.data.frame() %>%
-        nrow()
-    n_total <- dmrstemp %>%
-        as.data.frame() %>%
-        nrow()
-    prop_genome <- (1 / genome_size) * width(rangestemp) %>% sum()
-    fold_enrichment <- (n_overlap / n_total) / prop_genome
-    p_value <- binom.test(n_overlap, n_total, p = prop_genome)$p.value
-    return(c("fold_enrichment" = fold_enrichment, "p_value" = p_value, "n_overlap" = n_overlap, "n_total" = n_total, "prop_genome" = prop_genome))
-}
 
 ##################################### DML / DMR analysis
 if ((conf$single_condition == "no")) {
@@ -2854,6 +2852,7 @@ read_analysis2 <- function(
             print("no sig de")
         }
     )
+
     dispersion_models <- list()
     for (subsetofinterest in by_cpg$subset %>%
         unique() %>%
@@ -2870,31 +2869,32 @@ read_analysis2 <- function(
 
     res_text <- capture.output(map(dispersion_models, summary))
     writeLines(res_text, sprintf("%s/dispersion_model_summary.txt", outputdirtables))
-
     summary_disp <- summary(mod)$dispersion
 
-    # Extract estimates and standard errors
-    log_phi_control <- 1.95678
-    se_log_phi_control <- 0.01539
+    # # Extract estimates and standard errors
+    # log_phi_control <- 1.95678
+    # se_log_phi_control <- 0.01539
 
-    log_phi_diff_AD <- -0.32685
-    se_log_phi_diff_AD <- 0.01990
+    # log_phi_diff_AD <- -0.32685
+    # se_log_phi_diff_AD <- 0.01990
 
-    # Compute log(φ) for AD and its SE
-    log_phi_AD <- log_phi_control + log_phi_diff_AD
-    se_log_phi_AD <- sqrt(se_log_phi_control^2 + se_log_phi_diff_AD^2)
+    # # Compute log(φ) for AD and its SE
+    # log_phi_AD <- log_phi_control + log_phi_diff_AD
+    # se_log_phi_AD <- sqrt(se_log_phi_control^2 + se_log_phi_diff_AD^2)
 
-    # 95% CI on log-scale
-    z <- 1.96
-    ci_log_phi_control <- log_phi_control + c(-1, 1) * z * se_log_phi_control
-    ci_log_phi_AD <- log_phi_AD + c(-1, 1) * z * se_log_phi_AD
+    # # 95% CI on log-scale
+    # z <- 1.96
+    # ci_log_phi_control <- log_phi_control + c(-1, 1) * z * se_log_phi_control
+    # ci_log_phi_AD <- log_phi_AD + c(-1, 1) * z * se_log_phi_AD
 
-    # Exponentiate to get CIs for φ
-    phi_control <- exp(log_phi_control)
-    phi_AD <- exp(log_phi_AD)
+    # # Exponentiate to get CIs for φ
+    # phi_control <- exp(log_phi_control)
+    # phi_AD <- exp(log_phi_AD)
 
-    ci_phi_control <- exp(ci_log_phi_control)
-    ci_phi_AD <- exp(ci_log_phi_AD)
+    # ci_phi_control <- exp(ci_log_phi_control)
+    # ci_phi_AD <- exp(ci_log_phi_AD)
+
+
     # dispersion_models_withreadid <- list()
     # for (subsetofinterest in by_cpg$subset %>%
     #     unique() %>%
@@ -2913,129 +2913,45 @@ read_analysis2 <- function(
     # writeLines(res_text, sprintf("%s/dispersion_model_summary.txt", outputdirtables))
 
 
+    # dat <- by_cpg %>%
+    #     filter(subset == "0to909") %>%
+    #     mutate(meth = fraction_meth * num_cpgs_in_read, unmeth = num_cpgs_in_read - meth)
+    # mod0 <- glmmTMB(cbind(meth, unmeth) ~ 1 + (1 | sample) + (1 | gene_id) + (1 | sample:gene_id),
+    #     data = dat, family = binomial()
+    # )
 
-
-    dat <- by_cpg %>%
-        filter(subset == "0to909") %>%
-        mutate(meth = fraction_meth * num_cpgs_in_read, unmeth = num_cpgs_in_read - meth)
-    mod0 <- glmmTMB(cbind(meth, unmeth) ~ 1 + (1 | sample) + (1 | gene_id) + (1 | sample:gene_id),
-        data = dat, family = binomial()
-    )
-
-    mod05 <- glmmTMB(cbind(meth, unmeth) ~ 1 + (1 | sample) + (1 | gene_id),
-        data = dat, family = glmmTMB::betabinomial()
-    )
-    mod05disp <- glmmTMB(cbind(meth, unmeth) ~ 1 + (1 | sample) + (1 | gene_id),
-        dispformula = ~1,
-        data = dat, family = glmmTMB::betabinomial()
-    )
-    datmorebinom <- dat %>%
-        filter(fraction_meth < 0.95) %>%
-        filter(fraction_meth > 0.35)
-    mod05morebinom <- glmmTMB(cbind(meth, unmeth) ~ 1 + (1 | sample) + (1 | gene_id),
-        data = datmorebinom, family = glmmTMB::betabinomial()
-    )
-    mod05binom_morebinom <- glmmTMB(cbind(meth, unmeth) ~ 1 + (1 | sample) + (1 | gene_id),
-        data = datmorebinom, family = binomial()
-    )
-
-
-    dispersion_model_morebinomdat <- glmmTMB(
-        cbind(meth, unmeth) ~ 1 + (1 | sample) + (1 | gene_id) + (1 | sample:gene_id),
-        dispformula = ~condition,
-        family = glmmTMB::betabinomial(),
-        data = datmorebinom
-    )
-
-    anova(mod0, mod05)
-    anova(mod05binom_morebinom, mod05morebinom)
-
-    library(DHARMa)
-
-    confint(mod05, parm = "dispersion", level = 0.95)
-
-    summary(mod05morebinom)
-    res <- simulateResiduals(mod05)
-
-    pdf("zzzab.pdf")
-    plotResiduals(res, dat$fraction_meth)
-    dev.off()
-
-    pdf("zzzabc.pdf")
-    plot(res)
-    dev.off()
-
+    # mod05 <- glmmTMB(cbind(meth, unmeth) ~ 1 + (1 | sample) + (1 | gene_id),
     #     data = dat, family = glmmTMB::betabinomial()
     # )
-    # mod2 <- glmmTMB(cbind(meth, unmeth) ~ 1 + (1 | sample) + (1 | gene_id) + (1 | sample:gene_id) + (1 | read_id),
+    # mod05disp <- glmmTMB(cbind(meth, unmeth) ~ 1 + (1 | sample) + (1 | gene_id),
+    #     dispformula = ~1,
     #     data = dat, family = glmmTMB::betabinomial()
     # )
-    # mod3 <- glmmTMB(cbind(meth, unmeth) ~ 1 + (1 | sample) + (1 | gene_id) + (1 | read_id),
-    #     data = dat, family = glmmTMB::betabinomial()
+    # datmorebinom <- dat %>%
+    #     filter(fraction_meth < 0.95) %>%
+    #     filter(fraction_meth > 0.35)
+    # mod05morebinom <- glmmTMB(cbind(meth, unmeth) ~ 1 + (1 | sample) + (1 | gene_id),
+    #     data = datmorebinom, family = glmmTMB::betabinomial()
     # )
-    # anova(mod0, mod1)
-    # anova(mod1, mod2)
+    # mod05binom_morebinom <- glmmTMB(cbind(meth, unmeth) ~ 1 + (1 | sample) + (1 | gene_id),
+    #     data = datmorebinom, family = binomial()
+    # )
 
-    # vc <- VarCorr(mod3)
-    # print(vc)
-    # library(easystats)
-    # var_read <- as.numeric(vc$cond$read_id)
-    # var_sample_gene <- as.numeric(vc$cond$`sample:gene_id`)
-    # var_gene <- as.numeric(vc$cond$`gene_id`)
-    # var_sample <- as.numeric(vc$cond$`sample`)
 
-    # icc_read <- var_read / (var_read + var_gene + var_sample + var_sample_gene)
-    # library(performance)
+    # dispersion_model_morebinomdat <- glmmTMB(
+    #     cbind(meth, unmeth) ~ 1 + (1 | sample) + (1 | gene_id) + (1 | sample:gene_id),
+    #     dispformula = ~condition,
+    #     family = glmmTMB::betabinomial(),
+    #     data = datmorebinom
+    # )
 
-    # icc_results <- performance::icc(mod3, by_group = TRUE)
-    # print(icc_results)
+    # anova(mod0, mod05)
+    # anova(mod05binom_morebinom, mod05morebinom)
 }
 
 
 read_analysis2(readscg, cg_indices)
 
-
-
-library(glmmTMB)
-
-
-
-summary(modelB)
-library(VGAM)
-n <- 30 # CpGs per read
-mu <- 0.785
-
-# Convert mean and phi to alpha/beta for Beta distribution
-phi_ctrl <- 8.3
-alpha_ctrl <- mu * phi_ctrl
-beta_ctrl <- (1 - mu) * phi_ctrl
-
-phi_ad <- 6.0
-alpha_ad <- mu * phi_ad
-beta_ad <- (1 - mu) * phi_ad
-
-# Simulate beta-binomial reads
-n_reads <- 10000
-meth_ctrl <- rbetabinom.ab(n = n_reads, size = n, shape1 = alpha_ctrl, shape2 = beta_ctrl)
-meth_ad <- rbetabinom.ab(n = n_reads, size = n, shape1 = alpha_ad, shape2 = beta_ad)
-
-# Create data frame
-df <- bind_rows(
-    data.frame(prop = meth_ctrl / n, group = "Control (φ = 8.3)"),
-    data.frame(prop = meth_ad / n, group = "AD (φ = 6.0)")
-)
-
-# Plot with ggplot2
-p <- ggplot(df, aes(x = prop, fill = group)) +
-    geom_histogram(position = "identity", alpha = 0.5, bins = 31) +
-    scale_fill_manual(values = c("blue", "red")) +
-    labs(
-        title = "Beta-Binomial Read Methylation",
-        x = "Proportion methylated CpGs per read",
-        y = "Density"
-    ) +
-    theme_minimal()
-mysaveandstore()
 
 ##################
 grsdf <- read_delim(sprintf("ldna/Rintermediates/%s/grsdf.tsv", params$mod_code), col_names = TRUE)
@@ -3162,23 +3078,12 @@ mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/cpgislandstatusbar
 
 if ((conf$single_condition == "no") & enough_samples_per_condition_for_stats) {
     ######### GENES
-
-
     {
         directions <- c("Hypo", "Hyper", "Dif")
         mydir <- sprintf("ldna/results/%s/plots/great", params$mod_code)
         mydirtables <- sprintf("ldna/results/%s/tables/great", params$mod_code)
         dir.create(mydir, recursive = TRUE, showWarnings = FALSE)
         dir.create(mydirtables, recursive = TRUE, showWarnings = FALSE)
-
-        refseq_gr <- import(conf$refseq_unaltered)
-        genes_gr <- refseq_gr[mcols(refseq_gr)[, "type"] == "gene", ]
-        genes_gr <- genes_gr[seqnames(genes_gr) %in% CHROMOSOMESINCLUDEDINANALYSIS, ]
-        genes_gr <- genes_gr[mcols(genes_gr)[, "source"] %in% c("BestRefSeq", "Curated Genomic", "Gnomon"), ]
-        mcols(genes_gr)$gene_id <- mcols(genes_gr)$Name
-        mcols(genes_gr) %>% colnames()
-        mcols(genes_gr) <- mcols(genes_gr)[, c("gene_id", "ID", "gene_biotype", "source")]
-
         # convert to entrez
         # symbols <- mcols(gr)$Name
         # library(org.Hs.eg.db)
@@ -3193,11 +3098,11 @@ if ((conf$single_condition == "no") & enough_samples_per_condition_for_stats) {
         et_noextension <- extendTSS(genes_gr %>% resize(width = 1), genome_lengths, gene_id_type = "SYMBOL", extension = 0)
     }
 
-    library(clusterProfiler)
-    library(msigdbr)
 
 
     {
+        library(clusterProfiler)
+        library(msigdbr)
         gs <- msigdbr("human")
         # gs %>% filter(grepl("GOBP_HISTONE_H3_K27_TRI", gs_name))
         get_gs_enrichments <- function(gs, gs_ontology_level, outputdir, regionsgrs, etparam, et_mode_string, directions = c("Hypo", "Hyper", "Dif"), background = NULL) {
@@ -3544,1179 +3449,1167 @@ if ((conf$single_condition == "no") & enough_samples_per_condition_for_stats) {
                 error = function(e) {}
             )
         }
+    }
+    ####
 
-        ####
 
-        ####
-        chromHMMgr <- import(conf$chromHMM)
-        chromHMM_enhancers_grs <- chromHMMgr[grepl("Enh*", mcols(chromHMMgr)$name)]
-        chromHMM_pls_grs <- chromHMMgr[grepl("Tss*", mcols(chromHMMgr)$name)]
+    {
+        grsdf_island_status <- grsdf %>%
+            group_by(sample, islandStatus) %>%
+            mutate(methylated_sites = round(cov * pctM / 100)) %>%
+            summarise(methylated_sites = sum(methylated_sites), cov = sum(cov)) %>%
+            mutate(pctM = methylated_sites / cov)
 
-        # enhancers GREAT
-        directions <- c("Hypo", "Hyper", "Dif")
-        mydir <- sprintf("ldna/results/%s/plots/great_ccres_enhancer", params$mod_code)
-        mydirtables <- sprintf("ldna/results/%s/tables/great", params$mod_code)
-        dir.create(mydir, recursive = TRUE, showWarnings = FALSE)
-        dir.create(mydirtables, recursive = TRUE, showWarnings = FALSE)
-
-        ccresdf <- read_delim(conf$ccres, col_names = FALSE)
-        ccresgr <- GRanges(
-            seqnames = ccresdf$X1,
-            ranges = IRanges(start = ccresdf$X2, end = ccresdf$X3),
-            name = ccresdf$X10,
-            UID = ccresdf$X4,
+        dat_tmp <- grsdf_island_status %>%
+            ungroup() %>%
+            dplyr::rename(sample_name = sample) %>%
+            left_join(sample_table %>% mutate(age_z = as.numeric(scale(age))))
+        genomewide_model_islandstatus <- glmmTMB(
+            cbind(methylated_sites, cov - methylated_sites) ~
+                condition * islandStatus + sex + age_z + (1 | sample_name),
+            data = dat_tmp,
+            family = binomial()
         )
-        ccres_enhancers_grs <- ccresgr[mcols(ccresgr)$name == "pELS" | mcols(ccresgr)$name == "dELS"]
+        stats <- broom::tidy(genomewide_model_islandstatus)
 
-        for (dmrtype in dmrs$dmr_type %>% unique()) {
-            regions1 <- mergeByOverlaps(ccres_enhancers_grs, dmrsgr[mcols(dmrsgr)$dmr_type == dmrtype])
-            regions2 <- regions1$ccres_enhancers_grs
-            mcols(regions2)$direction <- as.data.frame(regions1)$direction
-            regions <- as.data.frame(regions2) %>%
-                tibble() %>%
-                distinct() %>%
-                GRanges()
+        p <- grsdf_island_status %>%
+            mutate(pctM = methylated_sites / cov) %>%
+            left_join(sample_table) %>%
+            ggplot() +
+            geom_point(aes(x = islandStatus, y = pctM, color = condition), position = position_dodge(width = 0.75)) +
+            mtopen +
+            scale_conditions +
+            anchorbar
+        mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/mean_meth_islandstatus_genomewide.pdf", params$mod_code), 5, 4, sf = stats, pl = p)
+    }
 
+    {
+        island_promoters <- merge_with_grs(grs[mcols(grs)$islandStatus == "island"], promoters)
 
-            tryCatch(
-                {
-                    get_gs_enrichments(
-                        gs = gs,
-                        gs_ontology_level = "gs_cat",
-                        outputdir = sprintf("%s/%s", mydir, dmrtype),
-                        regionsgrs = regions,
-                        etparam = et,
-                        et_mode_string = "et_withextension",
-                        directions = c("Hyper", "Hypo", "Dif"),
-                        background = ccres_enhancers_grs
-                    )
-                },
-                error = function(e) {}
-            )
-            tryCatch(
-                {
-                    get_gs_enrichments(
-                        gs = gs,
-                        gs_ontology_level = "gs_subcat",
-                        outputdir = sprintf("%s/%s", mydir, dmrtype),
-                        regionsgrs = regions,
-                        etparam = et,
-                        et_mode_string = "et_withextension",
-                        directions = c("Hyper", "Hypo", "Dif"),
-                        background = ccres_enhancers_grs
-                    )
-                },
-                error = function(e) {}
-            )
+        ip <- island_promoters %>%
+            group_by(gene_id, sample, condition) %>%
+            summarise(mean_meth = mean(pctM))
 
 
-            # get_gs_enrichments(gs, "gs_cat", sprintf("%s/%s", mydir, dmrtype), dmrsgr[mcols(dmrsgr)$dmr_type == dmrtype], et, "et")
-            # get_gs_enrichments(gs, "gs_subcat", sprintf("%s/%s", mydir, dmrtype), dmrsgr[mcols(dmrsgr)$dmr_type == dmrtype], et, "et")
-        }
+        ip_mean <- island_promoters %>%
+            group_by(sample, condition) %>%
+            summarise(mean_meth = mean(pctM)) %>%
+            left_join(sample_table %>% mutate(sample = sample_name, age_z = as.numeric(scale(age))))
 
-        {
-            grsdf_island_status <- grsdf %>%
-                group_by(sample, islandStatus) %>%
-                mutate(methylated_sites = round(cov * pctM / 100)) %>%
-                summarise(methylated_sites = sum(methylated_sites), cov = sum(cov)) %>%
-                mutate(pctM = methylated_sites / cov)
 
-            dat_tmp <- grsdf_island_status %>%
-                ungroup() %>%
-                dplyr::rename(sample_name = sample) %>%
-                left_join(sample_table %>% mutate(age_z = as.numeric(scale(age))))
-            genomewide_model_islandstatus <- glmmTMB(
-                cbind(methylated_sites, cov - methylated_sites) ~
-                    condition * islandStatus + sex + age_z + (1 | sample_name),
+        #### multilevel STATS
+        dat_tmp <- island_promoters %>%
+            mutate(methylated_sites = round(cov * pctM / 100), total_sites = cov) %>%
+            dplyr::rename(sample_name = sample) %>%
+            group_by(gene_id, sample_name) %>%
+            summarise(methylated_sites = sum(methylated_sites), total_sites = sum(total_sites)) %>%
+            left_join(sample_table %>% mutate(age_z = as.numeric(scale(age))))
+
+
+        p <- ip_mean %>%
+            mutate(condition = factor(condition, levels = conf$levels)) %>%
+            ggviolin(x = "condition", y = "mean_meth", fill = "condition", add = c("mean_se", "dotplot")) +
+            scale_conditions +
+            scale_conditions +
+            mtopen
+        mysaveandstore(fn = sprintf("ldna/results/%s/plots/genes/mean_meth_point_genomewide_violin.pdf", params$mod_code), 4.5, 3.75)
+
+        p <- ip_mean %>%
+            ggplot(aes(y = sample_name, x = mean_meth, color = condition, shape = !!sym(asc))) +
+            geom_point(size = 3) +
+            scale_conditions +
+            geom_vline(xintercept = ip_mean %>% filter(condition == condition2) %$% mean_meth %>% mean(), color = "blue", linetype = "dashed") +
+            geom_vline(xintercept = ip_mean %>% filter(condition == condition1) %$% mean_meth %>% mean(), color = "grey", linetype = "dashed") +
+            geom_text_repel(aes(label = apoe)) +
+
+            # new_scale_fill() +
+            # geom_tile(aes(x = -1, fill = sex), width = 2) + # Add metadata strip
+            scale_conditions +
+            mtopen
+
+        library(broom)
+        if (enough_samples_per_condition_for_stats) {
+            # stats <- summary(lm(formula(sprintf("%s ~ %s", "mean_meth", lm_right_hand_side)), pf)) %>% tidy()
+
+            gene_model <- glmmTMB(
+                cbind(methylated_sites, total_sites - methylated_sites) ~
+                    condition + sex + age_z + (1 | sample_name) + (1 | gene_id),
                 data = dat_tmp,
                 family = binomial()
             )
-            stats <- broom::tidy(genomewide_model_islandstatus)
-
-            p <- grsdf_island_status %>%
-                mutate(pctM = methylated_sites / cov) %>%
-                left_join(sample_table) %>%
-                ggplot() +
-                geom_point(aes(x = islandStatus, y = pctM, color = condition), position = position_dodge(width = 0.75)) +
-                mtopen +
-                scale_conditions +
-                anchorbar
-            mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/mean_meth_islandstatus_genomewide.pdf", params$mod_code), 5, 4, sf = stats, pl = p)
+            stats <- broom::tidy(gene_model)
+            mysaveandstore(fn = sprintf("ldna/results/%s/plots/genes/mean_meth_point_genomewide.pdf", params$mod_code), 5, 4, sf = stats)
+        } else {
+            mysaveandstore(fn = sprintf("ldna/results/%s/plots/genes/mean_meth_point_genomewide.pdf", params$mod_code), 5, 3.7)
         }
 
-        {
-            promoters <- promoters(genes_gr, upstream = 5000, downstream = 1000)
-            write_delim(tibble(as.data.frame(promoters)) %>% mutate(score = 1000) %>% dplyr::select(seqnames, start, end, gene_id, score, strand), sprintf("ldna/Rintermediates/%s/promoters.bed", params$mod_code), col_names = FALSE, delim = "\t")
+        island_promotersnoX <- island_promoters %>% filter(seqnames != "chrX")
 
-            island_promoters <- merge_with_grs(grs[mcols(grs)$islandStatus == "island"], promoters)
-
-            ip <- island_promoters %>%
-                group_by(gene_id, sample, condition) %>%
-                summarise(mean_meth = mean(pctM))
+        ipnoX <- island_promotersnoX %>%
+            group_by(gene_id, sample, condition) %>%
+            summarise(mean_meth = mean(pctM))
 
 
-            ip_mean <- island_promoters %>%
-                group_by(sample, condition) %>%
-                summarise(mean_meth = mean(pctM)) %>%
-                left_join(sample_table %>% mutate(sample = sample_name, age_z = as.numeric(scale(age))))
+        ip_meannoX <- island_promotersnoX %>%
+            group_by(sample, condition) %>%
+            summarise(mean_meth = mean(pctM)) %>%
+            left_join(sample_table %>% mutate(sample = sample_name, age_z = as.numeric(scale(age))))
 
 
-            #### multilevel STATS
-            dat_tmp <- island_promoters %>%
-                mutate(methylated_sites = round(cov * pctM / 100), total_sites = cov) %>%
-                dplyr::rename(sample_name = sample) %>%
-                group_by(gene_id, sample_name) %>%
-                summarise(methylated_sites = sum(methylated_sites), total_sites = sum(total_sites)) %>%
-                left_join(sample_table %>% mutate(age_z = as.numeric(scale(age))))
+        #### multilevel STATS THIS UP
+        dat_tmp <- island_promotersnoX %>%
+            mutate(methylated_sites = round(cov * pctM / 100), total_sites = cov) %>%
+            dplyr::rename(sample_name = sample) %>%
+            group_by(gene_id, sample_name) %>%
+            summarise(methylated_sites = sum(methylated_sites), total_sites = sum(total_sites)) %>%
+            left_join(sample_table %>% mutate(age_z = as.numeric(scale(age))))
 
 
-            p <- ip_mean %>%
-                mutate(condition = factor(condition, levels = conf$levels)) %>%
-                ggviolin(x = "condition", y = "mean_meth", fill = "condition", add = c("mean_se", "dotplot")) +
-                scale_conditions +
-                scale_conditions +
-                mtopen
-            mysaveandstore(fn = sprintf("ldna/results/%s/plots/genes/mean_meth_point_genomewide_violin.pdf", params$mod_code), 4.5, 3.75)
+        p <- ip_meannoX %>%
+            ggplot(aes(y = sample_name, x = mean_meth, color = condition, shape = !!sym(asc))) +
+            geom_point(size = 3) +
+            scale_conditions +
+            geom_vline(xintercept = ip_mean %>% filter(condition == condition2) %$% mean_meth %>% mean(), color = "blue", linetype = "dashed") +
+            geom_vline(xintercept = ip_mean %>% filter(condition == condition1) %$% mean_meth %>% mean(), color = "grey", linetype = "dashed") +
+            geom_text_repel(aes(label = apoe)) +
+            scale_conditions +
+            mtopen
+        library(broom)
+        if (enough_samples_per_condition_for_stats) {
+            # stats <- summary(lm(formula(sprintf("%s ~ %s", "mean_meth", lm_right_hand_side)), pf)) %>% tidy()
 
-            p <- ip_mean %>%
-                ggplot(aes(y = sample_name, x = mean_meth, color = condition, shape = !!sym(asc))) +
-                geom_point(size = 3) +
-                scale_conditions +
-                geom_vline(xintercept = ip_mean %>% filter(condition == condition2) %$% mean_meth %>% mean(), color = "blue", linetype = "dashed") +
-                geom_vline(xintercept = ip_mean %>% filter(condition == condition1) %$% mean_meth %>% mean(), color = "grey", linetype = "dashed") +
-                geom_text_repel(aes(label = apoe)) +
-
-                # new_scale_fill() +
-                # geom_tile(aes(x = -1, fill = sex), width = 2) + # Add metadata strip
-                scale_conditions +
-                mtopen
-
-            library(broom)
-            if (enough_samples_per_condition_for_stats) {
-                # stats <- summary(lm(formula(sprintf("%s ~ %s", "mean_meth", lm_right_hand_side)), pf)) %>% tidy()
-
-                gene_model <- glmmTMB(
-                    cbind(methylated_sites, total_sites - methylated_sites) ~
-                        condition + sex + age_z + (1 | sample_name) + (1 | gene_id),
-                    data = dat_tmp,
-                    family = binomial()
-                )
-                stats <- broom::tidy(gene_model)
-                mysaveandstore(fn = sprintf("ldna/results/%s/plots/genes/mean_meth_point_genomewide.pdf", params$mod_code), 5, 4, sf = stats)
-            } else {
-                mysaveandstore(fn = sprintf("ldna/results/%s/plots/genes/mean_meth_point_genomewide.pdf", params$mod_code), 5, 3.7)
-            }
-
-            island_promotersnoX <- island_promoters %>% filter(seqnames != "chrX")
-
-            ipnoX <- island_promotersnoX %>%
-                group_by(gene_id, sample, condition) %>%
-                summarise(mean_meth = mean(pctM))
-
-
-            ip_meannoX <- island_promotersnoX %>%
-                group_by(sample, condition) %>%
-                summarise(mean_meth = mean(pctM)) %>%
-                left_join(sample_table %>% mutate(sample = sample_name, age_z = as.numeric(scale(age))))
-
-
-            #### multilevel STATS THIS UP
-            dat_tmp <- island_promotersnoX %>%
-                mutate(methylated_sites = round(cov * pctM / 100), total_sites = cov) %>%
-                dplyr::rename(sample_name = sample) %>%
-                group_by(gene_id, sample_name) %>%
-                summarise(methylated_sites = sum(methylated_sites), total_sites = sum(total_sites)) %>%
-                left_join(sample_table %>% mutate(age_z = as.numeric(scale(age))))
-
-
-            p <- ip_meannoX %>%
-                ggplot(aes(y = sample_name, x = mean_meth, color = condition, shape = !!sym(asc))) +
-                geom_point(size = 3) +
-                scale_conditions +
-                geom_vline(xintercept = ip_mean %>% filter(condition == condition2) %$% mean_meth %>% mean(), color = "blue", linetype = "dashed") +
-                geom_vline(xintercept = ip_mean %>% filter(condition == condition1) %$% mean_meth %>% mean(), color = "grey", linetype = "dashed") +
-                geom_text_repel(aes(label = apoe)) +
-                scale_conditions +
-                mtopen
-            library(broom)
-            if (enough_samples_per_condition_for_stats) {
-                # stats <- summary(lm(formula(sprintf("%s ~ %s", "mean_meth", lm_right_hand_side)), pf)) %>% tidy()
-
-                gene_model <- glmmTMB(
-                    cbind(methylated_sites, total_sites - methylated_sites) ~
-                        condition + sex + age_z + (1 | sample_name) + (1 | gene_id),
-                    data = dat_tmp,
-                    family = binomial()
-                )
-                stats <- broom::tidy(gene_model)
-                mysaveandstore(fn = sprintf("ldna/results/%s/plots/genes/mean_meth_point_genomewide_noX.pdf", params$mod_code), 5, 4, sf = stats)
-            } else {
-                mysaveandstore(fn = sprintf("ldna/results/%s/plots/genes/mean_meth_point_genomewide_noX.pdf", params$mod_code), 5, 3.7)
-            }
-
-            #####
-
-            results <- ip %>%
-                left_join(sample_table) %>%
-                group_by(gene_id) %>%
-                summarise(
-                    model = list(lm(formula(sprintf("%s ~ %s", "mean_meth", lm_right_hand_side)), data = cur_data())),
-                    .groups = "drop"
-                ) %>%
-                mutate(
-                    tidied = map(model, broom::tidy)
-                ) %>%
-                unnest(tidied) %>%
-                filter(term == "conditionCTRL") %>%
-                dplyr::select(gene_id, estimate, p.value) %>%
-                mutate(
-                    padj = p.adjust(p.value, method = "fdr") # Adjust p-values for multiple testing
-                )
-
-            res <- results %>%
-                mutate(signed_log10p = sign(estimate) * abs(log10(p.value))) %>%
-                arrange(-signed_log10p)
-            ordered_by_stat <- setNames(res[["signed_log10p"]], res$gene_id) %>% na.omit()
-            # GSEA untargeted
-            tryCatch(
-                {
-                    gene_sets <- msigdbr(species = confALL$aref$species)
-                },
-                error = function(e) {
-                    gene_sets <<- msigdbr(species = "human")
-                }
+            gene_model <- glmmTMB(
+                cbind(methylated_sites, total_sites - methylated_sites) ~
+                    condition + sex + age_z + (1 | sample_name) + (1 | gene_id),
+                data = dat_tmp,
+                family = binomial()
             )
-            library(clusterProfiler)
-            rm(gse_df)
+            stats <- broom::tidy(gene_model)
+            mysaveandstore(fn = sprintf("ldna/results/%s/plots/genes/mean_meth_point_genomewide_noX.pdf", params$mod_code), 5, 4, sf = stats)
+        } else {
+            mysaveandstore(fn = sprintf("ldna/results/%s/plots/genes/mean_meth_point_genomewide_noX.pdf", params$mod_code), 5, 3.7)
+        }
 
-            for (category in gene_sets %$% gs_cat %>% unique()) {
-                cat(category, "\n")
-                tryCatch({
-                    collection <- category
-                    msigdbr_df <- gene_sets %>% filter(gs_cat == category)
-                    msigdbr_t2g <- msigdbr_df %>%
-                        dplyr::distinct(gs_name, gene_symbol) %>%
-                        as.data.frame()
-                    gse <- GSEA(ordered_by_stat, TERM2GENE = msigdbr_t2g, maxGSSize = 100000, minGSSize = 1)
-                    df <- gse@result %>% tibble()
-                    df$collection <- collection
-                    df$contrast <- str_glue("condition_{condition2}_vs_{condition1}")
-                    # gse_results[[contrast]][[collection]] <- as.data.frame(df) %>% tibble()
-                    if (!exists("gse_df")) {
-                        gse_df <<- df
-                    } else {
-                        gse_df <<- rbind(gse_df, df)
-                    }
-                    genesettheme <- theme_gray() + theme(axis.text.x = element_text(colour = "black"), axis.text.y = element_text(colour = "black"))
+        #####
 
-                    tryCatch(
-                        {
-                            for (num in c(5, 10, 15)) {
-                                dftemp <- arrange(df, -abs(NES)) %>%
-                                    group_by(sign(NES)) %>%
-                                    slice(1:num) %>%
-                                    mutate(log10padj = -log10(p.adjust))
-                                dftemp <- dftemp %>% mutate(Description = str_wrap(as.character(Description) %>% gsub("_", " ", .), width = 40))
-                                dftemp <- dftemp %>% mutate(`Gene Ratio` = 0.01 * as.numeric(gsub("%", "", gsub(",.*", "", gsub("tags=", "", leading_edge)))))
-                                p <- ggplot(dftemp, aes(NES, fct_reorder(Description, NES), fill = log10padj)) +
-                                    geom_col(orientation = "y") +
-                                    scale_fill_gradient(high = "red", low = "white", limits = c(0, 5), oob = scales::squish) +
-                                    mtopen +
-                                    theme(axis.text.y = element_text(colour = "black")) +
-                                    ylab(NULL) +
-                                    labs(caption = contrast_label_map %>% filter(contrast == !!contrast) %$% label)
+        results <- ip %>%
+            left_join(sample_table) %>%
+            group_by(gene_id) %>%
+            summarise(
+                model = list(lm(formula(sprintf("%s ~ %s", "mean_meth", lm_right_hand_side)), data = cur_data())),
+                .groups = "drop"
+            ) %>%
+            mutate(
+                tidied = map(model, broom::tidy)
+            ) %>%
+            unnest(tidied) %>%
+            filter(term == "conditionCTRL") %>%
+            dplyr::select(gene_id, estimate, p.value) %>%
+            mutate(
+                padj = p.adjust(p.value, method = "fdr") # Adjust p-values for multiple testing
+            )
 
-                                mysaveandstore(sprintf("%s/%s/gsea/%s/nes%s.pdf", params[["outputdir"]], contrast, collection, num), w = 8, h = min(num, 7), res = 300)
+        res <- results %>%
+            mutate(signed_log10p = sign(estimate) * abs(log10(p.value))) %>%
+            arrange(-signed_log10p)
+        ordered_by_stat <- setNames(res[["signed_log10p"]], res$gene_id) %>% na.omit()
+        # GSEA untargeted
+        tryCatch(
+            {
+                gene_sets <- msigdbr(species = confALL$aref$species)
+            },
+            error = function(e) {
+                gene_sets <<- msigdbr(species = "human")
+            }
+        )
+        library(clusterProfiler)
+        rm(gse_df)
 
-                                p <- ggplot(dftemp, aes(`Gene Ratio`, fct_reorder(Description, `Gene Ratio`), fill = -log10(p.adjust) * `sign(NES)`)) +
-                                    geom_col(orientation = "y") +
-                                    scale_fill_gradient2(high = "red", mid = "white", low = "blue") +
-                                    mtopen +
-                                    theme(axis.text.y = element_text(colour = "black")) +
-                                    ylab(NULL) +
-                                    guides(fill = guide_legend(title = "Signed \n-log10(p.adjust)")) +
-                                    labs(caption = contrast_label_map %>% filter(contrast == !!contrast) %$% label)
+        for (category in gene_sets %$% gs_cat %>% unique()) {
+            cat(category, "\n")
+            tryCatch({
+                collection <- category
+                msigdbr_df <- gene_sets %>% filter(gs_cat == category)
+                msigdbr_t2g <- msigdbr_df %>%
+                    dplyr::distinct(gs_name, gene_symbol) %>%
+                    as.data.frame()
+                gse <- GSEA(ordered_by_stat, TERM2GENE = msigdbr_t2g, maxGSSize = 100000, minGSSize = 1)
+                df <- gse@result %>% tibble()
+                df$collection <- collection
+                df$contrast <- str_glue("condition_{condition2}_vs_{condition1}")
+                # gse_results[[contrast]][[collection]] <- as.data.frame(df) %>% tibble()
+                if (!exists("gse_df")) {
+                    gse_df <<- df
+                } else {
+                    gse_df <<- rbind(gse_df, df)
+                }
+                genesettheme <- theme_gray() + theme(axis.text.x = element_text(colour = "black"), axis.text.y = element_text(colour = "black"))
 
-                                mysaveandstore(sprintf("%s/%s/gsea/%s/dot%s.pdf", params[["outputdir"]], contrast, collection, num), w = 7.5, h = min(num, 10), res = 300)
-                            }
-                        },
-                        error = function(e) {
-                            print("")
+                tryCatch(
+                    {
+                        for (num in c(5, 10, 15)) {
+                            dftemp <- arrange(df, -abs(NES)) %>%
+                                group_by(sign(NES)) %>%
+                                slice(1:num) %>%
+                                mutate(log10padj = -log10(p.adjust))
+                            dftemp <- dftemp %>% mutate(Description = str_wrap(as.character(Description) %>% gsub("_", " ", .), width = 40))
+                            dftemp <- dftemp %>% mutate(`Gene Ratio` = 0.01 * as.numeric(gsub("%", "", gsub(",.*", "", gsub("tags=", "", leading_edge)))))
+                            p <- ggplot(dftemp, aes(NES, fct_reorder(Description, NES), fill = log10padj)) +
+                                geom_col(orientation = "y") +
+                                scale_fill_gradient(high = "red", low = "white", limits = c(0, 5), oob = scales::squish) +
+                                mtopen +
+                                theme(axis.text.y = element_text(colour = "black")) +
+                                ylab(NULL) +
+                                labs(caption = contrast_label_map %>% filter(contrast == !!contrast) %$% label)
+
+                            mysaveandstore(sprintf("%s/%s/gsea/%s/nes%s.pdf", params[["outputdir"]], contrast, collection, num), w = 8, h = min(num, 7), res = 300)
+
+                            p <- ggplot(dftemp, aes(`Gene Ratio`, fct_reorder(Description, `Gene Ratio`), fill = -log10(p.adjust) * `sign(NES)`)) +
+                                geom_col(orientation = "y") +
+                                scale_fill_gradient2(high = "red", mid = "white", low = "blue") +
+                                mtopen +
+                                theme(axis.text.y = element_text(colour = "black")) +
+                                ylab(NULL) +
+                                guides(fill = guide_legend(title = "Signed \n-log10(p.adjust)")) +
+                                labs(caption = contrast_label_map %>% filter(contrast == !!contrast) %$% label)
+
+                            mysaveandstore(sprintf("%s/%s/gsea/%s/dot%s.pdf", params[["outputdir"]], contrast, collection, num), w = 7.5, h = min(num, 10), res = 300)
                         }
-                    )
-                })
-            }
-
-
-
-            ipcondition <- ip %>%
-                group_by(gene_id, condition) %>%
-                mutate(mean_meth = mean(mean_meth)) %>%
-                group_by(gene_id, condition) %>%
-                mutate(nrow = row_number()) %>%
-                filter(nrow == 1) %>%
-                dplyr::select(-nrow, -sample) %>%
-                pivot_wider(id_cols = gene_id, names_from = condition, values_from = mean_meth) %>%
-                mutate(dif = !!sym(condition2) - !!sym(condition1))
-
-
-            ipcondition %>%
-                arrange(dif) %>%
-                head(n = 30) %>%
-                print(n = 30)
-            ipcondition %>%
-                arrange(-dif) %>%
-                head(n = 30) %>%
-                print(n = 30)
-
-
-            ipwide <- ip %>%
-                dplyr::select(-condition) %>%
-                pivot_wider(names_from = sample, values_from = mean_meth)
-
-            ipwide %>% filter(gene_id == "LOC112268283")
-
-            library(dplyr)
-            library(broom)
-
-            results <- ip %>%
-                group_by(gene_id) %>%
-                summarise(
-                    model = list(lm(mean_meth ~ condition, data = cur_data())),
-                    .groups = "drop"
-                ) %>%
-                mutate(
-                    tidied = map(model, broom::tidy)
-                ) %>%
-                unnest(tidied) %>%
-                filter(term == "conditionCTRL") %>%
-                dplyr::select(gene_id, estimate, p.value) %>%
-                mutate(
-                    log2FC = log2(exp(estimate)), # Convert from natural log to log2 fold-change
-                    padj = p.adjust(p.value, method = "BH") # Adjust p-values
-                )
-
-            results %>% filter(p.value < 0.05)
-
-            ipwide %>% filter(gene_id == "AGBL4-AS1")
-
-            # View results
-            head(results)
-            ## END NEW CODE
-
-
-
-            threshold_dfs <- list()
-            for (dmrtype in dmrs$dmr_type %>% unique()) {
-                dmrsgr_temp <- dmrsgr[mcols(dmrsgr)$dmr_type == dmrtype]
-                hyporegions <- dmrsgr_temp[grepl("Hypo", dmrsgr_temp$direction)]
-                hyperregions <- dmrsgr_temp[grepl("Hyper", dmrsgr_temp$direction)]
-
-                write_delim(tibble(as.data.frame(GenomicRanges::intersect(promoters, dmrsgr_temp, ignore.strand = TRUE))), sprintf("ldna/Rintermediates/%s/promoters_%s.bed", params$mod_code, dmrtype), col_names = FALSE, delim = "\t")
-                write_delim(tibble(as.data.frame(GenomicRanges::intersect(promoters, hyporegions, ignore.strand = TRUE))), sprintf("ldna/Rintermediates/%s/promoters_hypo_%s.bed", params$mod_code, dmrtype), col_names = FALSE, delim = "\t")
-                write_delim(tibble(as.data.frame(GenomicRanges::intersect(promoters, hyperregions, ignore.strand = TRUE))), sprintf("ldna/Rintermediates/%s/promoters_hyper_%s.bed", params$mod_code, dmrtype), col_names = FALSE, delim = "\t")
-
-                hypo <- mcols(subsetByOverlaps(promoters, hyporegions))$gene_id
-                hyper <- mcols(subsetByOverlaps(promoters, hyperregions))$gene_id
-                disc <- intersect(hypo, hyper)
-                hypo_nd <- setdiff(hypo, disc)
-                hyper_nd <- setdiff(hyper, disc)
-
-
-
-                threshold_df <- bind_rows(
-                    tibble(gene_id = hypo_nd, !!sym(dmrtype) := "Hypo"),
-                    tibble(gene_id = hyper_nd, !!sym(dmrtype) := "Hyper"),
-                    tibble(gene_id = disc, !!sym(dmrtype) := "Discordant")
-                )
-                threshold_dfs[[dmrtype]] <- threshold_df
-            }
-            thresholddf <- purrr::reduce(threshold_dfs, full_join)
-            promoters_df <- full_join(tibble(as.data.frame(promoters)), thresholddf) %>%
-                filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS) %>%
-                pivot_longer(cols = c("t05", "t01"), names_to = "dmr_type", values_to = "direction") %>%
-                mutate(direction = factor(direction, levels = c("Discordant", "Hyper", "Hypo")))
-
-            total_possible <- nrow(mcols(promoters))
-
-            p <- promoters_df %>%
-                group_by(dmr_type, direction) %>%
-                summarise(n = n()) %>%
-                ungroup() %>%
-                tidyr::complete(dmr_type, direction, fill = list(n = 0)) %>%
-                filter(!is.na(direction)) %>%
-                mutate(direction_threshold = paste0(direction, "_", gsub("t", "", dmr_type))) %>%
-                ggplot() +
-                geom_col(data = . %>% filter(dmr_type == "t05"), aes(x = direction, y = n, fill = direction_threshold), color = "black") +
-                geom_col(data = . %>% filter(dmr_type == "t01"), aes(x = direction, y = n, fill = direction_threshold), color = "black") +
-                ggtitle("Promoter Methylation") +
-                labs(x = "Direction", y = str_glue("Count (out of {total_possible})")) +
-                theme(legend.position = "none") +
-                annotation_logticks(sides = "l") +
-                scale_y_log10(
-                    breaks = scales::trans_breaks("log10", function(x) 10^x),
-                    labels = scales::trans_format("log10", math_format(10^.x))
-                ) +
-                mtopen +
-                scale_methylation_thresholds
-            mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/genes/genes_concordance.pdf", params$mod_code), 5, 4)
-
-            threshold_dfs <- list()
-            for (dmrtype in dmrs$dmr_type %>% unique()) {
-                dmrsgr_temp <- dmrsgr[mcols(dmrsgr)$dmr_type == dmrtype]
-                hyporegions <- dmrsgr_temp[grepl("Hypo", dmrsgr_temp$direction)]
-                hyperregions <- dmrsgr_temp[grepl("Hyper", dmrsgr_temp$direction)]
-                chromHMM_enhancers_grs_with_id <- chromHMM_enhancers_grs
-                mcols(chromHMM_enhancers_grs_with_id)$ID <- paste0("ID", 1:nrow(mcols(chromHMM_enhancers_grs)))
-                write_delim(tibble(as.data.frame(GenomicRanges::intersect(chromHMM_enhancers_grs_with_id, dmrsgr_temp, ignore.strand = TRUE))), sprintf("ldna/Rintermediates/%s/chromHMM_enhancers_%s.bed", params$mod_code, dmrtype), col_names = FALSE, delim = "\t")
-                write_delim(tibble(as.data.frame(GenomicRanges::intersect(chromHMM_enhancers_grs_with_id, hyporegions, ignore.strand = TRUE))), sprintf("ldna/Rintermediates/%s/chromHMM_enhancers_hypo_%s.bed", params$mod_code, dmrtype), col_names = FALSE, delim = "\t")
-                write_delim(tibble(as.data.frame(GenomicRanges::intersect(chromHMM_enhancers_grs_with_id, hyperregions, ignore.strand = TRUE))), sprintf("ldna/Rintermediates/%s/chromHMM_enhancers_hyper_%s.bed", params$mod_code, dmrtype), col_names = FALSE, delim = "\t")
-
-                hypo <- mcols(subsetByOverlaps(chromHMM_enhancers_grs_with_id, hyporegions))$ID
-                hyper <- mcols(subsetByOverlaps(chromHMM_enhancers_grs_with_id, hyperregions))$ID
-                disc <- intersect(hypo, hyper)
-                hypo_nd <- setdiff(hypo, disc)
-                hyper_nd <- setdiff(hyper, disc)
-
-                threshold_df <- bind_rows(
-                    tibble(ID = hypo_nd, !!sym(dmrtype) := "Hypo"),
-                    tibble(ID = hyper_nd, !!sym(dmrtype) := "Hyper"),
-                    tibble(ID = disc, !!sym(dmrtype) := "Discordant")
-                )
-                threshold_dfs[[dmrtype]] <- threshold_df
-            }
-            thresholddf <- purrr::reduce(threshold_dfs, full_join)
-            enh_df <- full_join(tibble(as.data.frame(chromHMM_enhancers_grs_with_id)), thresholddf) %>%
-                filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS) %>%
-                pivot_longer(cols = c("t05", "t01"), names_to = "dmr_type", values_to = "direction") %>%
-                mutate(direction = factor(direction, levels = c("Discordant", "Hyper", "Hypo")))
-
-            total_possible <- nrow(mcols(chromHMM_enhancers_grs))
-
-            p <- enh_df %>%
-                group_by(dmr_type, direction) %>%
-                summarise(n = n()) %>%
-                ungroup() %>%
-                tidyr::complete(dmr_type, direction, fill = list(n = 0)) %>%
-                filter(!is.na(direction)) %>%
-                mutate(direction_threshold = paste0(direction, "_", gsub("t", "", dmr_type))) %>%
-                ggplot() +
-                geom_col(data = . %>% filter(dmr_type == "t05"), aes(x = direction, y = n, fill = direction_threshold), color = "black") +
-                geom_col(data = . %>% filter(dmr_type == "t01"), aes(x = direction, y = n, fill = direction_threshold), color = "black") +
-                ggtitle("Enhancer Methylation") +
-                labs(x = "Direction", y = str_glue("Count (out of {total_possible})")) +
-                theme(legend.position = "none") +
-                annotation_logticks(sides = "l") +
-                scale_y_log10(
-                    breaks = scales::trans_breaks("log10", function(x) 10^x),
-                    labels = scales::trans_format("log10", math_format(10^.x))
-                ) +
-                mtopen +
-                scale_methylation_thresholds
-            mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/genes/enhancer_concordance.pdf", params$mod_code), 5, 4)
-            #####
-            enh_df %>% bind_rows()
-            prom_enh_df <- promoters_df %>%
-                mutate(biotype = "Promoter") %>%
-                filter(!is.na(direction)) %>%
-                dplyr::select(direction, biotype, dmr_type, ID) %>%
-                bind_rows(enh_df %>% mutate(biotype = "Enhancer") %>% filter(!is.na(direction)) %>% dplyr::select(direction, dmr_type, biotype, ID))
-            p <- prom_enh_df %>%
-                group_by(dmr_type, direction, biotype) %>%
-                summarise(n = n()) %>%
-                ungroup() %>%
-                tidyr::complete(dmr_type, direction, biotype, fill = list(n = 0)) %>%
-                filter(direction != "Discordant") %>%
-                filter(!is.na(direction)) %>%
-                mutate(direction_threshold = paste0(direction, "_", gsub("t", "", dmr_type))) %>%
-                ggplot() +
-                geom_col(data = . %>% filter(dmr_type == "t05"), aes(x = biotype, y = n, fill = direction_threshold), color = "black", position = "dodge2") +
-                geom_col(data = . %>% filter(dmr_type == "t01"), aes(x = biotype, y = n, fill = direction_threshold), color = "black", position = "dodge2") +
-                ggtitle("Enhancer Methylation") +
-                labs(x = "Direction", y = str_glue("Count")) +
-                theme(legend.position = "none") +
-                annotation_logticks(sides = "l") +
-                scale_y_log10(
-                    breaks = scales::trans_breaks("log10", function(x) 10^x),
-                    labels = scales::trans_format("log10", math_format(10^.x))
-                ) +
-                mtopen +
-                scale_methylation_thresholds
-            mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/genes/prom_enhancer_concordance.pdf", params$mod_code), 5, 4)
-
-            # dmrsgr_enh <- dmrsgr %>% subsetByOverlaps(chromHMM_enhancers_grs)
-            # dmrsgr_prom <- dmrsgr %>% subsetByOverlaps(promoters)
-            # length_overlap <- dmrsgr_enh %>% subsetByOverlaps(dmrsgr_prom) %>% mcols() %>% nrow()
-            # perc_prom_in_enh <- length_overlap/nrow(mcols(dmrsgr_prom))
-            # perc_enh_in_prom <- length_overlap/nrow(mcols(dmrsgr_enh))
-            enh_in_dmrs <- chromHMM_enhancers_grs %>% subsetByOverlaps(dmrsgr)
-            prom_in_dmrs <- promoters %>% subsetByOverlaps(dmrsgr)
-            enh_intersect <- enh_in_dmrs %>%
-                subsetByOverlaps(prom_in_dmrs) %>%
-                mcols() %>%
-                nrow()
-            perc_prom_in_enh <- enh_intersect / nrow(mcols(dmrsgr_prom))
-            prom_intersect <- prom_in_dmrs %>%
-                subsetByOverlaps(enh_in_dmrs) %>%
-                mcols() %>%
-                nrow()
-            perc_enh_in_prom <- prom_intersect / nrow(mcols(dmrsgr_enh))
-
-            #####
-
-
-            for (dmrtype in dmrs$dmr_type %>% unique()) {
-                library(clusterProfiler)
-                hypo_genes <- promoters_df %>% filter(direction == "Hypo") %$% gene_id
-                hyper_genes <- promoters_df %>% filter(direction == "Hyper") %$% gene_id
-                background <- mcols(promoters)$gene_id
-
-                gs <- msigdbr("human")
-                tablesORA_subcollection <- list()
-                results_ORA_hypo <- list()
-                results_ORA_hyper <- list()
-                genesubcollections <- gs$gs_subcat %>% unique()
-                for (collection in genesubcollections) {
-                    term2gene <- gs %>%
-                        filter(gs_subcat == collection) %>%
-                        dplyr::rename(term = gs_name, gene = gene_symbol) %>%
-                        select(term, gene)
-                    res_hypo <- enricher(hypo_genes, universe = background, TERM2GENE = term2gene, pAdjustMethod = "fdr")
-
-                    results_ORA_hypo[[collection]] <- res_hypo %>% as.data.frame()
-
-                    res_hyper <- enricher(hyper_genes, universe = background, TERM2GENE = term2gene, pAdjustMethod = "fdr")
-
-                    results_ORA_hyper[[collection]] <- res_hyper %>% as.data.frame()
-                }
-
-
-
-                ## DMR intersection
-                {
-                    # load annotations of interest
-                    ccresdf <- read_delim(conf$ccres, col_names = FALSE)
-                    ccresgr <- GRanges(
-                        seqnames = ccresdf$X1,
-                        ranges = IRanges(start = ccresdf$X2, end = ccresdf$X3),
-                        name = ccresdf$X10,
-                        UID = ccresdf$X4,
-                    )
-
-                    chromHMMgr <- import(conf$chromHMM)
-                    width(chromHMMgr) %>% sum()
-
-                    prom_no_mcols <- promoters
-                    mcols(prom_no_mcols) <- NULL
-                    mcols(prom_no_mcols)$name <- "prom"
-                    enh_no_mcols <- chromHMM_enhancers_grs
-                    mcols(enh_no_mcols) <- NULL
-                    mcols(enh_no_mcols)$name <- "enh"
-                    prom_enh <- c(enh_no_mcols, prom_no_mcols)
-
-
-                    fa <- Rsamtools::FaFile(confALL$aref$ref)
-                    genome_size_chrfiltered <- seqinfo(fa) %>%
-                        data.frame() %>%
-                        rownames_to_column("seqnames") %>%
-                        filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS) %$%
-                        seqlengths %>%
-                        sum()
-
-                    cpgi_features_temp <- cpgi_features
-                    mcols(cpgi_features_temp)$name <- mcols(cpgi_features_temp)$name %>% gsub("CpG.*", "Island", .)
-
-                    # Create a GRanges object covering the whole genome
-                    genome_ranges <- seqinfo(fa) %>%
-                        data.frame() %>%
-                        rownames_to_column("seqnames") %>%
-                        filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS) %>%
-                        tibble() %>%
-                        mutate(start = 1, end = seqlengths) %>%
-                        dplyr::select(seqnames, start, end) %>%
-                        GRanges()
-
-                    # Remove CpG islands from the genome
-                    open_sea_regions <- GenomicRanges::setdiff(genome_ranges, reduce(cpgi_features))
-                    mcols(open_sea_regions)$name <- "OpenSea"
-                    cpgi_features_forenrichment <- c(cpgi_features_temp, open_sea_regions)
-
-                    annotations_of_interest <- list(cpgi = cpgi_features_forenrichment, flrteprom = flrtepromoter_for_enchment, chromHMM = chromHMMgr, cCREs = ccresgr, prom_enh = prom_enh)
-                    # note I should be testing for enrichment of these sets too
-                    for (annotation_of_interest in names(annotations_of_interest)) {
-                        annotdf <- as.data.frame(annotations_of_interest[[annotation_of_interest]]) %>%
-                            tibble() %>%
-                            filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS)
-                        annot <- GRanges(annotdf)
-                        region_split <- split(annot, annot$name)
-                        enrichments_nested <- map(
-                            dmrsgr_split,
-                            ~ map(region_split, function(region) get_region_enrichment(.x, region, genome_size = genome_size_chrfiltered)) %>%
-                                as.data.frame() %>%
-                                as.matrix() %>%
-                                t() %>%
-                                as.data.frame() %>%
-                                rownames_to_column("name")
-                        )
-                        enrichdf <- bind_rows(enrichments_nested, .id = "type") %>%
-                            tibble() %>%
-                            mutate(direction_threshold = sub("t", "", type)) %>%
-                            {
-                                if (annotation_of_interest == "chromHMM") {
-                                    mutate(.,
-                                        name = factor(name, levels = c(
-                                            "TssA", "TssFlnk", "TssFlnkU", "TssFlnkD", "TssBiv",
-                                            "Tx", "TxWk",
-                                            "EnhG1", "EnhG2",
-                                            "EnhA1", "EnhA2",
-                                            "EnhWk",
-                                            "EnhBiv",
-                                            "Het",
-                                            "ZNF.Rpts",
-                                            "ReprPC",
-                                            "ReprPCWk",
-                                            "Quies"
-                                        ))
-                                    )
-                                } else if (annotation_of_interest == "flrteprom") {
-                                    mutate(.,
-                                        name = factor(name, levels = rev(c(
-                                            "AluY", "HERVK_LTR",
-                                            "HERVL_LTR",
-                                            "L1HS",
-                                            "L1PA2",
-                                            "L1PA3",
-                                            "L1PA4",
-                                            "L1PA5",
-                                            "L1PA6"
-                                        )))
-                                    )
-                                } else {
-                                    .
-                                }
-                            }
-
-
-                        p <- enrichdf %>%
-                            ggplot(aes(y = name, x = log(fold_enrichment), fill = direction_threshold)) +
-                            geom_col(position = "dodge", color = "black") +
-                            scale_methylation_thresholds +
-                            mtclosedgridv
-                        mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/dmr_enrichments_in_%s.pdf", params$mod_code, annotation_of_interest, annotation_of_interest), 6, 4)
-
-                        p <- enrichdf %>%
-                            filter(direction_threshold %in% c("Hyper_05", "Hypo_05")) %>%
-                            ggplot(aes(y = name, x = log(fold_enrichment), fill = direction_threshold)) +
-                            geom_col(position = "dodge", color = "black") +
-                            scale_methylation_thresholds +
-                            mtclosedgridv
-                        mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/dmr_enrichments_in_%s_05.pdf", params$mod_code, annotation_of_interest, annotation_of_interest), 6, 4)
-
-                        max_abs <- log(max(abs(enrichdf %>% filter(fold_enrichment != 0) %$% fold_enrichment))) * 1.1
-
-                        p <- enrichdf %>%
-                            mutate(direction = gsub("_.*", "", direction_threshold)) %>%
-                            ggplot(aes(y = name, x = log(fold_enrichment), fill = direction_threshold)) +
-                            geom_col(position = "dodge", color = "black") +
-                            geom_vline(xintercept = 0, color = "green") +
-                            coord_cartesian(xlim = c(-max_abs, max_abs)) +
-                            facet_wrap(~direction) +
-                            scale_methylation_thresholds +
-                            ggtitle("Enrichments") +
-                            mtclosedgridv
-                        mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/dmr_enrichments_in_%s_facet.pdf", params$mod_code, annotation_of_interest, annotation_of_interest), 6, 4)
-
-                        p <- enrichdf %>%
-                            mutate(direction = gsub("_.*", "", direction_threshold)) %>%
-                            ggplot(aes(y = name, x = log(fold_enrichment), fill = direction_threshold)) +
-                            geom_col(position = "dodge", color = "black") +
-                            geom_vline(xintercept = 0, color = "green") +
-                            facet_wrap(~direction) +
-                            scale_methylation_thresholds +
-                            ggtitle("Enrichments") +
-                            mtclosedgridv
-                        mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/dmr_enrichments_in_%s_facet_noaxislimmirror.pdf", params$mod_code, annotation_of_interest, annotation_of_interest), 6, 4)
-
-                        p <- enrichdf %>%
-                            mutate(direction = gsub("_.*", "", direction_threshold)) %>%
-                            ggplot(aes(y = name, x = log(fold_enrichment), color = direction_threshold)) +
-                            geom_point() +
-                            geom_vline(xintercept = 0, linetype = "dashed") +
-                            coord_cartesian(xlim = c(-max_abs, max_abs)) +
-                            facet_wrap(~direction) +
-                            scale_methylation_thresholds +
-                            ggtitle("Enrichments") +
-                            mtclosedgridv
-                        mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/dmr_enrichments_in_%s_facet_dot.pdf", params$mod_code, annotation_of_interest, annotation_of_interest), 6, 4)
-
-                        mbo <- mergeByOverlaps(annot, dmrsgr)
-                        mbodf <- tibble(as.data.frame(mbo)) %>%
-                            {
-                                if (annotation_of_interest == "chromHMM") {
-                                    mutate(.,
-                                        annot.name = factor(annot.name, levels = c(
-                                            "TssA", "TssFlnk", "TssFlnkU", "TssFlnkD", "TssBiv",
-                                            "Tx", "TxWk",
-                                            "EnhG1", "EnhG2",
-                                            "EnhA1", "EnhA2",
-                                            "EnhWk",
-                                            "EnhBiv",
-                                            "Het",
-                                            "ZNF.Rpts",
-                                            "ReprPC",
-                                            "ReprPCWk",
-                                            "Quies"
-                                        ))
-                                    )
-                                } else if (annotation_of_interest == "flrteprom") {
-                                    mutate(.,
-                                        annot.name = factor(annot.name, levels = rev(c(
-                                            "AluY", "HERVK_LTR",
-                                            "HERVL_LTR",
-                                            "L1HS",
-                                            "L1PA2",
-                                            "L1PA3",
-                                            "L1PA4",
-                                            "L1PA5",
-                                            "L1PA6"
-                                        )))
-                                    )
-                                } else if (annotation_of_interest == "cCREs") {
-                                    mutate(.,
-                                        annot.name = factor(annot.name,
-                                            levels =
-                                                c(
-                                                    "PLS,CTCF-bound", "PLS",
-                                                    "pELS,CTCF-bound", "pELS",
-                                                    "dELS,CTCF-bound",
-                                                    "dELS",
-                                                    "DNase-H3K4me3,CTCF-bound",
-                                                    "CTCF-only,CTCF-bound",
-                                                    "DNase-H3K4me3",
-                                                    "DNase-only"
-                                                )
-                                        )
-                                    )
-                                } else {
-                                    .
-                                }
-                            }
-
-
-
-                        p <- mbodf %>%
-                            group_by(annot.name, dmr_type, direction) %>%
-                            summarise(n = n()) %>%
-                            ggplot() +
-                            geom_col(aes(x = annot.name, y = n, fill = direction), position = "dodge", color = "black") +
-                            labs(x = "") +
-                            coord_flip() +
-                            ggtitle(str_glue("{annotation_of_interest} Methylation")) +
-                            scale_y_continuous(expand = expansion(mult = c(0, .1))) +
-                            mtopen +
-                            scale_methylation
-                        mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/dmrs_in_%s.pdf", params$mod_code, annotation_of_interest, annotation_of_interest), 6, 4)
-
-                        library(scales)
-                        p <- mbodf %>%
-                            filter(dmr_type != "t05CG10") %>%
-                            filter(dmr_type != "t001") %>%
-                            group_by(annot.name, direction, dmr_type) %>%
-                            summarize(n = n()) %>%
-                            ungroup() %>% # Summarize with groups dropped for completeness
-                            tidyr::complete(annot.name, direction, dmr_type, fill = list(n = 0)) %>%
-                            mutate(direction_threshold = paste0(direction, "_", gsub("t", "", dmr_type))) %>%
-                            ggplot() +
-                            geom_col(data = . %>% filter(dmr_type == "t05"), aes(x = annot.name, y = n, group = direction, fill = direction_threshold), position = position_dodge(preserve = "single"), color = "black") +
-                            geom_col(data = . %>% filter(dmr_type == "t01"), aes(x = annot.name, y = n, group = direction, fill = direction_threshold), position = position_dodge(preserve = "single"), color = "black") +
-                            labs(x = "") +
-                            coord_flip() +
-                            ggtitle(sprintf("%s Methylation", annotation_of_interest)) +
-                            annotation_logticks(sides = "b") +
-                            scale_y_log10(
-                                breaks = scales::trans_breaks("log10", function(x) 10^x),
-                                labels = scales::trans_format("log10", math_format(10^.x))
-                            ) +
-                            mtopen +
-                            scale_methylation_thresholds
-                        mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/dmrs_in_%s_log.pdf", params$mod_code, annotation_of_interest, annotation_of_interest), 6, 4)
-
-                        p <- mbodf %>%
-                            filter(dmr_type != "t05CG10") %>%
-                            filter(dmr_type != "t001") %>%
-                            group_by(annot.name, direction, dmr_type) %>%
-                            summarize(n = n()) %>%
-                            ungroup() %>% # Summarize with groups dropped for completeness
-                            tidyr::complete(annot.name, direction, dmr_type, fill = list(n = 0)) %>%
-                            mutate(direction_threshold = paste0(direction, "_", gsub("t", "", dmr_type))) %>%
-                            ggplot() +
-                            geom_col(data = . %>% filter(dmr_type == "t05"), aes(x = annot.name, y = n, group = direction, fill = direction_threshold), position = position_dodge(preserve = "single"), color = "black") +
-                            geom_col(data = . %>% filter(dmr_type == "t01"), aes(x = annot.name, y = n, group = direction, fill = direction_threshold), position = position_dodge(preserve = "single"), color = "black") +
-                            labs(x = "") +
-                            geom_text(
-                                data = . %>% filter(dmr_type %in% c("t01", "t05")),
-                                aes(x = annot.name, y = n * 1.1, label = n, group = direction_threshold), # use direction_threshold for dodging
-                                position = position_dodge2(width = 0.9, preserve = "single"),
-                                vjust = 0, # 0 = top-aligned; more predictable than vjust=1 on log scale
-                                size = 3
-                            ) +
-                            coord_flip() +
-                            ggtitle(sprintf("%s Methylation", annotation_of_interest)) +
-                            annotation_logticks(sides = "b") +
-                            scale_y_log10(
-                                breaks = scales::trans_breaks("log10", function(x) 10^x),
-                                labels = scales::trans_format("log10", math_format(10^.x))
-                            ) +
-                            mtopen +
-                            scale_methylation_thresholds
-                        mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/dmrs_in_%s_log_numannot.pdf", params$mod_code, annotation_of_interest, annotation_of_interest), 6, 4)
-
-                        total <- annotdf %>%
-                            group_by(name) %>%
-                            summarize(n = n())
-                        totaldm <- mbodf %>%
-                            group_by(annot.name, direction, dmr_type) %>%
-                            summarize(n = n()) %>%
-                            ungroup() %>% # Summarize with groups dropped for completeness
-                            tidyr::complete(annot.name, direction, dmr_type, fill = list(n = 0)) %>%
-                            mutate(direction_threshold = paste0(direction, "_", gsub("t", "", dmr_type)))
-
-                        pctdm <- left_join(totaldm, total, by = c("annot.name" = "name")) %>%
-                            mutate(pct = 100 * n.x / n.y) %>%
-                            mutate(myaxis = paste0(annot.name, "\n", "n=", n.y)) %>%
-                            drop_na() %>%
-                            {
-                                if (annotation_of_interest == "chromHMM") {
-                                    mutate(.,
-                                        annot.name = factor(annot.name, levels = c(
-                                            "TssA", "TssFlnk", "TssFlnkU", "TssFlnkD", "TssBiv",
-                                            "Tx", "TxWk",
-                                            "EnhG1", "EnhG2",
-                                            "EnhA1", "EnhA2",
-                                            "EnhWk",
-                                            "EnhBiv",
-                                            "Het",
-                                            "ZNF.Rpts",
-                                            "ReprPC",
-                                            "ReprPCWk",
-                                            "Quies"
-                                        ))
-                                    )
-                                } else if (annotation_of_interest == "flrteprom") {
-                                    mutate(.,
-                                        annot.name = factor(annot.name, levels = rev(c(
-                                            "AluY", "HERVK_LTR",
-                                            "HERVL_LTR",
-                                            "L1HS",
-                                            "L1PA2",
-                                            "L1PA3",
-                                            "L1PA4",
-                                            "L1PA5",
-                                            "L1PA6"
-                                        )))
-                                    )
-                                } else if (annotation_of_interest == "cCREs") {
-                                    mutate(.,
-                                        annot.name = factor(annot.name,
-                                            levels =
-                                                c(
-                                                    "PLS,CTCF-bound", "PLS",
-                                                    "pELS,CTCF-bound", "pELS",
-                                                    "dELS,CTCF-bound",
-                                                    "dELS",
-                                                    "DNase-H3K4me3,CTCF-bound",
-                                                    "CTCF-only,CTCF-bound",
-                                                    "DNase-H3K4me3",
-                                                    "DNase-only"
-                                                )
-                                        )
-                                    )
-                                } else {
-                                    .
-                                }
-                            }
-
-                        p <- pctdm %>% ggplot() +
-                            geom_col(data = . %>% filter(dmr_type == "t05"), aes(x = myaxis, y = pct, group = direction, fill = direction_threshold), position = position_dodge(), color = "black") +
-                            geom_col(data = . %>% filter(dmr_type == "t01"), aes(x = myaxis, y = pct, group = direction, fill = direction_threshold), position = position_dodge(), color = "black") +
-                            labs(x = "", y = "Pct Differentially Methylated") +
-                            theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
-                            ggtitle(sprintf("%s Methylation", annotation_of_interest)) +
-                            coord_flip() +
-                            scale_y_continuous(expand = expansion(mult = c(0, .1))) +
-                            mtopen +
-                            scale_methylation_thresholds
-                        mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/dmrs_in_%s_pct.pdf", params$mod_code, annotation_of_interest, annotation_of_interest), 6, 4)
-
-                        p <- pctdm %>% ggplot() +
-                            geom_col(data = . %>% filter(dmr_type == "t05"), aes(x = annot.name, y = pct, group = direction, fill = direction_threshold), position = position_dodge(), color = "black") +
-                            geom_col(data = . %>% filter(dmr_type == "t01"), aes(x = annot.name, y = pct, group = direction, fill = direction_threshold), position = position_dodge(), color = "black") +
-                            labs(x = "", y = "Pct Differentially Methylated") +
-                            theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
-                            ggtitle(sprintf("%s Methylation", annotation_of_interest)) +
-                            coord_flip() +
-                            scale_y_continuous(expand = expansion(mult = c(0, .1))) +
-                            mtopen +
-                            scale_methylation_thresholds
-                        mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/dmrs_in_%s_pct_orderedaxis.pdf", params$mod_code, annotation_of_interest, annotation_of_interest), 6, 4)
+                    },
+                    error = function(e) {
+                        print("")
                     }
+                )
+            })
+        }
+
+        # ipcondition <- ip %>%
+        #     group_by(gene_id, condition) %>%
+        #     mutate(mean_meth = mean(mean_meth)) %>%
+        #     group_by(gene_id, condition) %>%
+        #     mutate(nrow = row_number()) %>%
+        #     filter(nrow == 1) %>%
+        #     dplyr::select(-nrow, -sample) %>%
+        #     pivot_wider(id_cols = gene_id, names_from = condition, values_from = mean_meth) %>%
+        #     mutate(dif = !!sym(condition2) - !!sym(condition1))
+
+
+        # ipcondition %>%
+        #     arrange(dif) %>%
+        #     head(n = 30) %>%
+        #     print(n = 30)
+        # ipcondition %>%
+        #     arrange(-dif) %>%
+        #     head(n = 30) %>%
+        #     print(n = 30)
+
+
+        # ipwide <- ip %>%
+        #     dplyr::select(-condition) %>%
+        #     pivot_wider(names_from = sample, values_from = mean_meth)
+
+        # ipwide %>% filter(gene_id == "LOC112268283")
+
+        # library(dplyr)
+        # library(broom)
+
+        # results <- ip %>%
+        #     group_by(gene_id) %>%
+        #     summarise(
+        #         model = list(lm(mean_meth ~ condition, data = cur_data())),
+        #         .groups = "drop"
+        #     ) %>%
+        #     mutate(
+        #         tidied = map(model, broom::tidy)
+        #     ) %>%
+        #     unnest(tidied) %>%
+        #     filter(term == "conditionCTRL") %>%
+        #     dplyr::select(gene_id, estimate, p.value) %>%
+        #     mutate(
+        #         log2FC = log2(exp(estimate)), # Convert from natural log to log2 fold-change
+        #         padj = p.adjust(p.value, method = "BH") # Adjust p-values
+        #     )
+
+        # results %>% filter(p.value < 0.05)
+
+        # ipwide %>% filter(gene_id == "AGBL4-AS1")
+
+        # # View results
+        # head(results)
+        ## END NEW CODE
+
+
+
+        # threshold_dfs <- list()
+        # for (dmrtype in dmrs$dmr_type %>% unique()) {
+        #     dmrsgr_temp <- dmrsgr[mcols(dmrsgr)$dmr_type == dmrtype]
+        #     hyporegions <- dmrsgr_temp[grepl("Hypo", dmrsgr_temp$direction)]
+        #     hyperregions <- dmrsgr_temp[grepl("Hyper", dmrsgr_temp$direction)]
+
+        #     write_delim(tibble(as.data.frame(GenomicRanges::intersect(promoters, dmrsgr_temp, ignore.strand = TRUE))), sprintf("ldna/Rintermediates/%s/promoters_%s.bed", params$mod_code, dmrtype), col_names = FALSE, delim = "\t")
+        #     write_delim(tibble(as.data.frame(GenomicRanges::intersect(promoters, hyporegions, ignore.strand = TRUE))), sprintf("ldna/Rintermediates/%s/promoters_hypo_%s.bed", params$mod_code, dmrtype), col_names = FALSE, delim = "\t")
+        #     write_delim(tibble(as.data.frame(GenomicRanges::intersect(promoters, hyperregions, ignore.strand = TRUE))), sprintf("ldna/Rintermediates/%s/promoters_hyper_%s.bed", params$mod_code, dmrtype), col_names = FALSE, delim = "\t")
+
+        #     hypo <- mcols(subsetByOverlaps(promoters, hyporegions))$gene_id
+        #     hyper <- mcols(subsetByOverlaps(promoters, hyperregions))$gene_id
+        #     disc <- intersect(hypo, hyper)
+        #     hypo_nd <- setdiff(hypo, disc)
+        #     hyper_nd <- setdiff(hyper, disc)
+
+
+
+        #     threshold_df <- bind_rows(
+        #         tibble(gene_id = hypo_nd, !!sym(dmrtype) := "Hypo"),
+        #         tibble(gene_id = hyper_nd, !!sym(dmrtype) := "Hyper"),
+        #         tibble(gene_id = disc, !!sym(dmrtype) := "Discordant")
+        #     )
+        #     threshold_dfs[[dmrtype]] <- threshold_df
+        # }
+        # thresholddf <- purrr::reduce(threshold_dfs, full_join)
+        # promoters_df <- full_join(tibble(as.data.frame(promoters)), thresholddf) %>%
+        #     filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS) %>%
+        #     pivot_longer(cols = c("t05", "t01"), names_to = "dmr_type", values_to = "direction") %>%
+        #     mutate(direction = factor(direction, levels = c("Discordant", "Hyper", "Hypo")))
+
+        # total_possible <- nrow(mcols(promoters))
+
+        # p <- promoters_df %>%
+        #     group_by(dmr_type, direction) %>%
+        #     summarise(n = n()) %>%
+        #     ungroup() %>%
+        #     tidyr::complete(dmr_type, direction, fill = list(n = 0)) %>%
+        #     filter(!is.na(direction)) %>%
+        #     mutate(direction_threshold = paste0(direction, "_", gsub("t", "", dmr_type))) %>%
+        #     ggplot() +
+        #     geom_col(data = . %>% filter(dmr_type == "t05"), aes(x = direction, y = n, fill = direction_threshold), color = "black") +
+        #     geom_col(data = . %>% filter(dmr_type == "t01"), aes(x = direction, y = n, fill = direction_threshold), color = "black") +
+        #     ggtitle("Promoter Methylation") +
+        #     labs(x = "Direction", y = str_glue("Count (out of {total_possible})")) +
+        #     theme(legend.position = "none") +
+        #     annotation_logticks(sides = "l") +
+        #     scale_y_log10(
+        #         breaks = scales::trans_breaks("log10", function(x) 10^x),
+        #         labels = scales::trans_format("log10", math_format(10^.x))
+        #     ) +
+        #     mtopen +
+        #     scale_methylation_thresholds
+        # mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/genes/genes_concordance.pdf", params$mod_code), 5, 4)
+
+        # threshold_dfs <- list()
+        # for (dmrtype in dmrs$dmr_type %>% unique()) {
+        #     dmrsgr_temp <- dmrsgr[mcols(dmrsgr)$dmr_type == dmrtype]
+        #     hyporegions <- dmrsgr_temp[grepl("Hypo", dmrsgr_temp$direction)]
+        #     hyperregions <- dmrsgr_temp[grepl("Hyper", dmrsgr_temp$direction)]
+        #     chromHMM_enhancers_grs_with_id <- chromHMM_enhancers_grs
+        #     mcols(chromHMM_enhancers_grs_with_id)$ID <- paste0("ID", 1:nrow(mcols(chromHMM_enhancers_grs)))
+        #     write_delim(tibble(as.data.frame(GenomicRanges::intersect(chromHMM_enhancers_grs_with_id, dmrsgr_temp, ignore.strand = TRUE))), sprintf("ldna/Rintermediates/%s/chromHMM_enhancers_%s.bed", params$mod_code, dmrtype), col_names = FALSE, delim = "\t")
+        #     write_delim(tibble(as.data.frame(GenomicRanges::intersect(chromHMM_enhancers_grs_with_id, hyporegions, ignore.strand = TRUE))), sprintf("ldna/Rintermediates/%s/chromHMM_enhancers_hypo_%s.bed", params$mod_code, dmrtype), col_names = FALSE, delim = "\t")
+        #     write_delim(tibble(as.data.frame(GenomicRanges::intersect(chromHMM_enhancers_grs_with_id, hyperregions, ignore.strand = TRUE))), sprintf("ldna/Rintermediates/%s/chromHMM_enhancers_hyper_%s.bed", params$mod_code, dmrtype), col_names = FALSE, delim = "\t")
+
+        #     hypo <- mcols(subsetByOverlaps(chromHMM_enhancers_grs_with_id, hyporegions))$ID
+        #     hyper <- mcols(subsetByOverlaps(chromHMM_enhancers_grs_with_id, hyperregions))$ID
+        #     disc <- intersect(hypo, hyper)
+        #     hypo_nd <- setdiff(hypo, disc)
+        #     hyper_nd <- setdiff(hyper, disc)
+
+        #     threshold_df <- bind_rows(
+        #         tibble(ID = hypo_nd, !!sym(dmrtype) := "Hypo"),
+        #         tibble(ID = hyper_nd, !!sym(dmrtype) := "Hyper"),
+        #         tibble(ID = disc, !!sym(dmrtype) := "Discordant")
+        #     )
+        #     threshold_dfs[[dmrtype]] <- threshold_df
+        # }
+        # thresholddf <- purrr::reduce(threshold_dfs, full_join)
+        # enh_df <- full_join(tibble(as.data.frame(chromHMM_enhancers_grs_with_id)), thresholddf) %>%
+        #     filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS) %>%
+        #     pivot_longer(cols = c("t05", "t01"), names_to = "dmr_type", values_to = "direction") %>%
+        #     mutate(direction = factor(direction, levels = c("Discordant", "Hyper", "Hypo")))
+
+        # total_possible <- nrow(mcols(chromHMM_enhancers_grs))
+
+        # p <- enh_df %>%
+        #     group_by(dmr_type, direction) %>%
+        #     summarise(n = n()) %>%
+        #     ungroup() %>%
+        #     tidyr::complete(dmr_type, direction, fill = list(n = 0)) %>%
+        #     filter(!is.na(direction)) %>%
+        #     mutate(direction_threshold = paste0(direction, "_", gsub("t", "", dmr_type))) %>%
+        #     ggplot() +
+        #     geom_col(data = . %>% filter(dmr_type == "t05"), aes(x = direction, y = n, fill = direction_threshold), color = "black") +
+        #     geom_col(data = . %>% filter(dmr_type == "t01"), aes(x = direction, y = n, fill = direction_threshold), color = "black") +
+        #     ggtitle("Enhancer Methylation") +
+        #     labs(x = "Direction", y = str_glue("Count (out of {total_possible})")) +
+        #     theme(legend.position = "none") +
+        #     annotation_logticks(sides = "l") +
+        #     scale_y_log10(
+        #         breaks = scales::trans_breaks("log10", function(x) 10^x),
+        #         labels = scales::trans_format("log10", math_format(10^.x))
+        #     ) +
+        #     mtopen +
+        #     scale_methylation_thresholds
+        # mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/genes/enhancer_concordance.pdf", params$mod_code), 5, 4)
+        # #####
+        # enh_df %>% bind_rows()
+        # prom_enh_df <- promoters_df %>%
+        #     mutate(biotype = "Promoter") %>%
+        #     filter(!is.na(direction)) %>%
+        #     dplyr::select(direction, biotype, dmr_type, ID) %>%
+        #     bind_rows(enh_df %>% mutate(biotype = "Enhancer") %>% filter(!is.na(direction)) %>% dplyr::select(direction, dmr_type, biotype, ID))
+        # p <- prom_enh_df %>%
+        #     group_by(dmr_type, direction, biotype) %>%
+        #     summarise(n = n()) %>%
+        #     ungroup() %>%
+        #     tidyr::complete(dmr_type, direction, biotype, fill = list(n = 0)) %>%
+        #     filter(direction != "Discordant") %>%
+        #     filter(!is.na(direction)) %>%
+        #     mutate(direction_threshold = paste0(direction, "_", gsub("t", "", dmr_type))) %>%
+        #     ggplot() +
+        #     geom_col(data = . %>% filter(dmr_type == "t05"), aes(x = biotype, y = n, fill = direction_threshold), color = "black", position = "dodge2") +
+        #     geom_col(data = . %>% filter(dmr_type == "t01"), aes(x = biotype, y = n, fill = direction_threshold), color = "black", position = "dodge2") +
+        #     ggtitle("Enhancer Methylation") +
+        #     labs(x = "Direction", y = str_glue("Count")) +
+        #     theme(legend.position = "none") +
+        #     annotation_logticks(sides = "l") +
+        #     scale_y_log10(
+        #         breaks = scales::trans_breaks("log10", function(x) 10^x),
+        #         labels = scales::trans_format("log10", math_format(10^.x))
+        #     ) +
+        #     mtopen +
+        #     scale_methylation_thresholds
+        # mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/genes/prom_enhancer_concordance.pdf", params$mod_code), 5, 4)
+
+        # # dmrsgr_enh <- dmrsgr %>% subsetByOverlaps(chromHMM_enhancers_grs)
+        # # dmrsgr_prom <- dmrsgr %>% subsetByOverlaps(promoters)
+        # # length_overlap <- dmrsgr_enh %>% subsetByOverlaps(dmrsgr_prom) %>% mcols() %>% nrow()
+        # # perc_prom_in_enh <- length_overlap/nrow(mcols(dmrsgr_prom))
+        # # perc_enh_in_prom <- length_overlap/nrow(mcols(dmrsgr_enh))
+        # enh_in_dmrs <- chromHMM_enhancers_grs %>% subsetByOverlaps(dmrsgr)
+        # prom_in_dmrs <- promoters %>% subsetByOverlaps(dmrsgr)
+        # enh_intersect <- enh_in_dmrs %>%
+        #     subsetByOverlaps(prom_in_dmrs) %>%
+        #     mcols() %>%
+        #     nrow()
+        # perc_prom_in_enh <- enh_intersect / nrow(mcols(dmrsgr_prom))
+        # prom_intersect <- prom_in_dmrs %>%
+        #     subsetByOverlaps(enh_in_dmrs) %>%
+        #     mcols() %>%
+        #     nrow()
+        # perc_enh_in_prom <- prom_intersect / nrow(mcols(dmrsgr_enh))
+
+        #####
+
+
+        # for (dmrtype in dmrs$dmr_type %>% unique()) {
+        #     library(clusterProfiler)
+        #     hypo_genes <- promoters_df %>% filter(direction == "Hypo") %$% gene_id
+        #     hyper_genes <- promoters_df %>% filter(direction == "Hyper") %$% gene_id
+        #     background <- mcols(promoters)$gene_id
+
+        #     gs <- msigdbr("human")
+        #     tablesORA_subcollection <- list()
+        #     results_ORA_hypo <- list()
+        #     results_ORA_hyper <- list()
+        #     genesubcollections <- gs$gs_subcat %>% unique()
+        #     for (collection in genesubcollections) {
+        #         term2gene <- gs %>%
+        #             filter(gs_subcat == collection) %>%
+        #             dplyr::rename(term = gs_name, gene = gene_symbol) %>%
+        #             select(term, gene)
+        #         res_hypo <- enricher(hypo_genes, universe = background, TERM2GENE = term2gene, pAdjustMethod = "fdr")
+
+        #         results_ORA_hypo[[collection]] <- res_hypo %>% as.data.frame()
+
+        #         res_hyper <- enricher(hyper_genes, universe = background, TERM2GENE = term2gene, pAdjustMethod = "fdr")
+
+        #         results_ORA_hyper[[collection]] <- res_hyper %>% as.data.frame()
+        #     }
+
+
+
+        ## DMR intersection
+        {
+            get_region_enrichment <- function(dmrstemp, rangestemp, genome_size = 3.1e9) {
+                n_overlap <- dmrstemp %>%
+                    subsetByOverlaps(rangestemp) %>%
+                    as.data.frame() %>%
+                    nrow()
+                n_total <- dmrstemp %>%
+                    as.data.frame() %>%
+                    nrow()
+                prop_genome <- (1 / genome_size) * width(rangestemp) %>% sum()
+                fold_enrichment <- (n_overlap / n_total) / prop_genome
+                p_value <- binom.test(n_overlap, n_total, p = prop_genome)$p.value
+                return(c("fold_enrichment" = fold_enrichment, "p_value" = p_value, "n_overlap" = n_overlap, "n_total" = n_total, "prop_genome" = prop_genome))
+            }
+
+            # i.e hypodmrs05 and cpgislands
+            # note subject must have name attribute
+            get_region_enrichment2 <- function(querygrs, subjectgrs, genome_size = 3.1e9) {
+                hits <- findOverlaps(querygrs, subjectgrs)
+
+                query_hits <- queryHits(hits)
+                subject_hits <- subjectHits(hits)
+
+                overlaps <- pintersect(querygrs[query_hits], subjectgrs[subject_hits])
+                overlap_widths <- width(overlaps)
+
+                hitsdf <- data.frame(
+                    query = query_hits,
+                    subject = subject_hits,
+                    overlap_bp = overlap_widths
+                )
+
+                max_overlap_df <- hitsdf %>%
+                    group_by(query) %>%
+                    slice_max(overlap_bp, with_ties = TRUE) %>%
+                    ungroup()
+
+                subjectbesthit_grs <- subjectgrs[max_overlap_df$subject]
+
+                n_overlap_table <- subjectbesthit_grs$name %>% table()
+
+                n_overlap_df <- tibble(subject_region = names(n_overlap_table), n_overlap = as.integer(n_overlap_table))
+                if (nrow(n_overlap_df) == 0) {
+                    n_overlap_df <- tibble(
+                        subject_region = mcols(subjectgrs)$name %>% unique(),
+                        n_overlap = 0
+                    ) %>%
+                        mutate(n_total = querygrs %>%
+                            as.data.frame() %>%
+                            nrow())
+                } else {
+                    n_overlap_df <- n_overlap_df %>%
+                        mutate(subject_region = factor(subject_region, levels = mcols(subjectgrs)$name %>% unique())) %>%
+                        complete(subject_region, fill = list(n_overlap = 0)) %>%
+                        mutate(n_total = querygrs %>%
+                            as.data.frame() %>%
+                            nrow())
                 }
+
+                subject_split <- split(subjectgrs, subjectgrs$name)
+                subjectsize_list <- map(subject_split, ~ sum(width(.x)))
+                subjectsize_df <- tibble(subject_region = names(subjectsize_list), size = unlist(subjectsize_list))
+
+
+
+                resdf <- n_overlap_df %>%
+                    left_join(subjectsize_df) %>%
+                    mutate(genome_size = genome_size) %>%
+                    mutate(prop_genome = size / genome_size) %>%
+                    mutate(fold_enrichment = (n_overlap / n_total) / prop_genome) %>%
+                    rowwise() %>%
+                    mutate(p_value = binom.test(n_overlap, n_total, p = prop_genome)$p.value) %>%
+                    ungroup() %>%
+                    dplyr::rename(name = subject_region)
+                return(resdf)
+            }
+            # load annotations of interest
+            ccresdf <- read_delim(conf$ccres, col_names = FALSE)
+            ccresgr <- GRanges(
+                seqnames = ccresdf$X1,
+                ranges = IRanges(start = ccresdf$X2, end = ccresdf$X3),
+                name = ccresdf$X10,
+                UID = ccresdf$X4,
+            )
+
+            chromHMMgr <- import(conf$chromHMM)
+            width(chromHMMgr) %>% sum()
+
+            prom_no_mcols <- promoters
+            mcols(prom_no_mcols) <- NULL
+            mcols(prom_no_mcols)$name <- "prom"
+            chromHMM_enhancers_grs <- chromHMMgr[grepl("Enh*", mcols(chromHMMgr)$name)]
+
+            enh_no_mcols <- chromHMM_enhancers_grs
+            mcols(enh_no_mcols) <- NULL
+            mcols(enh_no_mcols)$name <- "enh"
+            prom_enh <- c(enh_no_mcols, prom_no_mcols)
+
+
+            fa <- Rsamtools::FaFile(confALL$aref$ref)
+            genome_size_chrfiltered <- seqinfo(fa) %>%
+                data.frame() %>%
+                rownames_to_column("seqnames") %>%
+                filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS) %$%
+                seqlengths %>%
+                sum()
+
+            cpgi_features_temp <- cpgi_features
+            mcols(cpgi_features_temp)$name <- mcols(cpgi_features_temp)$name %>% gsub("CpG.*", "Island", .)
+
+            genome_ranges <- seqinfo(fa) %>%
+                data.frame() %>%
+                rownames_to_column("seqnames") %>%
+                filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS) %>%
+                tibble() %>%
+                mutate(start = 1, end = seqlengths) %>%
+                dplyr::select(seqnames, start, end) %>%
+                GRanges()
+
+            open_sea_regions <- GenomicRanges::setdiff(genome_ranges, reduce(cpgi_features))
+            mcols(open_sea_regions)$name <- "OpenSea"
+            cpgi_features_forenrichment <- c(cpgi_features_temp, open_sea_regions)
+
+            flrtepromoter_for_enrichment <- flRTEpromoter %>%
+                mutate(name = rte_subfamily) %>%
+                filter(name != "Other") %>%
+                GRanges()
+
+            annotations_of_interest <- list(cpgi = cpgi_features_forenrichment, flrteprom = flrtepromoter_for_enrichment, chromHMM = chromHMMgr, cCREs = ccresgr, prom_enh = prom_enh)
+            # note I should be testing for enrichment of these sets too
+            levelslist <- list()
+            levelslist[["chromHMM"]] <- c(
+                "TssA", "TssFlnk", "TssFlnkU", "TssFlnkD", "TssBiv",
+                "Tx", "TxWk",
+                "EnhG1", "EnhG2", "EnhA1", "EnhA2", "EnhWk", "EnhBiv", "Het", "ZNF/Rpts", "ReprPC", "ReprPCWk", "Quies"
+            )
+            levelslist[["rtesubfamily"]] <- c(
+                "AluY", "HERVK_LTR", "HERVL_LTR",
+                "L1HS", "L1PA2", "L1PA3", "L1PA4", "L1PA5", "L1PA6"
+            )
+            levelslist[["ccres"]] <- c("PLS,CTCF-bound", "PLS", "pELS,CTCF-bound", "pELS", "dELS,CTCF-bound", "dELS", "DNase-H3K4me3,CTCF-bound", "CTCF-only,CTCF-bound", "DNase-H3K4me3", "DNase-only")
+
+            for (annotation_of_interest in names(annotations_of_interest)) {
+                annotdf <- as.data.frame(annotations_of_interest[[annotation_of_interest]]) %>%
+                    tibble() %>%
+                    filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS)
+                annot <- GRanges(annotdf)
+                annot_split <- split(annot, annot$name)
+
+                enrichdf <- map(
+                    dmrsgr_split,
+                    ~ map(annot_split, function(region) get_region_enrichment(.x, region, genome_size = genome_size_chrfiltered)) %>%
+                        as.data.frame() %>%
+                        as.matrix() %>%
+                        t() %>%
+                        as.data.frame() %>%
+                        rownames_to_column("name")
+                ) %>%
+                    bind_rows(.id = "type") %>%
+                    tibble() %>%
+                    mutate(direction_threshold = sub("t", "", type)) %>%
+                    {
+                        if (annotation_of_interest == "chromHMM") {
+                            mutate(., name = gsub("ZNF.Rpts", "ZNF/Rpts", name)) %>%
+                                mutate(name = factor(name, levels = levelslist[["chromHMM"]])) %>%
+                                mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["chromHMM"]], width = 20, side = "left", pad = "_")))
+                        } else if (annotation_of_interest == "flrteprom") {
+                            mutate(., name = factor(name, levels = rev(levelslist[["rtesubfamily"]]))) %>%
+                                mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["rtesubfamily"]], width = 20, side = "left", pad = "_")))
+                        } else if (annotation_of_interest == "cCREs") {
+                            mutate(., name = factor(name, levels = rev(levelslist[["ccres"]]))) %>%
+                                mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["ccres"]], width = 20, side = "left", pad = "_")))
+                        } else {
+                            mutate(., name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_")))
+                        }
+                    } %>%
+                    mutate(enrichment_direction = "dmrs_enriched_for_a_region")
+
+                enrichdfrev <- map(
+                    annot_split,
+                    ~ map(dmrsgr_split, function(region) get_region_enrichment(.x, region, genome_size = genome_size_chrfiltered)) %>%
+                        as.data.frame() %>%
+                        as.matrix() %>%
+                        t() %>%
+                        as.data.frame() %>%
+                        rownames_to_column("type")
+                ) %>%
+                    bind_rows(.id = "name") %>%
+                    tibble() %>%
+                    mutate(direction_threshold = sub("t", "", type)) %>%
+                    {
+                        if (annotation_of_interest == "chromHMM") {
+                            mutate(., name = gsub("ZNF.Rpts", "ZNF/Rpts", name)) %>%
+                                mutate(name = factor(name, levels = levelslist[["chromHMM"]])) %>%
+                                mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["chromHMM"]], width = 20, side = "left", pad = "_")))
+                        } else if (annotation_of_interest == "flrteprom") {
+                            mutate(., name = factor(name, levels = rev(levelslist[["rtesubfamily"]]))) %>%
+                                mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["rtesubfamily"]], width = 20, side = "left", pad = "_")))
+                        } else if (annotation_of_interest == "cCREs") {
+                            mutate(., name = factor(name, levels = rev(levelslist[["ccres"]]))) %>%
+                                mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["ccres"]], width = 20, side = "left", pad = "_")))
+                        } else {
+                            mutate(., name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_")))
+                        }
+                    } %>%
+                    mutate(enrichment_direction = "region_enriched_for_a_dmr")
+
+                bidirec_enrich_df <- bind_rows(enrichdf, enrichdfrev)
+
+                enrichdf_bestoverlap <- map(
+                    dmrsgr_split,
+                    ~ get_region_enrichment2(.x, annot, genome_size = genome_size_chrfiltered)
+                ) %>%
+                    bind_rows(.id = "type") %>%
+                    tibble() %>%
+                    mutate(direction_threshold = sub("t", "", type)) %>%
+                    {
+                        if (annotation_of_interest == "chromHMM") {
+                            mutate(., name = gsub("ZNF.Rpts", "ZNF/Rpts", name)) %>%
+                                mutate(name = factor(name, levels = levelslist[["chromHMM"]])) %>%
+                                mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["chromHMM"]], width = 20, side = "left", pad = "_")))
+                        } else if (annotation_of_interest == "flrteprom") {
+                            mutate(., name = factor(name, levels = rev(levelslist[["rtesubfamily"]]))) %>%
+                                mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["rtesubfamily"]], width = 20, side = "left", pad = "_")))
+                        } else if (annotation_of_interest == "cCREs") {
+                            mutate(., name = factor(name, levels = rev(levelslist[["ccres"]]))) %>%
+                                mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["ccres"]], width = 20, side = "left", pad = "_")))
+                        } else {
+                            mutate(., name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_")))
+                        }
+                    }
+
+
+                max_abs <- log(max(abs(bidirec_enrich_df %>% filter(fold_enrichment != 0) %$% fold_enrichment))) * 1.1
+                p <- bidirec_enrich_df %>%
+                    mutate(direction = gsub("_.*", "", direction_threshold)) %>%
+                    ggplot(aes(y = name_padded, x = log(fold_enrichment), fill = direction_threshold)) +
+                    geom_col(position = "dodge", color = "black") +
+                    geom_vline(xintercept = 0, color = "green") +
+                    coord_cartesian(xlim = c(-max_abs, max_abs)) +
+                    facet_grid(rows = vars(direction), cols = vars(enrichment_direction)) +
+                    scale_methylation_thresholds +
+                    ggtitle("Enrichments") +
+                    mtclosedgridv
+                mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/%s/dmr_enrichments_in_%s_facet.pdf", params$mod_code, annotation_of_interest, "bidirectional_all", annotation_of_interest), 8, 6)
+
+                p <- bidirec_enrich_df %>%
+                    filter(grepl("05", direction_threshold)) %>%
+                    mutate(direction = gsub("_.*", "", direction_threshold)) %>%
+                    ggplot(aes(y = name_padded, x = log(fold_enrichment), fill = direction_threshold)) +
+                    geom_col(position = "dodge", color = "black") +
+                    geom_vline(xintercept = 0, color = "green") +
+                    coord_cartesian(xlim = c(-max_abs, max_abs)) +
+                    facet_grid(rows = vars(direction), cols = vars(enrichment_direction)) +
+                    scale_methylation_thresholds +
+                    ggtitle("Enrichments") +
+                    mtclosedgridv
+                mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/%s/dmr_enrichments_in_%s_facet_05.pdf", params$mod_code, annotation_of_interest, "bidirectional_all", annotation_of_interest), 8, 6)
+
+                p <- bidirec_enrich_df %>%
+                    filter(grepl("05", direction_threshold)) %>%
+                    mutate(direction = gsub("_.*", "", direction_threshold)) %>%
+                    ggplot(aes(y = name_padded, x = log(fold_enrichment), fill = direction_threshold)) +
+                    geom_col(position = "dodge", color = "black") +
+                    geom_vline(xintercept = 0, color = "green") +
+                    coord_cartesian(xlim = c(-max_abs, max_abs)) +
+                    facet_grid(cols = vars(enrichment_direction)) +
+                    scale_methylation_thresholds +
+                    ggtitle("Enrichments") +
+                    mtclosedgridv
+                mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/%s/dmr_enrichments_in_%s_facet_05_together.pdf", params$mod_code, annotation_of_interest, "bidirectional_all", annotation_of_interest), 7, 4)
+
+
+                enrichdflist <- list("alloverlaps" = enrichdf, "alloverlapsrev" = enrichdfrev, "bestoverlaps" = enrichdf_bestoverlap)
+                for (enrichtype in names(enrichdflist)) {
+                    enrichdftemp <- enrichdflist[[enrichtype]]
+
+                    p <- enrichdftemp %>%
+                        ggplot(aes(y = name_padded, x = log(fold_enrichment), fill = direction_threshold)) +
+                        geom_col(position = "dodge", color = "black") +
+                        scale_methylation_thresholds +
+                        mtclosedgridv
+                    mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/%s/dmr_enrichments_in_%s.pdf", params$mod_code, annotation_of_interest, enrichtype, annotation_of_interest), 7, 4)
+
+                    p <- enrichdftemp %>%
+                        filter(direction_threshold %in% c("Hyper_05", "Hypo_05")) %>%
+                        ggplot(aes(y = name_padded, x = log(fold_enrichment), fill = direction_threshold)) +
+                        geom_col(position = "dodge", color = "black") +
+                        scale_methylation_thresholds +
+                        mtclosedgridv
+                    mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/%s/dmr_enrichments_in_%s_05.pdf", params$mod_code, annotation_of_interest, enrichtype, annotation_of_interest), 7, 4)
+
+                    max_abs <- log(max(abs(enrichdftemp %>% filter(fold_enrichment != 0) %$% fold_enrichment))) * 1.1
+                    p <- enrichdftemp %>%
+                        mutate(direction = gsub("_.*", "", direction_threshold)) %>%
+                        ggplot(aes(y = name_padded, x = log(fold_enrichment), fill = direction_threshold)) +
+                        geom_col(position = "dodge", color = "black") +
+                        geom_vline(xintercept = 0, color = "green") +
+                        coord_cartesian(xlim = c(-max_abs, max_abs)) +
+                        facet_wrap(~direction) +
+                        scale_methylation_thresholds +
+                        ggtitle("Enrichments") +
+                        mtclosedgridv
+                    mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/%s/dmr_enrichments_in_%s_facet.pdf", params$mod_code, annotation_of_interest, enrichtype, annotation_of_interest), 7, 4)
+
+                    p <- enrichdftemp %>%
+                        mutate(direction = gsub("_.*", "", direction_threshold)) %>%
+                        ggplot(aes(y = name_padded, x = log(fold_enrichment), fill = direction_threshold)) +
+                        geom_col(position = "dodge", color = "black") +
+                        geom_vline(xintercept = 0, color = "green") +
+                        facet_wrap(~direction) +
+                        scale_methylation_thresholds +
+                        ggtitle("Enrichments") +
+                        mtclosedgridv
+                    mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/%s/dmr_enrichments_in_%s_facet_noaxislimmirror.pdf", params$mod_code, annotation_of_interest, enrichtype, annotation_of_interest), 7, 4)
+
+                    p <- enrichdftemp %>%
+                        mutate(direction = gsub("_.*", "", direction_threshold)) %>%
+                        ggplot(aes(y = name_padded, x = log(fold_enrichment), color = direction_threshold)) +
+                        geom_point() +
+                        geom_vline(xintercept = 0, linetype = "dashed") +
+                        coord_cartesian(xlim = c(-max_abs, max_abs)) +
+                        facet_wrap(~direction) +
+                        scale_methylation_thresholds +
+                        ggtitle("Enrichments") +
+                        mtclosedgridv
+                    mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/%s/dmr_enrichments_in_%s_facet_dot.pdf", params$mod_code, annotation_of_interest, enrichtype, annotation_of_interest), 7, 4)
+                }
+                # counts
+
+                mbo <- mergeByOverlaps(annot, dmrsgr)
+                mbodf <- tibble(as.data.frame(mbo)) %>%
+                    {
+                        if (annotation_of_interest == "chromHMM") {
+                            mutate(., name = gsub("ZNF.Rpts", "ZNF/Rpts", name)) %>%
+                                mutate(name = factor(name, levels = levelslist[["chromHMM"]])) %>%
+                                mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["chromHMM"]], width = 20, side = "left", pad = "_")))
+                        } else if (annotation_of_interest == "flrteprom") {
+                            mutate(., name = factor(name, levels = rev(levelslist[["rtesubfamily"]]))) %>%
+                                mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["rtesubfamily"]], width = 20, side = "left", pad = "_")))
+                        } else if (annotation_of_interest == "cCREs") {
+                            mutate(., name = factor(name, levels = rev(levelslist[["ccres"]]))) %>%
+                                mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["ccres"]], width = 20, side = "left", pad = "_")))
+                        } else {
+                            mutate(., name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_")))
+                        }
+                    }
+
+                p <- mbodf %>%
+                    group_by(name_padded, dmr_type, direction) %>%
+                    summarise(n = n()) %>%
+                    ggplot() +
+                    geom_col(aes(x = name_padded, y = n, fill = direction), position = "dodge", color = "black") +
+                    labs(x = "") +
+                    coord_flip() +
+                    ggtitle(str_glue("{annotation_of_interest} Methylation")) +
+                    scale_y_continuous(expand = expansion(mult = c(0, .1))) +
+                    mtopen +
+                    scale_methylation
+                mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/dmrs_in_%s.pdf", params$mod_code, annotation_of_interest, annotation_of_interest), 6, 4)
+
+                library(scales)
+                p <- mbodf %>%
+                    filter(dmr_type != "t05CG10") %>%
+                    filter(dmr_type != "t001") %>%
+                    group_by(name_padded, direction, dmr_type) %>%
+                    summarize(n = n()) %>%
+                    ungroup() %>% # Summarize with groups dropped for completeness
+                    tidyr::complete(name_padded, direction, dmr_type, fill = list(n = 0)) %>%
+                    mutate(direction_threshold = paste0(direction, "_", gsub("t", "", dmr_type))) %>%
+                    ggplot() +
+                    geom_col(data = . %>% filter(dmr_type == "t05"), aes(x = name_padded, y = n, group = direction, fill = direction_threshold), position = position_dodge(preserve = "single"), color = "black") +
+                    geom_col(data = . %>% filter(dmr_type == "t01"), aes(x = name_padded, y = n, group = direction, fill = direction_threshold), position = position_dodge(preserve = "single"), color = "black") +
+                    labs(x = "") +
+                    coord_flip() +
+                    ggtitle(sprintf("%s Methylation", annotation_of_interest)) +
+                    annotation_logticks(sides = "b") +
+                    scale_y_log10(
+                        breaks = scales::trans_breaks("log10", function(x) 10^x),
+                        labels = scales::trans_format("log10", math_format(10^.x))
+                    ) +
+                    mtopen +
+                    scale_methylation_thresholds
+                mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/dmrs_in_%s_log.pdf", params$mod_code, annotation_of_interest, annotation_of_interest), 6, 4)
+
+                p <- mbodf %>%
+                    filter(dmr_type != "t05CG10") %>%
+                    filter(dmr_type != "t001") %>%
+                    group_by(name_padded, direction, dmr_type) %>%
+                    summarize(n = n()) %>%
+                    ungroup() %>% # Summarize with groups dropped for completeness
+                    tidyr::complete(name_padded, direction, dmr_type, fill = list(n = 0)) %>%
+                    mutate(direction_threshold = paste0(direction, "_", gsub("t", "", dmr_type))) %>%
+                    ggplot() +
+                    geom_col(data = . %>% filter(dmr_type == "t05"), aes(x = name_padded, y = n, group = direction, fill = direction_threshold), position = position_dodge(preserve = "single"), color = "black") +
+                    geom_col(data = . %>% filter(dmr_type == "t01"), aes(x = name_padded, y = n, group = direction, fill = direction_threshold), position = position_dodge(preserve = "single"), color = "black") +
+                    labs(x = "") +
+                    geom_text(
+                        data = . %>% filter(dmr_type %in% c("t01", "t05")),
+                        aes(x = name_padded, y = n * 1.1, label = n, group = direction_threshold), # use direction_threshold for dodging
+                        position = position_dodge2(width = 0.9, preserve = "single"),
+                        vjust = 0, # 0 = top-aligned; more predictable than vjust=1 on log scale
+                        size = 3
+                    ) +
+                    coord_flip() +
+                    ggtitle(sprintf("%s Methylation", annotation_of_interest)) +
+                    annotation_logticks(sides = "b") +
+                    scale_y_log10(
+                        breaks = scales::trans_breaks("log10", function(x) 10^x),
+                        labels = scales::trans_format("log10", math_format(10^.x))
+                    ) +
+                    mtopen +
+                    scale_methylation_thresholds
+                mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/dmrs_in_%s_log_numannot.pdf", params$mod_code, annotation_of_interest, annotation_of_interest), 6, 4)
+
+                total <- annotdf %>%
+                    group_by(name) %>%
+                    summarize(n = n())
+                totaldm <- mbodf %>%
+                    group_by(name, name_padded, direction, dmr_type) %>%
+                    summarize(n = n()) %>%
+                    ungroup() %>% # Summarize with groups dropped for completeness
+                    tidyr::complete(name_padded, direction, dmr_type, fill = list(n = 0)) %>%
+                    mutate(direction_threshold = paste0(direction, "_", gsub("t", "", dmr_type)))
+
+                pctdm <- left_join(totaldm, total, by = c("name")) %>%
+                    mutate(pct = 100 * n.x / n.y) %>%
+                    mutate(myaxis = paste0(name_padded, "\n", "n=", n.y)) %>%
+                    drop_na() %>%
+                    {
+                        if (annotation_of_interest == "chromHMM") {
+                            mutate(., name = gsub("ZNF.Rpts", "ZNF/Rpts", name)) %>%
+                                mutate(name = factor(name, levels = levelslist[["chromHMM"]])) %>%
+                                mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["chromHMM"]], width = 20, side = "left", pad = "_")))
+                        } else if (annotation_of_interest == "flrteprom") {
+                            mutate(., name = factor(name, levels = rev(levelslist[["rtesubfamily"]]))) %>%
+                                mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["rtesubfamily"]], width = 20, side = "left", pad = "_")))
+                        } else if (annotation_of_interest == "cCREs") {
+                            mutate(., name = factor(name, levels = rev(levelslist[["ccres"]]))) %>%
+                                mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["ccres"]], width = 20, side = "left", pad = "_")))
+                        } else {
+                            mutate(., name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_")))
+                        }
+                    }
+
+                p <- pctdm %>% ggplot() +
+                    geom_col(data = . %>% filter(dmr_type == "t05"), aes(x = myaxis, y = pct, group = direction, fill = direction_threshold), position = position_dodge(), color = "black") +
+                    geom_col(data = . %>% filter(dmr_type == "t01"), aes(x = myaxis, y = pct, group = direction, fill = direction_threshold), position = position_dodge(), color = "black") +
+                    labs(x = "", y = "Pct Differentially Methylated") +
+                    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+                    ggtitle(sprintf("%s Methylation", annotation_of_interest)) +
+                    coord_flip() +
+                    scale_y_continuous(expand = expansion(mult = c(0, .1))) +
+                    mtopen +
+                    scale_methylation_thresholds
+                mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/dmrs_in_%s_pct.pdf", params$mod_code, annotation_of_interest, annotation_of_interest), 6, 4)
+
+                p <- pctdm %>% ggplot() +
+                    geom_col(data = . %>% filter(dmr_type == "t05"), aes(x = name_padded, y = pct, group = direction, fill = direction_threshold), position = position_dodge(), color = "black") +
+                    geom_col(data = . %>% filter(dmr_type == "t01"), aes(x = name_padded, y = pct, group = direction, fill = direction_threshold), position = position_dodge(), color = "black") +
+                    labs(x = "", y = "Pct Differentially Methylated") +
+                    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+                    ggtitle(sprintf("%s Methylation", annotation_of_interest)) +
+                    coord_flip() +
+                    scale_y_continuous(expand = expansion(mult = c(0, .1))) +
+                    mtopen +
+                    scale_methylation_thresholds
+                mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/dmrs_in_%s_pct_orderedaxis.pdf", params$mod_code, annotation_of_interest, annotation_of_interest), 6, 4)
             }
         }
     }
+
+
+
+    # dmrs heatmap
+    dmrsuuid <- dmrs %>%
+        mutate(dmrid = paste0(direction, row_number()))
+    dmrs05 <- dmrsuuid %>%
+        filter(dmr_type == "t05") %>%
+        GRanges()
+    dmrs01 <- dmrsuuid %>%
+        filter(dmr_type == "t01") %>%
+        GRanges()
+    dmrs05setdiff <- dmrs05 %>% subsetByOverlaps(dmrs01, invert = TRUE)
+
+    dmrsgrsuuid <- c(dmrs01, dmrs05setdiff)
+    mbo <- mergeByOverlaps(grs, dmrsgrsuuid)
+    dmrs_meth_df <- mbo$grs %>%
+        as.data.frame() %>%
+        tibble()
+    dmrs_meth_df$dmrid <- mbo$dmrsgrsuuid$dmrid
+    dmrs_meth_df$areaStat <- mbo$dmrsgrsuuid$areaStat
+    dmrs_meth_df$direction <- mbo$dmrsgrsuuid$direction
+    dmrs_meth_df$dmr_type <- mbo$dmrsgrsuuid$dmr_type
+    dmrs_meth_df$length <- mbo$dmrsgrsuuid$length
+    dmrs_meth_df$nCG <- mbo$dmrsgrsuuid$nCG
+
+    # dmr av meth stats
+    ac <- dmrs_meth_df %>%
+        group_by(pos, direction, dmr_type, condition) %>%
+        summarise(mean_meth = mean(pctM))
+    ad <- ac %>%
+        filter(dmr_type %in% c("t01", "t05")) %>%
+        pivot_wider(names_from = condition, values_from = mean_meth) %>%
+        mutate(dif = !!sym(condition2) - !!sym(condition1)) %>%
+        group_by(dmr_type, direction) %>%
+        summarize(mean_dif = mean(dif))
+    dir.create(sprintf("ldna/results/%s/tables/dmrs", params$mod_code), recursive = TRUE)
+    ad %>% write_delim(sprintf("ldna/results/%s/tables/dmrs/dmrs_meth_dif", params$mod_code))
+
+    # topdmrshypo <- dmrsgrsuuid %>%
+    #     as.data.frame() %>%
+    #     tibble() %>%
+    #     filter(direction == "Hypo") %>%
+    #     arrange(areaStat) %$% dmrid %>%
+    #     head(n = 1000)
+    # topdmrshyper <- dmrsgrsuuid %>%
+    #     as.data.frame() %>%
+    #     tibble() %>%
+    #     filter(direction == "Hyper") %>%
+    #     arrange(-areaStat) %$% dmrid %>%
+    #     head(n = 1000)
+
+    pf1 <- dmrs_meth_df %>%
+        group_by(sample, dmrid, direction, dmr_type, areaStat) %>%
+        summarise(mean_meth = mean(pctM)) %>%
+        ungroup()
+
+    topdmrshypo <- pf1 %>%
+        as.data.frame() %>%
+        tibble() %>%
+        filter(direction == "Hypo") %>%
+        arrange(areaStat) %>%
+        pivot_wider(names_from = sample, values_from = mean_meth) %>%
+        head(n = 250) %>%
+        pivot_longer(cols = sample_table$sample_name, names_to = "sample_name", values_to = "mean_meth") %>%
+        left_join(sample_table)
+
+    topdmrshyper <- pf1 %>%
+        as.data.frame() %>%
+        tibble() %>%
+        filter(direction == "Hyper") %>%
+        arrange(-areaStat) %>%
+        pivot_wider(names_from = sample, values_from = mean_meth) %>%
+        head(n = 250) %>%
+        pivot_longer(cols = sample_table$sample_name, names_to = "sample_name", values_to = "mean_meth") %>%
+        left_join(sample_table)
+
+    pf <- bind_rows(topdmrshyper, topdmrshypo)
+
+    library(tidyHeatmap)
+    p <- pf %>%
+        mutate(sample = factor(sample, levels = conf$samples)) %>%
+        group_by(direction) %>%
+        heatmap(dmrid, sample, mean_meth,
+            cluster_rows = TRUE, cluster_columns = FALSE, show_row_names = FALSE, show_row_dend = FALSE # palette_value = circlize::colorRamp2(
+            # seq(0, 100, length.out = 11),
+            # RColorBrewer::brewer.pal(11, "RdBu")
+            # )
+        ) %>%
+        add_tile(sex)
+
+    mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/dmrheatmap.pdf", params$mod_code), w = 5, h = 10, res = 300, pl = p, raster = FALSE)
+    mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/dmrheatmap.pdf", params$mod_code), w = 5, h = 10, res = 300, pl = p, raster = TRUE)
+
+    p <- pf %>%
+        mutate(sample = factor(sample, levels = conf$samples)) %>%
+        group_by(direction) %>%
+        heatmap(dmrid, sample, mean_meth,
+            cluster_rows = TRUE, cluster_columns = TRUE, show_row_names = FALSE, show_row_dend = FALSE, column_km = 2 # palette_value = circlize::colorRamp2(
+            # seq(0, 100, length.out = 11),
+            # RColorBrewer::brewer.pal(11, "RdBu")
+            # )
+        ) %>%
+        add_tile(sex)
+    mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/dmrheatmap_colclust.pdf", params$mod_code), w = 4.5, h = 9, res = 300, pl = p, raster = FALSE)
+    mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/dmrheatmap_colclust.pdf", params$mod_code), w = 4.5, h = 9, res = 300, pl = p, raster = TRUE)
+
+
+    pf <- dmrs_meth_df %>%
+        group_by(sample, dmrid, condition, direction, dmr_type, nCG, length) %>%
+        summarise(mean_meth = mean(pctM)) %>%
+        ungroup()
+
+    p <- pf %>%
+        filter(condition == condition1) %>%
+        group_by(direction, dmrid, dmr_type) %>%
+        summarise(mean_meth = mean(mean_meth)) %>%
+        mutate(direction_threshold = paste0(direction, "_", gsub("t", "", dmr_type))) %>%
+        mutate(direction_threshold = factor(direction_threshold, levels = c("Hypo_05", "Hypo_01", "Hyper_05", "Hyper_01"))) %>%
+        ggplot(aes(x = mean_meth, fill = direction_threshold)) +
+        xlab(sprintf("Average DMR Meth (%s)", condition1)) +
+        geom_histogram(color = "black") +
+        facet_wrap(~direction, scales = "free_y") +
+        scale_methylation_thresholds +
+        mtclosed
+    mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/dmr_histogram.pdf", params$mod_code), w = 6, h = 4, res = 300, pl = p)
+
+
+    p <- dmrsgrsuuid %>%
+        as.data.frame() %>%
+        tibble() %>%
+        mutate(direction_threshold = paste0(direction, "_", gsub("t", "", dmr_type))) %>%
+        mutate(direction_threshold = factor(direction_threshold, levels = c("Hypo_05", "Hypo_01", "Hyper_05", "Hyper_01"))) %>%
+        ggplot(aes(x = nCG, fill = direction_threshold)) +
+        xlab(sprintf("Average DMR Meth (%s)", condition1)) +
+        geom_histogram(color = "black", bins = 10) +
+        facet_wrap(~direction, scales = "free_y") +
+        scale_methylation_thresholds +
+        lims(x = c(0, 15)) +
+        mtclosed
+    mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/dmr_histogram_nCG.pdf", params$mod_code), w = 6.5, h = 4, res = 300, pl = p)
+    p <- dmrsgrsuuid %>%
+        as.data.frame() %>%
+        tibble() %>%
+        mutate(direction_threshold = paste0(direction, "_", gsub("t", "", dmr_type))) %>%
+        mutate(direction_threshold = factor(direction_threshold, levels = c("Hypo_05", "Hypo_01", "Hyper_05", "Hyper_01"))) %>%
+        ggplot(aes(x = length, fill = direction_threshold)) +
+        xlab("DMR Length (bp)") +
+        geom_histogram(color = "black", bins = 20) +
+        facet_wrap(~direction, scales = "free_y") +
+        scale_methylation_thresholds +
+        lims(x = c(0, 1500)) +
+        mtclosed
+    mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/dmr_histogram_length.pdf", params$mod_code), w = 6, h = 4, res = 300, pl = p)
+
+    dmrsgrsuuid %>%
+        as.data.frame() %>%
+        tibble() %$% nCG %>%
+        mean()
+
+    dmrsgrsuuid %>%
+        as.data.frame() %>%
+        tibble() %$% length %>%
+        mean()
+
+
+    pcaframe <- dmrs_meth_df %>%
+        group_by(sample, dmrid, condition, direction) %>%
+        summarise(mean_meth = mean(pctM)) %>%
+        ungroup() %>%
+        dplyr::select(sample, mean_meth, dmrid) %>%
+        pivot_wider(names_from = dmrid, values_from = mean_meth) %>%
+        mutate(sample = factor(sample, levels = conf$samples)) %>%
+        arrange(sample) %>%
+        column_to_rownames(var = "sample") %>%
+        as.matrix() %>%
+        t()
+    library(PCAtools)
+
+    pcaObj <- pca(pcaframe, center = TRUE, scale = FALSE, metadata = sample_table %>% column_to_rownames(var = "sample_name"))
+
+    p <- screeplot(pcaObj, title = "") + mtopen + anchorbar
+    mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/dmr_scree.pdf", params$mod_code), w = 5, h = 10, res = 300, pl = p)
+
+
+    p <- plotloadings(pcaObj,
+        components = getComponents(pcaObj, seq_len(3)),
+        rangeRetain = 0.045, labSize = 2
+    ) + mtopen
+    mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/dmr_loadings.pdf", params$mod_code), w = 5, h = 10, res = 300, pl = p)
+
+    p <- biplot(pcaObj,
+        showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0, legendPosition = "right", shape = "sex", colby = "condition",
+        labSize = 5, pointSize = 5, sizeLoadingsNames = 5
+    ) + mtopen + scale_conditions
+    mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/dmr_biplot.pdf", params$mod_code), w = 5, h = 5, res = 300, pl = p)
+
+    # p <- dmrs %>%
+    #     ggplot(aes(x = meanMethy_c1, y = meanMethy_c2)) +
+    #     stat_density_2d(aes(fill = ..density..), geom = "raster", contour = FALSE) +
+    #     geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "black") +
+    #     scale_x_continuous(expand = c(0, 0)) +
+    #     scale_y_continuous(expand = c(0, 0)) +
+    #     scale_fill_distiller(palette = "Spectral", direction = 1) +
+    #     xlab(sprintf("CpG Methylation %s", condition1)) +
+    #     ylab(sprintf("CpG Methylation %s", condition2)) +
+    #     ggtitle("DMR Density") +
+    #     mtclosed
+    # mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/dmrdensity.pdf", params$mod_code), 5, 5)
 }
 
 
-
-# {#analysis specific  look at genes
-
-# dmls
-# dmrsgr %>% subsetByOverlaps(
-# genes_gr[mcols(genes_gr)$gene_id == "RMI2"] %>% resize(width = 1000)
-# )
-
-# }
-
-
-
-# gs %>%
-#     filter(gs_cat == "C5") %>%
-#     filter(grepl("_ION$", gs_name, perl = TRUE)) %$% gs_name %>%
-#     unique()
-
-# metal_terms <- c(
-#     "GOBP_DETOXIFICATION_OF_COPPER_ION",
-#     "GOBP_STRESS_RESPONSE_TO_METAL_ION",
-#     "GOBP_CELLULAR_RESPONSE_TO_ZINC_ION",
-#     "GOBP_CELLULAR_RESPONSE_TO_CADMIUM_ION",
-#     "GOBP_CELLULAR_RESPONSE_TO_COPPER_ION",
-#     "GOBP_ZINC_ION_HOMEOSTASIS"
-# )
-# gs %>% filter(gs_name %in% metal_terms)
-# gs %>% filter(gs_name %in% metal_terms[1])
-
-# gs %>% filter(gs_name %in% metal_terms[2])
-
-# gs %>% filter(gs_name %in% metal_terms[3])
-# intersect(
-#     gs %>% filter(gs_name %in% metal_terms[1]) %$% gene_symbol,
-#     gs %>% filter(gs_name %in% metal_terms[2]) %$% gene_symbol
-# )
-# intersect(
-#     gs %>% filter(gs_name %in% metal_terms[1]) %$% gene_symbol,
-#     gs %>% filter(gs_name %in% metal_terms[6]) %$% gene_symbol
-# )
-
-
-
-
-
-# dmrs heatmap
-dmrsuuid <- dmrs %>%
-    mutate(dmrid = paste0(direction, row_number()))
-dmrs05 <- dmrsuuid %>%
-    filter(dmr_type == "t05") %>%
-    GRanges()
-dmrs01 <- dmrsuuid %>%
-    filter(dmr_type == "t01") %>%
-    GRanges()
-dmrs05setdiff <- dmrs05 %>% subsetByOverlaps(dmrs01, invert = TRUE)
-
-dmrsgrsuuid <- c(dmrs01, dmrs05setdiff)
-mbo <- mergeByOverlaps(grs, dmrsgrsuuid)
-dmrs_meth_df <- mbo$grs %>%
-    as.data.frame() %>%
-    tibble()
-dmrs_meth_df$dmrid <- mbo$dmrsgrsuuid$dmrid
-dmrs_meth_df$areaStat <- mbo$dmrsgrsuuid$areaStat
-dmrs_meth_df$direction <- mbo$dmrsgrsuuid$direction
-dmrs_meth_df$dmr_type <- mbo$dmrsgrsuuid$dmr_type
-dmrs_meth_df$length <- mbo$dmrsgrsuuid$length
-dmrs_meth_df$nCG <- mbo$dmrsgrsuuid$nCG
-
-# dmr av meth stats
-ac <- dmrs_meth_df %>%
-    group_by(pos, direction, dmr_type, condition) %>%
-    summarise(mean_meth = mean(pctM))
-ad <- ac %>%
-    filter(dmr_type %in% c("t01", "t05")) %>%
-    pivot_wider(names_from = condition, values_from = mean_meth) %>%
-    mutate(dif = !!sym(condition2) - !!sym(condition1)) %>%
-    group_by(dmr_type, direction) %>%
-    summarize(mean_dif = mean(dif))
-dir.create(sprintf("ldna/results/%s/tables/dmrs", params$mod_code), recursive = TRUE)
-ad %>% write_delim(sprintf("ldna/results/%s/tables/dmrs/dmrs_meth_dif", params$mod_code))
-
-# topdmrshypo <- dmrsgrsuuid %>%
-#     as.data.frame() %>%
-#     tibble() %>%
-#     filter(direction == "Hypo") %>%
-#     arrange(areaStat) %$% dmrid %>%
-#     head(n = 1000)
-# topdmrshyper <- dmrsgrsuuid %>%
-#     as.data.frame() %>%
-#     tibble() %>%
-#     filter(direction == "Hyper") %>%
-#     arrange(-areaStat) %$% dmrid %>%
-#     head(n = 1000)
-
-pf1 <- dmrs_meth_df %>%
-    group_by(sample, dmrid, direction, dmr_type, areaStat) %>%
-    summarise(mean_meth = mean(pctM)) %>%
-    ungroup()
-
-topdmrshypo <- pf1 %>%
-    as.data.frame() %>%
-    tibble() %>%
-    filter(direction == "Hypo") %>%
-    arrange(areaStat) %>%
-    pivot_wider(names_from = sample, values_from = mean_meth) %>%
-    head(n = 250) %>%
-    pivot_longer(cols = sample_table$sample_name, names_to = "sample_name", values_to = "mean_meth") %>%
-    left_join(sample_table)
-
-topdmrshyper <- pf1 %>%
-    as.data.frame() %>%
-    tibble() %>%
-    filter(direction == "Hyper") %>%
-    arrange(-areaStat) %>%
-    pivot_wider(names_from = sample, values_from = mean_meth) %>%
-    head(n = 250) %>%
-    pivot_longer(cols = sample_table$sample_name, names_to = "sample_name", values_to = "mean_meth") %>%
-    left_join(sample_table)
-
-pf <- bind_rows(topdmrshyper, topdmrshypo)
-
-library(tidyHeatmap)
-p <- pf %>%
-    mutate(sample = factor(sample, levels = conf$samples)) %>%
-    group_by(direction) %>%
-    heatmap(dmrid, sample, mean_meth,
-        cluster_rows = TRUE, cluster_columns = FALSE, show_row_names = FALSE, show_row_dend = FALSE # palette_value = circlize::colorRamp2(
-        # seq(0, 100, length.out = 11),
-        # RColorBrewer::brewer.pal(11, "RdBu")
-        # )
-    ) %>%
-    add_tile(sex)
-
-mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/dmrheatmap.pdf", params$mod_code), w = 5, h = 10, res = 300, pl = p, raster = FALSE)
-mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/dmrheatmap.pdf", params$mod_code), w = 5, h = 10, res = 300, pl = p, raster = TRUE)
-
-p <- pf %>%
-    mutate(sample = factor(sample, levels = conf$samples)) %>%
-    group_by(direction) %>%
-    heatmap(dmrid, sample, mean_meth,
-        cluster_rows = TRUE, cluster_columns = TRUE, show_row_names = FALSE, show_row_dend = FALSE, column_km = 2 # palette_value = circlize::colorRamp2(
-        # seq(0, 100, length.out = 11),
-        # RColorBrewer::brewer.pal(11, "RdBu")
-        # )
-    ) %>%
-    add_tile(sex)
-mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/dmrheatmap_colclust.pdf", params$mod_code), w = 4.5, h = 9, res = 300, pl = p, raster = FALSE)
-mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/dmrheatmap_colclust.pdf", params$mod_code), w = 4.5, h = 9, res = 300, pl = p, raster = TRUE)
-
-
-pf <- dmrs_meth_df %>%
-    group_by(sample, dmrid, condition, direction, dmr_type, nCG, length) %>%
-    summarise(mean_meth = mean(pctM)) %>%
-    ungroup()
-
-p <- pf %>%
-    filter(condition == condition1) %>%
-    group_by(direction, dmrid, dmr_type) %>%
-    summarise(mean_meth = mean(mean_meth)) %>%
-    mutate(direction_threshold = paste0(direction, "_", gsub("t", "", dmr_type))) %>%
-    mutate(direction_threshold = factor(direction_threshold, levels = c("Hypo_05", "Hypo_01", "Hyper_05", "Hyper_01"))) %>%
-    ggplot(aes(x = mean_meth, fill = direction_threshold)) +
-    xlab(sprintf("Average DMR Meth (%s)", condition1)) +
-    geom_histogram(color = "black") +
-    facet_wrap(~direction, scales = "free_y") +
-    scale_methylation_thresholds +
-    mtclosed
-mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/dmr_histogram.pdf", params$mod_code), w = 6, h = 4, res = 300, pl = p)
-
-
-p <- dmrsgrsuuid %>%
-    as.data.frame() %>%
-    tibble() %>%
-    mutate(direction_threshold = paste0(direction, "_", gsub("t", "", dmr_type))) %>%
-    mutate(direction_threshold = factor(direction_threshold, levels = c("Hypo_05", "Hypo_01", "Hyper_05", "Hyper_01"))) %>%
-    ggplot(aes(x = nCG, fill = direction_threshold)) +
-    xlab(sprintf("Average DMR Meth (%s)", condition1)) +
-    geom_histogram(color = "black", bins = 10) +
-    facet_wrap(~direction, scales = "free_y") +
-    scale_methylation_thresholds +
-    lims(x = c(0, 15)) +
-    mtclosed
-mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/dmr_histogram_nCG.pdf", params$mod_code), w = 6.5, h = 4, res = 300, pl = p)
-p <- dmrsgrsuuid %>%
-    as.data.frame() %>%
-    tibble() %>%
-    mutate(direction_threshold = paste0(direction, "_", gsub("t", "", dmr_type))) %>%
-    mutate(direction_threshold = factor(direction_threshold, levels = c("Hypo_05", "Hypo_01", "Hyper_05", "Hyper_01"))) %>%
-    ggplot(aes(x = length, fill = direction_threshold)) +
-    xlab("DMR Length (bp)") +
-    geom_histogram(color = "black", bins = 20) +
-    facet_wrap(~direction, scales = "free_y") +
-    scale_methylation_thresholds +
-    lims(x = c(0, 1500)) +
-    mtclosed
-mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/dmr_histogram_length.pdf", params$mod_code), w = 6, h = 4, res = 300, pl = p)
-
-dmrsgrsuuid %>%
-    as.data.frame() %>%
-    tibble() %$% nCG %>%
-    mean()
-
-dmrsgrsuuid %>%
-    as.data.frame() %>%
-    tibble() %$% length %>%
-    mean()
-
-
-pcaframe <- dmrs_meth_df %>%
-    group_by(sample, dmrid, condition, direction) %>%
-    summarise(mean_meth = mean(pctM)) %>%
-    ungroup() %>%
-    dplyr::select(sample, mean_meth, dmrid) %>%
-    pivot_wider(names_from = dmrid, values_from = mean_meth) %>%
-    mutate(sample = factor(sample, levels = conf$samples)) %>%
-    arrange(sample) %>%
-    column_to_rownames(var = "sample") %>%
-    as.matrix() %>%
-    t()
-library(PCAtools)
-
-pcaObj <- pca(pcaframe, center = TRUE, scale = FALSE, metadata = sample_table %>% column_to_rownames(var = "sample_name"))
-
-p <- screeplot(pcaObj, title = "") + mtopen + anchorbar
-mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/dmr_scree.pdf", params$mod_code), w = 5, h = 10, res = 300, pl = p)
-
-
-p <- plotloadings(pcaObj,
-    components = getComponents(pcaObj, seq_len(3)),
-    rangeRetain = 0.045, labSize = 2
-) + mtopen
-mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/dmr_loadings.pdf", params$mod_code), w = 5, h = 10, res = 300, pl = p)
-
-p <- biplot(pcaObj,
-    showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0, legendPosition = "right", shape = "sex", colby = "condition",
-    labSize = 5, pointSize = 5, sizeLoadingsNames = 5
-) + mtopen + scale_conditions
-mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/dmr_biplot.pdf", params$mod_code), w = 5, h = 5, res = 300, pl = p)
-
-# p <- dmrs %>%
-#     ggplot(aes(x = meanMethy_c1, y = meanMethy_c2)) +
-#     stat_density_2d(aes(fill = ..density..), geom = "raster", contour = FALSE) +
-#     geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "black") +
-#     scale_x_continuous(expand = c(0, 0)) +
-#     scale_y_continuous(expand = c(0, 0)) +
-#     scale_fill_distiller(palette = "Spectral", direction = 1) +
-#     xlab(sprintf("CpG Methylation %s", condition1)) +
-#     ylab(sprintf("CpG Methylation %s", condition2)) +
-#     ggtitle("DMR Density") +
-#     mtclosed
-# mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/dmrdensity.pdf", params$mod_code), 5, 5)
 
 ## CENTROMERE
 # ANNOTATIONS
@@ -5182,449 +5075,1403 @@ mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/nonref/l1hs_meth.pdf", pa
 
 ########
 
-flyngl1 <- rmann %>%
-    filter(rte_length_req == "FL") %>%
-    filter(rte_subfamily == "L1HS" | rte_subfamily == "L1PA2")
-
-flyngl1grs <- GRanges(flyngl1)
-flyngl1grspromoter <- promoters(flyngl1grs, upstream = 0, downstream = 909)
-
-
-l1cpggrs <- mergeByOverlaps(cpg_islands, flyngl1grspromoter)
-l1cpggrs1 <- l1cpggrs$cpg_islands
-mcols(l1cpggrs1)$gene_id <- mcols(l1cpggrs$flyngl1grspromoter)$gene_id
-
-promoterscpggrs <- mergeByOverlaps(cpg_islands, promoters)
-promoterscpggrs1 <- promoterscpggrs$cpg_islands
-mcols(promoterscpggrs1)$gene_id <- mcols(promoterscpggrs$promoters)$gene
-
-flanked_promoters <- flank(promoterscpggrs1, width = 10000, both = TRUE)
-
-merged <- mergeByOverlaps(flanked_promoters, l1cpggrs1)
-merged[!(mcols(merged$flanked_promoters)$name == mcols(merged$l1cpggrs1)$name), ]
-
-
-rmann %>%
-    filter(gene_id == "L1HS_4q28.3_9") %>%
-    pw()
-
-
-reads_cgI_chr1 <- read_delim("ldna/intermediates/merged/merged_cpgI_reads1.tsv")
-reads_cgI_chr1_grs <- GRanges(reads_cgI_chr1 %>% dplyr::rename(seqnames = chrom, start = ref_position) %>% mutate(end = start))
-
-mbo <- mergeByOverlaps(reads_cgI_chr1_grs, promoters)
-mboreadsdf <- mbo$reads_cgI_chr1_grs %>%
-    as.data.frame() %>%
-    tibble()
-mbopromoters <- mbo$promoters %>%
-    as.data.frame() %>%
-    tibble() %>%
-    dplyr::rename(gene_seqnames = seqnames, gene_start = start, gene_end = end, gene_strand = strand, gene_width = width)
-
-readscg_genepromoters <- bind_cols(mboreadsdf, mbopromoters)
-rm(mbopromoters)
-rm(readsdf)
-rm(mbo)
-
-chr1rtes_grs <- rmann %>%
-    filter(seqnames == "chr1") %>%
-    filter(rte_subfamily != "Other") %>%
-    GRanges()
-mbo <- mergeByOverlaps(reads_cgI_chr1_grs, chr1rtes_grs)
-mboreadsdf <- mbo$reads_cgI_chr1_grs %>%
-    as.data.frame() %>%
-    tibble()
-mbortes <- mbo$chr1rtes_grs %>%
-    as.data.frame() %>%
-    tibble() %>%
-    dplyr::rename(gene_seqnames = seqnames, gene_start = start, gene_end = end, gene_strand = strand, gene_width = width)
-
-readscg_rtes <- bind_cols(mboreadsdf, mbortes)
-rm(mboreadsdf)
-rm(mbortes)
-rm(mbo)
-
-
-by_cpg_genepromoters <- readscg_genepromoters %>%
-    group_by(gene_id, read_id, sample_name) %>%
-    mutate(num_cpgs_in_read = n()) %>%
-    relocate(gene_id) %>%
-    ungroup()
-
-
-numCGneeded_genes <- by_cpg_genepromoters %>%
-    group_by(gene_id, read_id) %>%
-    summarise(num_cpgs_in_read = dplyr::first(num_cpgs_in_read)) %>%
-    group_by(gene_id) %>%
-    summarise(mncg = mean(num_cpgs_in_read), q10 = quantile(num_cpgs_in_read, probs = c(0.1)))
-
-# will downsample to 25
-by_cpg_genepromoters_ds <- by_cpg_genepromoters %>%
-    filter(num_cpgs_in_read >= 25) %>%
-    group_by(sample_name, gene_id) %>%
-    mutate(n_reads_pass_filter = n()) %>%
-    filter(n_reads_pass_filter >= 10) %>%
-    group_by(gene_id, read_id) %>%
-    slice_sample(n = 25, replace = FALSE) %>%
-    mutate(fraction_meth = mean(mod_indicator)) %>%
-    ungroup()
-
-by_read_genepromoters_ds <- by_cpg_genepromoters_ds %>%
-    group_by(read_id, gene_id, sample_name) %>%
-    summarise(fraction_meth = dplyr::first(fraction_meth), num_cpgs_in_read = dplyr::first(num_cpgs_in_read)) %>%
-    ungroup() %>%
-    group_by(gene_id) %>%
-    mutate(mean_fm = mean(fraction_meth))
-
-# by_read_genepromoters_ds %>%
-#     group_by(gene_id) %>%
-#     summarise(mean_fm = mean(fraction_meth)) %$% mean_fm %>%
-#     quantile(., probs = seq(0, 1, 0.05))
-# by_read_genepromoters_ds %$% gene_id %>% unique()
-
-
-# p <- by_read_genepromoters_ds %>%
-#     group_by(gene_id) %>%
-#     summarise(mean_fm = mean(fraction_meth)) %>%
-#     ggplot() +
-#     geom_histogram(aes(x = mean_fm))
-# mysaveandstore()
-
-# by_read_genepromoters_ds %>%
-#     filter(mean_fm > 0.7) %>%
-#     filter(mean_fm < 0.98) %$% gene_id %>%
-#     unique()
-
-
-dispersion_model_genes_high_meth <- glmmTMB(
-    cbind(meth, unmeth) ~ 1 + (1 | sample_name) + (1 | gene_id) + (1 | sample_name:gene_id),
-    dispformula = ~condition,
-    family = glmmTMB::betabinomial(),
-    data = by_read_genepromoters_ds %>% filter(mean_fm > 0.7) %>% filter(mean_fm < 0.98) %>%
-        mutate(meth = fraction_meth * 25, unmeth = 25 - meth) %>% left_join(sample_table %>% dplyr::select(sample_name, condition))
-)
-
-outputdirtables <- sprintf("ldna/results/%s/tables/reads_new/%s_%s", params$mod_code, "genes", "cpg25req")
-dir.create(outputdirtables, recursive = TRUE)
-summary(dispersion_model_genes_high_meth)
-res_text <- capture.output(dispersion_model_genes_high_meth %>% summary())
-writeLines(res_text, sprintf("%s/gene_high_meth_dispersion_model_summary.txt", outputdirtables))
-
-
-
-
-by_cpg_rtes <- readscg_rtes %>%
-    group_by(gene_id, read_id, sample_name) %>%
-    mutate(num_cpgs_in_read = n()) %>%
-    relocate(gene_id) %>%
-    ungroup()
-
-
-numCGneeded_rtes <- by_cpg_rtes %>%
-    group_by(gene_id, read_id) %>%
-    summarise(num_cpgs_in_read = dplyr::first(num_cpgs_in_read)) %>%
-    group_by(gene_id) %>%
-    summarise(mncg = mean(num_cpgs_in_read), q10 = quantile(num_cpgs_in_read, probs = c(0.1)))
-
-# will downsample to 25
-by_cpg_rtes_ds <- by_cpg_rtes %>%
-    filter(num_cpgs_in_read >= 25) %>%
-    group_by(sample_name, gene_id) %>%
-    mutate(n_reads_pass_filter = n()) %>%
-    filter(n_reads_pass_filter >= 10) %>%
-    group_by(gene_id, read_id) %>%
-    slice_sample(n = 25, replace = FALSE) %>%
-    mutate(fraction_meth = mean(mod_indicator)) %>%
-    ungroup()
-
-by_read_rtes_ds <- by_cpg_rtes_ds %>%
-    group_by(read_id, gene_id, sample_name) %>%
-    summarise(fraction_meth = dplyr::first(fraction_meth), num_cpgs_in_read = dplyr::first(num_cpgs_in_read)) %>%
-    ungroup() %>%
-    group_by(gene_id) %>%
-    mutate(mean_fm = mean(fraction_meth)) %>%
-    left_join(rmann %>% dplyr::select(gene_id, rte_subfamily, rte_length_req))
-
-
-
-
-rtemodels <- list()
-for (subfam in c("L1HS", "L1PA2", "L1PA3", "L1PA4", "L1PA5")) {
-    dispersion_model_high_meth_fl <- glmmTMB(
-        cbind(meth, unmeth) ~ 1 + (1 | sample_name) + (1 | gene_id) + (1 | sample_name:gene_id),
-        dispformula = ~condition,
-        family = glmmTMB::betabinomial(),
-        data = by_read_rtes_ds %>% filter(mean_fm > 0.7) %>% filter(mean_fm < 0.98) %>%
-            filter(rte_subfamily == subfam) %>%
-            filter(rte_length_req == "FL") %>%
-            mutate(meth = fraction_meth * 25, unmeth = 25 - meth) %>% left_join(sample_table %>% dplyr::select(sample_name, condition))
-    )
-    rtemodels[[subfam]] <- dispersion_model_high_meth_fl
-}
-
-res_text <- capture.output(map(dispersion_model_genes_high_meth, summary))
-writeLines(res_text, sprintf("%s/gene_high_meth_dispersion_model_summary.txt", outputdirtables))
-
-
-
-################### reads to extract
-imprinted_genes_df <- read_csv("/users/mkelsey/data/Nanopore/alz/imprinted_genes.csv", comment = "#")
-imprinted_genes_df %$% Aliases %>%
-    str_split(., ", ") %>%
-    map(., ~ trimws(.x))
-
-temppromoteranalysis <- ip %>%
-    group_by(gene_id) %>%
-    summarise(mm = mean(mean_meth)) %>%
-    filter(!grepl("-AS", gene_id))
-highmethgenes <- temppromoteranalysis %>% filter(mm > 70) %$% gene_id
-lowmethgenes <- temppromoteranalysis %>% filter(mm < 15) %$% gene_id
-imprinted_genes <- temppromoteranalysis %>% filter(gene_id %in% (imprinted_genes_df %$% gene_id)) %$% gene_id
-
-sex_chromosome_genes <- mcols(promoters[seqnames(promoters) == "chrX" | seqnames(promoters) == "chrY"])$gene_id
-
-# non interesting cpgIs
-# filter out any related to genes, enhancers, ccres, L1s
-boring_islands <- cpg_islands %>%
-    subsetByOverlaps(promoters, invert = TRUE) %>%
-    subsetByOverlaps(refseq_gr[mcols(refseq_gr)$type == "gene"], invert = TRUE) %>%
-    subsetByOverlaps(rmann %>% filter(rte_subfamily %in% c("L1HS", "L1PA2", "L1PA3", "L1PA4", "L1PA5", "L1PA6")) %>% filter(element_start < 1000) %>% GRanges(), invert = TRUE) %>%
-    subsetByOverlaps(ccresgr, invert = TRUE) %>%
-    subsetByOverlaps(chromHMMgr[mcols(chromHMMgr)$name == "Quies"], invert = FALSE)
-
-set.seed(72)
-boring_islands_to_extract_reads_from <- boring_islands[width(boring_islands) < 1000 & !(seqnames(boring_islands) %in% c("chrX", "chrY"))] %>%
-    sample(., size = 500)
-mcols(boring_islands_to_extract_reads_from)$score <- NULL
-mcols(boring_islands_to_extract_reads_from)$gene_id <- mcols(boring_islands_to_extract_reads_from)$name
-mcols(boring_islands_to_extract_reads_from)$name <- NULL
-
-set.seed(73)
-genes_to_extract_reads_from <- c(
-    highmethgenes[!(highmethgenes %in% sex_chromosome_genes)] %>% sample(., size = 500),
-    lowmethgenes[!(lowmethgenes %in% sex_chromosome_genes)] %>% sample(., size = 500),
-    imprinted_genes[!(imprinted_genes %in% sex_chromosome_genes)]
-)
-
-genes_to_extract_reads_from_grs <- promoters[mcols(promoters)$gene_id %in% genes_to_extract_reads_from]
-
-set.seed(74)
-rtes_to_extract_reads_from_grs <- rmann %>%
-    filter(!(seqnames %in% c("chrX", "chrY"))) %>%
-    filter(rte_subfamily %in% c("L1HS", "L1PA2", "L1PA3", "L1PA4", "L1PA5", "L1PA6")) %>%
-    filter(rte_length_req == "FL") %>%
-    filter(element_start < 150) %>%
-    GRanges() %>%
-    promoters(., upstream = 0, downstream = 909) %>%
-    as.data.frame() %>%
-    tibble() %>%
-    group_by(rte_subfamily) %>%
-    slice_sample(n = 500, replace = FALSE) %>%
-    GRanges()
-
-regions_to_extract_reads_from_with_mcols <- c(boring_islands_to_extract_reads_from, genes_to_extract_reads_from_grs, rtes_to_extract_reads_from_grs)
-strand(regions_to_extract_reads_from_with_mcols) <- "*"
-mcols(regions_to_extract_reads_from_with_mcols)$name <- mcols(regions_to_extract_reads_from_with_mcols)$gene_id
-rtracklayer::export.bed(regions_to_extract_reads_from_with_mcols, "ldna/Rintermediates/m/regions_to_extract_reads_from.bed")
-
-
-###
-
-
-reads_rois <- read_delim("ldna/intermediates/merged/merged_rois_reads.tsv")
-reads_rois_grs <- GRanges(reads_rois %>% dplyr::rename(seqnames = chrom, start = ref_position) %>% mutate(end = start))
-
-
-mbo <- mergeByOverlaps(reads_rois_grs, regions_to_extract_reads_from_with_mcols)
-mboreadsdf <- mbo$reads_rois_grs %>%
-    as.data.frame() %>%
-    tibble()
-mborois <- mbo$regions_to_extract_reads_from_with_mcols %>%
-    as.data.frame() %>%
-    tibble() %>%
-    dplyr::select(gene_seqnames = seqnames, gene_start = start, gene_end = end, gene_strand = strand, gene_width = width, gene_id)
-
-readscg_rois <- bind_cols(mboreadsdf, mborois)
-rm(mboreadsdf)
-rm(mborois)
-rm(mbo)
-
-
-by_cpg_readscg_rois <- readscg_rois %>%
-    group_by(gene_id, read_id, sample_name) %>%
-    mutate(num_cpgs_in_read = n()) %>%
-    relocate(gene_id) %>%
-    ungroup()
-
-
-# numCGneeded_rois <- by_cpg_readscg_rois %>%
-#     group_by(gene_id, read_id) %>%
-#     summarise(num_cpgs_in_read = dplyr::first(num_cpgs_in_read)) %>%
-#     group_by(gene_id) %>%
-#     summarise(mncg = mean(num_cpgs_in_read), q10 = quantile(num_cpgs_in_read, probs = c(0.1)))
-
-# will downsample to 25
-downsample_to_n <- 20
-set.seed(10)
-by_cpg_rois_ds <- by_cpg_readscg_rois %>%
-    filter(num_cpgs_in_read >= downsample_to_n) %>%
-    group_by(sample_name, gene_id) %>%
-    mutate(n_reads_pass_filter = n()) %>%
-    filter(n_reads_pass_filter >= 10) %>%
-    group_by(gene_id, read_id) %>%
-    slice_sample(n = downsample_to_n, replace = FALSE) %>%
-    mutate(fraction_meth = mean(mod_indicator)) %>%
-    ungroup()
-
-by_read_rois_ds <- by_cpg_rois_ds %>%
-    group_by(read_id, gene_id, sample_name) %>%
-    summarise(fraction_meth = dplyr::first(fraction_meth), num_cpgs_in_read = dplyr::first(num_cpgs_in_read)) %>%
-    ungroup() %>%
-    group_by(gene_id) %>%
-    mutate(mean_fm = mean(fraction_meth))
-
-# by_read_genepromoters_ds %>%
-#     group_by(gene_id) %>%
-#     summarise(mean_fm = mean(fraction_meth)) %$% mean_fm %>%
-#     quantile(., probs = seq(0, 1, 0.05))
-# by_read_genepromoters_ds %$% gene_id %>% unique()
-
-
-# p <- by_read_genepromoters_ds %>%
-#     group_by(gene_id) %>%
-#     summarise(mean_fm = mean(fraction_meth)) %>%
-#     ggplot() +
-#     geom_histogram(aes(x = mean_fm))
-# mysaveandstore()
-
-# by_read_genepromoters_ds %>%
-#     filter(mean_fm > 0.7) %>%
-#     filter(mean_fm < 0.98) %$% gene_id %>%
-#     unique()
-by_read_imprinted <- by_read_rois_ds %>% filter(gene_id %in% imprinted_genes)
-by_read_highmeth_gene <- by_read_rois_ds %>%
-    filter(!(gene_id %in% imprinted_genes)) %>%
-    filter(gene_id %in% highmethgenes)
-by_read_lowmeth_gene <- by_read_rois_ds %>%
-    filter(!(gene_id %in% imprinted_genes)) %>%
-    filter(gene_id %in% lowmethgenes)
-by_read_boringcpgi <- by_read_rois_ds %>% filter(grepl("CpG:", gene_id))
-by_read_yngl1s <- by_read_rois_ds %>%
-    filter(gene_id %in% mcols(rtes_to_extract_reads_from_grs)$gene_id) %>%
-    left_join(rmann)
-
-dfs <- list(
-    "imprinted" = by_read_imprinted,
-    "highmethgene" = by_read_highmeth_gene,
-    "lowmethgene" = by_read_lowmeth_gene,
-    "boringcpgi" = by_read_boringcpgi
-)
-
-dfsl1s <- split(by_read_yngl1s %>% ungroup(), by_read_yngl1s$rte_subfamily)
-
-dfsall <- c(dfs, dfsl1s)
-
-getdispmodel <- function(df) {
+
+## READ DISPERSION ANALYSIS
+{
+    flyngl1 <- rmann %>%
+        filter(rte_length_req == "FL") %>%
+        filter(rte_subfamily == "L1HS" | rte_subfamily == "L1PA2")
+
+    flyngl1grs <- GRanges(flyngl1)
+    flyngl1grspromoter <- promoters(flyngl1grs, upstream = 0, downstream = 909)
+
+
+    l1cpggrs <- mergeByOverlaps(cpg_islands, flyngl1grspromoter)
+    l1cpggrs1 <- l1cpggrs$cpg_islands
+    mcols(l1cpggrs1)$gene_id <- mcols(l1cpggrs$flyngl1grspromoter)$gene_id
+
+    promoterscpggrs <- mergeByOverlaps(cpg_islands, promoters)
+    promoterscpggrs1 <- promoterscpggrs$cpg_islands
+    mcols(promoterscpggrs1)$gene_id <- mcols(promoterscpggrs$promoters)$gene
+
+    flanked_promoters <- flank(promoterscpggrs1, width = 10000, both = TRUE)
+
+    merged <- mergeByOverlaps(flanked_promoters, l1cpggrs1)
+    merged[!(mcols(merged$flanked_promoters)$name == mcols(merged$l1cpggrs1)$name), ]
+
+
+    rmann %>%
+        filter(gene_id == "L1HS_4q28.3_9") %>%
+        pw()
+
+
+    reads_cgI_chr1 <- read_delim("ldna/intermediates/merged/merged_cpgI_reads1.tsv")
+    reads_cgI_chr1_grs <- GRanges(reads_cgI_chr1 %>% dplyr::rename(seqnames = chrom, start = ref_position) %>% mutate(end = start))
+
+    mbo <- mergeByOverlaps(reads_cgI_chr1_grs, promoters)
+    mboreadsdf <- mbo$reads_cgI_chr1_grs %>%
+        as.data.frame() %>%
+        tibble()
+    mbopromoters <- mbo$promoters %>%
+        as.data.frame() %>%
+        tibble() %>%
+        dplyr::rename(gene_seqnames = seqnames, gene_start = start, gene_end = end, gene_strand = strand, gene_width = width)
+
+    readscg_genepromoters <- bind_cols(mboreadsdf, mbopromoters)
+    rm(mbopromoters)
+    rm(readsdf)
+    rm(mbo)
+
+    chr1rtes_grs <- rmann %>%
+        filter(seqnames == "chr1") %>%
+        filter(rte_subfamily != "Other") %>%
+        GRanges()
+    mbo <- mergeByOverlaps(reads_cgI_chr1_grs, chr1rtes_grs)
+    mboreadsdf <- mbo$reads_cgI_chr1_grs %>%
+        as.data.frame() %>%
+        tibble()
+    mbortes <- mbo$chr1rtes_grs %>%
+        as.data.frame() %>%
+        tibble() %>%
+        dplyr::rename(gene_seqnames = seqnames, gene_start = start, gene_end = end, gene_strand = strand, gene_width = width)
+
+    readscg_rtes <- bind_cols(mboreadsdf, mbortes)
+    rm(mboreadsdf)
+    rm(mbortes)
+    rm(mbo)
+
+
+    by_cpg_genepromoters <- readscg_genepromoters %>%
+        group_by(gene_id, read_id, sample_name) %>%
+        mutate(num_cpgs_in_read = n()) %>%
+        relocate(gene_id) %>%
+        ungroup()
+
+
+    numCGneeded_genes <- by_cpg_genepromoters %>%
+        group_by(gene_id, read_id) %>%
+        summarise(num_cpgs_in_read = dplyr::first(num_cpgs_in_read)) %>%
+        group_by(gene_id) %>%
+        summarise(mncg = mean(num_cpgs_in_read), q10 = quantile(num_cpgs_in_read, probs = c(0.1)))
+
+    # will downsample to 25
+    by_cpg_genepromoters_ds <- by_cpg_genepromoters %>%
+        filter(num_cpgs_in_read >= 25) %>%
+        group_by(sample_name, gene_id) %>%
+        mutate(n_reads_pass_filter = n()) %>%
+        filter(n_reads_pass_filter >= 10) %>%
+        group_by(gene_id, read_id) %>%
+        slice_sample(n = 25, replace = FALSE) %>%
+        mutate(fraction_meth = mean(mod_indicator)) %>%
+        ungroup()
+
+    by_read_genepromoters_ds <- by_cpg_genepromoters_ds %>%
+        group_by(read_id, gene_id, sample_name) %>%
+        summarise(fraction_meth = dplyr::first(fraction_meth), num_cpgs_in_read = dplyr::first(num_cpgs_in_read)) %>%
+        ungroup() %>%
+        group_by(gene_id) %>%
+        mutate(mean_fm = mean(fraction_meth))
+
+    # by_read_genepromoters_ds %>%
+    #     group_by(gene_id) %>%
+    #     summarise(mean_fm = mean(fraction_meth)) %$% mean_fm %>%
+    #     quantile(., probs = seq(0, 1, 0.05))
+    # by_read_genepromoters_ds %$% gene_id %>% unique()
+
+
+    # p <- by_read_genepromoters_ds %>%
+    #     group_by(gene_id) %>%
+    #     summarise(mean_fm = mean(fraction_meth)) %>%
+    #     ggplot() +
+    #     geom_histogram(aes(x = mean_fm))
+    # mysaveandstore()
+
+    # by_read_genepromoters_ds %>%
+    #     filter(mean_fm > 0.7) %>%
+    #     filter(mean_fm < 0.98) %$% gene_id %>%
+    #     unique()
+
+
     dispersion_model_genes_high_meth <- glmmTMB(
         cbind(meth, unmeth) ~ 1 + (1 | sample_name) + (1 | gene_id) + (1 | sample_name:gene_id),
         dispformula = ~condition,
         family = glmmTMB::betabinomial(),
-        data = df %>%
-            mutate(meth = fraction_meth * downsample_to_n, unmeth = downsample_to_n - meth) %>% left_join(sample_table %>% dplyr::select(sample_name, condition))
+        data = by_read_genepromoters_ds %>% filter(mean_fm > 0.7) %>% filter(mean_fm < 0.98) %>%
+            mutate(meth = fraction_meth * 25, unmeth = 25 - meth) %>% left_join(sample_table %>% dplyr::select(sample_name, condition))
     )
-}
 
-models_dfs <- map(dfs, getdispmodel)
-models_l1s <- map(dfsl1s, getdispmodel)
-
-modelsall <- c(models_dfs, models_l1s)
-
-
-outputdirtables <- sprintf("ldna/results/%s/tables/reads_new/%s_%s", params$mod_code, "allrois_types", sprintf("cpg%sreq", downsample_to_n))
-dir.create(outputdirtables, recursive = TRUE)
-res_text <- capture.output(map(models_l1s, summary))
-writeLines(res_text, sprintf("%s/model_summary.txt", outputdirtables))
-
-modelsall[[1]] %>% broom::tidy()
-fixef(modelsall[[1]])$disp
-modelsall[[1]]$fit$par["thetaf"] # Overdispersion theta (log scale)
-sigma(modelsall[[1]], type = "dispersion")
-VarCorr(modelsall[[1]])
-summary(modelsall[[1]])
-summary(modelsall[[1]]) %>% as.data.frame()
-summary(modelsall[[1]])$coefficients$disp
-
-disp_df <- map(modelsall, ~ summary(.x)$coefficients$disp %>%
-    as.data.frame() %>%
-    rownames_to_column("term")) %>%
-    bind_rows(., .id = "roi")
-write_csv(disp_df, sprintf("%s/model_disp_coef.csv", outputdirtables))
+    outputdirtables <- sprintf("ldna/results/%s/tables/reads_new/%s_%s", params$mod_code, "genes", "cpg25req")
+    dir.create(outputdirtables, recursive = TRUE)
+    summary(dispersion_model_genes_high_meth)
+    res_text <- capture.output(dispersion_model_genes_high_meth %>% summary())
+    writeLines(res_text, sprintf("%s/gene_high_meth_dispersion_model_summary.txt", outputdirtables))
 
 
 
-### mixture model
-library(brms)
 
-# Define mixture of two binomial components
-mix <- mixture(binomial(), binomial())
+    by_cpg_rtes <- readscg_rtes %>%
+        group_by(gene_id, read_id, sample_name) %>%
+        mutate(num_cpgs_in_read = n()) %>%
+        relocate(gene_id) %>%
+        ungroup()
 
-fit <- brm(
-    bf(meth | trials(20) ~ 1), # Intercept-only for now
-    family = mix,
-    data = dfsall[["L1HS"]] %>%
-        mutate(meth = fraction_meth * downsample_to_n, unmeth = downsample_to_n - meth) %>%
-        left_join(sample_table %>%
-            dplyr::select(sample_name, condition)) %>%
-        dplyr::select(gene_id, sample_name, meth),
-    chains = 4,
-    iter = 4000,
-    #   control = list(adapt_delta = 0.95),
-    cores = 4
-)
 
-library(flexmix)
-fitflex <- flexmix(
-    cbind(meth, 20 - meth) ~ 1,
-    data = dfsall[["L1HS"]] %>%
-        mutate(meth = fraction_meth * downsample_to_n, unmeth = downsample_to_n - meth) %>%
-        left_join(sample_table %>%
-            dplyr::select(sample_name, condition)) %>%
-        dplyr::select(gene_id, sample_name, meth) %>%
-        filter(gene_id == "L1HS_4q28.3_9"),
-    k = 3, # number of components
-    model = FLXglm(family = "binomial")
-)
+    numCGneeded_rtes <- by_cpg_rtes %>%
+        group_by(gene_id, read_id) %>%
+        summarise(num_cpgs_in_read = dplyr::first(num_cpgs_in_read)) %>%
+        group_by(gene_id) %>%
+        summarise(mncg = mean(num_cpgs_in_read), q10 = quantile(num_cpgs_in_read, probs = c(0.1)))
 
-summary(fitflex)
+    # will downsample to 25
+    by_cpg_rtes_ds <- by_cpg_rtes %>%
+        filter(num_cpgs_in_read >= 25) %>%
+        group_by(sample_name, gene_id) %>%
+        mutate(n_reads_pass_filter = n()) %>%
+        filter(n_reads_pass_filter >= 10) %>%
+        group_by(gene_id, read_id) %>%
+        slice_sample(n = 25, replace = FALSE) %>%
+        mutate(fraction_meth = mean(mod_indicator)) %>%
+        ungroup()
 
-parameters(fitflex)
+    by_read_rtes_ds <- by_cpg_rtes_ds %>%
+        group_by(read_id, gene_id, sample_name) %>%
+        summarise(fraction_meth = dplyr::first(fraction_meth), num_cpgs_in_read = dplyr::first(num_cpgs_in_read)) %>%
+        ungroup() %>%
+        group_by(gene_id) %>%
+        mutate(mean_fm = mean(fraction_meth)) %>%
+        left_join(rmann %>% dplyr::select(gene_id, rte_subfamily, rte_length_req))
 
-posterior_probs <- posterior(fitflex)
 
-mixturemodelk2 <- function(df) {
-    fit <- flexmix(
-        cbind(meth, 20 - meth) ~ 1,
-        data = df %>%
-            ungroup() %>%
+
+
+    rtemodels <- list()
+    for (subfam in c("L1HS", "L1PA2", "L1PA3", "L1PA4", "L1PA5")) {
+        dispersion_model_high_meth_fl <- glmmTMB(
+            cbind(meth, unmeth) ~ 1 + (1 | sample_name) + (1 | gene_id) + (1 | sample_name:gene_id),
+            dispformula = ~condition,
+            family = glmmTMB::betabinomial(),
+            data = by_read_rtes_ds %>% filter(mean_fm > 0.7) %>% filter(mean_fm < 0.98) %>%
+                filter(rte_subfamily == subfam) %>%
+                filter(rte_length_req == "FL") %>%
+                mutate(meth = fraction_meth * 25, unmeth = 25 - meth) %>% left_join(sample_table %>% dplyr::select(sample_name, condition))
+        )
+        rtemodels[[subfam]] <- dispersion_model_high_meth_fl
+    }
+
+    res_text <- capture.output(map(dispersion_model_genes_high_meth, summary))
+    writeLines(res_text, sprintf("%s/gene_high_meth_dispersion_model_summary.txt", outputdirtables))
+
+
+
+    ################### reads to extract
+    imprinted_genes_df <- read_csv("/users/mkelsey/data/Nanopore/alz/imprinted_genes.csv", comment = "#")
+    imprinted_genes_df %$% Aliases %>%
+        str_split(., ", ") %>%
+        map(., ~ trimws(.x))
+
+    temppromoteranalysis <- ip %>%
+        group_by(gene_id) %>%
+        summarise(mm = mean(mean_meth)) %>%
+        filter(!grepl("-AS", gene_id))
+    highmethgenes <- temppromoteranalysis %>% filter(mm > 75) %$% gene_id
+    lowmethgenes <- temppromoteranalysis %>% filter(mm < 15) %$% gene_id
+    imprinted_genes <- temppromoteranalysis %>% filter(gene_id %in% (imprinted_genes_df %$% gene_id)) %$% gene_id
+
+    sex_chromosome_genes <- mcols(promoters[seqnames(promoters) == "chrX" | seqnames(promoters) == "chrY"])$gene_id
+
+    # non interesting cpgIs
+    # filter out any related to genes, enhancers, ccres, L1s
+    boring_islands <- cpg_islands %>%
+        subsetByOverlaps(promoters, invert = TRUE) %>%
+        subsetByOverlaps(refseq_gr[mcols(refseq_gr)$type == "gene"], invert = TRUE) %>%
+        subsetByOverlaps(rmann %>% filter(rte_subfamily %in% c("L1HS", "L1PA2", "L1PA3", "L1PA4", "L1PA5", "L1PA6")) %>% filter(element_start < 1000) %>% GRanges(), invert = TRUE) %>%
+        subsetByOverlaps(ccresgr, invert = TRUE) %>%
+        subsetByOverlaps(chromHMMgr[mcols(chromHMMgr)$name == "Quies"], invert = FALSE)
+
+    set.seed(72)
+    boring_islands_to_extract_reads_from <- boring_islands[width(boring_islands) < 1000 & !(seqnames(boring_islands) %in% c("chrX", "chrY"))] %>%
+        sample(., size = 500)
+    mcols(boring_islands_to_extract_reads_from)$score <- NULL
+    mcols(boring_islands_to_extract_reads_from)$gene_id <- mcols(boring_islands_to_extract_reads_from)$name
+    mcols(boring_islands_to_extract_reads_from)$name <- NULL
+
+    set.seed(73)
+    genes_to_extract_reads_from <- c(
+        highmethgenes[!(highmethgenes %in% sex_chromosome_genes)] %>% sample(., size = 500),
+        lowmethgenes[!(lowmethgenes %in% sex_chromosome_genes)] %>% sample(., size = 500),
+        imprinted_genes[!(imprinted_genes %in% sex_chromosome_genes)]
+    )
+
+    genes_to_extract_reads_from_grs <- promoters[mcols(promoters)$gene_id %in% genes_to_extract_reads_from]
+
+    set.seed(74)
+    rtes_to_extract_reads_from_grs <- rmann %>%
+        filter(!(seqnames %in% c("chrX", "chrY"))) %>%
+        filter(rte_subfamily %in% c("L1HS", "L1PA2", "L1PA3", "L1PA4", "L1PA5", "L1PA6")) %>%
+        filter(rte_length_req == "FL") %>%
+        filter(element_start < 150) %>%
+        GRanges() %>%
+        promoters(., upstream = 0, downstream = 909) %>%
+        as.data.frame() %>%
+        tibble() %>%
+        group_by(rte_subfamily) %>%
+        slice_sample(n = 500, replace = FALSE) %>%
+        GRanges()
+
+    regions_to_extract_reads_from_with_mcols <- c(boring_islands_to_extract_reads_from, genes_to_extract_reads_from_grs, rtes_to_extract_reads_from_grs)
+    strand(regions_to_extract_reads_from_with_mcols) <- "*"
+    mcols(regions_to_extract_reads_from_with_mcols)$name <- mcols(regions_to_extract_reads_from_with_mcols)$gene_id
+    rtracklayer::export.bed(regions_to_extract_reads_from_with_mcols, "ldna/Rintermediates/m/regions_to_extract_reads_from.bed")
+
+
+    ###
+
+
+    reads_rois <- read_delim("ldna/intermediates/merged/merged_rois_reads.tsv")
+    reads_rois_grs <- GRanges(reads_rois %>% dplyr::rename(seqnames = chrom, start = ref_position) %>% mutate(end = start))
+
+
+    mbo <- mergeByOverlaps(reads_rois_grs, regions_to_extract_reads_from_with_mcols)
+    mboreadsdf <- mbo$reads_rois_grs %>%
+        as.data.frame() %>%
+        tibble()
+    mborois <- mbo$regions_to_extract_reads_from_with_mcols %>%
+        as.data.frame() %>%
+        tibble() %>%
+        dplyr::select(gene_seqnames = seqnames, gene_start = start, gene_end = end, gene_strand = strand, gene_width = width, gene_id)
+
+    readscg_rois <- bind_cols(mboreadsdf, mborois)
+    rm(mboreadsdf)
+    rm(mborois)
+    rm(mbo)
+
+
+    by_cpg_readscg_rois <- readscg_rois %>%
+        group_by(gene_id, read_id, sample_name) %>%
+        mutate(num_cpgs_in_read = n()) %>%
+        relocate(gene_id) %>%
+        ungroup()
+
+
+    # numCGneeded_rois <- by_cpg_readscg_rois %>%
+    #     group_by(gene_id, read_id) %>%
+    #     summarise(num_cpgs_in_read = dplyr::first(num_cpgs_in_read)) %>%
+    #     group_by(gene_id) %>%
+    #     summarise(mncg = mean(num_cpgs_in_read), q10 = quantile(num_cpgs_in_read, probs = c(0.1)))
+
+    # will downsample to 25
+    downsample_to_n <- 20
+    set.seed(10)
+    by_cpg_rois_ds <- by_cpg_readscg_rois %>%
+        filter(num_cpgs_in_read >= downsample_to_n) %>%
+        group_by(sample_name, gene_id) %>%
+        mutate(n_reads_pass_filter = n()) %>%
+        filter(n_reads_pass_filter >= 10) %>%
+        group_by(gene_id, read_id) %>%
+        slice_sample(n = downsample_to_n, replace = FALSE) %>%
+        mutate(fraction_meth = mean(mod_indicator)) %>%
+        ungroup()
+    by_cpg_rois_ds %>% write_csv("ldna/Rintermediates/m/by_cpg_rois_ds")
+
+    by_read_rois_ds <- by_cpg_rois_ds %>%
+        group_by(read_id, gene_id, sample_name) %>%
+        summarise(fraction_meth = dplyr::first(fraction_meth), num_cpgs_in_read = dplyr::first(num_cpgs_in_read)) %>%
+        ungroup() %>%
+        group_by(gene_id, sample_name) %>%
+        mutate(mean_fm = mean(fraction_meth)) #can use this to remove high meth genes that are actually low in one sample 
+
+    by_read_imprinted <- by_read_rois_ds %>% filter(gene_id %in% imprinted_genes) %>% 
+        mutate(roi = "imprinted_gene") %>%
+        filter(mean_fm > .80)
+    by_read_highmeth_gene <- by_read_rois_ds %>%
+        filter(!(gene_id %in% imprinted_genes)) %>%
+        filter(gene_id %in% highmethgenes) %>% 
+        mutate(roi = "high_meth_gene") %>%
+        filter(mean_fm > .80)
+    by_read_lowmeth_gene <- by_read_rois_ds %>%
+        filter(!(gene_id %in% imprinted_genes)) %>%
+        filter(gene_id %in% lowmethgenes) %>% 
+        mutate(roi = "low_meth_gene") %>%
+        filter(mean_fm < .20)
+    by_read_boringcpgi <- by_read_rois_ds %>% filter(grepl("CpG:", gene_id)) %>% 
+        mutate(roi = "isolated_cpgI") %>%
+        filter(mean_fm > .80)
+    by_read_yngl1s <- by_read_rois_ds %>%
+        filter(gene_id %in% mcols(rtes_to_extract_reads_from_grs)$gene_id) %>%
+        left_join(rmann) %>% 
+        mutate(roi = rte_subfamily) %>%
+        filter(mean_fm > .80)
+
+    dfs <- list(
+        "imprinted" = by_read_imprinted,
+        "highmethgene" = by_read_highmeth_gene,
+        "lowmethgene" = by_read_lowmeth_gene,
+        "boringcpgi" = by_read_boringcpgi
+    )
+
+    dfsl1s <- split(by_read_yngl1s %>% ungroup() %>% dplyr::select(-colnames(rmann)[!colnames(rmann) %in% c("gene_id", "rte_subfamily")]), by_read_yngl1s$rte_subfamily)
+
+    dfsall <- c(dfs, dfsl1s)
+    dfsallbound <- bind_rows(dfsall)
+
+
+cpg_fraction_reads_highly_demeth <- dfsallbound %>% 
+mutate(fraction_meth_lt50 = case_when(
+    fraction_meth < 0.50 ~ 1,
+    TRUE ~ 0,
+)) %>%
+mutate(fraction_meth_lt25 = case_when(
+    fraction_meth < 0.25 ~ 1,
+    TRUE ~ 0,
+)) %>%
+mutate(fraction_meth_lt10 = case_when(
+    fraction_meth < 0.1 ~ 1,
+    TRUE ~ 0,
+)) %>% group_by(roi) %>%
+ summarise(nreads = n(), 
+    mlt50 = mean(fraction_meth_lt50), 
+    mlt25 = mean(fraction_meth_lt25), 
+    mtl10 = mean(fraction_meth_lt10))
+
+    p <- dfsallbound %>% ggplot() +
+        geom_density(aes(x = fraction_meth)) +
+        facet_wrap(~roi) +
+        mtclosed
+    mysaveandstore(fn = "zzzte3.pdf", w = 8, h = 6)
+
+
+    p <- dfsallbound %>% ggplot() +
+        geom_histogram(
+            aes(x = fraction_meth, y = after_stat(count / sum(count))),
+            position = "identity"
+        ) +
+        facet_wrap(~roi) +
+        mtclosed
+    mysaveandstore(fn = "zzzte4.pdf", w = 8, h = 6)
+
+
+    getdispmodel <- function(df) {
+        dispersion_model_genes_high_meth <- glmmTMB(
+            cbind(meth, unmeth) ~ 1 + (1 | sample_name) + (1 | gene_id) + (1 | sample_name:gene_id),
+            dispformula = ~condition,
+            family = glmmTMB::betabinomial(),
+            data = df %>%
+                mutate(meth = fraction_meth * downsample_to_n, unmeth = downsample_to_n - meth) %>% left_join(sample_table %>% dplyr::select(sample_name, condition))
+        )
+    }
+
+    models_dfs <- map(dfs, getdispmodel)
+    models_l1s <- map(dfsl1s, getdispmodel)
+
+    modelsall <- c(models_dfs, models_l1s)
+
+
+    outputdirtables <- sprintf("ldna/results/%s/tables/reads_new/%s_%s", params$mod_code, "allrois_types", sprintf("cpg%sreq", downsample_to_n))
+    dir.create(outputdirtables, recursive = TRUE)
+    res_text <- capture.output(map(models_l1s, summary))
+    writeLines(res_text, sprintf("%s/model_summary.txt", outputdirtables))
+
+    modelsall[[1]] %>% broom::tidy()
+    fixef(modelsall[[1]])$disp
+    modelsall[[1]]$fit$par["thetaf"] # Overdispersion theta (log scale)
+    sigma(modelsall[[1]], type = "dispersion")
+    VarCorr(modelsall[[1]])
+    summary(modelsall[[1]])
+    summary(modelsall[[1]]) %>% as.data.frame()
+    summary(modelsall[[1]])$coefficients$disp
+
+    disp_df <- map(modelsall, ~ summary(.x)$coefficients$disp %>%
+        as.data.frame() %>%
+        rownames_to_column("term")) %>%
+        bind_rows(., .id = "roi")
+    write_csv(disp_df, sprintf("%s/model_disp_coef.csv", outputdirtables))
+
+
+
+    ### mixture model
+    library(brms)
+
+    # Define mixture of two binomial components
+    mix <- mixture(binomial(), binomial())
+
+    fit <- brm(
+        bf(meth | trials(20) ~ 1), # Intercept-only for now
+        family = mix,
+        data = dfsall[["L1HS"]] %>%
             mutate(meth = fraction_meth * downsample_to_n, unmeth = downsample_to_n - meth) %>%
             left_join(sample_table %>%
                 dplyr::select(sample_name, condition)) %>%
             dplyr::select(gene_id, sample_name, meth),
-        k = 2, # number of components
+        chains = 4,
+        iter = 4000,
+        #   control = list(adapt_delta = 0.95),
+        cores = 4
+    )
+
+    library(flexmix)
+    fitflex <- flexmix(
+        cbind(meth, 20 - meth) ~ 1,
+        data = dfsall[["L1HS"]] %>%
+            mutate(meth = fraction_meth * downsample_to_n, unmeth = downsample_to_n - meth) %>%
+            left_join(sample_table %>%
+                dplyr::select(sample_name, condition)) %>%
+            dplyr::select(gene_id, sample_name, meth) %>%
+            filter(gene_id == "L1HS_4q28.3_9"),
+        k = 3, # number of components
         model = FLXglm(family = "binomial")
     )
-    tibble(proportions = prior(fit), mean_meth = unname(plogis(parameters(fit))))
+
+    summary(fitflex)
+
+    parameters(fitflex)
+
+    posterior_probs <- posterior(fitflex)
+
+    mixturemodelk2 <- function(df) {
+        fit <- flexmix(
+            cbind(meth, 20 - meth) ~ 1,
+            data = df %>%
+                ungroup() %>%
+                mutate(meth = fraction_meth * downsample_to_n, unmeth = downsample_to_n - meth) %>%
+                left_join(sample_table %>%
+                    dplyr::select(sample_name, condition)) %>%
+                dplyr::select(gene_id, sample_name, meth),
+            k = 2, # number of components
+            model = FLXglm(family = "binomial")
+        )
+        tibble(proportions = prior(fit), mean_meth = unname(plogis(parameters(fit))))
+    }
+
+
+    mix_res <- bind_rows(map(dfsall, mixturemodelk2), .id = "type")
+
+    dattemp <- dfsall[["imprinted"]] %>%
+        mutate(meth = fraction_meth * downsample_to_n, unmeth = downsample_to_n - meth) %>%
+        left_join(sample_table %>%
+            dplyr::select(sample_name, condition)) %>%
+        dplyr::select(gene_id, sample_name, meth) %>%
+        filter(gene_id == "L1HS_4q28.3_9")
+
+
+    mixturemodelk2(dfsall[["imprinted"]])
 }
 
 
-mix_res <- bind_rows(map(dfsall, mixturemodelk2), .id = "type")
-
-dattemp <- dfsall[["imprinted"]] %>%
-    mutate(meth = fraction_meth * downsample_to_n, unmeth = downsample_to_n - meth) %>%
-    left_join(sample_table %>%
-        dplyr::select(sample_name, condition)) %>%
-    dplyr::select(gene_id, sample_name, meth) %>%
-    filter(gene_id == "L1HS_4q28.3_9")
 
 
-mixturemodelk2(dfsall[["imprinted"]])
+
+
+read_analysis_alt_regions <- function(
+    readscg,
+    mod_code_var = "m",
+    required_number_cg = 0.75,
+    meth_thresholds = c(0.1, 0.25, 0.5),
+    context = "CpG"
+    region = "L1HS_FL"
+) {
+    outputdirtables <- sprintf("ldna/results/%s/tables/reads_new/%s_%s", params$mod_code, region, required_fraction_of_total_cg)
+    dir.create(outputdirtables, recursive = TRUE)
+
+    readsdf1 <- readscg %>%
+        left_join(rmann %>%
+            dplyr::select(gene_id, start, end, strand, rte_length_req, intactness_req) %>%
+            dplyr::rename(element_strand = strand, element_start = start, element_end = end)) %>%
+        filter(rte_length_req == "FL")
+
+
+    by_cpg_l <- list()
+    by_read_l <- list()
+    by_sample_l <- list()
+    by_gene_id_l <- list()
+
+    for (region_of_interest in regions_of_interest) {
+        roistart <- region_of_interest[1]
+        roiend <- region_of_interest[2]
+        roistring <- paste0(roistart, "to", roiend)
+
+        numCGneeded <- ceiling(length(cg_indices[(cg_indices <= roiend) & (cg_indices >= roistart)]) * required_fraction_of_total_cg)
+
+        utr1 <- readsdf1 %>%
+            filter(mod_code == mod_code_var) %>%
+            filter(case_when(
+                element_strand == "+" ~ (start > element_start + roistart) & (start < element_start + roiend),
+                element_strand == "-" ~ (start > element_end - roiend) & (start < element_end - roistart)
+            )) %>%
+            dplyr::mutate(mod_indicator = ifelse(mod_qual > 0.5, 1, 0))
+
+        by_cpg_temp <- utr1 %>%
+            group_by(gene_id, read_id, condition, sample) %>%
+            mutate(num_cpgs_in_read = n()) %>%
+            mutate(fraction_meth = mean(mod_indicator)) %>%
+            relocate(gene_id) %>%
+            ungroup()
+
+        by_read_temp <- by_cpg_temp %>%
+            filter(num_cpgs_in_read >= numCGneeded) %>%
+            group_by(read_id, gene_id, sample, condition, region) %>%
+            summarise(fraction_meth = dplyr::first(fraction_meth), num_cpgs_in_read = dplyr::first(num_cpgs_in_read), strand = dplyr::first(element_strand), numCGneeded = dplyr::first(numCGneeded)) %>%
+            ungroup()
+
+        by_cpg_temp$subset <- as.character(roistring)
+        by_read_temp$subset <- as.character(roistring)
+
+        by_cpg_l[[as.character(roistring)]] <- by_cpg_temp
+        by_read_l[[as.character(roistring)]] <- by_read_temp
+
+        for (meth_threshold in meth_thresholds) {
+            subset_threshold <- paste0(roistring, "_", meth_threshold)
+            by_sample_temp <- by_read_temp %>%
+                mutate(unmeth = ifelse(fraction_meth > meth_threshold, 0, 1)) %>%
+                group_by(sample, region, condition) %>%
+                summarise(propUnmeth = mean(unmeth)) %>%
+                group_by(condition, region) %>%
+                mutate(meanProp = mean(propUnmeth))
+            by_sample_temp$meth_threshold <- meth_threshold
+            by_sample_temp$subset <- as.character(roistring)
+            by_sample_temp$subset_threshold <- subset_threshold
+
+            by_gene_id_temp <- by_read_temp %>%
+                mutate(unmeth = ifelse(fraction_meth >= meth_threshold, 0, 1)) %>%
+                group_by(sample, gene_id, region, condition) %>%
+                summarise(propUnmeth = mean(unmeth)) %>%
+                ungroup() %>%
+                group_by(gene_id) %>%
+                mutate(group_size = n()) %>%
+                ungroup()
+            by_gene_id_temp$meth_threshold <- meth_threshold
+            by_gene_id_temp$subset <- as.character(roistring)
+            by_gene_id_temp$subset_threshold <- subset_threshold
+
+            by_sample_l[[subset_threshold]] <- by_sample_temp
+            by_gene_id_l[[subset_threshold]] <- by_gene_id_temp
+        }
+    }
+
+    by_cpg <- purrr::reduce(by_cpg_l, bind_rows)
+    by_read <- purrr::reduce(by_read_l, bind_rows)
+    by_gene_id <- purrr::reduce(by_gene_id_l, bind_rows)
+    by_sample <- purrr::reduce(by_sample_l, bind_rows)
+
+    dir.create(dirname(sprintf("ldna/Rintermediates/%s/%s/highly_demethylated_reads_by_cpg.csv", params$mod_code, region)), recursive = TRUE)
+    by_cpg %>% write_csv(sprintf("ldna/Rintermediates/%s/%s/highly_demethylated_reads_by_cpg.csv", params$mod_code, region))
+    by_read %>% write_csv(sprintf("ldna/Rintermediates/%s/%s/highly_demethylated_reads_by_read.csv", params$mod_code, region))
+    by_gene_id %>% write_csv(sprintf("ldna/Rintermediates/%s/%s/highly_demethylated_reads_by_gene_id.csv", params$mod_code, region))
+    by_sample %>% write_csv(sprintf("ldna/Rintermediates/%s/%s/highly_demethylated_reads_by_sample.csv", params$mod_code, region))
+
+    # by_cpg <- read_csv(sprintf("ldna/Rintermediates/%s/%s/highly_demethylated_reads_by_cpg.csv", params$mod_code, region)) %>%
+    #     mutate(condition = factor(condition, levels = conf$levels)) %>%
+    #     mutate(sample = factor(sample, levels = conf$samples))
+    # by_read <- read_csv(sprintf("ldna/Rintermediates/%s/%s/highly_demethylated_reads_by_read.csv", params$mod_code, region)) %>%
+    #     mutate(condition = factor(condition, levels = conf$levels)) %>%
+    #     mutate(sample = factor(sample, levels = conf$samples))
+    # by_gene_id <- read_csv(sprintf("ldna/Rintermediates/%s/%s/highly_demethylated_reads_by_gene_id.csv", params$mod_code, region)) %>%
+    #     mutate(condition = factor(condition, levels = conf$levels)) %>%
+    #     mutate(sample = factor(sample, levels = conf$samples))
+    # by_sample <- read_csv(sprintf("ldna/Rintermediates/%s/%s/highly_demethylated_reads_by_sample.csv", params$mod_code, region)) %>%
+    #         mutate(condition = factor(condition, levels = conf$levels)) %>%
+    #         mutate(sample = factor(sample, levels = conf$samples))
+
+    get_read_ecdf <- function(df, subset_val, breakpoints, group_var = NULL) {
+        df %>%
+            filter(subset == subset_val) %>%
+            group_by(across(all_of(group_var))) %>% # Group by specified variable
+            summarise(
+                percent_below = list(ecdf(fraction_meth)(breakpoints) * 100), # Compute ECDF
+                .groups = "drop"
+            ) %>%
+            unnest_longer(percent_below) %>%
+            mutate(
+                threshold = rep(breakpoints, times = n() / length(breakpoints)), # Expand breakpoints
+                subset = subset_val
+            ) %>%
+            dplyr::select(subset, all_of(group_var), threshold, percent_below) # Keep relevant columns
+    }
+
+
+    get_read_quantiles <- function(df, subset_val, probs, group_var = NULL) {
+        df %>%
+            filter(subset == subset_val) %>%
+            group_by(across(all_of(group_var))) %>% # Group by sample_name or another variable
+            summarise(
+                quantiles = list(quantile(fraction_meth, probs = probs)), # Store as list
+                .groups = "drop"
+            ) %>%
+            unnest_longer(quantiles) %>%
+            mutate(
+                quantile = rep(probs, times = n() / length(probs)), # Expand probs for each group
+                subset = subset_val
+            ) %>%
+            dplyr::select(subset, all_of(group_var), quantile, mean_meth = quantiles) # Keep relevant columns
+    }
+    subsets <- c("0to909", "0to500", "0to328")
+    breakpoints <- seq(0, 1, 0.05)
+
+    ecdf_reads <- map_dfr(subsets, ~ get_read_ecdf(by_cpg, .x, breakpoints, "sample"))
+    quantile_reads <- map_dfr(subsets, ~ get_read_quantiles(by_cpg, .x, breakpoints, "sample"))
+
+
+    ecdf_reads %>% write_mycsv(sprintf("%s/read_ecdf.csv", outputdirtables))
+    quantile_reads %>% write_mycsv(sprintf("%s/read_quantiles.csv", outputdirtables))
+
+    ecdf_reads_acrosssamplemean <- ecdf_reads %>%
+        group_by(subset, threshold) %>%
+        summarise(percent_below = mean(percent_below))
+    quantile_reads_acrosssamplemean <- quantile_reads %>%
+        group_by(subset, quantile) %>%
+        summarise(mean_meth = mean(mean_meth))
+
+    ecdf_reads_acrosssamplemean %>% write_mycsv(sprintf("%s/read_ecdf_acrosssamplemean.csv", outputdirtables))
+    quantile_reads_acrosssamplemean %>% write_mycsv(sprintf("%s/read_quantiles_acrosssamplemean.csv", outputdirtables))
+
+
+    # Example ECDF plot function
+    plot_ecdf <- function(ecdf_data) {
+        ggplot(ecdf_data, aes(x = threshold, y = percent_below, color = as.factor(subset))) +
+            geom_line() + # ECDF curve
+            geom_point() + # Add points for clarity
+            labs(
+                title = "Empirical CDF of Fraction Methylation",
+                x = "Fraction Methylation Threshold",
+                y = "Percent Below Threshold",
+                color = "Subset"
+            ) +
+            theme_minimal()
+    }
+
+
+    p <- ecdf_reads %>%
+        filter(subset == "0to909") %>%
+        ggplot(aes(x = threshold, y = percent_below, color = sample)) +
+        geom_line() +
+        geom_point() +
+        labs(
+            title = "Read Methylation Empirical CDF",
+            x = "Methylation Threshold",
+            y = "Percent Below Threshold",
+            color = "Subset"
+        ) +
+        geom_vline(xintercept = c(0.1, 0.25, 0.5), linetype = "dashed") +
+        scale_samples_unique +
+        mtclosed
+    mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/ecdf_909.pdf", params$mod_code, region, required_fraction_of_total_cg, context), 5, 4, pl = p)
+
+    p <- ecdf_reads %>%
+        filter(subset == "0to909") %>%
+        ggplot(aes(x = threshold, y = percent_below, color = sample)) +
+        geom_line() +
+        geom_point() +
+        labs(
+            title = "Read Methylation Empirical CDF",
+            x = "Methylation Threshold",
+            y = "Percent Below Threshold",
+            color = "Subset"
+        ) +
+        geom_vline(xintercept = c(0.1, 0.25, 0.5), linetype = "dashed") +
+        coord_cartesian(ylim = c(0, 20)) +
+        scale_samples_unique +
+        mtclosed
+    mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/ecdf_909_zoom.pdf", params$mod_code, region, required_fraction_of_total_cg, context), 5, 4, pl = p)
+
+    p <- ecdf_reads %>%
+        filter(subset == "0to909") %>%
+        left_join(sample_table) %>%
+        group_by(condition, threshold) %>%
+        summarise(percent_below = mean(percent_below)) %>%
+        ggplot(aes(x = threshold, y = percent_below, color = condition)) +
+        geom_line() +
+        geom_point() +
+        labs(
+            title = "Read Methylation Empirical CDF",
+            x = "Methylation Threshold",
+            y = "Percent Below Threshold",
+            color = "Subset"
+        ) +
+        geom_vline(xintercept = c(0.1, 0.25, 0.5), linetype = "dashed") +
+        scale_conditions +
+        mtclosed
+    mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/ecdf_909_by_condition.pdf", params$mod_code, region, required_fraction_of_total_cg, context), 5, 4, pl = p)
+
+    p <- ecdf_reads %>%
+        filter(subset == "0to909") %>%
+        left_join(sample_table) %>%
+        group_by(condition, threshold) %>%
+        summarise(percent_below = mean(percent_below)) %>%
+        ggplot(aes(x = threshold, y = percent_below, color = condition)) +
+        geom_line() +
+        geom_point() +
+        labs(
+            title = "Read Methylation Empirical CDF",
+            x = "Methylation Threshold",
+            y = "Percent Below Threshold",
+            color = "Subset"
+        ) +
+        geom_vline(xintercept = c(0.1, 0.25, 0.5), linetype = "dashed") +
+        coord_cartesian(ylim = c(0, 20)) +
+        scale_conditions +
+        mtclosed
+    mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/ecdf_909_by_condition_zoom.pdf", params$mod_code, region, required_fraction_of_total_cg, context), 5, 4, pl = p)
+
+
+    p <- by_sample %>%
+        filter(subset != "400to600") %>%
+        mutate(meth_threshold = as.character(meth_threshold)) %>%
+        ggplot(aes(x = meth_threshold)) +
+        stat_summary(aes(y = propUnmeth, group = condition, fill = condition), color = "black", fun = "mean", geom = "bar", position = position_dodge(width = 0.9)) +
+        geom_point(aes(y = propUnmeth, group = condition), position = position_dodge(width = 0.9)) +
+        facet_wrap(vars(subset), nrow = 1) +
+        geom_pwc(aes(x = meth_threshold, y = propUnmeth, group = condition), tip.length = 0, method = "wilcox_test") +
+        labs(x = "Methylation Threshold", y = sprintf("Reads Fraction < # methylated")) +
+        ggtitle(sprintf("Read Methylation")) +
+        mtclosedgridh +
+        scale_conditions +
+        anchorbar
+    if (enough_samples_per_condition_for_stats) {
+        # stats <- by_sample %>%
+        #     filter(subset != "400to600") %>%
+        #     ungroup() %>%
+        #     left_join(sample_table) %>%
+        #     group_split(subset_threshold) %>%
+        #     set_names(unique(by_sample %>% filter(subset != "400to600") %$% subset_threshold)) %>%
+        #     map(~ broom::tidy(summary(lm(formula(sprintf("%s ~ %s", "propUnmeth", lm_right_hand_side)), .x)))) %>%
+        #     imap_dfr(~ .x %>% mutate(subset = .y))
+        stats_list <- list()
+        i <- 1
+        for (subset in unique(by_cpg$subset)) {
+            for (threshold in unique(by_sample$meth_threshold)) {
+                by_cpg_tmp <- by_cpg %>%
+                    filter(subset == !!subset) %>%
+                    mutate(unmeth = ifelse(fraction_meth > threshold, 0, 1)) %>%
+                    dplyr::rename(sample_name = sample) %>%
+                    group_by(sample_name, condition, gene_id) %>%
+                    summarise(unmeth = sum(unmeth), total = n()) %>%
+                    ungroup() %>%
+                    left_join(sample_table) %>%
+                    mutate(age_z = as.numeric(scale(age)))
+                model_tmp <- glmmTMB(
+                    cbind(unmeth, total - unmeth) ~
+                        condition + sex + age_z + (1 | sample_name) + (1 | gene_id),
+                    data = by_cpg_tmp,
+                    family = binomial()
+                )
+                res_tmp <- broom::tidy(model_tmp) %>%
+                    mutate(threshold = !!threshold) %>%
+                    mutate(subset = !!subset)
+                stats_list[[i]] <- res_tmp
+                i <- i + 1
+            }
+        }
+        stats <- purrr::reduce(stats_list, bind_rows)
+        stats_padj <- stats %>%
+            filter(term == "conditionAD") %>%
+            filter(subset != "400to600") %>%
+            mutate(padj = p.adjust(p.value, method = "fdr"))
+        statswpadj <- stats %>% left_join(stats_padj)
+        mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/barplot.pdf", params$mod_code, region, required_fraction_of_total_cg, context), 9, 4, pl = p, sf = statswpadj)
+    } else {
+        mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/barplot.pdf", params$mod_code, region, required_fraction_of_total_cg, context), 9, 4, pl = p)
+    }
+    p <- by_sample %>%
+        mutate(meth_threshold = as.character(meth_threshold)) %>%
+        ggplot(aes(x = meth_threshold)) +
+        stat_summary(aes(y = propUnmeth, group = condition, fill = condition), color = "black", fun = "mean", geom = "bar", position = position_dodge(width = 0.9)) +
+        geom_point(aes(y = propUnmeth, group = condition), position = position_dodge(width = 0.9)) +
+        facet_wrap(vars(subset), nrow = 1) +
+        geom_pwc(aes(x = meth_threshold, y = propUnmeth, group = condition), tip.length = 0, method = "wilcox_test") +
+        labs(x = "Methylation Threshold", y = sprintf("Reads Fraction < # methylated")) +
+        ggtitle(sprintf("Read Methylation")) +
+        mtclosedgridh +
+        scale_conditions +
+        anchorbar
+    if (enough_samples_per_condition_for_stats) {
+        stats <- by_sample %>%
+            ungroup() %>%
+            left_join(sample_table) %>%
+            group_split(subset_threshold) %>%
+            set_names(unique(by_sample$subset_threshold)) %>%
+            map(~ broom::tidy(summary(lm(formula(sprintf("%s ~ %s", "propUnmeth", lm_right_hand_side)), .x)))) %>%
+            imap_dfr(~ .x %>% mutate(subset = .y))
+        mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/barplot_wasp.pdf", params$mod_code, region, required_fraction_of_total_cg, context), 9, 4, pl = p, sf = stats)
+    } else {
+        mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/barplot_wasp.pdf", params$mod_code, region, required_fraction_of_total_cg, context), 9, 4, pl = p)
+    }
+
+    p <- by_read %>%
+        mutate(condition = factor(condition, levels = c(condition2, condition1))) %>%
+        ggplot() +
+        geom_density(aes(x = fraction_meth, fill = condition), alpha = 0.7) +
+        facet_wrap(vars(subset), nrow = 1) +
+        ggtitle(sprintf("Read Density")) +
+        labs(x = "", y = sprintf("Read Density")) +
+        mtclosed +
+        scale_conditions
+    mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/density_wasp.pdf", params$mod_code, region, required_fraction_of_total_cg, context), 8, 4, pl = p)
+
+    p <- by_read %>%
+        filter(subset != "400to600") %>%
+        mutate(condition = factor(condition, levels = c(condition2, condition1))) %>%
+        ggplot() +
+        geom_density(aes(x = fraction_meth, fill = condition), alpha = 0.7) +
+        facet_wrap(vars(subset), nrow = 1) +
+        ggtitle(sprintf("Read Density")) +
+        labs(x = "", y = sprintf("Read Density")) +
+        mtclosed +
+        scale_conditions
+    mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/density.pdf", params$mod_code, region, required_fraction_of_total_cg, context), 8, 4, pl = p)
+
+
+    # Get group-wise mean fraction_meth
+    # beta_overlays <- by_read %>%
+    # filter(subset != "400to600") %>%
+    # group_by(condition, subset) %>%
+    # summarise(mean_meth = mean(fraction_meth, na.rm = TRUE), numCGneeded = dplyr::first(numCGneeded), .groups = "drop")
+
+    beta_overlays <- by_read %>%
+        filter(subset != "400to600") %>%
+        group_by(subset) %>%
+        summarise(mean_meth = mean(fraction_meth, na.rm = TRUE), numCGneeded = dplyr::first(numCGneeded), .groups = "drop") %>%
+        mutate(
+            alpha = mean_meth * numCGneeded,
+            beta = (1 - mean_meth) * numCGneeded
+        ) %>%
+        rowwise() %>%
+        mutate(
+            x = list(seq(0, 1, length.out = 200)),
+            y = list(dbeta(x, alpha, beta))
+        ) %>%
+        unnest(c(x, y))
+
+    p <- by_read %>%
+        filter(subset != "400to600") %>%
+        mutate(condition = factor(condition, levels = c(condition2, condition1))) %>%
+        ggplot() +
+        geom_histogram(
+            data = . %>% filter(condition == "AD"),
+            aes(x = fraction_meth, fill = condition, y = after_stat(count / sum(count))),
+            alpha = 0.7,
+            bins = 30,
+            position = "identity"
+        ) +
+        geom_histogram(
+            data = . %>% filter(condition == "CTRL"),
+            aes(x = fraction_meth, fill = condition, y = after_stat(count / sum(count))),
+            alpha = 0.7,
+            bins = 30,
+            position = "identity"
+        ) +
+        geom_line(
+            data = beta_overlays,
+            aes(x = x, y = 7.5 * y / sum(y)), # normalize for proportion scale
+            size = 0.8,
+            color = "green",
+            inherit.aes = FALSE
+        ) +
+        facet_wrap(vars(subset), nrow = 1) + # allows y-axis to vary if needed
+        ggtitle("Read Methylation Histogram (Proportional)") +
+        labs(x = "Read Methylation", y = "Proportion of Reads") +
+        mtclosedgridh +
+        scale_conditions +
+        scale_y_continuous(expand = expansion(mult = c(0, .075)), labels = function(x) sprintf("%.3f", x))
+    mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/readhistogram_betaoverlay.pdf", params$mod_code, region, required_fraction_of_total_cg, context), 9, 4, pl = p)
+
+    beta_overlays <- by_read %>%
+        filter(subset != "400to600") %>%
+        filter(gene_id == "L1HS_4q28.3_9") %>%
+        group_by(subset) %>%
+        summarise(mean_meth = mean(fraction_meth, na.rm = TRUE), numCGneeded = dplyr::first(numCGneeded), .groups = "drop") %>%
+        mutate(
+            alpha = mean_meth * numCGneeded,
+            beta = (1 - mean_meth) * numCGneeded
+        ) %>%
+        rowwise() %>%
+        mutate(
+            x = list(seq(0, 1, length.out = 200)),
+            y = list(dbeta(x, alpha, beta))
+        ) %>%
+        unnest(c(x, y))
+    p <- by_read %>%
+        filter(subset != "400to600") %>%
+        filter(gene_id == "L1HS_4q28.3_9") %>%
+        mutate(condition = factor(condition, levels = c(condition2, condition1))) %>%
+        ggplot() +
+        geom_histogram(
+            data = . %>% filter(condition == "AD"),
+            aes(x = fraction_meth, fill = condition, y = after_stat(count / sum(count))),
+            alpha = 0.7,
+            bins = 30,
+            position = "identity"
+        ) +
+        geom_histogram(
+            data = . %>% filter(condition == "CTRL"),
+            aes(x = fraction_meth, fill = condition, y = after_stat(count / sum(count))),
+            alpha = 0.7,
+            bins = 30,
+            position = "identity"
+        ) +
+        geom_line(
+            data = beta_overlays,
+            aes(x = x, y = 7.5 * y / sum(y)), # normalize for proportion scale
+            size = 0.8,
+            color = "green",
+            inherit.aes = FALSE
+        ) +
+        facet_wrap(vars(subset), nrow = 1) + # allows y-axis to vary if needed
+        ggtitle("Read Methylation Histogram (Proportional)") +
+        labs(x = "Read Methylation", y = "Proportion of Reads") +
+        mtclosedgridh +
+        scale_conditions +
+        scale_y_continuous(expand = expansion(mult = c(0, .075)), labels = function(x) sprintf("%.3f", x))
+    mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/readhistogram_betaoverlay_L1HS_4q28.3_9.pdf", params$mod_code, region, required_fraction_of_total_cg, context), 9, 4, pl = p)
+
+
+    by_gene_id %>%
+        group_by(gene_id, meth_threshold, condition, subset) %>%
+        summarise(max_frac = max(propUnmeth)) %>%
+        group_by(meth_threshold, condition, subset) %>%
+        arrange(max_frac) %>%
+        mutate(ranked_row = row_number()) %>%
+        filter(subset == "328") %$% condition %>%
+        table()
+
+
+    p <- by_gene_id %>%
+        mutate(meth_threshold = as.character(meth_threshold)) %>%
+        filter(meth_threshold == "0.5") %>%
+        filter(subset == "0to909") %>%
+        group_by(gene_id) %>%
+        mutate(samples_detected_per_element = n()) %>%
+        ungroup() %>%
+        filter(samples_detected_per_element > 11) %>%
+        distinct() %>%
+        # group_by(direction) %>%
+        tidyHeatmap::heatmap(gene_id, sample, propUnmeth,
+            cluster_rows = TRUE, cluster_columns = FALSE, show_row_names = FALSE,
+            show_row_dend = FALSE,
+            palette_value = circlize::colorRamp2(
+                c(0, 0.00001, seq(0.1, 1, length.out = 3)),
+                c("black", rev(RColorBrewer::brewer.pal(4, "Oranges")))
+            )
+        )
+    mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/heatmap_propunmeth_gene_id_consistent_across_samples.pdf", params$mod_code, region, required_fraction_of_total_cg), 5, 5, pl = p)
+
+    #
+    df_filtered <- by_gene_id %>%
+        mutate(meth_threshold = as.character(meth_threshold)) %>%
+        filter(meth_threshold == "0.5", subset == "0to909") %>%
+        group_by(gene_id) %>%
+        mutate(samples_detected_per_element = n()) %>%
+        ungroup() %>%
+        filter(samples_detected_per_element > 11) %>%
+        distinct()
+    df_sorted <- df_filtered %>%
+        group_by(sample) %>%
+        arrange(propUnmeth) %>%
+        mutate(gene_rank = row_number()) %>%
+        ungroup()
+    p <- ggplot(df_sorted, aes(x = sample, y = gene_rank, fill = propUnmeth)) +
+        geom_tile() +
+        scale_fill_gradientn(
+            colours = c("lightblue", rev(RColorBrewer::brewer.pal(4, "Oranges"))),
+            values = rescale(c(0, 0.00001, seq(0.1, 1, length.out = 3))),
+            name = "propUnmeth"
+        ) +
+        scale_x_discrete(expand = c(0, 0)) +
+        scale_y_reverse(expand = c(0, 0)) + # No padding; bottom = high rank
+        theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()) +
+        labs(x = "sample", y = "genes (sorted by propUnmeth per sample)") +
+        mtclosed +
+        theme(
+            axis.text.x = element_text(angle = 90, vjust = 1, hjust = 1),
+            axis.text.y = element_blank(),
+            axis.ticks.y = element_blank(),
+            axis.title.y = element_blank()
+        )
+    mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/heatmap_propunmeth_noNA.pdf", params$mod_code, region, required_fraction_of_total_cg), 5, 5, pl = p)
+    mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/heatmap_propunmeth_noNA.pdf", params$mod_code, region, required_fraction_of_total_cg), 5, 5, pl = p, raster = TRUE)
+
+    #
+
+    p <- by_gene_id %>%
+        filter(subset != "400to600") %>%
+        group_by(gene_id, meth_threshold, condition, subset) %>%
+        summarise(max_frac = max(propUnmeth)) %>%
+        left_join(rmann) %>%
+        group_by(meth_threshold, condition, subset) %>%
+        arrange(max_frac) %>%
+        mutate(ranked_row = row_number()) %>%
+        mutate(condition = paste0(meth_threshold, "\n", condition)) %>%
+        ggplot(aes(x = max_frac, y = ranked_row, color = condition)) +
+        geom_point() +
+        facet_wrap(vars(subset), nrow = 1) +
+        labs(title = sprintf("Read Methylation", roistring), y = "Unique Locus Rank", x = sprintf("Reads Fraction < %s methylated", "#")) +
+        mtclosedgridh +
+        scale_color_brewer(palette = "Paired") +
+        anchorbar
+    mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/roc.pdf", params$mod_code, region, required_fraction_of_total_cg), 9, 4, pl = p)
+
+    p <- by_gene_id %>%
+        group_by(gene_id, meth_threshold, condition, subset) %>%
+        summarise(max_frac = max(propUnmeth)) %>%
+        left_join(rmann) %>%
+        group_by(meth_threshold, condition, subset) %>%
+        arrange(max_frac) %>%
+        mutate(ranked_row = row_number()) %>%
+        mutate(condition = paste0(meth_threshold, "\n", condition)) %>%
+        ggplot(aes(x = max_frac, y = ranked_row, color = condition)) +
+        geom_point() +
+        facet_wrap(vars(subset), nrow = 1) +
+        labs(title = sprintf("Read Methylation", roistring), y = "Unique Locus Rank", x = sprintf("Reads Fraction < %s methylated", "#")) +
+        mtclosedgridh +
+        scale_color_brewer(palette = "Paired") +
+        anchorbar
+    mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/roc_wasp.pdf", params$mod_code, region, required_fraction_of_total_cg), 9, 4, pl = p)
+
+    p <- by_gene_id %>%
+        filter(subset != "400to600") %>%
+        group_by(gene_id, meth_threshold, condition, subset) %>%
+        summarise(max_frac = max(propUnmeth)) %>%
+        left_join(rmann) %>%
+        group_by(meth_threshold, condition, subset) %>%
+        arrange(max_frac) %>%
+        mutate(ranked_row = row_number()) %>%
+        mutate(condition = paste0(meth_threshold, "\n", condition)) %>%
+        ggplot(aes(x = max_frac, y = ranked_row, color = condition)) +
+        geom_point() +
+        xlim(c(0, 0.25)) +
+        facet_wrap(vars(subset), nrow = 1) +
+        labs(title = sprintf("Read Methylation", roistring), y = "Unique Locus Rank", x = sprintf("Reads Fraction < %s methylated", "#")) +
+        mtclosedgridh +
+        scale_color_brewer(palette = "Paired") +
+        anchorbar
+    mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/roc_xlim.pdf", params$mod_code, region, required_fraction_of_total_cg), 9, 4, pl = p)
+
+    p <- by_gene_id %>%
+        group_by(gene_id, meth_threshold, condition, subset) %>%
+        summarise(max_frac = max(propUnmeth)) %>%
+        left_join(rmann) %>%
+        group_by(meth_threshold, condition, subset) %>%
+        arrange(max_frac) %>%
+        mutate(ranked_row = row_number()) %>%
+        mutate(condition = paste0(meth_threshold, "\n", condition)) %>%
+        ggplot(aes(x = max_frac, y = ranked_row, color = condition)) +
+        geom_point() +
+        xlim(c(0, 0.25)) +
+        facet_wrap(vars(subset), nrow = 1) +
+        labs(title = sprintf("Read Methylation", roistring), y = "Unique Locus Rank", x = sprintf("Reads Fraction < %s methylated", "#")) +
+        mtclosedgridh +
+        scale_color_brewer(palette = "Paired") +
+        anchorbar
+    mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/roc_xlim_wasp.pdf", params$mod_code, region, required_fraction_of_total_cg), 9, 4, pl = p)
+
+    p <- by_gene_id %>%
+        group_by(gene_id, meth_threshold, condition, subset) %>%
+        summarise(max_frac = mean(propUnmeth)) %>%
+        left_join(rmann) %>%
+        group_by(meth_threshold, condition, subset) %>%
+        arrange(max_frac) %>%
+        mutate(ranked_row = row_number()) %>%
+        mutate(condition = paste0(meth_threshold, "\n", condition)) %>%
+        ggplot(aes(x = max_frac, y = ranked_row, color = condition)) +
+        geom_point() +
+        facet_wrap(vars(subset), nrow = 1) +
+        labs(title = sprintf("Read Methylation", roistring), y = "Unique Locus Rank", x = sprintf("Reads Fraction < %s methylated", "#")) +
+        mtclosedgridh +
+        scale_color_brewer(palette = "Paired") +
+        anchorbar
+    mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/roc_mean_wasp.pdf", params$mod_code, region, required_fraction_of_total_cg), 9, 4, pl = p)
+
+    p <- by_gene_id %>%
+        filter(subset != "400to600") %>%
+        group_by(gene_id, meth_threshold, condition, subset) %>%
+        summarise(max_frac = mean(propUnmeth)) %>%
+        left_join(rmann) %>%
+        group_by(meth_threshold, condition, subset) %>%
+        arrange(max_frac) %>%
+        mutate(ranked_row = row_number()) %>%
+        mutate(condition = paste0(meth_threshold, "\n", condition)) %>%
+        ggplot(aes(x = max_frac, y = ranked_row, color = condition)) +
+        geom_point() +
+        facet_wrap(vars(subset), nrow = 1) +
+        labs(title = sprintf("Read Methylation", roistring), y = "Unique Locus Rank", x = sprintf("Reads Fraction < %s methylated", "#")) +
+        mtclosedgridh +
+        scale_color_brewer(palette = "Paired") +
+        anchorbar
+    mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/roc_mean.pdf", params$mod_code, region, required_fraction_of_total_cg), 9, 4, pl = p)
+
+    p <- by_gene_id %>%
+        group_by(gene_id, meth_threshold, condition, subset) %>%
+        summarise(max_frac = mean(propUnmeth)) %>%
+        left_join(rmann) %>%
+        group_by(meth_threshold, condition, subset) %>%
+        arrange(max_frac) %>%
+        mutate(ranked_row = row_number()) %>%
+        mutate(condition = paste0(meth_threshold, "\n", condition)) %>%
+        ggplot(aes(x = max_frac, y = ranked_row, color = condition)) +
+        geom_point() +
+        xlim(c(0, 0.25)) +
+        facet_wrap(vars(subset), nrow = 1) +
+        labs(title = sprintf("Read Methylation", roistring), y = "Unique Locus Rank", x = sprintf("Reads Fraction < # methylated", "#")) +
+        mtclosedgridh +
+        scale_color_brewer(palette = "Paired") +
+        anchorbar
+    mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/roc_mean_xlim_wasp.pdf", params$mod_code, region, required_fraction_of_total_cg), 9, 4, pl = p)
+
+    p <- by_gene_id %>%
+        filter(subset != "400to600") %>%
+        group_by(gene_id, meth_threshold, condition, subset) %>%
+        summarise(max_frac = mean(propUnmeth)) %>%
+        left_join(rmann) %>%
+        group_by(meth_threshold, condition, subset) %>%
+        arrange(max_frac) %>%
+        mutate(ranked_row = row_number()) %>%
+        mutate(condition = paste0(meth_threshold, "\n", condition)) %>%
+        ggplot(aes(x = max_frac, y = ranked_row, color = condition)) +
+        geom_point() +
+        xlim(c(0, 0.25)) +
+        facet_wrap(vars(subset), nrow = 1) +
+        labs(title = sprintf("Read Methylation", roistring), y = "Unique Locus Rank", x = sprintf("Reads Fraction < # methylated", "#")) +
+        mtclosedgridh +
+        scale_color_brewer(palette = "Paired") +
+        anchorbar
+    mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/roc_mean_xlim.pdf", params$mod_code, region, required_fraction_of_total_cg), 9, 4, pl = p)
+
+    named_group_split <- function(.tbl, ...) {
+        grouped <- group_by(.tbl, ...)
+        names <- rlang::inject(paste(!!!group_keys(grouped), sep = " / "))
+
+        grouped %>%
+            group_split() %>%
+            rlang::set_names(names)
+    }
+
+    groups_needed <- length(condition1samples) + 1
+    groups_needed <- 10
+    n_under_consideration <- by_gene_id %>%
+        ungroup() %>%
+        mutate(split_var = paste0(gene_id, "/", subset, "/", meth_threshold)) %>%
+        left_join(sample_table) %>%
+        filter(group_size >= groups_needed) %>%
+        group_by(subset_threshold) %>%
+        dplyr::select(subset_threshold, gene_id) %>%
+        distinct() %>%
+        summarise(n_under_consideration = n())
+    group_size_df <- by_gene_id %>% dplyr::select(gene_id, group_size, subset, meth_threshold)
+
+    dat_tmp <- meth_thresholds %>%
+        map(~ by_cpg %>%
+            mutate(unmeth = ifelse(fraction_meth > .x, 0, 1), meth_threshold = .x) %>%
+            filter(subset != "400to600") %>%
+            group_by(sample, gene_id, subset) %>%
+            mutate(total_read = n()) %>%
+            ungroup() %>%
+            group_by(sample, gene_id, subset, meth_threshold) %>%
+            summarise(unmeth = sum(unmeth), total_read = dplyr::first(total_read)) %>%
+            ungroup()) %>%
+        list_rbind() %>%
+        dplyr::rename(sample_name = sample) %>%
+        mutate(split_var = paste0(gene_id, "/", subset, "/", meth_threshold)) %>%
+        left_join(group_size_df %>% distinct()) %>%
+        left_join(sample_table) %>%
+        filter(group_size >= groups_needed) %>%
+        mutate(age_z = as.numeric(scale(age)))
+
+
+
+
+    # Create an empty list to hold tidy model results
+    stats_list <- list()
+
+    # Split data by group
+    dat_groups <- named_group_split(dat_tmp, split_var)
+    library(broom.mixed)
+    # Loop through each group
+    for (i in seq_along(dat_groups)) {
+        print(i)
+        group_data <- dat_groups[[i]]
+        group_name <- names(dat_groups)[i]
+
+        print(group_name)
+
+        # Check if unmeth values are constant (e.g. all 0s or all the same)
+        if (length(unique(group_data$unmeth)) == 1 | sum(group_data$unmeth > 0) < 2) {
+            print("no info")
+            tidy_model <- tibble(
+                term = NA, estimate = NA, std.error = NA, statistic = NA, p.value = NA,
+                subset = group_name,
+                note = "No variation in unmeth"
+            )
+        } else {
+            model <- glmmTMB(
+                cbind(unmeth, total_read - unmeth) ~
+                    condition + sex + age_z + (1 | sample_name),
+                data = group_data,
+                family = binomial()
+            )
+            model <- glmmTMB(
+                cbind(unmeth, total_read - unmeth) ~
+                    condition + sex + age_z + (1 | sample_name),
+                data = group_data,
+                family = binomial()
+            )
+
+            tidy_model <- broom::tidy(model) %>%
+                mutate(subset = group_name)
+        }
+        stats_list[[i]] <- tidy_model
+    }
+
+    # Combine the results into a single data frame
+    stats <- purrr::reduce(stats_list, bind_rows) %>%
+        tidyr::separate(subset, into = c("gene_id", "subset", "meth_threshold"), sep = "/", convert = TRUE)
+
+
+    write_csv(stats, sprintf("ldna/results/%s/tables/reads_new/%s_%s/by_gene_new.csv", params$mod_code, region, required_fraction_of_total_cg))
+
+    gene_condition_stats <- stats %>%
+        filter(term == "conditionAD") %>%
+        mutate(p.value = case_when(
+            is.nan(p.value) ~ 1,
+            TRUE ~ p.value
+        )) %>%
+        mutate(statistic = case_when(
+            is.nan(statistic) ~ 0,
+            TRUE ~ statistic
+        ))
+
+    tryCatch(
+        {
+            p <- stats %>%
+                mutate(p.value = ifelse(is.nan(p.value), 1, p.value)) %>%
+                filter(p.value <= 0.05) %>%
+                filter(grepl("condition", term)) %>%
+                mutate(dir_stat = factor(ifelse(statistic > 0, "Hypo", "Hyper"), levels = c("Hyper", "Hypo"))) %>%
+                count(meth_threshold, subset, dir_stat) %>%
+                complete(meth_threshold, subset, dir_stat, fill = list(n = 0)) %>%
+                ggplot(aes(x = as.character(meth_threshold), y = n, fill = dir_stat)) +
+                geom_col(position = "dodge", color = "black") +
+                facet_wrap(vars(subset), nrow = 1) +
+                ggtitle(sprintf("Significant Loci")) +
+                labs(x = "Meth Threshold", y = sprintf("Number DM")) +
+                mtclosed +
+                anchorbar +
+                scale_methylation
+            mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/num_de_wasp.pdf", params$mod_code, region, required_fraction_of_total_cg), 5.5, 4, pl = p)
+
+            p <- stats %>%
+                filter(subset != "400to600") %>%
+                mutate(p.value = ifelse(is.nan(p.value), 1, p.value)) %>%
+                filter(p.value <= 0.05) %>%
+                filter(grepl("condition", term)) %>%
+                mutate(meth_threshold = factor(as.character(meth_threshold), levels = c("0.1", "0.25", "0.5"))) %>%
+                mutate(dir_stat = factor(ifelse(statistic > 0, "Hypo", "Hyper"), levels = c("Hyper", "Hypo"))) %>%
+                count(meth_threshold, subset, dir_stat) %>%
+                complete(meth_threshold, subset, dir_stat, fill = list(n = 0)) %>%
+                ggplot(aes(x = as.character(meth_threshold), y = n, fill = dir_stat)) +
+                geom_col(position = "dodge", color = "black") +
+                facet_wrap(vars(subset), nrow = 1) +
+                ggtitle(sprintf("Significant Loci")) +
+                labs(x = "Meth Threshold", y = sprintf("Number DM")) +
+                mtclosed +
+                anchorbar +
+                scale_methylation
+            mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/num_de.pdf", params$mod_code, region, required_fraction_of_total_cg), 5, 4, pl = p)
+        },
+        error = function(e) {
+            print("no sig de")
+        }
+    )
+
+    dispersion_models <- list()
+    for (subsetofinterest in by_cpg$subset %>%
+        unique() %>%
+        grep(pattern = "400to600", ., invert = TRUE, value = TRUE)) {
+        dispersion_model <- glmmTMB(
+            cbind(meth, unmeth) ~ 1 + (1 | sample) + (1 | gene_id) + (1 | sample:gene_id),
+            dispformula = ~condition,
+            family = glmmTMB::betabinomial(),
+            data = by_cpg %>% filter(subset == subsetofinterest) %>%
+                mutate(meth = fraction_meth * num_cpgs_in_read, unmeth = num_cpgs_in_read - meth)
+        )
+        dispersion_models[[subsetofinterest]] <- dispersion_model
+    }
+
+    res_text <- capture.output(map(dispersion_models, summary))
+    writeLines(res_text, sprintf("%s/dispersion_model_summary.txt", outputdirtables))
+    summary_disp <- summary(mod)$dispersion
+
+    # # Extract estimates and standard errors
+    # log_phi_control <- 1.95678
+    # se_log_phi_control <- 0.01539
+
+    # log_phi_diff_AD <- -0.32685
+    # se_log_phi_diff_AD <- 0.01990
+
+    # # Compute log(φ) for AD and its SE
+    # log_phi_AD <- log_phi_control + log_phi_diff_AD
+    # se_log_phi_AD <- sqrt(se_log_phi_control^2 + se_log_phi_diff_AD^2)
+
+    # # 95% CI on log-scale
+    # z <- 1.96
+    # ci_log_phi_control <- log_phi_control + c(-1, 1) * z * se_log_phi_control
+    # ci_log_phi_AD <- log_phi_AD + c(-1, 1) * z * se_log_phi_AD
+
+    # # Exponentiate to get CIs for φ
+    # phi_control <- exp(log_phi_control)
+    # phi_AD <- exp(log_phi_AD)
+
+    # ci_phi_control <- exp(ci_log_phi_control)
+    # ci_phi_AD <- exp(ci_log_phi_AD)
+
+
+    # dispersion_models_withreadid <- list()
+    # for (subsetofinterest in by_cpg$subset %>%
+    #     unique() %>%
+    #     grep(pattern = "400to600", ., invert = TRUE, value = TRUE)) {
+    #     dispersion_model <- glmmTMB(
+    #         cbind(meth, unmeth) ~ 1 + (1 | read_id),
+    #         dispformula = ~condition,
+    #         family = glmmTMB::betabinomial(),
+    #         data = by_cpg %>% filter(subset == subsetofinterest) %>%
+    #             mutate(meth = fraction_meth * num_cpgs_in_read, unmeth = num_cpgs_in_read - meth)
+    #     )
+    #     dispersion_models[[subsetofinterest]] <- dispersion_model
+    # }
+
+    # res_text <- capture.output(map(dispersion_models, summary))
+    # writeLines(res_text, sprintf("%s/dispersion_model_summary.txt", outputdirtables))
+
+
+    # dat <- by_cpg %>%
+    #     filter(subset == "0to909") %>%
+    #     mutate(meth = fraction_meth * num_cpgs_in_read, unmeth = num_cpgs_in_read - meth)
+    # mod0 <- glmmTMB(cbind(meth, unmeth) ~ 1 + (1 | sample) + (1 | gene_id) + (1 | sample:gene_id),
+    #     data = dat, family = binomial()
+    # )
+
+    # mod05 <- glmmTMB(cbind(meth, unmeth) ~ 1 + (1 | sample) + (1 | gene_id),
+    #     data = dat, family = glmmTMB::betabinomial()
+    # )
+    # mod05disp <- glmmTMB(cbind(meth, unmeth) ~ 1 + (1 | sample) + (1 | gene_id),
+    #     dispformula = ~1,
+    #     data = dat, family = glmmTMB::betabinomial()
+    # )
+    # datmorebinom <- dat %>%
+    #     filter(fraction_meth < 0.95) %>%
+    #     filter(fraction_meth > 0.35)
+    # mod05morebinom <- glmmTMB(cbind(meth, unmeth) ~ 1 + (1 | sample) + (1 | gene_id),
+    #     data = datmorebinom, family = glmmTMB::betabinomial()
+    # )
+    # mod05binom_morebinom <- glmmTMB(cbind(meth, unmeth) ~ 1 + (1 | sample) + (1 | gene_id),
+    #     data = datmorebinom, family = binomial()
+    # )
+
+
+    # dispersion_model_morebinomdat <- glmmTMB(
+    #     cbind(meth, unmeth) ~ 1 + (1 | sample) + (1 | gene_id) + (1 | sample:gene_id),
+    #     dispformula = ~condition,
+    #     family = glmmTMB::betabinomial(),
+    #     data = datmorebinom
+    # )
+
+    # anova(mod0, mod05)
+    # anova(mod05binom_morebinom, mod05morebinom)
+}
