@@ -192,19 +192,19 @@ for (contrast in params[["contrasts"]]) {
     ordered_by_stat <- setNames(res[[contrast_stat]], res$gene_id) %>% na.omit()
     resl2fc <- res %>% arrange(-!!sym(contrast_l2fc))
     ordered_by_l2fc <- setNames(resl2fc[[contrast_l2fc]], resl2fc$gene_id) %>% na.omit()
-    for (collection in genecollections) {
+    for (collec in genecollections) {
         tryCatch(
             {
-                genesets <- read.gmt(params[["collections_for_gsea"]][[collection]])
+                genesets <- read.gmt(params[["collections_for_gsea"]][[collec]])
                 gse <- GSEA(ordered_by_stat, TERM2GENE = genesets, maxGSSize = 100000, minGSSize = 1, pvalueCutoff = 1)
                 df <- gse@result %>% tibble()
-                df$collection <- collection
+                df$collection <- collec
                 df$contrast <- contrast
                 # gse_results[[contrast]][[collection]] <- as.data.frame(df) %>% tibble()
                 if (!exists("gse_df")) {
-                    gse_df <<- df
+                    gse_df <- df
                 } else {
-                    gse_df <<- rbind(gse_df, df)
+                    gse_df <- rbind(gse_df, df)
                 }
                 genesettheme <- theme_gray() + theme(axis.text.x = element_text(colour = "black"), axis.text.y = element_text(colour = "black"))
 
@@ -225,7 +225,7 @@ for (contrast in params[["contrasts"]]) {
                                 ylab(NULL) +
                                 labs(caption = contrast_label_map %>% filter(contrast == !!contrast) %$% label)
 
-                            mysaveandstore(sprintf("%s/%s/gsea/%s/nesTOP%sEITHERDIRECTIONSHOWN.pdf", params[["outputdir"]], contrast, collection, num), w = 8, h = min(num, 12), res = 300)
+                            mysaveandstore(sprintf("%s/%s/gsea/%s/nesTOP%sEITHERDIRECTIONSHOWN.pdf", params[["outputdir"]], contrast, collec, num), w = 8, h = min(num, 12), res = 300)
 
                             p <- ggplot(dftemp, aes(`Gene Ratio`, fct_reorder(Description, `Gene Ratio`), fill = -log10(p.adjust) * `sign(NES)`)) +
                                 geom_col(orientation = "y") +
@@ -236,7 +236,7 @@ for (contrast in params[["contrasts"]]) {
                                 guides(fill = guide_legend(title = "Signed \n-log10(p.adjust)")) +
                                 labs(caption = contrast_label_map %>% filter(contrast == !!contrast) %$% label)
 
-                            mysaveandstore(sprintf("%s/%s/gsea/%s/dot_TOP%sEITHERDIRECTIONSHOWN.pdf", params[["outputdir"]], contrast, collection, num), w = 7.5, h = min(num, 12), res = 300)
+                            mysaveandstore(sprintf("%s/%s/gsea/%s/dot_TOP%sEITHERDIRECTIONSHOWN.pdf", params[["outputdir"]], contrast, collec, num), w = 7.5, h = min(num, 12), res = 300)
                         }
                     },
                     error = function(e) {
@@ -369,7 +369,7 @@ tryCatch(
                     if (length(all_genes_in_set) == 0) {
                         next
                     }
-                    params[["collections_for_gsea"]][[collection]]
+                    params[["collections_for_gsea"]][[collec]]
                     genestoplot <- core_enrichments[[geneset]]
                     set_title <- geneset
 
@@ -452,7 +452,7 @@ tryCatch(
                             lgd_sig <- Legend(pch = "*", type = "points", labels = "< 0.05")
                             # these two self-defined legends are added to the plot by `annotation_legend_list`
                             p <- wrap_elements(grid.grabExpr(draw(hm, annotation_legend_list = list(lgd_pvalue_adj, lgd_sig), heatmap_legend_side = "bottom", annotation_legend_side = "bottom")))
-                            mysaveandstore(sprintf("%s/%s/gsea/%s/all_genes/heatmap_%s.pdf", params[["outputdir"]], contrast, collection, set_title), w = min(0.75 * dim(scaledm)[2], 12), h = min(dim(scaledm)[1], 12), res = 300)
+                            mysaveandstore(sprintf("%s/%s/gsea/%s/all_genes/heatmap_%s.pdf", params[["outputdir"]], contrast, collec, set_title), w = min(0.75 * dim(scaledm)[2], 12), h = min(dim(scaledm)[1], 12), res = 300)
 
                             # heatmap all samples
                             m <- as.matrix(heatmapprep %>% dplyr::select(sample_table$sample_name))
@@ -501,7 +501,7 @@ tryCatch(
                             lgd_sig <- Legend(pch = "*", type = "points", labels = "< 0.05")
                             # these two self-defined legends are added to the plot by `annotation_legend_list`
                             p <- wrap_elements(grid.grabExpr(draw(hm, auto_adjust = FALSE, annotation_legend_list = list(lgd_pvalue_adj, lgd_sig), heatmap_legend_side = "right", annotation_legend_side = "right")))
-                            mysaveandstore(sprintf("%s/%s/gsea/%s/all_genes/heatmap_%s.pdf", params[["outputdir"]], contrast, collection, set_title), w = min(0.75 * dim(scaledm)[2], 12), h = min(dim(scaledm)[1] / 7.5, 20), res = 300)
+                            mysaveandstore(sprintf("%s/%s/gsea/%s/all_genes/heatmap_%s.pdf", params[["outputdir"]], contrast, collec, set_title), w = min(0.75 * dim(scaledm)[2], 12), h = min(dim(scaledm)[1] / 7.5, 20), res = 300)
 
                             rownames(scaledm)[row_order(hm)]
                         },
@@ -657,17 +657,22 @@ for (geneset in names(params[["genesets_for_heatmaps"]])) {
 
 
 # GSEA untargeted
-tryCatch(
-    {
-        gene_sets <- msigdbr(species = confALL$aref$species)
-    },
-    error = function(e) {
-        gene_sets <<- msigdbr(species = "human")
-    }
-)
+get_gene_sets <- function() {
+    tryCatch(
+        {
+            msigdbr(species = confALL$aref$species)
+        },
+        error = function(e) {
+            msigdbr(species = "human")
+        }
+    )
+}
+
+gene_sets <- get_gene_sets()
 
 rm(gse_df)
 for (contrast in params[["contrasts"]]) {
+    print(contrast)
     # PREP RESULTS FOR GSEA
     contrast_of_interest <- contrast
     contrast_level_2 <- contrast_of_interest %>%
@@ -688,25 +693,31 @@ for (contrast in params[["contrasts"]]) {
     ordered_by_stat <- setNames(res[[contrast_stat]], res$gene_id) %>% na.omit()
     resl2fc <- res %>% arrange(-!!sym(contrast_l2fc))
     ordered_by_l2fc <- setNames(resl2fc[[contrast_l2fc]], resl2fc$gene_id) %>% na.omit()
-    for (category in gene_sets %$% gs_cat %>% unique()) {
+    print(head(gene_sets))
+    print(unique(gene_sets$gs_collection))
+    for (category in unique(gene_sets$gs_collection)) {
+        print(category)
         cat(category, "\n")
         tryCatch(
             {
-                collection <- category
-                msigdbr_df <- gene_sets %>% filter(gs_cat == category)
+                collec <- category
+                msigdbr_df <- gene_sets %>% filter(gs_collection == category)
                 msigdbr_t2g <- msigdbr_df %>%
                     dplyr::distinct(gs_name, gene_symbol) %>%
                     as.data.frame()
                 gse <- GSEA(ordered_by_stat, TERM2GENE = msigdbr_t2g, maxGSSize = 100000, minGSSize = 1, pvalueCutoff = 1)
                 df <- gse@result %>% tibble()
-                df$collection <- collection
+                df$collection <- collec
                 df$contrast <- contrast
                 # gse_results[[contrast]][[collection]] <- as.data.frame(df) %>% tibble()
                 if (!exists("gse_df")) {
-                    gse_df <<- df
+                    gse_df <- df
                 } else {
-                    gse_df <<- rbind(gse_df, df)
+                    gse_df <- rbind(gse_df, df)
                 }
+                print("gse_df_sample")
+                print(head(gse_df))
+                print(tail(gse_df))
                 genesettheme <- theme_gray() + theme(axis.text.x = element_text(colour = "black"), axis.text.y = element_text(colour = "black"))
 
                 tryCatch(
@@ -726,7 +737,7 @@ for (contrast in params[["contrasts"]]) {
                                 ylab(NULL) +
                                 labs(caption = contrast_label_map %>% filter(contrast == !!contrast) %$% label)
 
-                            mysaveandstore(sprintf("%s/%s/gsea/%s/nes%s.pdf", params[["outputdir"]], contrast, collection, num), w = 8, h = min(num, 7), res = 300)
+                            mysaveandstore(sprintf("%s/%s/gsea/%s/nes%s.pdf", params[["outputdir"]], contrast, collec, num), w = 8, h = min(num, 7), res = 300)
 
                             p <- ggplot(dftemp, aes(`Gene Ratio`, fct_reorder(Description, `Gene Ratio`), fill = -log10(p.adjust) * `sign(NES)`)) +
                                 geom_col(orientation = "y") +
@@ -737,7 +748,7 @@ for (contrast in params[["contrasts"]]) {
                                 guides(fill = guide_legend(title = "Signed \n-log10(p.adjust)")) +
                                 labs(caption = contrast_label_map %>% filter(contrast == !!contrast) %$% label)
 
-                            mysaveandstore(sprintf("%s/%s/gsea/%s/dot%s.pdf", params[["outputdir"]], contrast, collection, num), w = 7.5, h = min(num, 10), res = 300)
+                            mysaveandstore(sprintf("%s/%s/gsea/%s/dot%s.pdf", params[["outputdir"]], contrast, collec, num), w = 7.5, h = min(num, 10), res = 300)
                         }
                     },
                     error = function(e) {
@@ -784,6 +795,8 @@ for (contrast in params[["contrasts"]]) {
     contrast_significance <- paste0("Significance_", contrast)
 
     res <- res %>% arrange(-!!sym(contrast_stat))
+    print("region1")
+    print(head(gse_df))
     for (collec in gse_df %$% collection %>% unique()) {
         gse <- gse_df %>% filter(collection == collec)
         df <- arrange(gse, -abs(NES)) %>%
@@ -871,6 +884,8 @@ for (contrast in params[["contrasts"]]) {
 
 gres <- gse_df %>% tibble()
 gres %>% write_delim(outputs$results_table_unbiased, delim = "\t")
+print("region2")
+print(head(gse_df))
 for (collec in gse_df %$% collection %>% unique()) {
     grestemp <- gres %>%
         filter(collection == collec) %>%

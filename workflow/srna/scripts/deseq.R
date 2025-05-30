@@ -133,7 +133,8 @@ cts <- cts %>% mutate(across(everything(), ~ as.integer(round(.))))
 batch_vars_to_use <- c()
 if (any(grepl("batch", colnames(coldata)))) {
     for (value in colnames(coldata)[grepl("batch", colnames(coldata))]) {
-        number_unique_vals <- coldata[, value] %>%
+        number_unique_vals <- coldata %>%
+            pull(value) %>%
             unique() %>%
             length()
         if (number_unique_vals > 1) {
@@ -289,78 +290,120 @@ countspath <- paste(outputdir, counttype, "counttablesizenormed.csv", sep = "/")
 dir.create(dirname(countspath), recursive = TRUE, showWarnings = FALSE)
 write.csv(counttablesizenormed, file = countspath)
 
-# write.csv(as.data.frame(assay(vst_assaydf)), file = paste(outputdir, counttype, "vstcounts.csv", sep = "/"))
 
-# tag PLOTS
+for (subset in c("rtes", "genes")) {
+    if (subset == "rtes") {
+        ddstemplist <- ddsrteslist
+    } else {
+        ddstemplist <- ddsgeneslist
+    }
+    for (contrast in contrasts) {
+        baselevel <- str_extract(contrast, "vs_.*") %>% str_remove("vs_")
+        ddstemp <- ddstemplist[[baselevel]]
+        coldatatemp <<- colData(ddstemp)
 
-for (batchnormed in c("yes", "no")) {
-    if (batchnormed == "yes" & !(any(grepl("batch", colnames(coldata))))) {
-        next
+        colData(ddstemp)$condition
+        res <- results(ddstemp, name = contrast)
+        res <- res[order(res$pvalue), ]
+
+
+        if (params$paralellize_bioc) {
+            tryCatch(
+                {
+                    resshrunk <- lfcShrink(
+                        ddstemp,
+                        coef = contrast,
+                        type = "apeglm",
+                        parallel = TRUE,
+                        BPPARAM = bpparam()
+                    )
+                    if (subset == "genes") {
+                        resshrunk <- resshrunk[rownames(resshrunk) %in% gene_cts$gene_id, ]
+                    } else {
+                        resshrunk <- resshrunk[!(rownames(resshrunk) %in% gene_cts$gene_id), ]
+                    }
+                    resshrunkpath <- paste(outputdir, counttype, contrast, sprintf("results_shrunkl2fc_%s.csv", subset), sep = "/")
+                    dir.create(dirname(resshrunkpath), recursive = TRUE, showWarnings = FALSE)
+                    write.csv(as.data.frame(resshrunk), file = resshrunkpath)
+                },
+                error = function(e) {
+                    tryCatch(
+                        {
+                            resshrunk <- lfcShrink(
+                                ddstemp,
+                                coef = contrast,
+                                type = "apeglm",
+                                parallel = FALSE,
+                            )
+                            if (subset == "genes") {
+                                resshrunk <- resshrunk[rownames(resshrunk) %in% gene_cts$gene_id, ]
+                            } else {
+                                resshrunk <- resshrunk[!(rownames(resshrunk) %in% gene_cts$gene_id), ]
+                            }
+                            resshrunkpath <- paste(outputdir, counttype, contrast, sprintf("results_shrunkl2fc_%s.csv", subset), sep = "/")
+                            dir.create(dirname(resshrunkpath), recursive = TRUE, showWarnings = FALSE)
+                            write.csv(as.data.frame(resshrunk), file = resshrunkpath)
+                        },
+                        error = function(e) {
+                            print("error in getting shrunk l2fc estimates")
+                        }
+                    )
+                }
+            )
+        }
+
+
+        if (subset == "genes") {
+            res <- res[rownames(res) %in% gene_cts$gene_id, ]
+        } else {
+            res <- res[!(rownames(res) %in% gene_cts$gene_id), ]
+        }
+
+        respath <- paste(outputdir, counttype, contrast, sprintf("results_%s.csv", subset), sep = "/")
+        dir.create(dirname(respath), recursive = TRUE, showWarnings = FALSE)
+        write.csv(as.data.frame(res), file = respath)
+
+        DE_UP <- res %>%
+            as.data.frame() %>%
+            tibble() %>%
+            filter(log2FoldChange > 0) %>%
+            filter(padj < 0.05) %>%
+            nrow()
+        DE_DOWN <- res %>%
+            as.data.frame() %>%
+            tibble() %>%
+            filter(log2FoldChange < 0) %>%
+            filter(padj < 0.05) %>%
+            nrow()
+        TOTAL <- res %>%
+            as.data.frame() %>%
+            tibble() %>%
+            nrow()
+        p <- EnhancedVolcano(res,
+            lab = rownames(res),
+            selectLab = c(""),
+            title = contrast,
+            drawConnectors = TRUE,
+            x = "log2FoldChange",
+            y = "padj",
+            legendPosition = "none",
+            ylab = expression(-Log[10] ~ P["adj"]),
+            pCutoff = 0.05,
+        ) + mtopen + labs(subtitle = NULL, caption = sprintf("DE UP: %s\nDE DOWN: %s\nTOTAL: %s", DE_UP, DE_DOWN, TOTAL)) + theme(legend.position = "none")
+        mysaveandstore(paste(outputdir, counttype, subset, contrast, "deplot.pdf", sep = "/"), 5, 5)
+        mysaveandstore(fn = paste(outputdir, counttype, subset, contrast, "deplot.pdf", sep = "/"), raster = TRUE, w = 5, h = 5)
+
+        p <- DESeq2::plotMA(res, alpha = 0.05) + mtclosed
+        mysaveandstore(paste(outputdir, counttype, subset, contrast, "maplot.pdf", sep = "/"), 5, 5)
+        mysaveandstore(paste(outputdir, counttype, subset, contrast, "maplot.pdf", sep = "/"), raster = TRUE, 5, 5)
     }
 
-    for (subset in c("rtes", "genes")) {
-        if (subset == "rtes") {
-            ddstemplist <- ddsrteslist
-        } else {
-            ddstemplist <- ddsgeneslist
+    vst <- varianceStabilizingTransformation(ddstemp, blind = FALSE)
+    vst_assay <- assay(vst)
+    for (batchnormed in c("yes", "no")) {
+        if (batchnormed == "yes" & !(any(grepl("batch", colnames(coldata))))) {
+            next
         }
-        for (contrast in contrasts) {
-            baselevel <- str_extract(contrast, "vs_.*") %>% str_remove("vs_")
-            ddstemp <- ddstemplist[[baselevel]]
-            coldatatemp <<- colData(ddstemp)
-
-            colData(ddstemp)$condition
-            res <- results(ddstemp, name = contrast)
-            res <- res[order(res$pvalue), ]
-
-
-            if (subset == "genes") {
-                res <- res[rownames(res) %in% gene_cts$gene_id, ]
-            } else {
-                res <- res[!(rownames(res) %in% gene_cts$gene_id), ]
-            }
-
-            respath <- paste(outputdir, counttype, contrast, sprintf("results_%s.csv", subset), sep = "/")
-            dir.create(dirname(respath), recursive = TRUE, showWarnings = FALSE)
-            write.csv(as.data.frame(res), file = respath)
-
-            DE_UP <- res %>%
-                as.data.frame() %>%
-                tibble() %>%
-                filter(log2FoldChange > 0) %>%
-                filter(padj < 0.05) %>%
-                nrow()
-            DE_DOWN <- res %>%
-                as.data.frame() %>%
-                tibble() %>%
-                filter(log2FoldChange < 0) %>%
-                filter(padj < 0.05) %>%
-                nrow()
-            TOTAL <- res %>%
-                as.data.frame() %>%
-                tibble() %>%
-                nrow()
-            p <- EnhancedVolcano(res,
-                lab = rownames(res),
-                selectLab = c(""),
-                title = contrast,
-                drawConnectors = TRUE,
-                x = "log2FoldChange",
-                y = "padj",
-                legendPosition = "none",
-                ylab = expression(-Log[10] ~ P["adj"]),
-                pCutoff = 0.05,
-            ) + mtopen + labs(subtitle = NULL, caption = sprintf("DE UP: %s\nDE DOWN: %s\nTOTAL: %s", DE_UP, DE_DOWN, TOTAL)) + theme(legend.position = "none")
-            mysaveandstore(paste(outputdir, counttype, subset, contrast, "deplot.pdf", sep = "/"), 5, 5)
-            mysaveandstore(fn = paste(outputdir, counttype, subset, contrast, "deplot.pdf", sep = "/"), raster = TRUE, w = 5, h = 5)
-
-            p <- DESeq2::plotMA(res, alpha = 0.05) + mtclosed
-            mysaveandstore(paste(outputdir, counttype, subset, contrast, "maplot.pdf", sep = "/"), 5, 5)
-            mysaveandstore(paste(outputdir, counttype, subset, contrast, "maplot.pdf", sep = "/"), raster = TRUE, 5, 5)
-        }
-
-        vst <- varianceStabilizingTransformation(ddstemp, blind = FALSE)
-        vst_assay <- assay(vst)
         if (batchnormed == "yes") {
             if (sum(grepl("batchCat", colnames(coldata))) == 2) {
                 batches <- grep("batch", colnames(coldata), value = TRUE)
@@ -414,7 +457,8 @@ for (batchnormed in c("yes", "no")) {
                 )
             }
         }
-
+        dir.create(paste(outputdir, counttype, subset, sprintf("batchRemoved_%s", batchnormed), sep = "/"), recursive = TRUE)
+        write_csv(as.data.frame(vst_assay) %>% rownames_to_column(var = "gene_id"), paste(outputdir, counttype, subset, sprintf("batchRemoved_%s", batchnormed), "vst_counts.csv", sep = "/"))
         p <- vsn::meanSdPlot(vst_assay)
         mysaveandstore(paste(outputdir, counttype, subset, sprintf("batchRemoved_%s", batchnormed), "vstmeansdplot.pdf", sep = "/"), 6, 6)
 
@@ -425,8 +469,6 @@ for (batchnormed in c("yes", "no")) {
 
         p <- screeplot(pcaObj, title = "") + mtopen + anchorbar
         mysaveandstore(paste(outputdir, counttype, subset, sprintf("batchRemoved_%s", batchnormed), "screeplot.pdf", sep = "/"), 4, 4)
-
-
         p <- plotloadings(pcaObj,
             components = getComponents(pcaObj, seq_len(3)),
             rangeRetain = 0.045, labSize = 4
@@ -464,12 +506,15 @@ for (batchnormed in c("yes", "no")) {
             print("no batchCat")
         }
         batchestemp <- grep("batch", colnames(coldatatemp), value = TRUE)
-        tryCatch({
-        p <- eigencorplot(pcaObj, metavars = c(batchestemp,"condition"))
-        mysaveandstore(paste(outputdir, counttype, subset, sprintf("batchRemoved_%s", batchnormed), "eigencor.pdf", sep = "/"), 8, 4)
-        }, error = function(e) {
-            print("eigencorplot fail")
-        })
+        tryCatch(
+            {
+                p <- eigencorplot(pcaObj, metavars = c(batchestemp, "condition"))
+                mysaveandstore(paste(outputdir, counttype, subset, sprintf("batchRemoved_%s", batchnormed), "eigencor.pdf", sep = "/"), 8, 4)
+            },
+            error = function(e) {
+                print("eigencorplot fail")
+            }
+        )
 
         p <- biplot(pcaObj,
             showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0,
@@ -525,58 +570,3 @@ save(ddsgeneslist, file = paste(outputdir, counttype, "dds_genes.RData", sep = "
 
 x <- tibble(OUT = "")
 write_tsv(x, file = outputs$environment)
-
-
-
-
-tryCatch(
-    {
-        library(patchwork)
-        names(mysaveandstoreplots)
-        p1 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/genes/batchRemoved_no/pca.pdf"]]
-        p2 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/genes/batchRemoved_no/screeplot.pdf"]]
-        p3 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/genes/batchRemoved_no/sample_dist_heatmap.pdf"]]
-        ptch <- ((p1 / p2) | p3) + plot_layout(guides = "collect")
-        mysaveandstore(pl = ptch, fn = "srna/results/agg/deseq/telescope_multi/figs/f32.pdf", w = 8, h = 6)
-
-        paste0("RTE/", names(mysaveandstoreplots))
-
-        p1 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/genes/batchRemoved_no/pca.pdf"]]
-        p2 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/genes/batchRemoved_no/screeplot.pdf"]]
-        p3 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/genes/batchRemoved_no/sample_dist_heatmap.pdf"]]
-        ptch <- ((p1 / p2) | p3) + plot_layout(guides = "collect")
-        mysaveandstore(pl = ptch, fn = "srna/results/agg/deseq/telescope_multi/figs/f32.pdf", w = 8, h = 6)
-
-        p1 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/genes/batchRemoved_no/pca.pdf"]]
-        p2 <- mysaveandstoreplots[["srna/results/agg/deseq/telescope_multi/genes/batchRemoved_no/screeplot.pdf"]]
-        ptch <- (p1 | p2) + plot_layout(guides = "collect")
-        mysaveandstore(pl = ptch, fn = "srna/results/agg/deseq/telescope_multi/figs/pca_scree.pdf", w = 9, h = 3.4)
-
-        ptch <- wrap_plots(mysaveandstoreplots[names(mysaveandstoreplots) %>%
-            grep("genes", ., value = TRUE) %>%
-            grep("maplot", ., value = TRUE) %>%
-            grep(paste(contrasts, collapse = "|"), ., value = TRUE)])
-        mysaveandstore(pl = ptch, fn = "srna/results/agg/deseq/telescope_multi/figs/maplots_genes.pdf", raster = TRUE, w = 14, h = 6)
-
-        ptch <- wrap_plots(mysaveandstoreplots[names(mysaveandstoreplots) %>%
-            grep("genes", ., value = TRUE) %>%
-            grep("maplot", ., value = TRUE) %>%
-            grep(paste(contrasts, collapse = "|"), ., value = TRUE)])
-        mysaveandstore(pl = ptch, fn = "srna/results/agg/deseq/telescope_multi/figs/maplots_genes.pdf", raster = TRUE, w = 14, h = 6)
-
-        # ptch <- wrap_plots(mysaveandstoreplots[names(mysaveandstoreplots) %>% grep("rtes", ., value = TRUE) %>% grep("maplot", ., value = TRUE) %>% grep(paste(contrasts, collapse = "|"), ., value = TRUE)])
-        # mysaveandstore(pl = ptch, fn = "srna/results/agg/deseq/telescope_multi/figs/maplots_rtes.pdf", w = 14, h = 6)
-
-        ptch <- wrap_plots(mysaveandstoreplots[names(mysaveandstoreplots) %>%
-            grep("genes", ., value = TRUE) %>%
-            grep("deplot", ., value = TRUE) %>%
-            grep(paste(contrasts, collapse = "|"), ., value = TRUE)])
-        mysaveandstore(pl = ptch, fn = "srna/results/agg/deseq/telescope_multi/figs/volcano_genes.pdf", raster = TRUE, w = 14, h = 6)
-
-        # ptch <- wrap_plots(mysaveandstoreplots[names(mysaveandstoreplots) %>% grep("rtes", ., value = TRUE) %>% grep("deplot", ., value = TRUE) %>% grep(paste(contrasts, collapse = "|"), ., value = TRUE)])
-        # mysaveandstore(pl = ptch, fn = "srna/results/agg/deseq/telescope_multi/figs/volcano_rtes.pdf", w = 14, h = 6)
-    },
-    error = function(e) {
-
-    }
-)

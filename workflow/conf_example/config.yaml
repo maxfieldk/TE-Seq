@@ -162,6 +162,9 @@ srna:
   repeat_ontologies_to_scrutinize: #leave empty for all ontologies to be included
     - ""
 
+  rte_subfamilies_for_aggregate_rte_stats: #leave empty for all default
+    - ""
+
   collections_for_gsea: #these are collections to be used in addition to the msigdb collections, and are meant to be specified as a path to a gmt file. They will be run separately from the msigdb collections, so this portion of the analysis is meant to be hypothesis based
     msigdbH: resources/genesets/human/msigdb/h.all.v2023.2.Hs.symbols.gmt
     msigdbC2_CPG_SENMAYO: resources/genesets/human/msigdb/SAUL_SEN_MAYO.v2023.2.Hs.gmt
