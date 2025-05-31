@@ -319,18 +319,41 @@ At the highest level, RNA-seq results are partitioned into 6 sub-folders found i
 
 ### Location of main result tables:
 
-Gene/Repetitive Element normalized counts + differential analysis results  
+Gene/Repetitive Element normalized counts (deseq2 size factor normalized) + differential analysis results  
   srna/results/agg/deseq/resultsdf.tsv  
 The deseq folder has the resultsdf, which has deseq2 normalized counts (and if a batch variable/confounders were specified in the config, these counts are also batch corrected by limma) as well as deseq2 p-values for all contrasts.
 
+Normalized counts (deseq2 size factor normalized) with or without batch correction
+  srna/results/agg/deseq/telescope_multi/counttablesizenormedbatchnotremoved.csv
+  srna/results/agg/deseq/telescope_multi/counttablesizenormedbatchremoved.csv
+  srna/results/agg/deseq/telescope_unique/counttablesizenormedbatchnotremoved.csv
+  srna/results/agg/deseq/telescope_unique/counttablesizenormedbatchremoved.csv
+
+Variance stabilized normalized counts (deseq2 size factor normalized) with or without batch correction
+  srna/results/agg/deseq/telescope_multi/rtes/batchRemoved_no/vst_counts.csv
+  srna/results/agg/deseq/telescope_multi/rtes/batchRemoved_yes/vst_counts.csv
+  srna/results/agg/deseq/telescope_multi/genes/batchRemoved_no/vst_counts.csv
+  srna/results/agg/deseq/telescope_multi/genes/batchRemoved_yes/vst_counts.csv
+  srna/results/agg/deseq/telescope_unique/rtes/batchRemoved_no/vst_counts.csv
+  srna/results/agg/deseq/telescope_unique/rtes/batchRemoved_yes/vst_counts.csv
+  srna/results/agg/deseq/telescope_unique/genes/batchRemoved_no/vst_counts.csv
+  srna/results/agg/deseq/telescope_unique/genes/batchRemoved_yes/vst_counts.csv
+
 Sample size factors (determined by deseq2 to adjust for sequencing depth)  
   srna/results/agg/deseq/telescope_multi/sizefactors.csv
+  srna/results/agg/deseq/telescope_unique/sizefactors.csv
+
+
+TE subset (family, subfamily, etc.) differential expression of aggregated count statistics
+  srna/results/agg/repeatanalysis/telescope_multi/te_group_stats.csv
+  srna/results/agg/repeatanalysis/telescope_unique/te_group_stats.csv
 
 Untargeted GSEA results (all of msigdb)  
 	srna/results/agg/enrichment_analysis/results_table_unbiased.tsv
 
 GSEA of rte clades results  
 srna/results/agg/enrichment_analysis_repeats/telescope_multi/results_table.tsv
+srna/results/agg/enrichment_analysis_repeats/telescope_unique/results_table.tsv
 
 Raw feature_counts unnormalized counts  
 	srna/outs/agg/featurecounts_genes/counts.txt
