@@ -466,7 +466,7 @@ rule multiqc:
     input:
         mycoplasma = expand("ldna/qc/mycoplasma/mycoplasma{sample}.bam", sample = samples)
     conda:
-        "omics"
+        "qc"
     output:
         report = "ldna/qc/multiqc_report.html"
     shell:
