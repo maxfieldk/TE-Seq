@@ -1,4 +1,38 @@
-container: "docker://maxfieldkelsey/te-seq:v1.3"
+#container definitions
+teseq_container = (
+    config["containers"]["teseq"]["path"]
+    if config["containers"]["teseq"]["use_prexisting_response"] == "yes"
+    else "docker://maxfieldkelsey/te-seq:v1.3"
+)
+
+tetools_container = (
+    config["containers"]["tetools"]["path"]
+    if config["containers"]["tetools"]["use_prexisting_response"] == "yes"
+    else "containers/tetools_1.88.5.sif"
+)
+pepper_deepvariant_container = (
+    config["containers"]["pepper_deepvariant"]["path"]
+    if config["containers"]["pepper_deepvariant"]["use_prexisting_response"] == "yes"
+    else "containers/pepper_deepvariant:r0.8.sif"
+)
+gatk_container = (
+    config["containers"]["gatk"]["path"]
+    if config["containers"]["gatk"]["use_prexisting_response"] == "yes"
+    else "containers/gatk:4.6.1.0.sif"
+)
+dorado_container = (
+    config["containers"]["dorado"]["path"]
+    if config["containers"]["dorado"]["use_prexisting_response"] == "yes"
+    else "containers/dorado:sha268dcb4cd02093e75cdc58821f8b93719c4255ed.sif"
+)
+tetranscripts_container = (
+    config["containers"]["tetranscripts"]["path"]
+    if config["containers"]["tetranscripts"]["use_prexisting_response"] == "yes"
+    else "containers/tetranscripts:2.2.3.sif"
+)
+
+container: teseq_container
+
 import os
 import pandas as pd
 import csv
@@ -161,9 +195,10 @@ rule dorado:
     benchmark:
         "aref/benchmarks/dorado/{rate}.{sample}.{type}.{modifications_string}.tsv"
     params:
-        dorado = config["aref"]["dorado"],
         reference = config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"],
         input_dir = lambda wildcards: sample_table.loc[sample_table["sample_name"] == wildcards.sample, "nanopore_rawdata_dir"].iloc[0]
+    container:
+        dorado_container
     resources:
         cpus_per_task =12,
         slurm_partition="gpu-he",
@@ -175,7 +210,7 @@ rule dorado:
 mkdir -p $(dirname {output.calls})
 mod_string=$(echo {wildcards.modifications_string} | tr "-" ",")
 
-{params.dorado} \
+dorado \
 basecaller \
 {wildcards.type},$mod_string \
 {params.input_dir} \
@@ -692,6 +727,7 @@ sniffles -i {input.sortedbam} -v {output.vcf} --threads 28 --mosaic --reference 
 
 rule pepper:
     input:
+        pepper_deepvariant_container = pepper_deepvariant_container,
         sortedbam = ancient(expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"])),
         sortedbamindex = ancient(expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]))
     params:
@@ -705,7 +741,7 @@ rule pepper:
         runtime = 600,
         mem_mb = 75000
     container:
-        "docker://kishwars/pepper_deepvariant:r0.8"
+        pepper_deepvariant_container
     shell:	
         """
 mkdir -p $(dirname {output.outfile})
@@ -727,12 +763,13 @@ run_pepper_margin_deepvariant call_variant \
 
 rule get_reference_gatk_dict:
     params:
+        gatk_container = gatk_container,
         ref = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"],
         refdict = lambda w: "%s.dict"%config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"]
     output:
         "aref/intermediates/ref_gatk_dict.outfile"
     container:
-        "docker://broadinstitute/gatk:4.6.1.0"
+        gatk_container
     shell:
         """
 gatk CreateSequenceDictionary \
@@ -745,6 +782,7 @@ touch {output}
 
 rule liftover_dbsnp:
     input:
+        gatk_container = gatk_container,
         refdict = lambda w: "%s.dict"%config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"]
     params:
         vcf = "/oscar/data/jsedivy/mkelsey/REF_STABLE_ANNOTATIONS/HS1/downloaded_annotaions/GCF_000001405.40.ucsc.vcf",
@@ -754,7 +792,7 @@ rule liftover_dbsnp:
     output:
         "/oscar/data/jsedivy/mkelsey/REF_STABLE_ANNOTATIONS/HS1/downloaded_annotaions/hs1_GCF_000001405.40.ucsc.vcf"
     container:
-        "docker://broadinstitute/gatk:4.6.1.0"
+        gatk_container
     priority: 100
     resources:
         cpus_per_task =1,
@@ -1035,13 +1073,14 @@ rule getstuff:
 
 rule vcf_to_table:
     input:
+        gatk_container = gatk_container,
         vcf_sml = "aref/intermediates/{sample_or_ref}/snpeff/snpeff_sml.pass.vcf",
         vcf_sv = "aref/intermediates/{sample_or_ref}/snpeff/snpeff_sv.pass.vcf"
     output:
         vcf_sml = "aref/intermediates/{sample_or_ref}/snpeff/snpeff_sml.pass.txt",
         vcf_sv = "aref/intermediates/{sample_or_ref}/snpeff/snpeff_sv.pass.txt"
     container:
-        "docker://broadinstitute/gatk:3.8"
+        gatk_container
     shell:
         """
 bcftools view -f 'PASS' {input.vcf_sml} > {output.vcf_sml}
@@ -1111,8 +1150,11 @@ echo {wildcards.chromosome} > {output.split}.names.txt
 seqtk subseq {input.fasta} {output.split}.names.txt > {output.split}
         """
 
+
+
 rule repeatmasker_whole_genome:
     input: 
+        tetools_container = tetools_container,
         split = "aref/default/A.REF_split/A.REF_{chromosome}.fa"
     params:
         species = config["aref"]["species"]
@@ -1124,7 +1166,7 @@ rule repeatmasker_whole_genome:
         cpus_per_task =20,
         runtime = 1000,
         mem_mb = 30000
-    container: "docker://dfam/tetools:1.88.5"
+    container: tetools_container
     shell:
         """
 if [[ {params.species} == mouse ]]
@@ -1172,6 +1214,7 @@ def repeatmasker_input(wildcards):
 
 rule repeatmasker:
     input:
+        tetools_container = tetools_container,
         fasta = repeatmasker_input
     params:
         species = config["aref"]["species"]
@@ -1183,7 +1226,7 @@ rule repeatmasker:
         cpus_per_task =20,
         runtime = 1200,
         mem_mb = 50000
-    container: "docker://dfam/tetools:1.88.5"
+    container: tetools_container
     shell:
         """
 if [[ {params.species} == mouse ]]

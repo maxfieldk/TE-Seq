@@ -1,4 +1,37 @@
-container: "docker://maxfieldkelsey/te-seq:v1.3"
+#container definitions
+teseq_container = (
+    config["containers"]["teseq"]["path"]
+    if config["containers"]["teseq"]["use_prexisting_response"] == "yes"
+    else "docker://maxfieldkelsey/te-seq:v1.3"
+)
+
+tetools_container = (
+    config["containers"]["tetools"]["path"]
+    if config["containers"]["tetools"]["use_prexisting_response"] == "yes"
+    else "containers/tetools_1.88.5.sif"
+)
+pepper_deepvariant_container = (
+    config["containers"]["pepper_deepvariant"]["path"]
+    if config["containers"]["pepper_deepvariant"]["use_prexisting_response"] == "yes"
+    else "containers/pepper_deepvariant:r0.8.sif"
+)
+gatk_container = (
+    config["containers"]["gatk"]["path"]
+    if config["containers"]["gatk"]["use_prexisting_response"] == "yes"
+    else "containers/gatk:4.6.1.0.sif"
+)
+dorado_container = (
+    config["containers"]["dorado"]["path"]
+    if config["containers"]["dorado"]["use_prexisting_response"] == "yes"
+    else "containers/dorado:sha268dcb4cd02093e75cdc58821f8b93719c4255ed.sif"
+)
+tetranscripts_container = (
+    config["containers"]["tetranscripts"]["path"]
+    if config["containers"]["tetranscripts"]["use_prexisting_response"] == "yes"
+    else "containers/tetranscripts:2.2.3.sif"
+)
+
+container: teseq_container
 
 import os
 import pandas as pd
@@ -506,7 +539,7 @@ rule tetranscripts:
         "srna/benchmarks/tetranscripts/{sample}_{counttype}.tsv"
     threads: 2
     container:
-        "docker://mhammelllab/tetranscripts:2.2.3"
+        tetranscripts_container
     resources:
         mem_mb  = 50000,
         runtime = 600

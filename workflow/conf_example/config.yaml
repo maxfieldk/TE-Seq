@@ -11,6 +11,27 @@ pipelines_to_deploy:
   - srna
   # - ldna
   # - lrna
+  
+containers:
+  teseq:
+    use_prexisting_response: "no"
+    path: ""
+  tetools:
+    use_prexisting_response: "no"
+    path: ""
+  gatk:
+    use_prexisting_response: "no"
+    path: ""
+  pepper_deepvariant:
+    use_prexisting_response: "no"
+    path: ""
+  dorado:
+    use_prexisting_response: "no"
+    path: ""
+  tetranscripts:
+    use_prexisting_response: "no"
+    path: ""
+
 shared:
   #leave palette values as empty string for default color
   default_palette_condition: "" #e.g. "ggsci::default_aaas" palette must be at least as long as the number of biological conditions you model; paletteer palettes https://emilhvitfeldt.github.io/paletteer/
