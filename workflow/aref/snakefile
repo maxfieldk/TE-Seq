@@ -308,7 +308,7 @@ rule multiqc:
     resources:
         mem_mb = 100000,
     conda:
-        "omics"
+        "qc"
     shell:
         """
 mkdir -p $(dirname {output.mqc})
