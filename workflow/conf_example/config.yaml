@@ -51,6 +51,9 @@ aref:
   #USER PROVIDED ANNOTATIONS - CHANGE PATHS AS NEEDED
   #Be sure to follow ucsc naming conventions, e.g. chr1, chr2, ...
   starting_ref: ../genome_files/reference.ucsc.fa
+  spike_in_contigs:
+    response: "no"
+    path_to_fasta: "conf/mt646_orfeus.fa"
   run_repeatmasker: #controls whether to run repeatmasker from scratch or to use the "starting_ref_repeatmasker" repeatmasker.out file 
     response: "no"
     starting_ref_repeatmasker: ../genome_files/repeatmasker.ucsc.out

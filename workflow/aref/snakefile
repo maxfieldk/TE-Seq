@@ -308,7 +308,7 @@ rule multiqc:
     resources:
         mem_mb = 100000,
     conda:
-        "omics"
+        "qc"
     shell:
         """
 mkdir -p $(dirname {output.mqc})
@@ -580,7 +580,9 @@ if config["aref"]["symlink_aref"]["response"] == "no":
             ruleorder:  cleanup_updated_sample_ref > cleanup_updated_sample_ref_and_patch
 rule copy_starting_reference:
     params:
-        ref = config["aref"]["starting_ref"]
+        ref = config["aref"]["starting_ref"],
+        spike_in_indicator = config["aref"]["spike_in_contigs"]["response"],
+        spike_in_path = config["aref"]["spike_in_contigs"]["path_to_fasta"]
     conda:
         "omics"
     priority: 100
@@ -588,7 +590,11 @@ rule copy_starting_reference:
         ref = "aref/{default_or_extended}/A.REF.fa"
     shell:
         """
-cp {params.ref} {output.ref}
+if [[ {params.spike_in_indicator} == no ]]; then
+    cp {params.ref} {output.ref}
+else
+    cat {params.ref} {params.spike_in_path} > {output.ref}
+fi
 samtools faidx {output.ref}
         """
        
