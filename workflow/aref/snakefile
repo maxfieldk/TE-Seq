@@ -191,7 +191,6 @@ rule dorado:
         type = "[0-9A-Za-z]+",
         rate = "[0-9A-Za-z]+",
         modifications_string = "[0-9A-Za-z_-]+"
-    container: None
     benchmark:
         "aref/benchmarks/dorado/{rate}.{sample}.{type}.{modifications_string}.tsv"
     params:
@@ -228,7 +227,7 @@ rule dorado_unmappedbam:
         type = "[0-9A-Za-z]+",
         rate = "[0-9A-Za-z]+",
         modifications_string = "[0-9A-Za-z_-]+"
-    container: None
+    container: dorado_container
     benchmark:
         "aref/benchmarks/dorado_fq/{rate}.{sample}.{type}.{modifications_string}.tsv"
     params:
@@ -245,7 +244,7 @@ rule dorado_unmappedbam:
 mkdir -p $(dirname {output.calls})
 mod_string=$(echo {wildcards.modifications_string} | tr "-" ",")
 
-{params.dorado} \
+dorado \
 basecaller \
 {wildcards.type},$mod_string \
 {params.input_dir} \
@@ -270,6 +269,7 @@ rule dorado_resume:
         type = "[0-9A-Za-z]+",
         rate = "[0-9A-Za-z]+",
         modifications_string = "[0-9A-Za-z_-]+"
+    container: dorado_container
     params:
         dorado = config["aref"]["dorado"],
         basecallingModel = lambda w: config["aref"]["basecallingModel"][w.rate][w.type],
@@ -285,7 +285,7 @@ rule dorado_resume:
 mkdir -p $(dirname {output.calls})
 mod_string=$(echo {wildcards.modifications_string} | tr "-" ",")
 
-{params.dorado} \
+dorado \
 basecaller \
 {wildcards.type},$mod_string \
 {params.input_dir} \
@@ -306,11 +306,13 @@ rule dorado_seqsummary:
         "aref/benchmarks/dorado_seqsummary/{sample}.tsv"
     output:
         "aref/qc/{sample}/{sample}.doradosummary.txt"
+    container:
+        dorado_container
     conda:
         "omics"
     shell:
         """
-{params.dorado} summary {input.sortedbam} > {output}
+dorado summary {input.sortedbam} > {output}
         """
 
 rule pycoQC:
