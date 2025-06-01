@@ -14,22 +14,22 @@ pipelines_to_deploy:
   
 containers:
   teseq:
-    use_prexisting_response: "no"
+    use_preexisting_response: "no"
     path: "/users/mkelsey/data/Nanopore/alz/RTE/.snakemake/singularity/a2dc848073a26995b643e7ba1e3d2cd9.simg"
   tetools:
-    use_prexisting_response: "no"
+    use_preexisting_response: "no"
     path: "/users/mkelsey/data/Nanopore/alz/RTE/containers/tetools_1.88.5.sif"
   gatk:
-    use_prexisting_response: "no"
+    use_preexisting_response: "no"
     path: "/users/mkelsey/data/Nanopore/alz/RTE/containers/gatk:4.6.1.0.sif"
   pepper_deepvariant:
-    use_prexisting_response: "no"
+    use_preexisting_response: "no"
     path: "/users/mkelsey/data/Nanopore/alz/RTE/containers/pepper_deepvariant:r0.8.sif"
   dorado:
-    use_prexisting_response: "no"
+    use_preexisting_response: "no"
     path: "/users/mkelsey/data/Nanopore/alz/RTE/containers/dorado:sha268dcb4cd02093e75cdc58821f8b93719c4255ed.sif"
   tetranscripts:
-    use_prexisting_response: "no"
+    use_preexisting_response: "no"
     path: "/users/mkelsey/data/Nanopore/alz/RTE/containers/tetranscripts:2.2.3.sif"
 
 

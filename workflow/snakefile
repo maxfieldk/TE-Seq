@@ -160,13 +160,13 @@ for pipeline in config["pipelines_to_deploy"]:
 #container definitions
 teseq_container = (
     config["containers"]["teseq"]["path"]
-    if config["containers"]["teseq"]["use_prexisting_response"] == "yes"
+    if config["containers"]["teseq"]["use_preexisting_response"] == "yes"
     else "docker://maxfieldkelsey/te-seq:v1.3"
 )
 
 tetools_container = (
     config["containers"]["tetools"]["path"]
-    if config["containers"]["tetools"]["use_prexisting_response"] == "yes"
+    if config["containers"]["tetools"]["use_preexisting_response"] == "yes"
     else "containers/tetools_1.88.5.sif"
 )
 
@@ -186,7 +186,7 @@ singularity pull {output} docker://dfam/tetools:1.88.5
 
 pepper_deepvariant_container = (
     config["containers"]["pepper_deepvariant"]["path"]
-    if config["containers"]["pepper_deepvariant"]["use_prexisting_response"] == "yes"
+    if config["containers"]["pepper_deepvariant"]["use_preexisting_response"] == "yes"
     else "containers/pepper_deepvariant:r0.8.sif"
 )
 rule pull_pepper_deepvariant_container:
@@ -205,7 +205,7 @@ singularity pull {output} docker://kishwars/pepper_deepvariant:r0.8
 
 gatk_container = (
     config["containers"]["gatk"]["path"]
-    if config["containers"]["gatk"]["use_prexisting_response"] == "yes"
+    if config["containers"]["gatk"]["use_preexisting_response"] == "yes"
     else "containers/gatk:4.6.1.0.sif"
 )
 rule pull_gatk_container:
@@ -224,7 +224,7 @@ singularity pull {output} docker://broadinstitute/gatk:4.6.1.0
 
 dorado_container = (
     config["containers"]["dorado"]["path"]
-    if config["containers"]["dorado"]["use_prexisting_response"] == "yes"
+    if config["containers"]["dorado"]["use_preexisting_response"] == "yes"
     else "containers/dorado:sha268dcb4cd02093e75cdc58821f8b93719c4255ed.sif"
 )
 rule pull_dorado_container:
@@ -243,7 +243,7 @@ singularity pull {output} docker://nanoporetech/dorado:sha268dcb4cd02093e75cdc58
 
 tetranscripts_container = (
     config["containers"]["tetranscripts"]["path"]
-    if config["containers"]["tetranscripts"]["use_prexisting_response"] == "yes"
+    if config["containers"]["tetranscripts"]["use_preexisting_response"] == "yes"
     else "containers/tetranscripts:2.2.3.sif"
 )
 rule pull_tetranscripts_container:
