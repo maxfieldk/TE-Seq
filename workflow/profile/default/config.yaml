@@ -1,7 +1,7 @@
 software-deployment-method: 
   - conda
   - apptainer
-singularity-args: '--bind /users/mkelsey/data,/users/jsedivy/data/mkelsey,/oscar/data/jsedivy/mkelsey,/oscar/home/jkreilin/data/vesicle_RNAseq,/users/jsedivy/data/rkalekar/Github_2024/RTE/srna'
+singularity-args: '--nv --bind /users/mkelsey/data,/users/jsedivy/data/mkelsey,/oscar/data/jsedivy/mkelsey,/oscar/home/jkreilin/data/vesicle_RNAseq,/users/jsedivy/data/rkalekar/Github_2024/RTE/srna'
 rerun-triggers: mtime
 keep-going: True
 rerun-incomplete: True

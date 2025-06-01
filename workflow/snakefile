@@ -156,6 +156,110 @@ for pipeline in config["pipelines_to_deploy"]:
         qc = [expand("srna/qc/mycoplasma/mycoplasma{sample}.sorted.bam", sample = config["srna"]["samples"])]
         if config["srna"]["map_to_mycoplasma"] == "yes":
             final_input.append(qc)
+
+#container definitions
+teseq_container = (
+    config["containers"]["teseq"]["path"]
+    if config["containers"]["teseq"]["use_prexisting_response"] == "yes"
+    else "docker://maxfieldkelsey/te-seq:v1.3"
+)
+
+tetools_container = (
+    config["containers"]["tetools"]["path"]
+    if config["containers"]["tetools"]["use_prexisting_response"] == "yes"
+    else "containers/tetools_1.88.5.sif"
+)
+
+rule pull_tetools_container:
+    output:
+        "containers/tetools_1.88.5.sif"
+    resources:
+        cpus_per_task =4,
+        runtime = 200,
+        mem_mb = 200000
+    container: None
+    shell:
+        """
+mkdir -p $(dirname {output})
+singularity pull {output} docker://dfam/tetools:1.88.5
+        """
+
+pepper_deepvariant_container = (
+    config["containers"]["pepper_deepvariant"]["path"]
+    if config["containers"]["pepper_deepvariant"]["use_prexisting_response"] == "yes"
+    else "containers/pepper_deepvariant:r0.8.sif"
+)
+rule pull_pepper_deepvariant_container:
+    output:
+        "containers/pepper_deepvariant:r0.8.sif"
+    resources:
+        cpus_per_task =4,
+        runtime = 200,
+        mem_mb = 100000
+    container: None
+    shell:
+        """
+mkdir -p $(dirname {output})
+singularity pull {output} docker://kishwars/pepper_deepvariant:r0.8
+        """
+
+gatk_container = (
+    config["containers"]["gatk"]["path"]
+    if config["containers"]["gatk"]["use_prexisting_response"] == "yes"
+    else "containers/gatk:4.6.1.0.sif"
+)
+rule pull_gatk_container:
+    output:
+        "containers/gatk:4.6.1.0.sif"
+    resources:
+        cpus_per_task =4,
+        runtime = 200,
+        mem_mb = 100000
+    container: None
+    shell:
+        """
+mkdir -p $(dirname {output})
+singularity pull {output} docker://broadinstitute/gatk:4.6.1.0
+        """
+
+dorado_container = (
+    config["containers"]["dorado"]["path"]
+    if config["containers"]["dorado"]["use_prexisting_response"] == "yes"
+    else "containers/dorado:sha268dcb4cd02093e75cdc58821f8b93719c4255ed.sif"
+)
+rule pull_dorado_container:
+    output:
+        "containers/dorado:sha268dcb4cd02093e75cdc58821f8b93719c4255ed.sif"
+    resources:
+        cpus_per_task =4,
+        runtime = 200,
+        mem_mb = 100000
+    container: None
+    shell:
+        """
+mkdir -p $(dirname {output})
+singularity pull {output} docker://nanoporetech/dorado:sha268dcb4cd02093e75cdc58821f8b93719c4255ed
+        """
+
+tetranscripts_container = (
+    config["containers"]["tetranscripts"]["path"]
+    if config["containers"]["tetranscripts"]["use_prexisting_response"] == "yes"
+    else "containers/tetranscripts:2.2.3.sif"
+)
+rule pull_tetranscripts_container:
+    output:
+        "containers/tetranscripts:2.2.3.sif"
+    resources:
+        cpus_per_task =4,
+        runtime = 200,
+        mem_mb = 100000
+    container: None
+    shell:
+        """
+mkdir -p $(dirname {output})
+singularity pull {output} docker://mhammelllab/tetranscripts:2.2.3
+        """
+
 rule all:
     input:
         [            
