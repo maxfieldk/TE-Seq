@@ -14,22 +14,22 @@ pipelines_to_deploy:
   
 containers:
   teseq:
-    use_prexisting_response: "no"
+    use_preexisting_response: "no"
     path: ""
   tetools:
-    use_prexisting_response: "no"
+    use_preexisting_response: "no"
     path: ""
   gatk:
-    use_prexisting_response: "no"
+    use_preexisting_response: "no"
     path: ""
   pepper_deepvariant:
-    use_prexisting_response: "no"
+    use_preexisting_response: "no"
     path: ""
   dorado:
-    use_prexisting_response: "no"
+    use_preexisting_response: "no"
     path: ""
   tetranscripts:
-    use_prexisting_response: "no"
+    use_preexisting_response: "no"
     path: ""
 
 shared:
