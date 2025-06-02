@@ -308,8 +308,6 @@ rule dorado_seqsummary:
         "aref/qc/{sample}/{sample}.doradosummary.txt"
     container:
         dorado_container
-    conda:
-        "omics"
     shell:
         """
 dorado summary {input.sortedbam} > {output}
