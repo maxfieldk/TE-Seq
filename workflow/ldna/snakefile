@@ -90,7 +90,7 @@ rule align_to_ref_winnowmap:
         reference = config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"]
     container: None
     output:
-        sam = temp(expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sam",ref_genome = "winnowmap", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]))
+        sam = temp(expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sam",ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]))
     resources:
         cpus_per_task =20,
         runtime = 2400,
@@ -113,8 +113,8 @@ rule call_tldr_per_sample:
 species = config["aref"]["species"]
 rule tldr_per_sample:
     input:
-        bam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.bam",ref_genome = "winnowmap", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-        bai = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.bam.bai",ref_genome = "winnowmap", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+        bam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.bam",ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        bai = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.bam.bai",ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
     benchmark:
         "ldna/benchmarks/tldr_per_sample/{sample}.tsv"
     params:
