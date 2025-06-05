@@ -6651,7 +6651,8 @@ bins100k_norep <- bins100k %>% subsetByOverlaps(centromere, invert = TRUE) %>%
     subsetByOverlaps(telomere, invert = TRUE)
 df <- bins100k_norep %>% as.data.frame() %>% tibble() %>%
     mutate(refstatus = if_else(seqnames %in% nonrefchromosomes, "NonRef", "Ref")) %>% 
-    filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS_REF) 
+    filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS_REF) %>%
+    mutate(seqnames = factor(seqnames, levels = CHROMOSOMESINCLUDEDINANALYSIS_REF))
 
 global_mean <- df %$% mean_coverage %>% mean()
 p <- df %>% ggplot() +
@@ -6659,9 +6660,39 @@ p <- df %>% ggplot() +
     facet_wrap(~seqnames, scales = "free") +
     geom_hline(yintercept = global_mean, color = "darkgreen", linewidth = 1.5) +
     ylim(c(0,90)) +
-    mtclosedgridh
-mysaveandstore(fn = "zztmp7.pdf", w = 12, h = 12, raster = TRUE)
+    mtclosedgridh +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+mysaveandstore(fn = "RTE/ldna/results/m/plots/coverage.pdf", w = 12, h = 12, raster = TRUE)
 
+p <- df %>% ggplot() +
+    geom_point(aes(x = start, y = mean_coverage, alpha = 0.2)) +
+    facet_wrap(~seqnames, scales = "free") +
+    ylim(c(0,90)) +
+    mtclosedgridh +
+    theme(axis.text.x = element_blank())
+mysaveandstore(fn = "RTE/ldna/results/m/plots/coverage_notext.pdf", w = 12, h = 12, raster = TRUE)
+
+
+perchrom_mean <- df %>% group_by(seqnames) %>% summarise(mean_coverage = mean(mean_coverage))
+p <- df %>% ggplot() +
+    geom_point(aes(x = start, y = mean_coverage, alpha = 0.2)) +
+    facet_wrap(~seqnames, scales = "free") +
+    geom_hline(data= perchrom_mean, aes(yintercept = mean_coverage), color = "darkgreen", linewidth = 1.5) +
+    geom_hline(yintercept = global_mean, color = "blue", linewidth = 1.5) +
+    ylim(c(0,90)) +
+    mtclosedgridh +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+mysaveandstore(fn = "RTE/ldna/results/m/plots/coverage_individualmeans1.pdf", w = 12, h = 12, raster = TRUE)
+
+p <- df %>% ggplot() +
+    geom_point(aes(x = start, y = mean_coverage, alpha = 0.2)) +
+    facet_wrap(~seqnames, scales = "free") +
+    geom_hline(data= global_mean, aes(yintercept = mean_coverage), color = "darkgreen", linewidth = 1.5) +
+    geom_hline(yintercept = global_mean, color = "blue", linewidth = 1.5) +
+    ylim(c(0,90)) +
+    mtclosedgridh +
+    theme(axis.text.x = element_blank())
+mysaveandstore(fn = "RTE/ldna/results/m/plots/coverage_individualmeans_notext.pdf", w = 12, h = 12, raster = TRUE)
 
 
 
