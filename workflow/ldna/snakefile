@@ -450,6 +450,32 @@ rule dorado_seqsummary:
 {params.dorado} summary {input.sortedbam} > {output}
         """
 
+rule coverage:
+    input:
+        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+    params:
+        fai = lambda wildcards: "aref/extended/%s.fa.fai"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF.fa.fai"
+    output:
+        bg = "ldna/intermediates/{sample}/coverage/{ref_genome}/{sample}.sorted.filterednosup.bg"
+    resources:
+        cpus_per_task = 8,
+        runtime = 100,
+        mem_mb = 80000
+    container: None
+    conda:
+        "omics"
+    shell:
+        """
+mosdepth --by 1000 --no-per-base --fast-mode --threads 4 {output.bg}.mosdepth {input.sortedbam}
+
+zcat {output.bg}.mosdepth.regions.bed.gz \
+| awk 'BEGIN{{OFS="\\t"}} {{print $1, $2, $3, $4}}' > {output.bg}
+        """
+
+rule getcov:
+    input:
+        expand("ldna/intermediates/{sample}/coverage/{ref_genome}/{sample}.sorted.filterednosup.bg", sample = samples, ref_genome = "analysis_default")
+
 rule pycoQC:
     input:
         seqsummary = "ldna/qc/{sample}/{sample}.doradosummary.txt",

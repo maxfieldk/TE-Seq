@@ -6525,3 +6525,143 @@ read_analysis_alt_regions <- function(
     }
     )
 }
+
+
+
+##########
+yy1motif <- "CAAGATGGCCG"
+yy1coord <- as.character(consensus_ss) %>% str_locate(yy1motif) %>% as.data.frame()
+
+perfect_yy1_elements <- consensus_index_long %>% 
+    filter(!is.na(sequence_pos)) %>% 
+    mutate(m_ind = if_else(seq == consensus_seq, 0, 1)) %>% 
+    filter(consensus_pos <= yy1coord$end) %>% 
+    filter(consensus_pos >= yy1coord$start) %>%
+    group_by(gene_id) %>% 
+    summarise(n = n(), mm = sum(m_ind)) %>%
+    filter(mm == 0) %>% 
+    filter(n == 11) %$% gene_id
+ok_yy1_elements <- consensus_index_long %>% 
+    filter(!is.na(sequence_pos)) %>% 
+    mutate(m_ind = if_else(seq == consensus_seq, 0, 1)) %>% 
+    filter(consensus_pos <= yy1coord$end) %>% 
+    filter(consensus_pos >= yy1coord$start) %>%
+    group_by(gene_id) %>% 
+    summarise(n = n(), mm = sum(m_ind)) %>%
+    filter(mm < 4) %>% 
+    filter(n >9) %$% gene_id
+
+p <- perelementdf_promoters %>% filter(rte_subfamily == "L1HS", rte_length_req == "FL") %>% 
+mutate(yy1 = if_else(gene_id %in% perfect_yy1_elements, "yes", "no")) %>%
+ggplot() +
+    geom_density(aes(x = mean_meth, group = yy1, color = yy1)) +
+    scale_palette +
+    mtclosed
+mysaveandstore("zztemp9.pdf")
+
+p <- perelementdf_promoters %>% filter(rte_subfamily == "L1HS", rte_length_req == "FL") %>% 
+mutate(yy1 = if_else(gene_id %in% perfect_yy1_elements, "yes", "no")) %>%
+ggplot() +
+    geom_histogram(aes(x = mean_meth, fill = yy1)) +
+    facet_wrap(~yy1, scales = "free_y") +
+    scale_palette +
+    mtclosed
+mysaveandstore("zztemp10.pdf")
+
+
+
+data_model <- rtedf_promoters %>% filter(rte_subfamily == "L1HS", rte_length_req == "FL") %>% 
+mutate(yy1 = if_else(gene_id %in% ok_yy1_elements, "yes", "no")) %>%
+mutate(
+    total_sites = cov,
+    methylated_sites = round(cov * pctM / 100)
+)
+
+global_model <- glmmTMB(
+    cbind(methylated_sites, total_sites - methylated_sites) ~
+        yy1,
+    data = data_model,
+    family = binomial()
+)
+broom::tidy(global_model) %>% write_mycsv(sprintf("ldna/results/%s/tables/rte/yy1_model.csv", params$mod_code))
+
+
+
+#########
+
+mean_cov <- read_delim("/users/mkelsey/data/n2102ep/RTE/ldna/intermediates/N2102EP1/coverage/analysis_default/N2102EP1.sorted.filterednosup.bg.mosdepth.mosdepth.summary.txt")
+coverage <- rtracklayer::import("/users/mkelsey/data/n2102ep/RTE/ldna/intermediates/N2102EP1/coverage/analysis_default/N2102EP1.sorted.filterednosup.bg.mosdepth.regions.bed.gz")
+
+p <- mean_cov %>%
+    mutate(refstatus = if_else(chrom %in% nonrefchromosomes, "NonRef", "Ref")) %>% 
+    filter(chrom %in% CHROMOSOMESINCLUDEDINANALYSIS_REF) %>%
+    mutate(chrom = factor(chrom, levels = CHROMOSOMESINCLUDEDINANALYSIS_REF)) %>%
+    ggplot(aes(y = chrom, x = mean)) +
+    geom_col() +
+    geom_vline(data = . %>% summarise(global_mean = mean(mean)), aes(xintercept = global_mean)) +
+    mtclosedgridv
+mysaveandstore()
+
+mean_cov %>% mutate(refstatus = if_else(chrom %in% nonrefchromosomes, "NonRef", "Ref")) %>% 
+    filter(chrom %in% CHROMOSOMESINCLUDEDINANALYSIS) %>%
+    group_by(refstatus) %>%
+    summarise(mean = mean(mean))
+
+
+
+mcols(coverage)$coverage <- as.numeric(mcols(coverage)$name)
+sample_fa <- Rsamtools::FaFile(sprintf("aref/extended/%s.fa", "A.REF"))
+
+# Define 100kb bins across the genome
+bins100k <- tileGenome(seqlengths(sample_fa),
+                       tilewidth = 100000,
+                       cut.last.tile.in.chrom = TRUE)
+
+hits <- findOverlaps(coverage, bins100k)
+
+# Aggregate coverage: average coverage of 1kb bins per 100kb bin
+mean_coverage <- tapply(mcols(coverage)$coverage[queryHits(hits)], subjectHits(hits), mean)
+
+# Store average coverage in the 100kb bins
+mcols(bins100k)$mean_coverage <- NA
+mcols(bins100k)$mean_coverage[as.integer(names(mean_coverage))] <- mean_coverage
+
+segdupsdf <- read_delim("/users/mkelsey/data/Nanopore/alz/segdups.bed", col_names = TRUE, delim = "\t")
+segdups <- segdupsdf %>%
+    dplyr::rename(seqnames = `#chrom`, start = chromStart, end = chromEnd) %>%
+    GRanges()
+cytobandsdf <- read_delim(conf$ref_cytobands, col_names = FALSE, delim = "\t")
+cytobands <- cytobandsdf %>%
+    dplyr::rename(seqnames = X1, start = X2, end = X3) %>%
+    GRanges()
+centromere <- cytobandsdf %>%
+    filter(X5 == "acen") %>%
+    dplyr::rename(seqnames = X1, start = X2, end = X3) %>%
+    GRanges()
+telomeredf <- read_delim(confALL$aref$ref_telomere, col_names = FALSE, delim = "\t")
+telomere <- telomeredf %>%
+    dplyr::rename(seqnames = X1, start = X2, end = X3) %>%
+    GRanges()
+mappability <- import("/users/mkelsey/data/Nanopore/alz/k50.Unique.Mappability.bb")
+
+
+
+bins100k_norep <- bins100k %>% subsetByOverlaps(centromere, invert = TRUE) %>%
+    subsetByOverlaps(segdups, invert = TRUE) %>%
+    subsetByOverlaps(telomere, invert = TRUE)
+df <- bins100k_norep %>% as.data.frame() %>% tibble() %>%
+    mutate(refstatus = if_else(seqnames %in% nonrefchromosomes, "NonRef", "Ref")) %>% 
+    filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS_REF) 
+
+global_mean <- df %$% mean_coverage %>% mean()
+p <- df %>% ggplot() +
+    geom_point(aes(x = start, y = mean_coverage, alpha = 0.2)) +
+    facet_wrap(~seqnames, scales = "free") +
+    geom_hline(yintercept = global_mean, color = "darkgreen", linewidth = 1.5) +
+    ylim(c(0,90)) +
+    mtclosedgridh
+mysaveandstore(fn = "zztmp7.pdf", w = 12, h = 12, raster = TRUE)
+
+
+
+
