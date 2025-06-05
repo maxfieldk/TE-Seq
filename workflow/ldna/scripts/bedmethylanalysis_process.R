@@ -500,10 +500,10 @@ alll1hsflids <- flRTEpromoter %>%
     unique()
 coveredl1hsflids <- l1hs_intrautr %$% gene_id %>% unique()
 flL1HS_not_covered <- setdiff(alll1hsflids, coveredl1hsflids)
-tibble(gene_id = flL1HS_not_covered) %>%
-    left_join(flRTEpromoter) %>%
-    dplyr::select(t05) %>%
-    print(n = 100)
+# tibble(gene_id = flL1HS_not_covered) %>%
+#     left_join(flRTEpromoter) %>%
+#     dplyr::select(t05) %>%
+#     print(n = 100)
 
 perelementdf_promoters <- rtedf_promoters %>%
     filter(cov > MINIMUMCOVERAGE) %>%
@@ -522,7 +522,6 @@ perl1hs_5utr_region <- l1hs_intrautr %>%
 write_delim(perl1hs_5utr_region, sprintf("ldna/Rintermediates/%s/perl1hs_5utr_region.tsv", params$mod_code), col_names = TRUE)
 # perl1hs_5utr_region <- read_delim(sprintf("ldna/Rintermediates/%s/perl1hs_5utr_region.tsv", params$mod_code), col_names = TRUE)
 
-perl1hs_5utr_region %>% summarise()
 
 
 # Genes

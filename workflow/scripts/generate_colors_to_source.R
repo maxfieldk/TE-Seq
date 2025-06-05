@@ -19,7 +19,7 @@ tryCatch(
 # build color palettes:
 if (length(conf$levels) == 1) {
     manual_color_vec <- confALL$shared$condition_colors %>% unlist()
-    if (all(conf$levels %in% manual_color_vec)) {
+    if (all(conf$levels %in% names(manual_color_vec))) {
         condition_palette <- manual_color_vec
     } else {
         condition_palette <- setNames(c("grey"), conf$levels)
@@ -33,9 +33,14 @@ if (length(conf$levels) == 1) {
     num_replicates <- color_table %$% replicate %>%
         unique() %>%
         length()
-    color_table <- color_table %>%
-        left_join(tibble(replicate = 1:num_replicates, shade_modifier = seq(-.4, 0.4, length.out = num_replicates))) %>%
-        mutate(sample_unique_color = darken(color, shade_modifier))
+    if (nrow(color_table) == 1) {
+        color_table <- color_table %>%
+            mutate(sample_unique_color = color)
+    } else {
+        color_table <- color_table %>%
+            left_join(tibble(replicate = 1:num_replicates, shade_modifier = seq(-.4, 0.4, length.out = num_replicates))) %>%
+            mutate(sample_unique_color = darken(color, shade_modifier))
+    }
 
     sample_palette <- setNames(color_table$color, color_table$sample_name)
     sample_unique_palette <- setNames(color_table$sample_unique_color, color_table$sample_name)

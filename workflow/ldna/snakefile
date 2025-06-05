@@ -87,7 +87,7 @@ rule align_to_ref_winnowmap:
         "ldna/benchmarks/winnowmap/{sample}.tsv"
     params:
         winnowmap = config["aref"]["winnowmap"],
-        reference = config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"]
+        reference = lambda wildcards: "aref/extended/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF.fa"
     container: None
     output:
         sam = temp(expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sam",ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]))
@@ -419,6 +419,8 @@ rule mycoplasmaCheck:
         cpus_per_task =20,
         runtime = 900,
         mem_mb = 80000
+    container:
+        None
     conda:
         "minimap2"
     shell:
@@ -447,6 +449,32 @@ rule dorado_seqsummary:
         """
 {params.dorado} summary {input.sortedbam} > {output}
         """
+
+rule coverage:
+    input:
+        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+    params:
+        fai = lambda wildcards: "aref/extended/%s.fa.fai"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF.fa.fai"
+    output:
+        bg = "ldna/intermediates/{sample}/coverage/{ref_genome}/{sample}.sorted.filterednosup.bg"
+    resources:
+        cpus_per_task = 8,
+        runtime = 100,
+        mem_mb = 80000
+    container: None
+    conda:
+        "omics"
+    shell:
+        """
+mosdepth --by 1000 --no-per-base --fast-mode --threads 4 {output.bg}.mosdepth {input.sortedbam}
+
+zcat {output.bg}.mosdepth.regions.bed.gz \
+| awk 'BEGIN{{OFS="\\t"}} {{print $1, $2, $3, $4}}' > {output.bg}
+        """
+
+rule getcov:
+    input:
+        expand("ldna/intermediates/{sample}/coverage/{ref_genome}/{sample}.sorted.filterednosup.bg", sample = samples, ref_genome = "analysis_default")
 
 rule pycoQC:
     input:
@@ -1141,7 +1169,8 @@ rule bedmethylanalysis_process:
 rule bedmethylanalysis_process_single_condition:
     input:
         bedmethylpaths = expand("ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_bedMethyl.bed", sample = samples, ref_genome = "analysis_default"),
-        read_mods = expand('ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_readmods_{context}_{region}.tsv', sample = samples, ref_genome = "analysis_default", region = config["ldna"]["rte_subfamily_read_level_analysis"], context = ["CpG", "NoContext"])
+        read_mods = expand('ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_readmods_{context}_{region}.tsv', sample = samples, ref_genome = "analysis_default", region = config["ldna"]["rte_subfamily_read_level_analysis"], context = ["CpG", "NoContext"]),
+        consensus_map = "ldna/results/m/plots/l1_alignment_meth/L1HS_fl_mapping_to_consensus_table.csv"
     params:
         mod_code = lambda wildcards: wildcards.mod_code
     output:
@@ -1259,6 +1288,7 @@ rule init_wgbstools_default_ref:
         runtime = 1000,
         mem_mb = 128000,
         cpus_per_task = 10
+    container: None
     conda: "omics"
     shell:
         """
@@ -1278,6 +1308,7 @@ rule init_wgbstools_hg38:
         runtime = 1000,
         mem_mb = 128000,
         cpus_per_task = 10
+    container: None
     conda: "omics"
     shell:
         """
@@ -1295,6 +1326,7 @@ rule wgbs_bam2pat:
         runtime = 1000,
         mem_mb = 128000,
         cpus_per_task = 26
+    container: None
     conda: "omics"
     shell:
         """
@@ -1332,6 +1364,7 @@ rule get_merged_pat:
         inputdir = lambda wildcards: "ldna/results/%s/wgbs/analysis_default"%wildcards.mod_code,
         level1 = config["ldna"]["levels"][0],
         level2 = lambda wildcards: config["ldna"]["levels"][1] if len(config["ldna"]["levels"]) > 1 else None,  # Second level if exists    
+    container: None
     conda:
         "omics"
     output:
@@ -1361,6 +1394,7 @@ rule pat_fig:
         runtime = 100,
         mem_mb = 10000,
         cpus_per_task = 4
+    container: None
     conda: "omics"
     shell:
         """
@@ -1395,6 +1429,7 @@ rule pat_fig_rtes:
         runtime = 100,
         mem_mb = 10000,
         cpus_per_task = 4
+    container: None
     conda: "omics"
     shell:
         """
@@ -1428,6 +1463,7 @@ rule pat_fig_rtes_by_sample:
         runtime = 100,
         mem_mb = 10000,
         cpus_per_task = 4
+    container: None
     conda: "omics"
     shell:
         """
