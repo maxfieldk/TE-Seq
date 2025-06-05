@@ -62,7 +62,7 @@ tryCatch(
             ), env = globalenv())
             assign("inputs", list(
                 "resultsdf" = "srna/results/agg/deseq/resultsdf.tsv",
-                "resultsdf_tetranscripts" = "srna/results/agg/deseq_tetranscripts/resultsdf.tsv"
+                "tetranscripts_resultsdf" = "srna/results/agg/deseq_tetranscripts/resultsdf.tsv"
             ), env = globalenv())
             assign("outputs", list(
                 "environment" = "srna/results/agg/repeatanalysis/telescope_multi/repeatanalysisplots_environment.RData"
@@ -77,7 +77,7 @@ tryCatch(
             ), env = globalenv())
             assign("inputs", list(
                 "resultsdf" = "lrna/results/agg/deseq/resultsdf.tsv",
-                "tetranscripts_resultsdf" = "results/agg/tetranscripts/resultsdf.tsv"
+                "tetranscripts_resultsdf" = "lrna/results/agg/tetranscripts/resultsdf.tsv"
             ), env = globalenv())
             assign("outputs", list(
                 "environment" = "lrna/results/agg/repeatanalysis/relaxed/repeatanalysisplots_environment.RData"
@@ -140,10 +140,12 @@ tidydf <- counttypedf %>%
     left_join(rmann %>% dplyr::select(c("gene_id", "family", "refstatus", strictly_annotations))) %>%
     left_join(resultsdf1nocounts %>% dplyr::select(gene_id, gene_or_te, pvals, l2fc)) %>%
     left_join(sample_table %>% dplyr::select(sample = sample_name, condition)) %>%
-    dplyr::mutate(counts = counttype)
+    dplyr::mutate(counts = !!sym(counttype))
 tidydf$condition <- factor(tidydf$condition, levels = conf$levels)
 
-colsToKeeptet <- c("gene_id", pvals, l2fc, "family_av_pctdiv")
+pvalstet <- colnames(resultsdf_tetranscripts1)[str_detect(colnames(resultsdf_tetranscripts1), "padj_condition")]
+l2fctet <- colnames(resultsdf_tetranscripts1)[str_detect(colnames(resultsdf_tetranscripts1), "log2FoldChange_condition")]
+colsToKeeptet <- c("gene_id", pvalstet, l2fctet, "family_av_pctdiv")
 tidydftet <- resultsdf_tetranscripts %>%
     filter(gene_or_te == "repeat") %>%
     filter(counttype == gsub("ue$", "", gsub("telescope_", "", !!counttype))) %>%
@@ -895,7 +897,7 @@ dep <- function(df, facet_var = "ALL", filter_var = "ALL") {
     return(p)
 }
 
-stripp <- function(df, stats = "no", extraGGoptions = NULL, facet_var = "ALL", filter_var = "ALL") {
+stripp <- function(df, stats = "no", extraGGoptions = NULL, facet_var = "ALL", filter_var = "ALL", both_counttypes = "no") {
     if (filter_var != "ALL") {
         df <- df %>% filter(str_detect(!!sym(filter_var), "FL$|^Intact"))
     }
@@ -903,41 +905,101 @@ stripp <- function(df, stats = "no", extraGGoptions = NULL, facet_var = "ALL", f
         pf <- df %>%
             group_by(sample, !!sym(facet_var)) %>%
             summarise(sample_sum = sum(counts), condition = dplyr::first(condition))
+        pf <- df %>%
+            group_by(sample, !!sym(facet_var)) %>%
+            summarise(multi = sum(telescope_multi), unique = sum(telescope_unique), condition = dplyr::first(condition)) %>%
+            pivot_longer(cols = c(multi, unique), names_to = "tecounttype", values_to = "sample_sum")
     } else {
         pf <- df %>%
             group_by(sample) %>%
             summarise(sample_sum = sum(counts), condition = dplyr::first(condition))
     }
-    p <- pf %>%
-        ggbarplot(x = "condition", y = "sample_sum", fill = "condition", add = c("mean_se", "dotplot")) +
-        labs(x = "", y = "Sum Normalized Counts", subtitle = counttype_label) +
-        theme(legend.position = "none") +
-        mtclosedgridh +
-        scale_conditions +
-        anchorbar +
-        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-        guides(fill = "none")
-    if (facet_var != "ALL") {
-        p <- pf %>%
-            ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = paste0(facet_var), add = c("mean_se", "dotplot")) +
-            labs(x = "", y = "Sum Normalized Counts", subtitle = counttype_label) +
-            theme(legend.position = "none") +
-            mtclosedgridh +
-            scale_conditions +
-            anchorbar +
-            theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-            guides(fill = "none")
+
+    if (both_counttypes == "yes") {
+        if (facet_var != "ALL") {
+            tryCatch(
+                {
+                    p <- pf %>%
+                        ggplot(aes(x = condition, y = sample_sum, fill = condition, group = tecounttype)) +
+                        stat_summary(
+                            aes(fill = condition, alpha = tecounttype),
+                            fun = mean,
+                            geom = "col",
+                            position = position_dodge(width = 0.9),
+                            color = "black",
+                            width = 0.9
+                        ) +
+                        geom_beeswarm(
+                            method = "swarm",
+                            dodge.width = 0.9
+                        ) +
+                        facet_grid(cols = vars(!!sym(facet_var))) +
+                        labs(x = "", y = "Sum Normalized Counts", subtitle = counttype_label) +
+                        mtclosedgridh +
+                        scale_conditions +
+                        scale_alpha_manual(values = c("unique" = 0.75, "multi" = 1)) +
+                        theme(legend.position = "none") +
+                        anchorbar +
+                        theme(axis.text.x = element_text(angle = 45, hjust = 1))
+                },
+                error = function(e) {
+
+                }
+            )
+        } else {
+            tryCatch(
+                {
+                    p <- pf %>%
+                        ggplot(aes(x = condition, y = sample_sum, fill = condition, group = tecounttype)) +
+                        stat_summary(
+                            aes(fill = condition, alpha = tecounttype),
+                            fun = mean,
+                            geom = "col",
+                            position = position_dodge(width = 0.9),
+                            color = "black",
+                            width = 0.9
+                        ) +
+                        geom_beeswarm(
+                            method = "swarm",
+                            dodge.width = 0.9
+                        ) +
+                        labs(x = "", y = "Sum Normalized Counts", subtitle = counttype_label) +
+                        mtclosedgridh +
+                        scale_conditions +
+                        scale_alpha_manual(values = c("unique" = 0.75, "multi" = 1)) +
+                        theme(legend.position = "none") +
+                        anchorbar +
+                        theme(axis.text.x = element_text(angle = 45, hjust = 1))
+                },
+                error = function(e) {
+
+                }
+            )
+        }
     } else {
-        p <- pf %>%
-            ggbarplot(x = "condition", y = "sample_sum", fill = "condition", add = c("mean_se", "dotplot")) +
-            labs(x = "", y = "Sum Normalized Counts", subtitle = counttype_label) +
-            theme(legend.position = "none") +
-            mtclosedgridh +
-            scale_conditions +
-            anchorbar +
-            theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-            guides(fill = "none")
+        if (facet_var != "ALL") {
+            p <- pf %>%
+                ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = paste0(facet_var), add = c("mean_se", "dotplot")) +
+                labs(x = "", y = "Sum Normalized Counts", subtitle = counttype_label) +
+                theme(legend.position = "none") +
+                mtclosedgridh +
+                scale_conditions +
+                anchorbar +
+                theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+                guides(fill = "none")
+        } else {
+            p <- pf %>%
+                ggbarplot(x = "condition", y = "sample_sum", fill = "condition", add = c("mean_se", "dotplot")) +
+                labs(x = "", y = "Sum Normalized Counts", subtitle = counttype_label) +
+                theme(legend.position = "none") +
+                mtclosedgridh +
+                scale_conditions +
+                anchorbar +
+                theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+                guides(fill = "none")
+        }
     }
+
     if (stats == "yes") {
         p <- p + scale_y_continuous(expand = expansion(mult = c(0, .2)))
     }
@@ -1635,6 +1697,10 @@ for (contrast in contrasts) {
                                     mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s.pdf", outputdir, counttype, contrast, function_name, group, filter_var, facet_var), auto_width = TRUE, auto_height = TRUE)
                                     p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, stats = "yes") + ggtitle(plot_title)
                                     mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_stats.pdf", outputdir, counttype, contrast, function_name, group, filter_var, facet_var), auto_width = TRUE, auto_height = TRUE, auto_dims_stats = TRUE)
+                                    p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, both_counttypes = "yes") + ggtitle(plot_title)
+                                    mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_bothcounttypes.pdf", outputdir, counttype, contrast, function_name, group, filter_var, facet_var), auto_width = TRUE, auto_height = TRUE)
+                                    p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, stats = "yes", both_counttypes = "yes") + ggtitle(plot_title)
+                                    mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_bothcounttypes_stats.pdf", outputdir, counttype, contrast, function_name, group, filter_var, facet_var), auto_width = TRUE, auto_height = TRUE, auto_dims_stats = TRUE)
                                 }
                             },
                             error = function(e) {
