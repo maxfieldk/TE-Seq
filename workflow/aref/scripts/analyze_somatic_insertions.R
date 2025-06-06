@@ -706,7 +706,7 @@ dflist <- list()
 if (conf$update_ref_with_tldr$per_sample == "yes") {
     for (sample in sample_table$sample_name) {
         df <- read.table(grep(sprintf("%s_tldr", sample), inputs$tldroutput, value = TRUE), header = TRUE) %>%
-            mutate(faName = paste0("NI_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>%
+            mutate(faName = paste0("NI_", sample, "_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>%
             tibble()
 
         df$sample_name <- sample
@@ -720,7 +720,7 @@ if (conf$update_ref_with_tldr$per_sample == "yes") {
         left_join(sample_table)
 } else {
     dfall <- read.table("aref/A.REF_tldr/A.REF.table.txt", header = TRUE) %>%
-        mutate(faName = paste0("NI_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>%
+        mutate(faName = paste0("NI_", "A.REF", "_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>%
         tibble()
 }
 

@@ -105,7 +105,7 @@ tryCatch(
             length()
 
         bres_hits <- bres1 %>%
-            filter(!grepl("NI", sseqid)) %>%
+            filter(!grepl("NI_", sseqid)) %>%
             group_by(qseqid) %>%
             filter(bitscore == max(bitscore)) %>%
             filter(pident == max(pident)) %>%

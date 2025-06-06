@@ -51,8 +51,7 @@ counttype <- params[["counttype"]]
 
 rmann <- get_repeat_annotations(
     default_or_extended = "default",
-    keep_non_central = FALSE,
-    append_NI_samplename_modifier = if (conf$per_sample_ref == "yes") TRUE else if (conf$per_sample_ref == "yes") TRUE else FALSE
+    keep_non_central = TRUE
 )
 
 if (counttype == "telescope_multi") {
@@ -86,19 +85,7 @@ rm(bounddf1)
 
 tidydf <- cts %>%
     pivot_longer(-gene_id, names_to = "sample_name", values_to = "counts") %>%
-    {
-        if (conf$per_sample_ref == "yes") {
-            mutate(.,
-                gene_id = case_when(
-                    grepl("_NI_", gene_id) ~ paste0(sample_name, "__", gene_id),
-                    TRUE ~ gene_id
-                )
-            ) %>%
-                left_join(rmann %>% dplyr::rename(nonrefinsert_sample_name = sample_name))
-        } else {
-            left_join(., rmann)
-        }
-    } %>%
+    left_join(rmann) %>%
     filter(!grepl("__AS$", gene_id))
 
 size_factors <- read_csv(inputs$sizefactors)

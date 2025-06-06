@@ -133,7 +133,7 @@ for (sample in conf$samples) {
     bwR <- import(grep(sprintf("/%s/", sample), inputs$bwR, value = TRUE))
     strand(bwR) <- "-"
     grstemp <- c(bwF, bwR)
-    grstemp <- grstemp[!grepl("^NI", seqnames(grstemp))]
+    grstemp <- grstemp[!grepl("^NI_", seqnames(grstemp))]
     seqlevels(grstemp, pruning.mode = "coarse") <- seqlevelsInUse(grstemp)
     mcols(grstemp)$sample_name <- sample
     score <- grstemp$score %>% sum()

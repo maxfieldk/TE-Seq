@@ -17,6 +17,9 @@ tryCatch(
             tldroutput = "aref/AD5_tldr/AD5.table.txt",
             reference = "../genome_files/reference.ucsc.fa"
         ), env = globalenv())
+        assign("params", list(
+            sample_or_ref = "AD5"
+        ), env = globalenv())
         assign("outputs", list(
             updated_reference = "aref/default/AD5-pre-ins-filtering.fa",
             non_ref_contigs = "aref/default/AD5-pre-ins-filtering_nonrefcontigs.fa"

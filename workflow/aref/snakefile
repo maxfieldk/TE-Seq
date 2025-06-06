@@ -576,6 +576,8 @@ rule update_reference:
     input:
         reference = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"],
         tldroutput = "aref/{sample_or_ref}_tldr/{sample_or_ref}.table.txt"
+    params:
+        sample_or_ref = lambda w: w.sample_or_ref
     output:
         updated_reference = "aref/default/{sample_or_ref}-pre-ins-filtering.fa",
         non_ref_contigs = "aref/default/{sample_or_ref}-pre-ins-filtering_nonrefcontigs.fa",
@@ -590,6 +592,8 @@ rule update_reference_extended_nonref_flank:
     input:
         reference = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"],
         tldroutput = "aref/{sample_or_ref}_tldr/{sample_or_ref}.table.txt"
+    params:
+        sample_or_ref = lambda w: w.sample_or_ref
     output:
         updated_reference_plusflank = "aref/extended/{sample_or_ref}-pre-ins-filtering.fa",
         non_ref_contigs_plusflank = "aref/extended/{sample_or_ref}-pre-ins-filtering_nonrefcontigs.fa"
@@ -1293,7 +1297,8 @@ rule process_gtf_tldr:
         ref = "aref/{default_or_extended}/{sample_or_ref}-pre-ins-filtering.fa",
         tldroutput = "aref/{sample_or_ref}_tldr/{sample_or_ref}.table.txt"
     params:
-        tldr_switch = "process_gtf_tldr"
+        tldr_switch = "process_gtf_tldr",
+        sample_or_ref = lambda w: w.sample_or_ref
     output:
         contigs_to_keep = "aref/{default_or_extended}/{sample_or_ref}_contigs_to_keep.txt",
         filtered_tldr = "aref/{default_or_extended}/{sample_or_ref}.table.kept_in_updated_ref.txt",

@@ -25,7 +25,8 @@ tryCatch(
             ref = "aref/default/A.REF-pre-ins-filtering.fa"
         ), env = globalenv())
         assign("params", list(
-            tldr_switch = "process_gtf"
+            tldr_switch = "process_gtf",
+            sample_or_ref = "A.REF"
         ), env = globalenv())
         assign("outputs", list(
             contigs_to_keep = "aref/default/contigs_to_keep.txt",
@@ -65,7 +66,7 @@ rmfragments <- rm3 %>%
     group_by(gene_id) %>%
     summarise(seqnames = dplyr::first(seqnames), source = dplyr::first(source), type = dplyr::first(type), start = min(start), end = max(end), strand = dplyr::first(strand), phase = dplyr::first(phase), family = dplyr::first(family), element_start = min(element_start), element_end = max(element_end), pctdiv = sum(pctdiv * length) / sum(length), length = sum(length), pctconsensuscovered = sum(pctconsensuscovered), num_fragments = n()) %>%
     mutate(pctconsensustruncated = 100 - pctconsensuscovered)
-rmfragments <- rmfragments %>% mutate(refstatus = ifelse(str_detect(seqnames, "^NI"), "NonRef", "Ref"))
+rmfragments <- rmfragments %>% mutate(refstatus = ifelse(str_detect(seqnames, "^NI_"), "NonRef", "Ref"))
 
 # for annotation purposes, I will have to have the location of nonreference inserts be their insertion site
 if (any(str_detect(rmfragments$refstatus, "NonRef"))) {
@@ -130,7 +131,7 @@ new_id_mapping_nonref <- gr_for_overlap_analysis %>%
     mutate(element_basename = str_split(family, "/") %>% map_chr(tail, 1)) %>%
     mutate(cytobands_good = paste0(str_replace(seqnames, "chr", ""), cytobands)) %>%
     group_by(element_basename, cytobands_good) %>%
-    mutate(new_id = paste0(element_basename, "_", "NI_", cytobands_good, "_", row_number()), n = n()) %>%
+    mutate(new_id = paste0(element_basename, "_", "NI_", params$sample_or_ref, "_", cytobands_good, "_", row_number()), n = n()) %>%
     ungroup() %>%
     relocate(gene_id, new_id)
 
@@ -187,9 +188,9 @@ if (params$tldr_switch == "process_gtf_tldr") {
     genome_lengths <- fasta.seqlengths(inputs$ref)
     genome_lengths_df <- data.frame(seqnames = names(genome_lengths), contig_length = genome_lengths) %>% tibble()
     refcontigs <- genome_lengths_df %>%
-        filter(!grepl("^NI", seqnames)) %>%
+        filter(!grepl("^NI_", seqnames)) %>%
         pull(seqnames)
-    nonrefcontigs <- rmfragments %>% filter(grepl("^NI", seqnames))
+    nonrefcontigs <- rmfragments %>% filter(grepl("^NI_", seqnames))
     # this will ensure that 1) only elements which are actually picked up by repeat masker (as opposed to 3p transductions with a tiny bit of TE sequence, are retainined in the reference
     # and that 2) I can make a gtf with only those elements which inserted, and not elements which are merely contained in the nonref contig (but which are also present in the reference).
     nonrefelementspass <- nonrefcontigs %>%
@@ -209,9 +210,9 @@ if (params$tldr_switch == "process_gtf_tldr") {
 
 
     # now determine which of the nonref inserts are the bona fide nonref inserts for annotation in the gtf
-    rmref <- rmfragments %>% filter(!grepl("^NI", seqnames))
+    rmref <- rmfragments %>% filter(!grepl("^NI_", seqnames))
     rmnonref <- rmfragments %>%
-        filter(grepl("^NI", seqnames)) %>%
+        filter(grepl("^NI_", seqnames)) %>%
         filter(seqnames %in% contigs_to_keep)
     rmnonrefkeep <- nonrefelementspass
     # determine which of these is the bona fide nonref ins, and which are just ref ins which are on a nonref contig

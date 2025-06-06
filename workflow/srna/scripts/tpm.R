@@ -81,7 +81,7 @@ if (counttype == "telescope_multi") {
         tdf <- read_delim(path, comment = "#", col_names = TRUE) %>%
             dplyr::rename(gene_id = transcript) %>%
             mutate(gene_id = case_when(
-                grepl("_NI_", gene_id) ~ paste0(sample, "__", gene_id),
+                grepl("_NI_", gene_id) ~ paste0(ifelse(confALL$aref$update_ref_with_tldr$per_sample == "yes", sample, "A.REF"), "__", gene_id),
                 TRUE ~ gene_id
             ))
         bounddf <- full_join(bounddf, tdf, by = "gene_id")
@@ -97,7 +97,7 @@ if (counttype == "telescope_unique") {
             dplyr::select(X1, X6) %>%
             dplyr::rename(gene_id = X1) %>%
             mutate(gene_id = case_when(
-                grepl("_NI_", gene_id) ~ paste0(sample, "__", gene_id),
+                grepl("_NI_", gene_id) ~ paste0(ifelse(confALL$aref$update_ref_with_tldr$per_sample == "yes", sample, "A.REF"), "__", gene_id),
                 TRUE ~ gene_id
             ))
         bounddf <- full_join(bounddf, tdf, by = "gene_id")
@@ -107,7 +107,6 @@ if (counttype == "telescope_unique") {
 
 bounddf1 <- bounddf[bounddf$gene_id != "__no_feature", ]
 
-# genes
 refseq <- import(params$annotation_genes)
 refseqdf <- refseq %>%
     as.data.frame() %>%

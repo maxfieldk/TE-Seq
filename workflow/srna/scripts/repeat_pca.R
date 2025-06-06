@@ -49,15 +49,15 @@ counttype <- params[["counttype"]]
 outputdir <- "srna/results/agg/rtepca"
 rmann <- get_repeat_annotations(
     default_or_extended = "default",
-    keep_non_central = FALSE,
-    append_NI_samplename_modifier = FALSE
+    keep_non_central = FALSE
 )
 
 l1hsfl <- rmann %>%
     filter(rte_subfamily == "L1HS") %>%
     filter(rte_length_req == "FL")
 l1hs <- rmann %>%
-    filter(rte_subfamily == "L1HS")
+    filter(rte_subfamily == "L1HS") %>%
+    fitler(refstatus == "Ref")
 vsttemp <- vst_counts %>%
     filter(gene_id %in% l1hs$gene_id) %>%
     dplyr::select(-gene_id)

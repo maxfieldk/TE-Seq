@@ -31,7 +31,7 @@ sample_table <- sample_table[match(samples, sample_table$sample_name), ]
 {
     genome_lengths <- fasta.seqlengths(conf$reference)
     chromosomesAll <- names(genome_lengths)
-    nonrefchromosomes <- grep("^NI", chromosomesAll, value = TRUE) %>% str_sort(numeric = TRUE)
+    nonrefchromosomes <- grep("^NI_", chromosomesAll, value = TRUE) %>% str_sort(numeric = TRUE)
     refchromosomes <- grep("^chr", chromosomesAll, value = TRUE) %>% str_sort(numeric = TRUE)
     autosomes <- grep("^chr[1-9]", refchromosomes, value = TRUE) %>% str_sort(numeric = TRUE)
     chrX <- c("chrX")
@@ -106,7 +106,7 @@ grs <- grsunfiltered[grsunfiltered$cov > MINIMUMCOVERAGE]
 grsdf <- tibble(as.data.frame(grs))
 grsdf %$% seqnames %>% unique()
 dir.create("ldna/Rintermediates", recursive = TRUE)
-write_delim(grsdf %>% filter(grepl("^NI", seqnames)), sprintf("ldna/Rintermediates/%s/grsdf_nonref.tsv", params$mod_code), col_names = TRUE)
+write_delim(grsdf %>% filter(grepl("^NI_", seqnames)), sprintf("ldna/Rintermediates/%s/grsdf_nonref.tsv", params$mod_code), col_names = TRUE)
 grsdf$seqnames <- factor(grsdf$seqnames, levels = chromosomesAll)
 seqnames <- grsdf$seqnames
 start <- grsdf$start

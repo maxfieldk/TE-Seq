@@ -97,8 +97,7 @@ resultsdf1 <- read_delim(inputs$resultsdf, delim = "\t") %>% filter(counttype ==
 resultsdf_tetranscripts1 <- read_delim(inputs$tetranscripts_resultsdf, delim = "\t")
 rmann <- get_repeat_annotations(
     default_or_extended = "default",
-    keep_non_central = FALSE,
-    append_NI_samplename_modifier = FALSE
+    keep_non_central = FALSE
 )
 resultsdfwithgenes <- resultsdf1 %>%
     full_join(rmann)
@@ -1385,7 +1384,6 @@ pancontrastbarplots <- function(tdf = tidydf, ontology_column = "rte_subfamily",
         scale_y_continuous(labels = label_comma(), expand = expansion(mult = c(0, .15))) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1))
     mysaveandstore(pl = p, fn = sprintf("%s/%s/pan_contrast/bar_mean/%s/%s_bar_stats_%s_%s_%s.pdf", outputdir, counttype, ontology_column_value, ontology_column_value, facetvarsstring, refstatusstring, element_subtype_to_remove_filename_append), auto_width = TRUE, auto_height = TRUE, auto_dims_stats = TRUE)
-
 }
 
 rte_subfams <- tidydf %$% rte_subfamily %>%

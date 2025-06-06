@@ -621,8 +621,8 @@ if (length(rownames(group_frame)) == 0) {
 ########################################################## ANNOTATE ELEMENT INSERT SITE
 
 # for annotation purposes, I will have to have the location of nonreference inserts be their insertion site
-rmfragments_ref <- rmfragments %>% filter(!str_detect(seqnames, "^NI"))
-rmfragments_nonref <- rmfragments %>% filter(str_detect(seqnames, "^NI"))
+rmfragments_ref <- rmfragments %>% filter(!str_detect(seqnames, "^NI_"))
+rmfragments_nonref <- rmfragments %>% filter(str_detect(seqnames, "^NI_"))
 seqnamesNonref <- rmfragments_nonref %$% seqnames
 insert_seqnames <- c()
 insert_start <- c()
