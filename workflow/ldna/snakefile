@@ -2139,3 +2139,18 @@ rule deconv:
     script:
         "scripts/deconv.R"
 
+
+rule create_transcriptome_blast_db:
+    input:
+        ref = "custom/transcriptome/GCF_009914755.1_T2T-CHM13v2.0_rna.fna",
+    output:
+        outfile = "custom/transcriptome/GCF_009914755.1_T2T-CHM13v2.0_rna.blast_outfile"
+    benchmark:
+        "aref/benchmarks/create_transcriptome_blast_db/create_transcriptome_blast_db.tsv"
+    conda:
+        "evo2"
+    shell:
+        """
+makeblastdb -in {input.ref} -dbtype nucl -out custom/transcriptome/GCF_009914755.1_T2T-CHM13v2.0_rna \
+&& touch {output.outfile}
+        """

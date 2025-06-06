@@ -726,6 +726,47 @@ if (conf$update_ref_with_tldr$per_sample == "yes") {
 
 dfall %>% write_csv("aref/results/dfall_allsamples.csv")
 
+# somatic_naught_processedpseudogene <- dfall %>%
+#     filter(is.na(Family)) %>%
+#     filter(Filter == "UnmapCoverNA,NoFamily,NoTEAlignment") %>%
+#     filter(!is.na(EmptyReads)) %>%
+#     rowwise() %>%
+#     mutate(emptyreadsnum = sum(as.numeric(gsub("\\|", "", unlist(str_extract_all(EmptyReads, pattern = "\\|[0-9]+")))))) %>%
+#     ungroup() %>%
+#     filter(MedianMapQ >= 60) %>%
+#     mutate(sample_name = gsub("\\..*", "", str_extract(SampleReads, paste(conf$samples, collapse = "|")))) %>%
+#     filter(SpanReads > 0) %>%
+#     filter(SpanReads < 6) %>%
+#     mutate(TSD_OK = ifelse(is.na(TSD), FALSE, ifelse(nchar(TSD) < 21, TRUE, FALSE))) %>%
+#     # binomial probability that we observe this few reads were it a heterozygous insert
+#     mutate(prob_fp = ifelse(UsedReads > as.numeric(emptyreadsnum), 1, pbinom(q = UsedReads, size = UsedReads + as.numeric(emptyreadsnum), prob = 0.5))) %>%
+#     filter(prob_fp < 0.01) %>%
+#     filter(is.na(NonRef)) %>%
+#     relocate(prob_fp, UsedReads, emptyreadsnum)
+
+# putative_pseudo <- somatic_naught_processedpseudogene %>% filter(LengthIns > 500) %>%
+#                             mutate(Consensus_lower = str_extract_all(Consensus, pattern = "[:lower:]+")) %>%
+#                             rowwise() %>%
+#                             mutate(insLenMatch = which(as.vector((nchar(Consensus_lower))) == LengthIns)) %>%
+#                             mutate(ins_consensus_noflank = Consensus_lower[insLenMatch]) %>%
+#                             mutate(ins_consensus_30flank = str_sub(Consensus, str_locate(Consensus, ins_consensus_noflank)[1] - 30, str_locate(Consensus, ins_consensus_noflank)[2] + 30)) %>%
+#                             mutate(ins_start = str_locate(Consensus, ins_consensus_noflank)[1]) %>%
+#                             mutate(ins_end = str_locate(Consensus, ins_consensus_noflank)[2]) %$% ins_consensus_noflank %>%
+#                             DNAStringSet()
+# names(putative_pseudo) <- somatic_naught_processedpseudogene %>% filter(LengthIns > 500) %>% pull(UUID)
+# putative_pseudo_fa_path <- sprintf("%s/processed_pseudogene/putative_pseudo.fa", outputdir)
+# dir.create(dirname(putative_pseudo_fa_path), recursive = TRUE)
+# writeXStringSet(putative_pseudo, putative_pseudo_fa_path)
+
+# blast_db_path <- "/users/mkelsey/data/Nanopore/alz/RTE/custom/transcriptome/GCF_009914755.1_T2T-CHM13v2.0_rna"
+# putative_pseudo_results_path <- sprintf("%s/processed_pseudogene/putative_pseudo_blast_res.tsv", outputdir)
+# system(sprintf("blastn -db %s -query %s -out %s -outfmt 7", blast_db_path, putative_pseudo_fa_path, putative_pseudo_results_path))
+# bres <- read_delim(putative_pseudo_results_path, comment = "#", delim = "\t", col_names = c("qseqid", "sseqid", "pident", "length", "mismatch", "gapopen", "qstart", "qend", "sstart", "send", "evalue", "bitscore"))
+
+# bres %>% dplyr::arrange(-bitscore)
+# bres %>% filter(pident > 90, length > 300)
+
+
 somatic_naught <- dfall %>%
     filter(!is.na(EmptyReads)) %>%
     rowwise() %>%
