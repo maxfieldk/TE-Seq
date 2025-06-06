@@ -6588,25 +6588,9 @@ broom::tidy(global_model) %>% write_mycsv(sprintf("ldna/results/%s/tables/rte/yy
 
 
 #########
-
-mean_cov <- read_delim("/users/mkelsey/data/n2102ep/RTE/ldna/intermediates/N2102EP1/coverage/analysis_default/N2102EP1.sorted.filterednosup.bg.mosdepth.mosdepth.summary.txt")
-coverage <- rtracklayer::import("/users/mkelsey/data/n2102ep/RTE/ldna/intermediates/N2102EP1/coverage/analysis_default/N2102EP1.sorted.filterednosup.bg.mosdepth.regions.bed.gz")
-
-p <- mean_cov %>%
-    mutate(refstatus = if_else(chrom %in% nonrefchromosomes, "NonRef", "Ref")) %>% 
-    filter(chrom %in% CHROMOSOMESINCLUDEDINANALYSIS_REF) %>%
-    mutate(chrom = factor(chrom, levels = CHROMOSOMESINCLUDEDINANALYSIS_REF)) %>%
-    ggplot(aes(y = chrom, x = mean)) +
-    geom_col() +
-    geom_vline(data = . %>% summarise(global_mean = mean(mean)), aes(xintercept = global_mean)) +
-    mtclosedgridv
-mysaveandstore()
-
-mean_cov %>% mutate(refstatus = if_else(chrom %in% nonrefchromosomes, "NonRef", "Ref")) %>% 
-    filter(chrom %in% CHROMOSOMESINCLUDEDINANALYSIS) %>%
-    group_by(refstatus) %>%
-    summarise(mean = mean(mean))
-
+for (sample in confALL$ldna$samples) {
+mean_cov <- read_delim(str_glue("ldna/intermediates/{sample}/coverage/analysis_default/{sample}.sorted.filterednosup.bg.mosdepth.mosdepth.summary.txt"))
+coverage <- rtracklayer::import(str_glue("ldna/intermediates/{sample}/coverage/analysis_default/{sample}.sorted.filterednosup.bg.mosdepth.regions.bed.gz"))
 
 
 mcols(coverage)$coverage <- as.numeric(mcols(coverage)$name)
@@ -6662,15 +6646,15 @@ p <- df %>% ggplot() +
     ylim(c(0,90)) +
     mtclosedgridh +
     theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
-mysaveandstore(fn = "RTE/ldna/results/m/plots/coverage.pdf", w = 12, h = 12, raster = TRUE)
+mysaveandstore(fn = str_glue("RTE/ldna/results/m/plots/{sample}_coverage.pdf"), w = 12, h = 12, raster = TRUE)
 
 p <- df %>% ggplot() +
     geom_point(aes(x = start, y = mean_coverage, alpha = 0.2)) +
     facet_wrap(~seqnames, scales = "free") +
-    ylim(c(0,90)) +
+    ylim(c(0,200)) +
     mtclosedgridh +
     theme(axis.text.x = element_blank())
-mysaveandstore(fn = "RTE/ldna/results/m/plots/coverage_notext.pdf", w = 12, h = 12, raster = TRUE)
+mysaveandstore(fn = str_glue("RTE/ldna/results/m/plots/{sample}_coverage_notext.pdf"), w = 12, h = 12, raster = TRUE)
 
 
 perchrom_mean <- df %>% group_by(seqnames) %>% summarise(mean_coverage = mean(mean_coverage))
@@ -6682,7 +6666,7 @@ p <- df %>% ggplot() +
     ylim(c(0,90)) +
     mtclosedgridh +
     theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
-mysaveandstore(fn = "RTE/ldna/results/m/plots/coverage_individualmeans1.pdf", w = 12, h = 12, raster = TRUE)
+mysaveandstore(fn = str_glue("RTE/ldna/results/m/plots/{sample}_coverage_individualmeans.pdf"), w = 12, h = 12, raster = TRUE)
 
 p <- df %>% ggplot() +
     geom_point(aes(x = start, y = mean_coverage, alpha = 0.2)) +
@@ -6692,7 +6676,12 @@ p <- df %>% ggplot() +
     ylim(c(0,90)) +
     mtclosedgridh +
     theme(axis.text.x = element_blank())
-mysaveandstore(fn = "RTE/ldna/results/m/plots/coverage_individualmeans_notext.pdf", w = 12, h = 12, raster = TRUE)
+mysaveandstore(fn = str_glue("RTE/ldna/results/m/plots/{sample}_coverage_individualmeans_notext.pdf"), w = 12, h = 12, raster = TRUE)
 
+
+
+
+
+}
 
 
