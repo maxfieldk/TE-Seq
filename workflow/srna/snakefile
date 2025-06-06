@@ -525,7 +525,7 @@ telescope assign \
 
 rule tetranscripts:
     input:
-        tetranscripts_container = tetranscripts_container,
+        tetranscripts_container = ancient(tetranscripts_container),
         sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.bam",
         libtype = "srna/qc/library_type.txt"
     params:
