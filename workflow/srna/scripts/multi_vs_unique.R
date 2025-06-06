@@ -54,33 +54,33 @@ tryCatch(
         print(module_name)
         if (module_name == "srna") {
             assign("params", list(
-                "inputdir" = "srna/results/agg/deseq",
-                "outputdir" = "srna/results/agg/repeatanalysis",
+                "inputdir" = "srna/results_n21_mt6_all/agg/deseq",
+                "outputdir" = "srna/results_n21_mt6_all/agg/repeatanalysis",
                 "counttype" = "telescope_multi",
                 "r_annotation_fragmentsjoined" = conf$r_annotation_fragmentsjoined,
                 "r_repeatmasker_annotation" = conf$r_repeatmasker_annotation
             ), env = globalenv())
             assign("inputs", list(
-                "resultsdf" = "srna/results/agg/deseq/resultsdf.tsv",
-                "tetranscripts_resultsdf" = "srna/results/agg/deseq_tetranscripts/resultsdf.tsv"
+                "resultsdf" = "srna/results_n21_mt6_all/agg/deseq/resultsdf.tsv",
+                "resultsdf_tetranscripts" = "srna/results_n21_mt6_all/agg/deseq_tetranscripts/resultsdf.tsv"
             ), env = globalenv())
             assign("outputs", list(
-                "environment" = "srna/results/agg/repeatanalysis/telescope_multi/repeatanalysisplots_environment.RData"
+                "environment" = "srna/results_n21_mt6_all/agg/repeatanalysis/telescope_multi/repeatanalysisplots_environment.RData"
             ), env = globalenv())
         } else if (module_name == "lrna") {
             assign("params", list(
-                "inputdir" = "lrna/results/agg/deseq",
-                "outputdir" = "lrna/results/agg/repeatanalysis/relaxed",
+                "inputdir" = "lrna/results_n21_mt6_all/agg/deseq",
+                "outputdir" = "lrna/results_n21_mt6_all/agg/repeatanalysis/relaxed",
                 "counttype" = "relaxed",
                 "r_annotation_fragmentsjoined" = conf$r_annotation_fragmentsjoined,
                 "r_repeatmasker_annotation" = conf$r_repeatmasker_annotation
             ), env = globalenv())
             assign("inputs", list(
-                "resultsdf" = "lrna/results/agg/deseq/resultsdf.tsv",
-                "tetranscripts_resultsdf" = "lrna/results/agg/tetranscripts/resultsdf.tsv"
+                "resultsdf" = "lrna/results_n21_mt6_all/agg/deseq/resultsdf.tsv",
+                "tetranscripts_resultsdf" = "results/agg/tetranscripts/resultsdf.tsv"
             ), env = globalenv())
             assign("outputs", list(
-                "environment" = "lrna/results/agg/repeatanalysis/relaxed/repeatanalysisplots_environment.RData"
+                "environment" = "lrna/results_n21_mt6_all/agg/repeatanalysis/relaxed/repeatanalysisplots_environment.RData"
             ), env = globalenv())
         } else {
             print("varible assignment failed")
@@ -94,7 +94,7 @@ counttype <- params$counttype
 r_repeatmasker_annotation <- read_csv(params$r_repeatmasker_annotation)
 ## Load Data and add annotations
 resultsdf1 <- read_delim(inputs$resultsdf, delim = "\t")
-resultsdf1 %>% filter(grepl("_NI_", gene_id))
+
 counttypedf <- resultsdf1 %>%
     dplyr::select(gene_id, counttype, all_of(colnames(resultsdf1)[(colnames(resultsdf1) %in% sample_table$sample_name)])) %>%
     pivot_longer(cols = -c(gene_id, counttype), names_to = "sample", values_to = "counts") %>%
@@ -104,15 +104,42 @@ resultsdf1nocounts <- resultsdf1 %>%
     filter(counttype == !!counttype) %>%
     dplyr::select(-colnames(resultsdf1)[(colnames(resultsdf1) %in% sample_table$sample_name)])
 
-resultsdf_tetranscripts1 <- read_delim(inputs$tetranscripts_resultsdf, delim = "\t")
 
 rmann <- get_repeat_annotations(
     default_or_extended = "default",
     keep_non_central = FALSE,
     append_NI_samplename_modifier = FALSE
 )
-resultsdfwithgenes <- resultsdf1 %>%
+map <- setNames(sample_table$condition, sample_table$sample_name)
+pvals <- colnames(resultsdf1)[str_detect(colnames(resultsdf1), "padj_condition")]
+l2fc <- colnames(resultsdf1)[str_detect(colnames(resultsdf1), "log2FoldChange_condition")]
+annotations <- c("length", "seqnames", "start", "end", "strand", colnames(r_repeatmasker_annotation))
+strictly_annotations <- annotations[!(annotations %in% c("gene_id", "family"))]
+colsToKeep <- c("gene_id", "family", "refstatus", pvals, l2fc, strictly_annotations)
+
+tidydf <- counttypedf %>%
+    left_join(rmann %>% dplyr::select(c("gene_id", "family", "refstatus", strictly_annotations))) %>%
+    left_join(resultsdf1nocounts %>% dplyr::select(gene_id, gene_or_te, pvals, l2fc)) %>%
+    left_join(sample_table %>% dplyr::select(sample = sample_name, condition)) %>%
+    dplyr::mutate(counts = counttype)
+
+tidydf %>%
+    mutate(counts = !!sym(counttype)) %>%
+    pw()
+tidydf$condition <- factor(tidydf$condition, levels = conf$levels)
+
+
+
+tidydf <- resultsdf %>%
     filter(counttype == !!counttype) %>%
+    select(all_of(colnames(resultsdf)[(colnames(resultsdf) %in% sample_table$sample_name) | (colnames(resultsdf) %in% colsToKeep)])) %>%
+    pivot_longer(cols = -colsToKeep) %>%
+    dplyr::rename(sample = name, counts = value) %>%
+    mutate(condition = map_chr(sample, ~ as.character(map[[.]])))
+tidydf$condition <- factor(tidydf$condition, levels = conf$levels)
+
+
+resultsdfwithgenes <- resultsdf1 %>%
     full_join(rmann)
 resultsdfwithgenes <- resultsdfwithgenes %>%
     mutate(across(all_of(conf$samples), ~ replace_na(., 0))) %>%
@@ -130,29 +157,25 @@ counttype_label <- gsub("telescope_", "", counttype) %>%
     gsub("counttype_", "", .) %>%
     str_to_title()
 
-pvals <- colnames(resultsdf1)[str_detect(colnames(resultsdf1), "padj_condition")]
-l2fc <- colnames(resultsdf1)[str_detect(colnames(resultsdf1), "log2FoldChange_condition")]
-annotations <- c("length", "seqnames", "start", "end", "strand", colnames(r_repeatmasker_annotation))
-strictly_annotations <- annotations[!(annotations %in% c("gene_id", "family"))]
-colsToKeep <- c("gene_id", "family", "refstatus", pvals, l2fc, strictly_annotations)
+#### GETTING TIDY DATA
 
-tidydf <- counttypedf %>%
-    left_join(rmann %>% dplyr::select(c("gene_id", "family", "refstatus", strictly_annotations))) %>%
-    left_join(resultsdf1nocounts %>% dplyr::select(gene_id, gene_or_te, pvals, l2fc)) %>%
-    left_join(sample_table %>% dplyr::select(sample = sample_name, condition)) %>%
-    dplyr::mutate(counts = !!sym(counttype))
+
+tidydf <- resultsdf %>%
+    filter(counttype == !!counttype) %>%
+    select(all_of(colnames(resultsdf)[(colnames(resultsdf) %in% sample_table$sample_name) | (colnames(resultsdf) %in% colsToKeep)])) %>%
+    pivot_longer(cols = -colsToKeep) %>%
+    dplyr::rename(sample = name, counts = value) %>%
+    mutate(condition = map_chr(sample, ~ as.character(map[[.]])))
 tidydf$condition <- factor(tidydf$condition, levels = conf$levels)
 
-pvalstet <- colnames(resultsdf_tetranscripts1)[str_detect(colnames(resultsdf_tetranscripts1), "padj_condition")]
-l2fctet <- colnames(resultsdf_tetranscripts1)[str_detect(colnames(resultsdf_tetranscripts1), "log2FoldChange_condition")]
-colsToKeeptet <- c("gene_id", pvalstet, l2fctet, "family_av_pctdiv")
+colsToKeeptet <- c("gene_id", pvals, l2fc, "family_av_pctdiv")
 tidydftet <- resultsdf_tetranscripts %>%
     filter(gene_or_te == "repeat") %>%
     filter(counttype == gsub("ue$", "", gsub("telescope_", "", !!counttype))) %>%
     dplyr::select(all_of(colnames(resultsdf_tetranscripts)[(colnames(resultsdf_tetranscripts) %in% sample_table$sample_name) | (colnames(resultsdf_tetranscripts) %in% colsToKeeptet)])) %>%
     pivot_longer(cols = -colsToKeeptet) %>%
     dplyr::rename(sample = name, counts = value) %>%
-    left_join(sample_table %>% dplyr::select(sample = sample_name, condition))
+    mutate(condition = map_chr(sample, ~ as.character(map[[.]])))
 tidydftet$condition <- factor(tidydftet$condition, levels = conf$levels)
 
 tidydf <- tidydf %>%
@@ -161,13 +184,6 @@ resultsdf <- resultsdf %>%
     filter(!grepl("__AS$", gene_id))
 resultsdfwithgenes <- resultsdfwithgenes %>%
     filter(!grepl("__AS$", gene_id))
-
-# tidydf %>% filter(rte_subfamily == "L1HS") %>% filter(rte_length_req == "FL") %>%
-#     group_by(sample) %>%
-#     summarise(multi = mean(telescope_multi), unique = mean(telescope_unique))
-#     ggplot() +
-#     geom_col(aes(x = ))
-
 ### ONTOLOGY DEFINITION
 {
     annot_colnames <- colnames(r_repeatmasker_annotation)
@@ -897,7 +913,7 @@ dep <- function(df, facet_var = "ALL", filter_var = "ALL") {
     return(p)
 }
 
-stripp <- function(df, stats = "no", extraGGoptions = NULL, facet_var = "ALL", filter_var = "ALL", both_counttypes = "no") {
+stripp <- function(df, stats = "no", extraGGoptions = NULL, facet_var = "ALL", filter_var = "ALL") {
     if (filter_var != "ALL") {
         df <- df %>% filter(str_detect(!!sym(filter_var), "FL$|^Intact"))
     }
@@ -905,101 +921,41 @@ stripp <- function(df, stats = "no", extraGGoptions = NULL, facet_var = "ALL", f
         pf <- df %>%
             group_by(sample, !!sym(facet_var)) %>%
             summarise(sample_sum = sum(counts), condition = dplyr::first(condition))
-        pf <- df %>%
-            group_by(sample, !!sym(facet_var)) %>%
-            summarise(multi = sum(telescope_multi), unique = sum(telescope_unique), condition = dplyr::first(condition)) %>%
-            pivot_longer(cols = c(multi, unique), names_to = "tecounttype", values_to = "sample_sum")
     } else {
         pf <- df %>%
             group_by(sample) %>%
             summarise(sample_sum = sum(counts), condition = dplyr::first(condition))
     }
-
-    if (both_counttypes == "yes") {
-        if (facet_var != "ALL") {
-            tryCatch(
-                {
-                    p <- pf %>%
-                        ggplot(aes(x = condition, y = sample_sum, fill = condition, group = tecounttype)) +
-                        stat_summary(
-                            aes(fill = condition, alpha = tecounttype),
-                            fun = mean,
-                            geom = "col",
-                            position = position_dodge(width = 0.9),
-                            color = "black",
-                            width = 0.9
-                        ) +
-                        geom_beeswarm(
-                            method = "swarm",
-                            dodge.width = 0.9
-                        ) +
-                        facet_grid(cols = vars(!!sym(facet_var))) +
-                        labs(x = "", y = "Sum Normalized Counts", subtitle = counttype_label) +
-                        mtclosedgridh +
-                        scale_conditions +
-                        scale_alpha_manual(values = c("unique" = 0.75, "multi" = 1)) +
-                        theme(legend.position = "none") +
-                        anchorbar +
-                        theme(axis.text.x = element_text(angle = 45, hjust = 1))
-                },
-                error = function(e) {
-
-                }
-            )
-        } else {
-            tryCatch(
-                {
-                    p <- pf %>%
-                        ggplot(aes(x = condition, y = sample_sum, fill = condition, group = tecounttype)) +
-                        stat_summary(
-                            aes(fill = condition, alpha = tecounttype),
-                            fun = mean,
-                            geom = "col",
-                            position = position_dodge(width = 0.9),
-                            color = "black",
-                            width = 0.9
-                        ) +
-                        geom_beeswarm(
-                            method = "swarm",
-                            dodge.width = 0.9
-                        ) +
-                        labs(x = "", y = "Sum Normalized Counts", subtitle = counttype_label) +
-                        mtclosedgridh +
-                        scale_conditions +
-                        scale_alpha_manual(values = c("unique" = 0.75, "multi" = 1)) +
-                        theme(legend.position = "none") +
-                        anchorbar +
-                        theme(axis.text.x = element_text(angle = 45, hjust = 1))
-                },
-                error = function(e) {
-
-                }
-            )
-        }
+    p <- pf %>%
+        ggbarplot(x = "condition", y = "sample_sum", fill = "condition", add = c("mean_se", "dotplot")) +
+        labs(x = "", y = "Sum Normalized Counts", subtitle = counttype_label) +
+        theme(legend.position = "none") +
+        mtclosedgridh +
+        scale_conditions +
+        anchorbar +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        guides(fill = "none")
+    if (facet_var != "ALL") {
+        p <- pf %>%
+            ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = paste0(facet_var), add = c("mean_se", "dotplot")) +
+            labs(x = "", y = "Sum Normalized Counts", subtitle = counttype_label) +
+            theme(legend.position = "none") +
+            mtclosedgridh +
+            scale_conditions +
+            anchorbar +
+            theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+            guides(fill = "none")
     } else {
-        if (facet_var != "ALL") {
-            p <- pf %>%
-                ggbarplot(x = "condition", y = "sample_sum", fill = "condition", facet.by = paste0(facet_var), add = c("mean_se", "dotplot")) +
-                labs(x = "", y = "Sum Normalized Counts", subtitle = counttype_label) +
-                theme(legend.position = "none") +
-                mtclosedgridh +
-                scale_conditions +
-                anchorbar +
-                theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-                guides(fill = "none")
-        } else {
-            p <- pf %>%
-                ggbarplot(x = "condition", y = "sample_sum", fill = "condition", add = c("mean_se", "dotplot")) +
-                labs(x = "", y = "Sum Normalized Counts", subtitle = counttype_label) +
-                theme(legend.position = "none") +
-                mtclosedgridh +
-                scale_conditions +
-                anchorbar +
-                theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-                guides(fill = "none")
-        }
+        p <- pf %>%
+            ggbarplot(x = "condition", y = "sample_sum", fill = "condition", add = c("mean_se", "dotplot")) +
+            labs(x = "", y = "Sum Normalized Counts", subtitle = counttype_label) +
+            theme(legend.position = "none") +
+            mtclosedgridh +
+            scale_conditions +
+            anchorbar +
+            theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+            guides(fill = "none")
     }
-
     if (stats == "yes") {
         p <- p + scale_y_continuous(expand = expansion(mult = c(0, .2)))
     }
@@ -1697,10 +1653,6 @@ for (contrast in contrasts) {
                                     mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s.pdf", outputdir, counttype, contrast, function_name, group, filter_var, facet_var), auto_width = TRUE, auto_height = TRUE)
                                     p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, stats = "yes") + ggtitle(plot_title)
                                     mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_stats.pdf", outputdir, counttype, contrast, function_name, group, filter_var, facet_var), auto_width = TRUE, auto_height = TRUE, auto_dims_stats = TRUE)
-                                    p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, both_counttypes = "yes") + ggtitle(plot_title)
-                                    mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_bothcounttypes.pdf", outputdir, counttype, contrast, function_name, group, filter_var, facet_var), auto_width = TRUE, auto_height = TRUE)
-                                    p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, stats = "yes", both_counttypes = "yes") + ggtitle(plot_title)
-                                    mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_bothcounttypes_stats.pdf", outputdir, counttype, contrast, function_name, group, filter_var, facet_var), auto_width = TRUE, auto_height = TRUE, auto_dims_stats = TRUE)
                                 }
                             },
                             error = function(e) {
@@ -1955,14 +1907,14 @@ tryCatch(
     {
         library(patchwork)
         rte_focus_fig <- function(rte_family = "L1", rte_subfamily_req = "L1HS_intactness_req", contrast1 = conf$contrast[1], contrast2 = conf$contrast[2]) {
-            p1 <- mysaveandstoreplots[[sprintf("%s/results/agg/repeatanalysis/%s/%s/pan_contrast/repeat_superfamily_bar.pdf", module_name, counttype, counttype)]]
-            p2 <- mysaveandstoreplots[[sprintf("%s/results/agg/repeatanalysis/%s/%s/pan_contrast/rte_family_bar.pdf", module_name, counttype, counttype)]]
-            p3 <- mysaveandstoreplots[[sprintf("%s/results/agg/repeatanalysis/%s/%s/pan_contrast/rte_subfamily_heatmap.pdf", module_name, counttype, counttype)]] + theme_cowplot()
-            p4 <- mysaveandstoreplots[[sprintf("%s/results/agg/repeatanalysis/%s/%s/pan_contrast/bar/%s_bar_stats.pdf", module_name, counttype, counttype, rte_family)]]
-            p6 <- mysaveandstoreplots[[sprintf("%s/results/agg/repeatanalysis/%s/%s/%s/pvp/%s_ALL_log2labels.pdf", module_name, counttype, counttype, contrast1, rte_subfamily_req)]]
-            p7 <- mysaveandstoreplots[[sprintf("%s/results/agg/repeatanalysis/%s/%s/%s/pvp/%s_ALL_log2labels.pdf", module_name, counttype, counttype, contrast2, rte_subfamily_req)]]
+            p1 <- mysaveandstoreplots[[sprintf("%s/results_n21_mt6_all/agg/repeatanalysis/%s/%s/pan_contrast/repeat_superfamily_bar.pdf", module_name, counttype, counttype)]]
+            p2 <- mysaveandstoreplots[[sprintf("%s/results_n21_mt6_all/agg/repeatanalysis/%s/%s/pan_contrast/rte_family_bar.pdf", module_name, counttype, counttype)]]
+            p3 <- mysaveandstoreplots[[sprintf("%s/results_n21_mt6_all/agg/repeatanalysis/%s/%s/pan_contrast/rte_subfamily_heatmap.pdf", module_name, counttype, counttype)]] + theme_cowplot()
+            p4 <- mysaveandstoreplots[[sprintf("%s/results_n21_mt6_all/agg/repeatanalysis/%s/%s/pan_contrast/bar/%s_bar_stats.pdf", module_name, counttype, counttype, rte_family)]]
+            p6 <- mysaveandstoreplots[[sprintf("%s/results_n21_mt6_all/agg/repeatanalysis/%s/%s/%s/pvp/%s_ALL_log2labels.pdf", module_name, counttype, counttype, contrast1, rte_subfamily_req)]]
+            p7 <- mysaveandstoreplots[[sprintf("%s/results_n21_mt6_all/agg/repeatanalysis/%s/%s/%s/pvp/%s_ALL_log2labels.pdf", module_name, counttype, counttype, contrast2, rte_subfamily_req)]]
             ptch <- ((p1 + p2 + plot_layout(nrow = 2, guides = "collect")) | p3 | (p4) | (p6 + p7 + plot_layout(nrow = 2, guides = "collect"))) + plot_layout(widths = c(1, 1.25, 1.5, 2)) + plot_annotation(tag_levels = "A")
-            mysave(pl = ptch, fn = sprintf("%s/results/agg/repeatanalysis/%s/%s/figs/combined_focus_%s.pdf", module_name, counttype, counttype, rte_subfamily_req), w = 25, h = 10)
+            mysave(pl = ptch, fn = sprintf("%s/results_n21_mt6_all/agg/repeatanalysis/%s/%s/figs/combined_focus_%s.pdf", module_name, counttype, counttype, rte_subfamily_req), w = 25, h = 10)
         }
 
         rte_focus_fig(rte_family = "L1", rte_subfamily_req = "L1HS_intactness_req", contrast1 = conf$contrast[1], contrast2 = conf$contrast[2])
@@ -1973,17 +1925,17 @@ tryCatch(
         rte_subfamily_req <- "L1HS_intactness_req"
         contrast1 <- conf$contrast[1]
         contrast2 <- conf$contrast[2]
-        p1 <- mysaveandstoreplots[[sprintf("%s/results/agg/repeatanalysis/%s/%s/pan_contrast/repeat_superfamily_bar.pdf", module_name, counttype, counttype)]]
-        p2 <- mysaveandstoreplots[[sprintf("%s/results/agg/repeatanalysis/%s/%s/pan_contrast/rte_family_bar.pdf", module_name, counttype, counttype)]]
-        p3 <- mysaveandstoreplots[[sprintf("%s/results/agg/repeatanalysis/%s/%s/pan_contrast/rte_subfamily_heatmap.pdf", module_name, counttype, counttype)]] + theme_cowplot()
-        p4 <- mysaveandstoreplots[[sprintf("%s/results/agg/repeatanalysis/%s/%s/pan_contrast/bar/%s_bar_stats.pdf", module_name, counttype, counttype, rte_family)]]
-        p6 <- mysaveandstoreplots[[sprintf("%s/results/agg/repeatanalysis/%s/%s/%s/pvp/%s_ALL_log2labels.pdf", module_name, counttype, counttype, contrast1, rte_subfamily_req)]]
-        p7 <- mysaveandstoreplots[[sprintf("%s/results/agg/repeatanalysis/%s/%s/%s/pvp/%s_ALL_log2labels.pdf", module_name, counttype, counttype, contrast2, rte_subfamily_req)]]
-        p8 <- mysaveandstoreplots[[sprintf("%s/results/agg/repeatanalysis/%s/%s/pan_contrast/venn/upset_repeat.pdf", module_name, counttype, counttype)]]
-        p9 <- mysaveandstoreplots[[sprintf("%s/results/agg/repeatanalysis/%s/%s/pan_contrast/rte_gene_cor/rte_genic_cor_length_req_pval_l1_subfamily_limited.pdf", module_name, counttype, counttype)]]
-        p10 <- mysaveandstoreplots[[sprintf("%s/results/agg/repeatanalysis/%s/%s/pan_contrast/L1HS_bar_nonref_stats.pdf", module_name, counttype, counttype)]]
+        p1 <- mysaveandstoreplots[[sprintf("%s/results_n21_mt6_all/agg/repeatanalysis/%s/%s/pan_contrast/repeat_superfamily_bar.pdf", module_name, counttype, counttype)]]
+        p2 <- mysaveandstoreplots[[sprintf("%s/results_n21_mt6_all/agg/repeatanalysis/%s/%s/pan_contrast/rte_family_bar.pdf", module_name, counttype, counttype)]]
+        p3 <- mysaveandstoreplots[[sprintf("%s/results_n21_mt6_all/agg/repeatanalysis/%s/%s/pan_contrast/rte_subfamily_heatmap.pdf", module_name, counttype, counttype)]] + theme_cowplot()
+        p4 <- mysaveandstoreplots[[sprintf("%s/results_n21_mt6_all/agg/repeatanalysis/%s/%s/pan_contrast/bar/%s_bar_stats.pdf", module_name, counttype, counttype, rte_family)]]
+        p6 <- mysaveandstoreplots[[sprintf("%s/results_n21_mt6_all/agg/repeatanalysis/%s/%s/%s/pvp/%s_ALL_log2labels.pdf", module_name, counttype, counttype, contrast1, rte_subfamily_req)]]
+        p7 <- mysaveandstoreplots[[sprintf("%s/results_n21_mt6_all/agg/repeatanalysis/%s/%s/%s/pvp/%s_ALL_log2labels.pdf", module_name, counttype, counttype, contrast2, rte_subfamily_req)]]
+        p8 <- mysaveandstoreplots[[sprintf("%s/results_n21_mt6_all/agg/repeatanalysis/%s/%s/pan_contrast/venn/upset_repeat.pdf", module_name, counttype, counttype)]]
+        p9 <- mysaveandstoreplots[[sprintf("%s/results_n21_mt6_all/agg/repeatanalysis/%s/%s/pan_contrast/rte_gene_cor/rte_genic_cor_length_req_pval_l1_subfamily_limited.pdf", module_name, counttype, counttype)]]
+        p10 <- mysaveandstoreplots[[sprintf("%s/results_n21_mt6_all/agg/repeatanalysis/%s/%s/pan_contrast/L1HS_bar_nonref_stats.pdf", module_name, counttype, counttype)]]
         ptch <- ((((p1 + p2 + plot_layout(nrow = 2, guides = "collect")) | p3 | (p4) | (p6 + p7 + plot_layout(nrow = 2, guides = "collect"))) + plot_layout(widths = c(1, 1.25, 1.5, 2))) / ((p8 | p9 | p10 | plot_spacer()) + plot_layout(widths = c(1, 0.75, 1, 1)))) + plot_layout(heights = c(2, 1))
-        mysave(pl = ptch, fn = sprintf("%s/results/agg/repeatanalysis/%s/%s/figs/combined_focus_v2_%s.pdf", module_name, counttype, counttype, rte_subfamily_req), w = 25, h = 15)
+        mysave(pl = ptch, fn = sprintf("%s/results_n21_mt6_all/agg/repeatanalysis/%s/%s/figs/combined_focus_v2_%s.pdf", module_name, counttype, counttype, rte_subfamily_req), w = 25, h = 15)
     },
     error = function(e) {
 
