@@ -50,13 +50,6 @@ get_repeat_annotations <- function(
     return(rmann)
 }
 
-    rmann <- rmann %>%
-        mutate(req_integrative = factor(req_integrative, levels = c("Old Trnc", "Old FL", "Yng Trnc", "Yng FL", "Yng Intact"))) %>%
-        mutate(ltr_viral_status = factor(ltr_viral_status, levels = c("Int (Has 5LTR)", "Int (No 5'LTR)", "5'LTR (FL Int)", "3'LTR (FL Int)", "5'LTR (Trnc Int)", "3'LTR (Trnc Int)", "LTR (Solo)", "Other")))
-
-    return(rmann)
-}
-
 rm2granges <- function(regex, rm, filter = c("length > 0", "length > 0")) {
     tmp <- rm %>% filter(str_detect(gene_id, regex))
     tmp <- tmp %>% filter(!!!rlang::parse_exprs(filter))
