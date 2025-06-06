@@ -52,7 +52,7 @@ counttype <- params[["counttype"]]
 rmann <- get_repeat_annotations(
     default_or_extended = "default",
     keep_non_central = FALSE,
-    append_NI_samplename_modifier = if (conf$per_sample_ref == "yes") TRUE else if (conf$per_sample_ref == "yes") TRUE else FALSE
+    append_NI_samplename_modifier = if (conf$per_sample_ref == "yes") TRUE else FALSE
 )
 
 if (counttype == "telescope_multi") {
