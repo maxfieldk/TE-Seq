@@ -1312,6 +1312,12 @@ rule process_gtf_tldr:
     script:
         "scripts/process_gtf_tldr.R"
 
+samplestemp = config["aref"]["samples"]
+sample_or_ref_temp = ["A.REF"]
+rule get_process_gtf_tldr_all:
+    input:
+        expand("aref/{default_or_extended}/{sample_or_ref}_contigs_to_keep.txt", default_or_extended = ["default", "extended"], sample_or_ref = sample_or_ref_temp)
+
 rule analyze_insertions:
     input:
         tldroutput = "aref/{sample_or_ref}_tldr/{sample_or_ref}.table.txt",

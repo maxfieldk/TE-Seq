@@ -46,7 +46,7 @@ rm <- rmgr %>%
 
 # filter out mitochondrial repeats
 rm <- rm %>% filter(seqnames != "chrM")
-rm1 <- rm %>% separate(Target, into = c("family", "element_start", "element_end", "element_bp_remaining"), sep = " ")
+rm1 <- rm %>% tidyr::separate(Target, into = c("family", "element_start", "element_end", "element_bp_remaining"), sep = " ")
 rm2 <- rm1 %>%
     dplyr::select(-transcript_id) %>%
     mutate(element_bp_remaining = as.numeric(gsub("\\(|\\)", "", element_bp_remaining))) %>%
@@ -289,7 +289,7 @@ if (params$tldr_switch == "process_gtf_tldr") {
         ASPgr <- rmgrdf %>%
             filter(old_id %in% ids) %>%
             mutate(Target2 = Target) %>%
-            separate(Target2, into = c("family", "element_start", "element_end", "element_bp_remaining"), sep = " ") %>%
+            tidyr::separate(Target2, into = c("family", "element_start", "element_end", "element_bp_remaining"), sep = " ") %>%
             dplyr::select(-c("family", "element_end", "element_bp_remaining")) %>%
             group_by(old_id) %>%
             arrange(element_start) %>%
@@ -359,7 +359,7 @@ if (params$tldr_switch == "process_gtf_tldr") {
         ASPgr <- rmgrdf %>%
             filter(old_id %in% ids) %>%
             mutate(Target2 = Target) %>%
-            separate(Target2, into = c("family", "element_start", "element_end", "element_bp_remaining"), sep = " ") %>%
+            tidyr::separate(Target2, into = c("family", "element_start", "element_end", "element_bp_remaining"), sep = " ") %>%
             dplyr::select(-c("family", "element_end", "element_bp_remaining")) %>%
             group_by(old_id) %>%
             arrange(element_start) %>%
