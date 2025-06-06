@@ -94,7 +94,7 @@ counttype <- params$counttype
 r_repeatmasker_annotation <- read_csv(params$r_repeatmasker_annotation)
 ## Load Data and add annotations
 resultsdf1 <- read_delim(inputs$resultsdf, delim = "\t")
-
+resultsdf1 %>% filter(grepl("_NI_", gene_id))
 counttypedf <- resultsdf1 %>%
     dplyr::select(gene_id, counttype, all_of(colnames(resultsdf1)[(colnames(resultsdf1) %in% sample_table$sample_name)])) %>%
     pivot_longer(cols = -c(gene_id, counttype), names_to = "sample", values_to = "counts") %>%
