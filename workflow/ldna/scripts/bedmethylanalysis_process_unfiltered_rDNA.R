@@ -31,7 +31,7 @@ sample_table <- sample_table[match(samples, sample_table$sample_name), ]
 {
     genome_lengths <- fasta.seqlengths(conf$reference)
     chromosomesAll <- names(genome_lengths)
-    nonrefchromosomes <- grep("^NI", chromosomesAll, value = TRUE) %>% str_sort(numeric = TRUE)
+    nonrefchromosomes <- grep("^NI_", chromosomesAll, value = TRUE) %>% str_sort(numeric = TRUE)
     refchromosomes <- grep("^chr", chromosomesAll, value = TRUE) %>% str_sort(numeric = TRUE)
     autosomes <- grep("^chr[1-9]", refchromosomes, value = TRUE) %>% str_sort(numeric = TRUE)
     chrX <- c("chrX")

@@ -64,9 +64,10 @@ counttype_label <- gsub("telescope_", "", counttype) %>%
     str_to_title()
 outputdir <- dirname(outputs$environment)
 
-rmfragments <- read_csv(params$r_annotation_fragmentsjoined, col_names = TRUE)
-rmfamilies <- read_csv(params$r_repeatmasker_annotation, col_names = TRUE)
-rmann <- left_join(rmfragments, rmfamilies)
+rmann <- get_repeat_annotations(
+    default_or_extended = "default",
+    keep_non_central = TRUE
+)
 
 tpmdf <- read_delim(inputs$tpm)
 repeats <- tpmdf %>% filter(gene_id %in% c(rmann %$% gene_id))

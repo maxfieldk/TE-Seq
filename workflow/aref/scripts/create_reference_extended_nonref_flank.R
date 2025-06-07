@@ -17,6 +17,9 @@ tryCatch(
             tldroutput = "aref/A.REF_tldr/A.REF.table.txt",
             reference = "../genome_files/reference.ucsc.fa"
         ), env = globalenv())
+        assign("params", list(
+            sample_or_ref = "A.REF"
+        ), env = globalenv())
         assign("outputs", list(
             updated_reference_plusflank = "aref/extended/A.REF-pre-ins-filtering.fa",
             non_ref_contigs_plusflank = "aref/extended/A.REF-pre-ins-filtering_nonrefcontigs.fa"
@@ -49,7 +52,7 @@ df <- df %>%
     filter(fraction_reads_count > 0.25) %>%
     filter(SpanReads > 2) %>%
     filter(UsedReads > 5) %>%
-    mutate(faName = paste0("NI_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>%
+    mutate(faName = paste0("NI_", "_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>%
     filter(!is.na(Family)) %>%
     filter(!is.na(StartTE)) %>%
     filter(Filter == "PASS") %>%

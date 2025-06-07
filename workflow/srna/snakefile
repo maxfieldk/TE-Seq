@@ -513,6 +513,25 @@ rule telescope:
     shell: 
         """
 echo {params.strandparam}
+mkdir -p $(dirname {output.counts})
+
+if [ "{params.strandparam}" = None ]; then
+echo "removing L1 antisense transcripts"
+awk -v FS='\t' -v OFS='\t' '$0 ~ /^#/ || $9 !~ /__AS"/' {params.gff} > {output.counts}.temp.gff2
+
+telescope assign \
+--attribute gene_id \
+--ncpu 1 \
+--stranded_mode {params.strandparam} \
+--reassign_mode average \
+--outdir $(dirname {output.counts}) \
+{input.collatedbam} \
+{output.counts}.temp.gff2
+
+rm {output.counts}.temp.gff2
+
+else
+
 telescope assign \
 --attribute gene_id \
 --ncpu 1 \
@@ -521,11 +540,13 @@ telescope assign \
 --outdir $(dirname {output.counts}) \
 {input.collatedbam} \
 {params.gff}
+
+fi
         """
 
 rule tetranscripts:
     input:
-        tetranscripts_container = tetranscripts_container,
+        tetranscripts_container = ancient(tetranscripts_container),
         sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.bam",
         libtype = "srna/qc/library_type.txt"
     params:
@@ -549,6 +570,24 @@ rule tetranscripts:
 outputdir=$(dirname {output.cnts})
 mkdir -p $outputdir
 
+
+if [ "{params.strandparam}" = no ]; then
+echo "removing L1 antisense transcripts"
+awk -v FS='\t' -v OFS='\t' '$0 ~ /^#/ || $9 !~ /__AS"/' {params.repeats_gtf} > {output.cnts}.temp.gff2
+
+TEcount --format BAM \
+--sortByPos \
+--mode {params.getcounttype} \
+--stranded {params.strandparam} \
+-b {input.sortedbam} \
+--GTF {params.genes_gtf} \
+--TE {output.cnts}.temp.gff2 \
+--outdir $outputdir
+
+rm {output.cnts}.temp.gff2
+
+else 
+
 TEcount --format BAM \
 --sortByPos \
 --mode {params.getcounttype} \
@@ -557,6 +596,8 @@ TEcount --format BAM \
 --GTF {params.genes_gtf} \
 --TE {params.repeats_gtf} \
 --outdir $outputdir
+
+fi
         """
 
 rule call_tetranscripts:

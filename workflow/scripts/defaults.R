@@ -18,20 +18,13 @@ library("paletteer")
 
 get_repeat_annotations <- function(
     default_or_extended = "default",
-    keep_non_central = TRUE,
-    append_NI_samplename_modifier = FALSE) {
+    keep_non_central = TRUE) {
     rmannShared <- read_csv(confALL$aref$rmann_shared)
     if (confALL$aref$update_ref_with_tldr$response == "yes") {
         if (confALL$aref$update_ref_with_tldr$per_sample == "yes") {
             rmannSamples <- list()
             for (sample in confALL$aref$samples) {
                 df <- read_csv(sprintf("aref/%s/%s_annotations/%s_rmann_nonref.csv", default_or_extended, sample, sample))
-                df$sample_name <- sample
-                if (append_NI_samplename_modifier) {
-                    df <- df %>%
-                        left_join(sample_table) %>%
-                        mutate(gene_id = paste0(sample_name, "__", gene_id))
-                }
                 rmannSamples[[sample]] <- df
             }
             rmannnonref <- do.call(rbind, rmannSamples) %>% tibble()
