@@ -731,7 +731,7 @@ sniffles -i {input.sortedbam} -v {output.vcf} --threads 28 --mosaic --reference 
 
 rule pepper:
     input:
-        pepper_deepvariant_container = pepper_deepvariant_container,
+        pepper_deepvariant_container = ancient(pepper_deepvariant_container),
         sortedbam = ancient(expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"])),
         sortedbamindex = ancient(expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]))
     params:
@@ -766,8 +766,9 @@ run_pepper_margin_deepvariant call_variant \
         """
 
 rule get_reference_gatk_dict:
+    input:
+        gatk_container = ancient(gatk_container)
     params:
-        gatk_container = gatk_container,
         ref = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"],
         refdict = lambda w: "%s.dict"%config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"]
     output:
@@ -786,7 +787,7 @@ touch {output}
 
 rule liftover_dbsnp:
     input:
-        gatk_container = gatk_container,
+        gatk_container = ancient(gatk_container),
         refdict = lambda w: "%s.dict"%config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"]
     params:
         vcf = "/oscar/data/jsedivy/mkelsey/REF_STABLE_ANNOTATIONS/HS1/downloaded_annotaions/GCF_000001405.40.ucsc.vcf",
@@ -1077,7 +1078,7 @@ rule getstuff:
 
 rule vcf_to_table:
     input:
-        gatk_container = gatk_container,
+        gatk_container = ancient(gatk_container),
         vcf_sml = "aref/intermediates/{sample_or_ref}/snpeff/snpeff_sml.pass.vcf",
         vcf_sv = "aref/intermediates/{sample_or_ref}/snpeff/snpeff_sv.pass.vcf"
     output:
@@ -1158,7 +1159,7 @@ seqtk subseq {input.fasta} {output.split}.names.txt > {output.split}
 
 rule repeatmasker_whole_genome:
     input: 
-        tetools_container = tetools_container,
+        tetools_container = ancient(tetools_container),
         split = "aref/default/A.REF_split/A.REF_{chromosome}.fa"
     params:
         species = config["aref"]["species"]
@@ -1218,7 +1219,7 @@ def repeatmasker_input(wildcards):
 
 rule repeatmasker:
     input:
-        tetools_container = tetools_container,
+        tetools_container = ancient(tetools_container),
         fasta = repeatmasker_input
     params:
         species = config["aref"]["species"]

@@ -68,10 +68,8 @@ coldata <- coldata[match(conf$samples, coldata$sample_name), ]
 # repeats
 rmann <- get_repeat_annotations(
     default_or_extended = "default",
-    keep_non_central = FALSE,
-    append_NI_samplename_modifier = TRUE
+    keep_non_central = FALSE
 )
-
 repeat_lengths <- rmann %>% dplyr::select(gene_id, length)
 
 if (counttype == "telescope_multi") {
@@ -79,11 +77,7 @@ if (counttype == "telescope_multi") {
     for (sample in conf$samples) {
         path <- gsub("run_stats", "TE_counts", grep(paste0("outs/", sample, "/telescope"), inputs$rte_counts, value = TRUE))
         tdf <- read_delim(path, comment = "#", col_names = TRUE) %>%
-            dplyr::rename(gene_id = transcript) %>%
-            mutate(gene_id = case_when(
-                grepl("_NI_", gene_id) ~ paste0(ifelse(confALL$aref$update_ref_with_tldr$per_sample == "yes", sample, "A.REF"), "__", gene_id),
-                TRUE ~ gene_id
-            ))
+            dplyr::rename(gene_id = transcript)
         bounddf <- full_join(bounddf, tdf, by = "gene_id")
     }
     colnames(bounddf) <- c("gene_id", conf$samples)
@@ -95,11 +89,7 @@ if (counttype == "telescope_unique") {
         path <- grep(paste0("outs/", sample, "/telescope"), inputs$rte_counts, value = TRUE)
         tdf <- read_delim(path, comment = "#", col_names = FALSE) %>%
             dplyr::select(X1, X6) %>%
-            dplyr::rename(gene_id = X1) %>%
-            mutate(gene_id = case_when(
-                grepl("_NI_", gene_id) ~ paste0(ifelse(confALL$aref$update_ref_with_tldr$per_sample == "yes", sample, "A.REF"), "__", gene_id),
-                TRUE ~ gene_id
-            ))
+            dplyr::rename(gene_id = X1)
         bounddf <- full_join(bounddf, tdf, by = "gene_id")
     }
     colnames(bounddf) <- c("gene_id", conf$samples)
