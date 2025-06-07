@@ -25,7 +25,6 @@ get_repeat_annotations <- function(
             rmannSamples <- list()
             for (sample in confALL$aref$samples) {
                 df <- read_csv(sprintf("aref/%s/%s_annotations/%s_rmann_nonref.csv", default_or_extended, sample, sample))
-                df$sample_name <- sample
                 rmannSamples[[sample]] <- df
             }
             rmannnonref <- do.call(rbind, rmannSamples) %>% tibble()
