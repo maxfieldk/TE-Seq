@@ -85,7 +85,7 @@ rm(bounddf1)
 
 tidydf <- cts %>%
     pivot_longer(-gene_id, names_to = "sample_name", values_to = "counts") %>%
-    left_join(rmann %>% dplyr::select(-sample_name)) %>%
+    left_join(rmann) %>%
     filter(!grepl("__AS$", gene_id))
 
 size_factors <- read_csv(inputs$sizefactors)
