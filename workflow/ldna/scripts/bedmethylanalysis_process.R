@@ -492,15 +492,12 @@ write_delim(rtedf_promoters, sprintf("ldna/Rintermediates/%s/rtedf_promoters.tsv
 l1hs_intrautr <- merge_with_grs(grs, l1hs_intra_utr_grs)
 write_delim(l1hs_intrautr, sprintf("ldna/Rintermediates/%s/l1hs_intrautr.tsv", params$mod_code), col_names = TRUE)
 
-alll1hsflids <- flRTEpromoter %>%
-    filter(rte_subfamily == "L1HS") %$% gene_id %>%
-    unique()
-coveredl1hsflids <- l1hs_intrautr %$% gene_id %>% unique()
-flL1HS_not_covered <- setdiff(alll1hsflids, coveredl1hsflids)
-tibble(gene_id = flL1HS_not_covered) %>%
-    left_join(flRTEpromoter) %>%
-    dplyr::select(t05) %>%
-    print(n = 100)
+# alll1hsflids <- flRTEpromoter %>%
+#     filter(rte_subfamily == "L1HS") %$% gene_id %>%
+#     unique()
+# coveredl1hsflids <- l1hs_intrautr %$% gene_id %>% unique()
+# flL1HS_not_covered <- setdiff(alll1hsflids, coveredl1hsflids)
+
 
 perelementdf_promoters <- rtedf_promoters %>%
     filter(cov > MINIMUMCOVERAGE) %>%
