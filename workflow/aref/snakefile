@@ -576,6 +576,8 @@ rule update_reference:
     input:
         reference = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"],
         tldroutput = "aref/{sample_or_ref}_tldr/{sample_or_ref}.table.txt"
+    params:
+        sample_or_ref = lambda w: w.sample_or_ref
     output:
         updated_reference = "aref/default/{sample_or_ref}-pre-ins-filtering.fa",
         non_ref_contigs = "aref/default/{sample_or_ref}-pre-ins-filtering_nonrefcontigs.fa",
@@ -590,6 +592,8 @@ rule update_reference_extended_nonref_flank:
     input:
         reference = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"],
         tldroutput = "aref/{sample_or_ref}_tldr/{sample_or_ref}.table.txt"
+    params:
+        sample_or_ref = lambda w: w.sample_or_ref
     output:
         updated_reference_plusflank = "aref/extended/{sample_or_ref}-pre-ins-filtering.fa",
         non_ref_contigs_plusflank = "aref/extended/{sample_or_ref}-pre-ins-filtering_nonrefcontigs.fa"
@@ -733,7 +737,7 @@ sniffles -i {input.sortedbam} -v {output.vcf} --threads 28 --mosaic --reference 
 
 rule pepper:
     input:
-        pepper_deepvariant_container = pepper_deepvariant_container,
+        pepper_deepvariant_container = ancient(pepper_deepvariant_container),
         sortedbam = ancient(expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"])),
         sortedbamindex = ancient(expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]))
     params:
@@ -768,8 +772,9 @@ run_pepper_margin_deepvariant call_variant \
         """
 
 rule get_reference_gatk_dict:
+    input:
+        gatk_container = ancient(gatk_container)
     params:
-        gatk_container = gatk_container,
         ref = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"],
         refdict = lambda w: "%s.dict"%config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"]
     output:
@@ -788,7 +793,7 @@ touch {output}
 
 rule liftover_dbsnp:
     input:
-        gatk_container = gatk_container,
+        gatk_container = ancient(gatk_container),
         refdict = lambda w: "%s.dict"%config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"]
     params:
         vcf = "/oscar/data/jsedivy/mkelsey/REF_STABLE_ANNOTATIONS/HS1/downloaded_annotaions/GCF_000001405.40.ucsc.vcf",
@@ -1079,7 +1084,7 @@ rule getstuff:
 
 rule vcf_to_table:
     input:
-        gatk_container = gatk_container,
+        gatk_container = ancient(gatk_container),
         vcf_sml = "aref/intermediates/{sample_or_ref}/snpeff/snpeff_sml.pass.vcf",
         vcf_sv = "aref/intermediates/{sample_or_ref}/snpeff/snpeff_sv.pass.vcf"
     output:
@@ -1160,7 +1165,7 @@ seqtk subseq {input.fasta} {output.split}.names.txt > {output.split}
 
 rule repeatmasker_whole_genome:
     input: 
-        tetools_container = tetools_container,
+        tetools_container = ancient(tetools_container),
         split = "aref/default/A.REF_split/A.REF_{chromosome}.fa"
     params:
         species = config["aref"]["species"]
@@ -1220,7 +1225,7 @@ def repeatmasker_input(wildcards):
 
 rule repeatmasker:
     input:
-        tetools_container = tetools_container,
+        tetools_container = ancient(tetools_container),
         fasta = repeatmasker_input
     params:
         species = config["aref"]["species"]
@@ -1299,7 +1304,8 @@ rule process_gtf_tldr:
         ref = "aref/{default_or_extended}/{sample_or_ref}-pre-ins-filtering.fa",
         tldroutput = "aref/{sample_or_ref}_tldr/{sample_or_ref}.table.txt"
     params:
-        tldr_switch = "process_gtf_tldr"
+        tldr_switch = "process_gtf_tldr",
+        sample_or_ref = lambda w: w.sample_or_ref
     output:
         contigs_to_keep = "aref/{default_or_extended}/{sample_or_ref}_contigs_to_keep.txt",
         filtered_tldr = "aref/{default_or_extended}/{sample_or_ref}.table.kept_in_updated_ref.txt",

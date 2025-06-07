@@ -51,8 +51,7 @@ counttype <- params[["counttype"]]
 
 rmann <- get_repeat_annotations(
     default_or_extended = "default",
-    keep_non_central = FALSE,
-    append_NI_samplename_modifier = if (conf$per_sample_ref == "yes") TRUE else FALSE
+    keep_non_central = TRUE
 )
 
 if (counttype == "telescope_multi") {
@@ -86,19 +85,7 @@ rm(bounddf1)
 
 tidydf <- cts %>%
     pivot_longer(-gene_id, names_to = "sample_name", values_to = "counts") %>%
-    {
-        if (conf$per_sample_ref == "yes") {
-            mutate(.,
-                gene_id = case_when(
-                    grepl("_NI_", gene_id) ~ paste0(sample_name, "__", gene_id),
-                    TRUE ~ gene_id
-                )
-            ) %>%
-                left_join(rmann %>% dplyr::rename(nonrefinsert_sample_name = sample_name))
-        } else {
-            left_join(., rmann)
-        }
-    } %>%
+    left_join(rmann) %>%
     filter(!grepl("__AS$", gene_id))
 
 size_factors <- read_csv(inputs$sizefactors)
@@ -155,7 +142,10 @@ for (i in 1:nrow(options)) {
             group_by(across(all_of(strat_vars)), .add = TRUE) %>%
             nest() %>%
             mutate(
-                model = map(data, ~ glmmTMB(counts ~ condition + offset(log(sizefactor)), family = nbinom2, data = .x))
+                model = map(data, ~ tryCatch(
+                    glmmTMB(counts ~ condition + offset(log(sizefactor)), family = nbinom2, data = .x),
+                    error = function(e) NA
+                ))
             )
     } else {
         models_df <- pf1 %>%
@@ -163,7 +153,16 @@ for (i in 1:nrow(options)) {
             group_by(across(all_of(strat_vars)), .add = TRUE) %>%
             nest() %>%
             mutate(
-                model = map(data, ~ glmmTMB(formula(sprintf("counts ~ condition + %s + offset(log(sizefactor))", paste0(batch_vars_to_use, collapse = " + "))), family = nbinom2, data = .x))
+                model = map(
+                    data,
+                    ~ tryCatch(
+                        glmmTMB(
+                            formula = as.formula(sprintf("counts ~ condition + %s + offset(log(sizefactor))", paste0(batch_vars_to_use, collapse = " + "))),
+                            family = nbinom2, data = .x
+                        ),
+                        error = function(e) NA
+                    )
+                )
             )
     }
 
@@ -175,6 +174,7 @@ for (i in 1:nrow(options)) {
         mutate(contrast_string = paste(level1, "-", level2))
 
     results_df <- models_df %>%
+        filter(!is.na(model)) %>%
         mutate(
             emmeans_obj = map(model, ~ emmeans(.x, ~condition)),
             contrast_df = map(emmeans_obj, ~ contrast(.x, method = "pairwise") %>% as.data.frame())

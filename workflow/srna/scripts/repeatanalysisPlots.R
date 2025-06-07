@@ -108,8 +108,7 @@ resultsdf_tetranscripts1 <- read_delim(inputs$tetranscripts_resultsdf, delim = "
 
 rmann <- get_repeat_annotations(
     default_or_extended = "default",
-    keep_non_central = FALSE,
-    append_NI_samplename_modifier = FALSE
+    keep_non_central = FALSE
 )
 resultsdfwithgenes <- resultsdf1 %>%
     filter(counttype == !!counttype) %>%
