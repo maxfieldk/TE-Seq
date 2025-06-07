@@ -36,4 +36,6 @@ dependencies:
   - bioconductor-gseabase
   - r-configr
   - r-matrixstats=0
+  - r-glmmtmb
+  - r-emmeans
 prefix: deseq

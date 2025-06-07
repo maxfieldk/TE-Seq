@@ -1,4 +1,37 @@
-container: "docker://maxfieldkelsey/te-seq:v1.1"
+#container definitions
+teseq_container = (
+    config["containers"]["teseq"]["path"]
+    if config["containers"]["teseq"]["use_preexisting_response"] == "yes"
+    else "docker://maxfieldkelsey/te-seq:v1.3"
+)
+
+tetools_container = (
+    config["containers"]["tetools"]["path"]
+    if config["containers"]["tetools"]["use_preexisting_response"] == "yes"
+    else "containers/tetools_1.88.5.sif"
+)
+pepper_deepvariant_container = (
+    config["containers"]["pepper_deepvariant"]["path"]
+    if config["containers"]["pepper_deepvariant"]["use_preexisting_response"] == "yes"
+    else "containers/pepper_deepvariant:r0.8.sif"
+)
+gatk_container = (
+    config["containers"]["gatk"]["path"]
+    if config["containers"]["gatk"]["use_preexisting_response"] == "yes"
+    else "containers/gatk:4.6.1.0.sif"
+)
+dorado_container = (
+    config["containers"]["dorado"]["path"]
+    if config["containers"]["dorado"]["use_preexisting_response"] == "yes"
+    else "containers/dorado:sha268dcb4cd02093e75cdc58821f8b93719c4255ed.sif"
+)
+tetranscripts_container = (
+    config["containers"]["tetranscripts"]["path"]
+    if config["containers"]["tetranscripts"]["use_preexisting_response"] == "yes"
+    else "containers/tetranscripts:2.2.3.sif"
+)
+
+container: teseq_container
 
 import os
 import pandas as pd
@@ -492,6 +525,7 @@ telescope assign \
 
 rule tetranscripts:
     input:
+        tetranscripts_container = tetranscripts_container,
         sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.bam",
         libtype = "srna/qc/library_type.txt"
     params:
@@ -506,7 +540,7 @@ rule tetranscripts:
         "srna/benchmarks/tetranscripts/{sample}_{counttype}.tsv"
     threads: 2
     container:
-        "docker://mhammelllab/tetranscripts:2.2.3"
+        tetranscripts_container
     resources:
         mem_mb  = 50000,
         runtime = 600
@@ -734,9 +768,11 @@ rule repeatanalysis_plots:
         "srna/benchmarks/repeatanalysis_plots/{counttype}.tsv"
     conda:
         "repeatanalysis"
+    wildcard_constraints:
+        counttype="[A-Za-z_]+"
     resources:
         cpus_per_task =10,
-        mem_mb = 200000,
+        mem_mb = 250000,
         runtime = 500
     output:
         environment = "srna/results/agg/repeatanalysis/{counttype}/repeatanalysisplots_environment.RData", 
@@ -747,6 +783,24 @@ rule repeatanalysis_plots:
     script:
         "scripts/repeatanalysisPlots.R"
 
+rule repeatanalysis_family_statistics:
+    input:
+        rte_counts = expand("srna/outs/{sample}/telescope/telescope-run_stats.tsv", sample = samples),
+        sizefactors = "srna/results/agg/deseq/{counttype}/sizefactors.csv"
+    params:
+        counttype = lambda w: w.counttype,
+    benchmark:
+        "srna/benchmarks/repeatanalysis_family_statistics/{counttype}.tsv"
+    conda:
+        "deseq"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 100000,
+        runtime = 120
+    output:
+        stats = "srna/results/agg/repeatanalysis/{counttype}/te_group_stats.csv",
+    script:
+        "scripts/aggregate_count_statistics.R"
 
 rule characterize_tpm:
     input:

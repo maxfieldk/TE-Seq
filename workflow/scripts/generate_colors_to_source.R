@@ -19,7 +19,7 @@ tryCatch(
 # build color palettes:
 if (length(conf$levels) == 1) {
     manual_color_vec <- confALL$shared$condition_colors %>% unlist()
-    if (all(conf$levels %in% manual_color_vec)) {
+    if (all(conf$levels %in% names(manual_color_vec))) {
         condition_palette <- manual_color_vec
     } else {
         condition_palette <- setNames(c("grey"), conf$levels)
@@ -33,15 +33,20 @@ if (length(conf$levels) == 1) {
     num_replicates <- color_table %$% replicate %>%
         unique() %>%
         length()
-    color_table <- color_table %>%
-        left_join(tibble(replicate = 1:num_replicates, shade_modifier = seq(-.4, 0.4, length.out = num_replicates))) %>%
-        mutate(sample_unique_color = darken(color, shade_modifier))
+    if (nrow(color_table) == 1) {
+        color_table <- color_table %>%
+            mutate(sample_unique_color = color)
+    } else {
+        color_table <- color_table %>%
+            left_join(tibble(replicate = 1:num_replicates, shade_modifier = seq(-.4, 0.4, length.out = num_replicates))) %>%
+            mutate(sample_unique_color = darken(color, shade_modifier))
+    }
 
     sample_palette <- setNames(color_table$color, color_table$sample_name)
     sample_unique_palette <- setNames(color_table$sample_unique_color, color_table$sample_name)
     direction_palette <- setNames(c("red", "blue", "grey"), c("UP", "DOWN", "NS"))
     methylation_palette <- setNames(c("#ede6d1", "#2b2a24", "grey"), c("Hypo", "Hyper", "NS"))
-    methylation_palette_thresholds <- setNames(c("#ede6d1", "#4a493f","#e8d18c", "#2b2a24", "grey"), c("Hypo_05", "Hyper_05","Hypo_01", "Hyper_01", "NS"))
+    methylation_palette_thresholds <- setNames(c("#ede6d1", "#4a493f", "#e8d18c", "#2b2a24", "grey"), c("Hypo_05", "Hyper_05", "Hypo_01", "Hyper_01", "NS"))
 
     contrasts <- conf$contrasts
     contrast_base <- gsub(".*_vs_", "", contrasts)
@@ -98,7 +103,6 @@ if (length(conf$levels) == 1) {
         scale_directions <- list(scale_fill_manual(values = direction_palette), scale_color_manual(values = direction_palette))
         scale_methylation <- list(scale_fill_manual(values = methylation_palette), scale_color_manual(values = methylation_palette))
         scale_methylation_thresholds <- list(scale_fill_manual(values = methylation_palette_thresholds), scale_color_manual(values = methylation_palette_thresholds))
-
     }
     mycolor <- "grey"
 } else if (length(conf$levels) <= 1 + condition_palette_length) {
@@ -131,7 +135,7 @@ if (length(conf$levels) == 1) {
     sample_unique_palette <- setNames(color_table$sample_unique_color, color_table$sample_name)
     direction_palette <- setNames(c("red", "blue", "grey"), c("UP", "DOWN", "NS"))
     methylation_palette <- setNames(c("#ede6d1", "#2b2a24", "grey"), c("Hypo", "Hyper", "NS"))
-    methylation_palette_thresholds <- setNames(c("#ede6d1", "#4a493f","#e8d18c", "#2b2a24", "grey"), c("Hypo_05", "Hyper_05","Hypo_01", "Hyper_01", "NS"))
+    methylation_palette_thresholds <- setNames(c("#ede6d1", "#4a493f", "#e8d18c", "#2b2a24", "grey"), c("Hypo_05", "Hyper_05", "Hypo_01", "Hyper_01", "NS"))
 
     contrasts <- conf$contrasts
     contrast_base <- gsub(".*_vs_", "", contrasts)
@@ -221,7 +225,7 @@ if (length(conf$levels) == 1) {
     sample_unique_palette <- setNames(color_table$sample_unique_color, color_table$sample_name)
     direction_palette <- setNames(c("red", "blue", "grey"), c("UP", "DOWN", "NS"))
     methylation_palette <- setNames(c("#ede6d1", "#2b2a24", "grey"), c("Hypo", "Hyper", "NS"))
-    methylation_palette_thresholds <- setNames(c("#ede6d1", "#4a493f","#e8d18c", "#2b2a24", "grey"), c("Hypo_05", "Hyper_05","Hypo_01", "Hyper_01", "NS"))
+    methylation_palette_thresholds <- setNames(c("#ede6d1", "#4a493f", "#e8d18c", "#2b2a24", "grey"), c("Hypo_05", "Hyper_05", "Hypo_01", "Hyper_01", "NS"))
 
     contrasts <- conf$contrasts
     contrast_base <- gsub(".*_vs_", "", contrasts)
@@ -272,4 +276,8 @@ if (length(conf$levels) == 1) {
         scale_methylation_thresholds <- list(scale_fill_manual(values = methylation_palette_thresholds), scale_color_manual(values = methylation_palette_thresholds))
     }
     mycolor <- "grey"
+}
+
+if (file.exists("conf/generate_colors_to_source_override.R")) {
+    source("conf/generate_colors_to_source_override.R")
 }

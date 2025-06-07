@@ -67,7 +67,8 @@ tryCatch(
             dmrs = "ldna/results/m/tables/dmrs.tsv",
             dmls = "ldna/results/m/tables/dmls.tsv",
             read_mods = sprintf("ldna/intermediates/%s/methylation/analysis_default/%s_readmods_%s_%s.tsv", samples, samples, "NoContext", conf$rte_subfamily_read_level_analysis),
-            read_mods_cg = sprintf("ldna/intermediates/%s/methylation/analysis_default/%s_readmods_%s_%s.tsv", samples, samples, "CpG", conf$rte_subfamily_read_level_analysis)
+            read_mods_cg = sprintf("ldna/intermediates/%s/methylation/analysis_default/%s_readmods_%s_%s.tsv", samples, samples, "CpG", conf$rte_subfamily_read_level_analysis),
+            read_mods_cg_islands = sprintf("ldna/intermediates/%s/methylation/analysis_default/%s_readmods_%s_%s.tsv", samples, samples, "CpG", "cpgI")
         ), env = globalenv())
         assign("params", list(mod_code = "m"), env = globalenv())
         assign("outputs", list(outfile = "ldna/outfiles/bedmethylanalysis.txt"), env = globalenv())
@@ -120,12 +121,13 @@ grsdfuntidy <- grsdf %>%
     drop_na()
 
 grsinboth <- grsdfuntidy %>% pull(pos)
+rm(grsdfuntidy)
+
 # TODO pivot wider introduces sample names as variables, this needs to be addressed
 grsdffiltered <- grsdf %>%
     filter(pos %in% grsinboth)
 grsdf <- grsdffiltered
 rm(grsdffiltered)
-rm(grsdfuntidy)
 
 cpg_islands <- rtracklayer::import(conf$cpg_islands)
 cpgi_shores <- rtracklayer::import(conf$cpgi_shores)
@@ -142,7 +144,7 @@ grs_cpgi_shores <- grs %>% subsetByOverlaps(cpgi_shores)
 grs_cpgi_shores$islandStatus <- "shore"
 grs_cpg_opensea <- grs %>% subsetByOverlaps(cpgi_features, invert = TRUE)
 grs_cpg_opensea$islandStatus <- "opensea"
-
+rm(grs)
 grs <- c(grs_cpg_islands, grs_cpgi_shelves, grs_cpgi_shores, grs_cpg_opensea)
 grsdf <- tibble(as.data.frame(grs))
 
@@ -158,6 +160,7 @@ grsdfs <- grsdf %>%
     slice_sample(n = 1000)
 grss <- GRanges(grsdfs)
 write_delim(grsdfs, sprintf("ldna/Rintermediates/%s/grsdfsmall.tsv", params$mod_code), col_names = TRUE)
+rm(grsdf)
 
 if (conf$single_condition == "no") {
     dmrs <- read_delim(inputs$dmrs, delim = "\t", col_names = TRUE)
@@ -505,6 +508,7 @@ perelementdf_promoters <- rtedf_promoters %>%
     summarize(mean_meth = mean(pctM)) %>%
     left_join(flRTEpromoter %>% dplyr::rename(rte_seqnames = seqnames, rte_start = start, rte_end = end, rte_strand = strand))
 write_delim(perelementdf_promoters, sprintf("ldna/Rintermediates/%s/perelementdf_promoters.tsv", params$mod_code), col_names = TRUE)
+rm(perelementdf_promoters)
 # perelementdf_promoters <- read_delim(sprintf("ldna/Rintermediates/%s/perelementdf_promoters.tsv", params$mod_code), col_names = TRUE)
 
 perl1hs_5utr_region <- l1hs_intrautr %>%
@@ -515,7 +519,6 @@ perl1hs_5utr_region <- l1hs_intrautr %>%
 write_delim(perl1hs_5utr_region, sprintf("ldna/Rintermediates/%s/perl1hs_5utr_region.tsv", params$mod_code), col_names = TRUE)
 # perl1hs_5utr_region <- read_delim(sprintf("ldna/Rintermediates/%s/perl1hs_5utr_region.tsv", params$mod_code), col_names = TRUE)
 
-perl1hs_5utr_region %>% summarise()
 
 
 # Genes
@@ -539,6 +542,7 @@ write_delim(promoter_methdf, sprintf("ldna/Rintermediates/%s/refseq_gene_promote
 
 ############## Read density
 ## NOTE GOT UP TO HERE IN MAKING THIS WORK FOR SINGLE SAMPLE
+rm(grsdf)
 rm(grs)
 mem_used()
 
@@ -560,14 +564,14 @@ for (region in conf$rte_subfamily_read_level_analysis) {
         df$region <- region
         df$sample <- sample_name
         df$condition <- sample_table[sample_table$sample_name == sample_name, "condition"]
-        grs <- GRanges(df %>% dplyr::rename(seqnames = chrom, start = ref_position, strand = ref_strand) %>% mutate(end = start))
+        grsx <- GRanges(df %>% dplyr::rename(seqnames = chrom, start = ref_position, strand = ref_strand) %>% mutate(end = start))
         eoi <- import(paste0("aref/extended/A.REF_annotations/A.REF_rte_beds/", region, ".bed"))
-        mbo <- mergeByOverlaps(grs, eoi)
+        mbo <- mergeByOverlaps(grsx, eoi)
         df1 <- as.data.frame(mbo) %>%
             tibble() %>%
-            dplyr::select(starts_with("grs"), name) %>%
+            dplyr::select(starts_with("grsx"), name) %>%
             dplyr::rename(gene_id = name)
-        colnames(df1) <- gsub("grs.", "", colnames(df1))
+        colnames(df1) <- gsub("grsx.", "", colnames(df1))
         readslist <- c(readslist, list(df1))
     }
 }
@@ -590,14 +594,14 @@ for (region in conf$rte_subfamily_read_level_analysis) {
         df$region <- region
         df$sample <- sample_name
         df$condition <- sample_table[sample_table$sample_name == sample_name, "condition"]
-        grs <- GRanges(df %>% dplyr::rename(seqnames = chrom, start = ref_position, strand = ref_strand) %>% mutate(end = start))
+        grsx <- GRanges(df %>% dplyr::rename(seqnames = chrom, start = ref_position, strand = ref_strand) %>% mutate(end = start))
         eoi <- import(paste0("aref/extended/A.REF_annotations/A.REF_rte_beds/", region, ".bed"))
-        mbo <- mergeByOverlaps(grs, eoi)
+        mbo <- mergeByOverlaps(grsx, eoi)
         df1 <- as.data.frame(mbo) %>%
             tibble() %>%
-            dplyr::select(starts_with("grs"), name) %>%
+            dplyr::select(starts_with("grsx"), name) %>%
             dplyr::rename(gene_id = name)
-        colnames(df1) <- gsub("grs.", "", colnames(df1))
+        colnames(df1) <- gsub("grsx.", "", colnames(df1))
         readslistcg <- c(readslistcg, list(df1))
     }
 }

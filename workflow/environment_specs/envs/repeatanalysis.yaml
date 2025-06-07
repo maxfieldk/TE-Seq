@@ -38,4 +38,5 @@ dependencies:
   - r-circlize
   - bioconductor-complexheatmap
   - r-magick
+  - r-complexupset
 prefix: repeatanalysis

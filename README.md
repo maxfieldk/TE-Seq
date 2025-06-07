@@ -43,7 +43,7 @@ This project derives from my work in the __Sedivy Lab at Brown University__, whe
 - Before diving into implementation details and runtime instructions, some biological and technical considerations are in order. The assessment of TE expression via short-read sequencing data has its limitations. Here I list several pitfalls to be aware of when designing experiments and interpreting results.
 - Mappability is a function of read-length: a 50bp single-end read library will have a much greater number of multi-mapping reads as compared to a 150bp paired-end read library. Accordingly, insorfar as TE expression analysis is a primary goal, I recommend opting for the latter.
 - While overall a more accurate and less biased strategy than only considering uniquely mapping reads, EM re-assignment of multi-mapping reads is imperfect, and element-level read estimates should be interpreted as best guesses when they are comprised of a substantial fraction of multi-mapping reads. For more on this, see: Teissandier, Aurélie, Nicolas Servant, Emmanuel Barillot, and Deborah Bourc’his. “Tools and Best Practices for Retrotransposon Analysis Using High-Throughput Sequencing Data.”  _Mobile DNA_  10, no. 1 (December 29, 2019): 52.  [https://doi.org/10.1186/s13100-019-0192-1](https://doi.org/10.1186/s13100-019-0192-1).
-- If your sequencing data contain batch effects, one must be mindful that batch effect correction is an imperfect procedure which can in itself introduce a bias. This problem is particularly acute when biological conditions of interest are imbalanced with respect to batch. This pipeline accounts for batch in two places. The first is in DESeq2's linear model; the second is when producing batch corrected count tables using limma. Note that this pipeline is limited in correcting for up to two categorical variables of interest (e.g. batch and sex), as limma can handle at most two categorical variables (however, any additional number of continuous covariates can be adjusted for (e.g. age, RNAintegrity)). DESeq2's linear modelling better handles the batch effect and it's p-value estimates (for individual genes and repetitive elements) will be more reliable than any statistics produced downstream of limma "batch-corrected" counts (comparisons between repetitive element family total counts). Therefore, in the context of an unbalanced dataset, TE family comparison's based on adjusted counts need to be interpreted with a serving of salt, and in the context of non-batch adjusted results. For a more thorough discussion of the issue, consider: Nygaard, Vegard, Einar Andreas Rødland, and Eivind Hovig. “Methods That Remove Batch Effects While Retaining Group Differences May Lead to Exaggerated Confidence in Downstream Analyses.” Biostatistics 17, no. 1 (January 1, 2016): 29–39. https://doi.org/10.1093/biostatistics/kxv027.
+- If your sequencing data contain batch effects, one must be mindful that batch effect correction is an imperfect procedure which can in itself introduce a bias. This problem is particularly acute when biological conditions of interest are imbalanced with respect to batch. The TE-Seq pipeline accounts for batch effects in three places: i) in DESeq2's linear model, ii) when modelling pooled TE family counts (see next paragraph), and iii) during the production of batch-corrected count tables using limma. Note that this pipeline is limited in producing batch corrected counts for up to two categorical variables of interest (e.g. race and sex), as limma can handle at most two categorical variables (however, any additional number of continuous covariates can be adjusted for (e.g. age, RNAintegrity)). For a more thorough discussion of the batch effect issue, consider: Nygaard, Vegard, Einar Andreas Rødland, and Eivind Hovig. “Methods That Remove Batch Effects While Retaining Group Differences May Lead to Exaggerated Confidence in Downstream Analyses.” Biostatistics 17, no. 1 (January 1, 2016): 29–39. https://doi.org/10.1093/biostatistics/kxv027.
  
 - Each individual human has only the order of 100 L1 insertions which are not captured by a reference genome. This speaks to the degree of polymorphism incurred by the TE way of life. Analytically, this means that reads derived from such elements will necessarily be assigned to other, reference, elements. This problem is particularly acute seeing as the polymorphic, non-reference TEs are likely some of the most active elements in the genome (they have had less time since insertion to accrue mutations versus older, and hence potentially fixed, elements). If Nanopore DNA-sequences are not available, this problem can still be attenuated by using the most up to date reference genomes, such as telomere-to-telomere assemblies (Nurk, Sergey, Sergey Koren, Arang Rhie, Mikko Rautiainen, Andrey V. Bzikadze, Alla Mikheenko, Mitchell R. Vollger, et al. “The Complete Sequence of a Human Genome.” Science 376, no. 6588 (April 2022): 44–53. https://doi.org/10.1126/science.abj6987), which provide a more accurate map of TE insertions, especially in hard to assemble regions such as centromeres.
 - If using an rRNA-depletion library preparation strategy, one should be aware that differences in RNA-quality (fragmentation) can have profound effects on repetitive element expression estimates. Degraded libraries will have a greater fraction of intronic reads, and seeing as introns contains many TEs, our TE signal will be artificially inflated. For this reason, poly-A selected libraries are preferred. The following figure from NEB shows how different library preparation protocols affect the fraction of reads derived from different genomic compartments:
@@ -54,16 +54,16 @@ https://www.neb.com/en-us/products/e6310-nebnext-rrna-depletion-kit-human-mouse-
 ## Computational Requirements
   This pipeline uses the Snakemake workflow manager, and consists of several parts: a main "snakefile" which can deploy a number of module level snakefiles, which in turn contain the rules which specify each step of the analysis. These rules are like functions, they take in inputs and produce outputs.  
 ### Software Requirements
-  Software dependencies are packaged into a Docker containers which will automatically be built and used by the Snakemake pipeline at the time of execution. Docker or singularity must be available in order to have Snakemake deploy containers.These containers contain all dependencies except for the Dorado basecaller, which will need to be installed manually if you are using long Nanopore DNA reads. Users are free to alternatively choose to manually build the several Conda environments required by the pipeline using the provided yaml environment specifications, though this alternative is likely to result in greater overall frustration. Snakemake itself is installed in a Conda environment, and so users will need to have Conda available regardless https://conda.io/projects/conda/en/latest/user-guide/getting-started.html.  
-  This pipeline was primarily developed on a compute cluster running a RedHat Linux OS and which uses the SLURM workload manager. Nevertheless the use of docker containers should enable users on other operating systems to run the pipeline without difficulty.  
+  Software dependencies are packaged into a Docker containers which will automatically be built and used by the Snakemake pipeline at the time of execution. Singularity must be available in order to have Snakemake deploy containers.These containers contain all dependencies. Users are free to alternatively choose to manually build the several Conda environments required by the pipeline using the provided yaml environment specifications, though this alternative is likely to result in greater overall frustration. Snakemake itself is installed in a Conda environment, and so users will need to have Conda available regardless https://conda.io/projects/conda/en/latest/user-guide/getting-started.html.  
+  This pipeline was primarily developed on a compute cluster running a RedHat Linux OS and which uses the SLURM workload manager. Nevertheless the use of Docker containers should enable users on other operating systems to run the pipeline without difficulty.  
 ### Hardware Requirements
   This pipeline allows for the parallel execution of many jobs which can occur simultaneously. Consequently, it is highly recommended to execute this pipeline on a compute cluster to take advantage of the corresponding diminishment of total runtime afforded by parallelization. Snakemake is designed to work with many commonly-used cluster workload managers such as SLURM.  
   Many steps require a substantial amount of RAM (north of 20 GB) to be available on your system, else they will fail and give you OOM (out-of-memory) errors.  This pipeline will likely fail if run on a personal computer without at least 64 GB of RAM.
 # Installation
 ## Create a Snakemake containing Conda environment
-  Create a Snakemake Conda environment from which you can run the Snakemake pipeline. If your computer / compute cluster uses a workload manager (e.g. slurm) install any workload manager specific Snakemake executor plugins in this environment (e.g. the snakemake-executor-plugin-slurm if your system uses slurm. A full listing of the availible plugins is availible at https://snakemake.github.io/snakemake-plugin-catalog/ )  
+  Create a Snakemake Conda environment from which you can run the Snakemake pipeline. If your computer / compute cluster uses a workload manager (e.g. slurm) install any workload manager specific Snakemake executor plugins in this environment (e.g. the snakemake-executor-plugin-slurm if your system uses slurm. A full listing of the availible plugins is availible at https://snakemake.github.io/snakemake-plugin-catalog/ ). If Singularity is not installed on your system already (you can check by running the "singularity version" at the command line) then you should include Singularity in your conda environment. The following call will create a snakemake environment for use on a slurm cluster and include singularity:
   ```
-    conda create --name snakemake snakemake snakemake-executor-plugin-slurm
+    conda create --name snakemake snakemake snakemake-executor-plugin-slurm singularity
   ```
   If you are not able to use Docker/Singularity and/or want to be able to modify environments, you can create all of the environments in the envs/ directory.
   ```
@@ -76,7 +76,6 @@ https://www.neb.com/en-us/products/e6310-nebnext-rrna-depletion-kit-human-mouse-
    mamba env create --file envs/rseqc.yaml
   ```
 
-  If you are providing long Nanopore DNA reads (optional), you will have to install the Dorado basecaller locally. To do so please visit https://github.com/nanoporetech/dorado and follow their installation instructions.
   
 ## Setup your project directory
   Create a project directory
@@ -96,8 +95,11 @@ cp -r workflow/conf_example conf
 ## Configure your analysis
   In order to run this pipeline, a number of configuration files must be edited to reflect your data and analytical decisions. Here I will walk you through the setup needed to execute the AREF and SRNA modules.
   
-  Modify the contents of __conf/sample_table_srna.csv__. You provide two mandatory columns "sample_name" (e.g. Profiferating_1) and "condition" (e.g. Proliferating), and optionally meta-data variables. You can include up to 2 columns which contain the string "batchCat" (e.g. "batchCat", and "batchCat_lane"), which will be used to batch correct the influence of categorical variables in the differential expression analysis and when generating batch-corrected counts. If you only have one categorical batch variable to model, it must be called "batchCat", and if you have two, the main batch effect should be titled "batchCat", and this will be the batch effect shown in various qc plots (but both will be modeled by Deseq2/limma). You can provide any number of continuous covariates to adjust for; these must start with the string "batchCon" (e.g. "batchCon_age"). You can provide a column titled RIN (or batchCon_RIN if you wish to adjust for RIN), which informs the pipeline about sample RNA integrity, and various extra QC plots will be created with this information. 
+  Modify the contents of __conf/sample_table_srna.csv__. You provide two mandatory columns "sample_name" (e.g. Profiferating_1) and "condition" (e.g. Proliferating), and optionally meta-data variables. 
+  Covariates intended to be adjusted for are to be indicated by their column name, which must either start with "covariate" or one of "batchCat"/"batchCon" (categorical batch variable or continuous batch variable). Both "covariate" and "batchCat/batchCon" flagged columns will be included in DESeq2 models as well as TE subfamily aggregate-count negative binomial modelling. However only "batch" flagged columns will be used when producing batch-adjusted counts with limma. While any number of "covariate" and "batchCon" variables can be included, you can include up to 2 columns which contain the string "batchCat" (e.g. "batchCat", and "batchCat_sex"). If you only have one categorical batch variable to model, it must be called "batchCat", and if you have two, the main batch effect should be titled "batchCat", and this will be the batch effect shown in various qc plots. You can provide a column titled RIN (or batchCon_RIN if you wish to adjust for RIN), which informs the pipeline about sample RNA integrity, and various extra QC plots will be created with this information. 
   Make sure sample names do not start with numbers (add an X in front if they do), and that these names do not contain a period "." or dash "-" character (these are excluded by wildcard constraints in several rules).
+  As an example of how to setup a sample_table_srna.csv, suppose you have RNA-seq data on a cohort of patients with or without arthritis, and you wish to examine the relationship between TE expression and arthritis. Samples were collected either from hospital A or from hospital B. We might specify provide the following sample_table_srna columns:
+  "batchCat" for whether a sample was obtained from hospitalA or hospitalB, "batchCon_age" to model the effect of patient age, "batchCat_sex" to model patient sex. Additionally, we might consider adding a "covariate_race" column to include information on patient race, which would be used in differential expression testing but not for adjusting counts.
 
 
 Modify the contents of __conf/config.yaml__. This file's contents determine the way in which the pipeline is run.
@@ -243,7 +245,7 @@ Make sure your fastq file naming is consistent with the naming scheme set forth 
   Elements are denoted as full-length or truncated depending on whether they cover at least 95% (this is a tunable parameter) of their representative consensus sequence. TE subfamilies are deemed ‘young’ if the average percent divergence (as determined by RepeatMasker) of all subfamily members is less than 15%. The length and age thresholds are arbitrary hard cut-offs and are therefore tunable parameters - simply change the values of the "fulllength_trnc_length_threshold" and "yng_old_divergence_threshold" keys.
   
 #### If supplying long Nanopore DNA reads (optional)
-  First install the Dorado basecaller (https://github.com/nanoporetech/dorado). Next provide the full path to the dorado executable by modifying the "aref" "dorado" key's value. Now you will need to configure various aspects of basecalling pertaining to the basecalling model used. There are three parameters to set: basecalling rate (4khz (older flow cells) or 5khz (for current day models)), basecalling type (fast, hac, sup), and a modification string which contains any DNA modifications to call, separated by dashes (instead of commas as instructed on the dorado webpage) - e.g. 5mCG_5hmCG-6ma (note that 5mCG_5hmCG is treated as one model, hence there is no dash between 5mCG and 5hmCG - see dorado webpage for full instructions). For instance, if you are interested in calling DNA CpG methylation, you might set these parameters to 5khz, sup, 5mCG. The dorado github page has detailed instructions for determining which combination of these parameters is right for you following the DNA Models header (https://github.com/nanoporetech/dorado). 
+  You will need to configure various aspects of basecalling pertaining to the basecalling model used. There are three parameters to set: basecalling rate (4khz (older flow cells) or 5khz (for current day models)), basecalling type (fast, hac, sup), and a modification string which contains any DNA modifications to call, separated by dashes (instead of commas as instructed on the dorado webpage) - e.g. 5mCG_5hmCG-6ma (note that 5mCG_5hmCG is treated as one model, hence there is no dash between 5mCG and 5hmCG - see dorado webpage for full instructions). For instance, if you are interested in calling DNA CpG methylation, you might set these parameters to 5khz, sup, 5mCG. The dorado github page has detailed instructions for determining which combination of these parameters is right for you following the DNA Models header (https://github.com/nanoporetech/dorado). 
 ### SRNA
   The "per_sample_ref" key's value instructs the pipeline as to whether each sample has its own unique reference and TE annotations ("yes"; this situtaion occurs when you have nanopore DNA sequencing on all samples and wish to use custom references), or whether all samples will be using the same reference and TE annotations.  
   In order to rule out mycoplasma contamination of cultured cells, reads are mapped to a collection of mycoplasma genomes (nearly 100% of reads should then fail to map). This is done by default. Insofar as your samples are not cultured cells, you can omit this step by switching the "srna" "map_to_mycoplasma" key's value from "yes" to "no". 
@@ -262,7 +264,7 @@ CTRL F to the only occurrence of "conf$species". You will find two blocks of cod
   conda activate snakemake
   snakemake --profile workflow/profile/default -n
   ```
-  If you are happy with this plan of action, deploy the pipeline by calling Snakemake. Note that at the onset of the first run, snakemake will pull and build the docker/singularity containers. This can be quite memory intensive - accordingly if you are on a shared / cluster computer, this job may be killed by an "out of memory" error. To get around this, call snakemake from an interactive shell afforded ample memory (200Gb) - this is only necessary on the first call of the pipeline. 
+  If you are happy with this plan of action, deploy the pipeline by calling Snakemake. Note that at the onset of the first run, snakemake will pull and build the Docker/Singularity containers. This can be quite memory intensive - accordingly if you are on a shared / cluster computer, this job may be killed by an "out of memory" error. To get around this, call snakemake from an interactive shell afforded ample memory (200Gb) - this is only necessary on the first call of the pipeline.
   ```
   snakemake --profile workflow/profile/default
   ```
@@ -316,18 +318,41 @@ At the highest level, RNA-seq results are partitioned into 6 sub-folders found i
 
 ### Location of main result tables:
 
-Gene/Repetitive Element normalized counts + differential analysis results  
+Gene/Repetitive Element normalized counts (deseq2 size factor normalized) + differential analysis results  
   srna/results/agg/deseq/resultsdf.tsv  
 The deseq folder has the resultsdf, which has deseq2 normalized counts (and if a batch variable/confounders were specified in the config, these counts are also batch corrected by limma) as well as deseq2 p-values for all contrasts.
 
+Normalized counts (deseq2 size factor normalized) with or without batch correction
+  srna/results/agg/deseq/telescope_multi/counttablesizenormedbatchnotremoved.csv
+  srna/results/agg/deseq/telescope_multi/counttablesizenormedbatchremoved.csv
+  srna/results/agg/deseq/telescope_unique/counttablesizenormedbatchnotremoved.csv
+  srna/results/agg/deseq/telescope_unique/counttablesizenormedbatchremoved.csv
+
+Variance stabilized normalized counts (deseq2 size factor normalized) with or without batch correction
+  srna/results/agg/deseq/telescope_multi/rtes/batchRemoved_no/vst_counts.csv
+  srna/results/agg/deseq/telescope_multi/rtes/batchRemoved_yes/vst_counts.csv
+  srna/results/agg/deseq/telescope_multi/genes/batchRemoved_no/vst_counts.csv
+  srna/results/agg/deseq/telescope_multi/genes/batchRemoved_yes/vst_counts.csv
+  srna/results/agg/deseq/telescope_unique/rtes/batchRemoved_no/vst_counts.csv
+  srna/results/agg/deseq/telescope_unique/rtes/batchRemoved_yes/vst_counts.csv
+  srna/results/agg/deseq/telescope_unique/genes/batchRemoved_no/vst_counts.csv
+  srna/results/agg/deseq/telescope_unique/genes/batchRemoved_yes/vst_counts.csv
+
 Sample size factors (determined by deseq2 to adjust for sequencing depth)  
   srna/results/agg/deseq/telescope_multi/sizefactors.csv
+  srna/results/agg/deseq/telescope_unique/sizefactors.csv
+
+
+TE subset (family, subfamily, etc.) differential expression of aggregated count statistics
+  srna/results/agg/repeatanalysis/telescope_multi/te_group_stats.csv
+  srna/results/agg/repeatanalysis/telescope_unique/te_group_stats.csv
 
 Untargeted GSEA results (all of msigdb)  
 	srna/results/agg/enrichment_analysis/results_table_unbiased.tsv
 
 GSEA of rte clades results  
 srna/results/agg/enrichment_analysis_repeats/telescope_multi/results_table.tsv
+srna/results/agg/enrichment_analysis_repeats/telescope_unique/results_table.tsv
 
 Raw feature_counts unnormalized counts  
 	srna/outs/agg/featurecounts_genes/counts.txt

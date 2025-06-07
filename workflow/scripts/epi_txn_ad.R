@@ -65,51 +65,10 @@ tryCatch(
 
 
 ldna_sample_table <- read_csv("conf/sample_table_ldna.csv")
-if ("srna" %in% modules_run) {
-    srna_sample_table <- read_csv("conf/sample_table_srna.csv") %>% mutate(condition = factor(condition, levels = confALL$srna$levels))
-}
-if ("lrna" %in% modules_run) {
-    lrna_sample_table <- read_csv("conf/sample_table_lrna.csv")
-    lrna_df <- read_delim(inputs$lrna_results, delim = "\t") %>% filter(counttype == "telescope_multi")
-    colnames(lrna_df) <- paste0("lrna_", colnames(lrna_df)) %>% gsub("lrna_gene_id", "gene_id", .)
-}
-if (confALL$ldna$single_condition == "no") {
-    if (("lrna" %in% modules_run) & ("srna" %in% modules_run)) {
-        lrna_conditions <- lrna_sample_table$condition
-        srna_conditions <- srna_sample_table$condition
-        ldna_conditions <- ldna_sample_table$condition
-        shared_conditions <- intersect(intersect(srna_conditions, lrna_conditions), ldna_conditions)
+srna_sample_table <- read_csv("conf/sample_table_srna.csv") %>% mutate(condition = factor(condition, levels = confALL$srna$levels))
+srna_samples <- srna_sample_table %$% sample_name
+ldna_samples <- ldna_sample_table %$% sample_name
 
-        srna_samples <- srna_sample_table %>% filter(condition %in% shared_conditions) %$% sample_name
-        lrna_samples <- lrna_sample_table %>% filter(condition %in% shared_conditions) %$% sample_name
-    } else if (("srna" %in% modules_run)) {
-        srna_conditions <- srna_sample_table$condition
-        ldna_conditions <- ldna_sample_table$condition
-        shared_conditions <- intersect(srna_conditions, ldna_conditions)
-
-        srna_samples <- srna_sample_table %>% filter(condition %in% shared_conditions) %$% sample_name
-    } else if (("lrna" %in% modules_run)) {
-        lrna_conditions <- lrna_sample_table$condition
-        ldna_conditions <- ldna_sample_table$condition
-
-        shared_conditions <- intersect(lrna_conditions, ldna_conditions)
-        shared_contrasts <- intersect(lrna_contrasts, ldna_contrasts)
-        lrna_samples <- lrna_sample_table %>% filter(condition %in% shared_conditions) %$% sample_name
-    }
-
-    ldna_samples <- ldna_sample_table %>% filter(condition %in% shared_conditions) %$% sample_name
-} else {
-    integrated_sample_table <- read_csv("conf/sample_table_integrated.csv")
-    ldna_samples <- integrated_sample_table %$% ldna
-    if (("lrna" %in% modules_run) & ("srna" %in% modules_run)) {
-        srna_samples <- integrated_sample_table %$% srna
-        lrna_samples <- integrated_sample_table %$% lrna
-    } else if (("srna" %in% modules_run)) {
-        srna_samples <- integrated_sample_table %$% srna
-    } else if (("lrna" %in% modules_run)) {
-        lrna_samples <- integrated_sample_table %$% lrna
-    }
-}
 
 rmannShared <- read_csv(conf$rmann)
 rmannSamples <- list()
@@ -244,7 +203,7 @@ l1hs_promoterregion_meth_by_sample_tidy_strictly_intergenic_sense <- l1hs_promot
     ungroup()
 
 
-l1hs_promoterregion_hdmr_by_gene_tidy <- read_csv(sprintf("ldna/Rintermediates/%s/%s/highly_demethylated_reads_by_gene_id.csv", params$mod_code, "L1HS_intactness_req_ALL")) %>%
+l1hs_promoterregion_hdmr_by_gene_tidy <- read_csv(sprintf("ldna/Rintermediates/%s/%s/highly_demethylated_reads_by_gene_id.csv", params$mod_code, "L1HS_FL")) %>%
     dplyr::rename(sample_name = sample) %>%
     mutate(gene_id = case_when(
         grepl("NI_", gene_id) ~ paste0(sample_name, "_", gene_id),

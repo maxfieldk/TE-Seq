@@ -87,10 +87,10 @@ rule align_to_ref_winnowmap:
         "ldna/benchmarks/winnowmap/{sample}.tsv"
     params:
         winnowmap = config["aref"]["winnowmap"],
-        reference = config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"]
+        reference = lambda wildcards: "aref/extended/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF.fa"
     container: None
     output:
-        sam = temp(expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sam",ref_genome = "winnowmap", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]))
+        sam = temp(expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sam",ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]))
     resources:
         cpus_per_task =20,
         runtime = 2400,
@@ -113,8 +113,8 @@ rule call_tldr_per_sample:
 species = config["aref"]["species"]
 rule tldr_per_sample:
     input:
-        bam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.bam",ref_genome = "winnowmap", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-        bai = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.bam.bai",ref_genome = "winnowmap", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+        bam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.bam",ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        bai = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.bam.bai",ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
     benchmark:
         "ldna/benchmarks/tldr_per_sample/{sample}.tsv"
     params:
@@ -419,6 +419,8 @@ rule mycoplasmaCheck:
         cpus_per_task =20,
         runtime = 900,
         mem_mb = 80000
+    container:
+        None
     conda:
         "minimap2"
     shell:
@@ -448,6 +450,33 @@ rule dorado_seqsummary:
 {params.dorado} summary {input.sortedbam} > {output}
         """
 
+rule coverage:
+    input:
+        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        sortedbambai = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.bam.bai", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+    params:
+        fai = lambda wildcards: "aref/extended/%s.fa.fai"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF.fa.fai"
+    output:
+        bg = "ldna/intermediates/{sample}/coverage/{ref_genome}/{sample}.sorted.filterednosup.bg"
+    resources:
+        cpus_per_task = 8,
+        runtime = 100,
+        mem_mb = 80000
+    container: None
+    conda:
+        "omics"
+    shell:
+        """
+mosdepth --by 1000 --no-per-base --fast-mode --threads 4 {output.bg}.mosdepth {input.sortedbam}
+
+zcat {output.bg}.mosdepth.regions.bed.gz \
+| awk 'BEGIN{{OFS="\\t"}} {{print $1, $2, $3, $4}}' > {output.bg}
+        """
+
+rule getcov:
+    input:
+        expand("ldna/intermediates/{sample}/coverage/{ref_genome}/{sample}.sorted.filterednosup.bg", sample = samples, ref_genome = "analysis_default")
+
 rule pycoQC:
     input:
         seqsummary = "ldna/qc/{sample}/{sample}.doradosummary.txt",
@@ -466,7 +495,7 @@ rule multiqc:
     input:
         mycoplasma = expand("ldna/qc/mycoplasma/mycoplasma{sample}.bam", sample = samples)
     conda:
-        "omics"
+        "qc"
     output:
         report = "ldna/qc/multiqc_report.html"
     shell:
@@ -540,6 +569,26 @@ rule filterbam:
         """
 #keeps on only primary and supplementary alignments
 samtools view -b -F 0x100 -q {params.min_mapq} -e '[qs] >= {params.min_qscore}' {input.bam} > {output.bam}
+        """
+
+rule filterbamnosup:
+    input:
+        bam = "ldna/{path}.sorted.bam"
+    params:
+        min_mapq = 10,
+        min_qscore = 10
+    output:
+        bam = "ldna/{path}.sorted.filterednosup.bam"
+    resources:
+        cpus_per_task =6,
+        mem_mb = 40000,
+        runtime = 300
+    conda:
+        "omics"
+    shell: 
+        """
+#keeps on only primary and supplementary alignments
+samtools view -b -F 2304 -q {params.min_mapq} -e '[qs] >= {params.min_qscore}' {input.bam} > {output.bam}
         """
 #tag PHASING
 
@@ -674,8 +723,8 @@ rule get_haplo_bam:
 
 rule modbamtobed:
     input:
-        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
     params:
         ref = lambda wildcards: "/oscar/data/jsedivy/mkelsey/ref/genomes/hg38/hg38.p13.sorted.fa" if wildcards.ref_genome == "hg38" else "aref/extended/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF.fa"
     resources:
@@ -783,8 +832,8 @@ rule bedmethylanalysis_process_unfiltered_hardtomapregions:
 
 rule modbamtobed_region:
     input:
-        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.bam.bai", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
     params:
         ref = config["ldna"]["reference"],
         reference_annotation_dir = config["ldna"]["reference_annotation_dir"]
@@ -847,6 +896,7 @@ rule dss:
         dmrs_unfiltered = "ldna/results/{mod_code}/tables/dmrs.{chr}.unfiltered.tsv",
         dmls = "ldna/results/{mod_code}/tables/dmls.{chr}.tsv",
         dmrs = "ldna/results/{mod_code}/tables/dmrs.{chr}.tsv"
+    container: None
     conda:
         "dss2"
     resources:
@@ -876,8 +926,8 @@ rule merge_dss:
 
 rule extractmods:
     input:
-        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.bam.bai", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
     output:
         read_mods = 'ldna/intermediates/{sample}/methylation/analysis_default/{sample}_readmods_NoContext_{region}.tsv'
     params:
@@ -904,8 +954,8 @@ mkdir -p $(dirname {output})
 
 rule extractmods_cg_context:
     input:
-        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.bam.bai", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
     output:
         read_mods = 'ldna/intermediates/{sample}/methylation/analysis_default/{sample}_readmods_CpG_{region}.tsv'
     params:
@@ -931,6 +981,136 @@ mkdir -p $(dirname {output})
 {input.sortedbam} \
 {output.read_mods}
         """
+
+rule extractmods_cg_context_cpgislands:
+    input:
+        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.bam.bai", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+    output:
+        read_mods = 'ldna/intermediates/{sample}/methylation/analysis_default/{sample}_readmods_CpG_cpgI.tsv'
+    params:
+        ref = config["ldna"]["reference"],
+    resources:
+        cpus_per_task = 8,
+        mem_mb = 80000
+    conda:
+        "omics"
+    shell: 
+        """
+mkdir -p $(dirname {output})
+
+/oscar/data/jsedivy/mkelsey/tools/modkit extract \
+--cpg \
+--mapped \
+--no-filtering \
+--include-bed aref/extended/A.REF_annotations/cpg_islands.proper.bed \
+--ref {params.ref} \
+--threads {resources.cpus_per_task} \
+{input.sortedbam} \
+{output.read_mods}.temp.tsv
+
+Rscript workflow/ldna/scripts/retain_essential_read_info.R {output.read_mods}.temp.tsv
+rm {output.read_mods}.temp.tsv
+        """
+
+ruleorder: extractmods_cg_context_cpgislands > extractmods_cg_context
+rule get_cpgI_reads:
+    input:
+        expand('ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_readmods_{context}_{region}.tsv', sample = samples, ref_genome = "analysis_default", region = "cpgI", context = ["CpG"]),
+
+rule merge_cpgI_reads:
+    input:
+        expand(
+            'ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_readmods_{context}_{region}.tsv',
+            sample=samples,
+            ref_genome="analysis_default",
+            region="cpgI",
+            context=["CpG"]
+        )
+    output:
+        'ldna/intermediates/merged/merged_cpgI_reads1.tsv'
+    shell:
+        """
+header_printed=0
+for f in {input}; do
+    sample=$(basename "$f" | cut -d'_' -f1)
+    if [[ $header_printed -ne 1 ]]; then
+        awk -F '\t' -v sample="$sample" 'BEGIN {{ OFS="\t" }} 
+            NR==1 {{ print $0, "sample_name"; next }} 
+            NR>1 && $3 == "chr1" {{ print $0, sample }}' "$f" >> {output}
+        header_printed=1
+    else
+        awk -F '\t' -v sample="$sample" 'BEGIN {{ OFS="\t" }} 
+            NR>1 && $3 == "chr1" {{ print $0, sample }}' "$f" >> {output}
+    fi
+done
+        """
+
+
+rule extractmods_cg_context_rois:
+    input:
+        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.bam.bai", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+    output:
+        read_mods = 'ldna/intermediates/{sample}/methylation/analysis_default/{sample}_readmods_CpG_rois.tsv'
+    params:
+        ref = config["ldna"]["reference"],
+    resources:
+        cpus_per_task = 8,
+        mem_mb = 80000
+    conda:
+        "omics"
+    shell: 
+        """
+mkdir -p $(dirname {output})
+
+/oscar/data/jsedivy/mkelsey/tools/modkit extract \
+--cpg \
+--mapped \
+--no-filtering \
+--include-bed ldna/Rintermediates/m/regions_to_extract_reads_from.bed \
+--ref {params.ref} \
+--threads {resources.cpus_per_task} \
+{input.sortedbam} \
+{output.read_mods}.temp.tsv
+
+Rscript workflow/ldna/scripts/retain_essential_read_info.R {output.read_mods}.temp.tsv
+rm {output.read_mods}.temp.tsv
+        """
+
+ruleorder: extractmods_cg_context_rois > extractmods_cg_context
+rule get_rois_reads:
+    input:
+        expand('ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_readmods_{context}_{region}.tsv', sample = samples, ref_genome = "analysis_default", region = "rois", context = ["CpG"]),
+
+rule merge_rois_reads:
+    input:
+        expand(
+            'ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_readmods_{context}_{region}.tsv',
+            sample=samples,
+            ref_genome="analysis_default",
+            region="rois",
+            context=["CpG"]
+        )
+    output:
+        'ldna/intermediates/merged/merged_rois_reads.tsv'
+    shell:
+        """
+header_printed=0
+for f in {input}; do
+    sample=$(basename "$f" | cut -d'_' -f1)
+    if [[ $header_printed -ne 1 ]]; then
+        awk -F '\t' -v sample="$sample" 'BEGIN {{ OFS="\t" }} 
+            NR==1 {{ print $0, "sample_name"; next }} 
+            NR>1 {{ print $0, sample }}' "$f" >> {output}
+        header_printed=1
+    else
+        awk -F '\t' -v sample="$sample" 'BEGIN {{ OFS="\t" }} 
+            NR>1 {{ print $0, sample }}' "$f" >> {output}
+    fi
+done
+        """
+
 
 rule genomewide_meth:
     input:
@@ -980,7 +1160,7 @@ rule bedmethylanalysis_process:
         grsdf = "ldna/Rintermediates/{mod_code}/grsdf.tsv"
     resources:
         cpus_per_task =10,
-        mem_mb = 200000,
+        mem_mb = 250000,
         runtime = 400
     conda:
         "ds"
@@ -998,7 +1178,7 @@ rule bedmethylanalysis_process_single_condition:
         grsdf = "ldna/Rintermediates/{mod_code}/grsdf.tsv"
     resources:
         cpus_per_task =10,
-        mem_mb = 200000,
+        mem_mb = 250000,
         runtime = 400
     conda:
         "ds"
@@ -1109,6 +1289,7 @@ rule init_wgbstools_default_ref:
         runtime = 1000,
         mem_mb = 128000,
         cpus_per_task = 10
+    container: None
     conda: "omics"
     shell:
         """
@@ -1128,6 +1309,7 @@ rule init_wgbstools_hg38:
         runtime = 1000,
         mem_mb = 128000,
         cpus_per_task = 10
+    container: None
     conda: "omics"
     shell:
         """
@@ -1138,13 +1320,14 @@ touch {output.outfile}
 rule wgbs_bam2pat:
     input:
         outfile = "aref/extended/A.REF.{ref_genome}.wgbs.init.out",
-        bam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        bam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
     output:
-        pat = expand("ldna/results/{{mod_code}}/wgbs/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        pat = expand("ldna/results/{{mod_code}}/wgbs/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
     resources:
         runtime = 1000,
         mem_mb = 128000,
         cpus_per_task = 26
+    container: None
     conda: "omics"
     shell:
         """
@@ -1154,11 +1337,11 @@ mkdir -p $(dirname {output})
 
 rule get_hg38_pat:
     input:
-        pat = expand("ldna/results/m/wgbs/hg38/{sample}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample= samples),
+        pat = expand("ldna/results/m/wgbs/hg38/{sample}.{type}.{modification_string}.sorted.filterednosup.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample= samples),
 
 rule uxm_deconv:
     input:
-        pat = expand("ldna/results/m/wgbs/hg38/{sample}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
+        pat = expand("ldna/results/m/wgbs/hg38/{sample}.{type}.{modification_string}.sorted.filterednosup.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
     params:
         atlas = "/users/mkelsey/data/Nanopore/alz/Atlas.U25.l4.hg38.tsv"
     output:
@@ -1177,11 +1360,12 @@ uxm deconv --include Neuron Oligodend --atlas {params.atlas} --output ${{outputc
 
 rule get_merged_pat:
     input:
-        pat = expand("ldna/results/{{mod_code}}/wgbs/analysis_default/{sample}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
+        pat = expand("ldna/results/{{mod_code}}/wgbs/analysis_default/{sample}.{type}.{modification_string}.sorted.filterednosup.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
     params:
         inputdir = lambda wildcards: "ldna/results/%s/wgbs/analysis_default"%wildcards.mod_code,
         level1 = config["ldna"]["levels"][0],
         level2 = lambda wildcards: config["ldna"]["levels"][1] if len(config["ldna"]["levels"]) > 1 else None,  # Second level if exists    
+    container: None
     conda:
         "omics"
     output:
@@ -1211,6 +1395,7 @@ rule pat_fig:
         runtime = 100,
         mem_mb = 10000,
         cpus_per_task = 4
+    container: None
     conda: "omics"
     shell:
         """
@@ -1235,7 +1420,7 @@ touch {output.outfile}
 rule pat_fig_rtes:
     input:
         outfile = "ldna/results/{mod_code}/wgbs/analysis_default/merged/merged.outfile"
-        # pat = expand("ldna/results/wgbs/{sample}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
+        # bedmethanalysis_process = "ldna/Rintermediates/{mod_code}/grsdf.tsv"
     params:
         fl_rte = lambda wildcards: "/users/mkelsey/data/Nanopore/alz/RTE/ldna/Rintermediates/%s/flRTEpromoter.tsv"%wildcards.mod_code
     output:
@@ -1245,6 +1430,7 @@ rule pat_fig_rtes:
         runtime = 100,
         mem_mb = 10000,
         cpus_per_task = 4
+    container: None
     conda: "omics"
     shell:
         """
@@ -1278,6 +1464,7 @@ rule pat_fig_rtes_by_sample:
         runtime = 100,
         mem_mb = 10000,
         cpus_per_task = 4
+    container: None
     conda: "omics"
     shell:
         """
@@ -1305,8 +1492,8 @@ touch {output.outfile}
 
 rule methylartistlocusplot_loci_of_interest:
     input:
-        sortedbam = expand("ldna/intermediates/{sample}/alignments/{rate}/{ref_genome}/{sample}.{type}.{modification_string}.sorted.filtered.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples),
-        sortedbai = expand("ldna/intermediates/{sample}/alignments/{rate}/{ref_genome}/{sample}.{type}.{modification_string}.sorted.filtered.bam.bai", ref_genome = "analysis_default",rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples),
+        sortedbam = expand("ldna/intermediates/{sample}/alignments/{rate}/{ref_genome}/{sample}.{type}.{modification_string}.sorted.filterednosup.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples),
+        sortedbai = expand("ldna/intermediates/{sample}/alignments/{rate}/{ref_genome}/{sample}.{type}.{modification_string}.sorted.filterednosup.bam.bai", ref_genome = "analysis_default",rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples),
         dmrs = "ldna/results/{mod_code}/tables/dmrs.tsv",
         repeatmaskerbgz = "/users/mkelsey/data/Nanopore/alz/RTE/aref/extended/A.REF_annotations/A.REF_repeatmasker.complete.gtf.gz",
     resources:
@@ -1364,8 +1551,8 @@ touch {output}
 
 rule methylartistlocusplot_region_of_interest:
     input:
-        sortedbam = expand("ldna/intermediates/{sample}/alignments/{rate}/{ref_genome}/{sample}.{type}.{modification_string}.sorted.filtered.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples),
-        sortedbai = expand("ldna/intermediates/{sample}/alignments/{rate}/{ref_genome}/{sample}.{type}.{modification_string}.sorted.filtered.bam.bai", ref_genome = "analysis_default",rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples),
+        sortedbam = expand("ldna/intermediates/{sample}/alignments/{rate}/{ref_genome}/{sample}.{type}.{modification_string}.sorted.filterednosup.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples),
+        sortedbai = expand("ldna/intermediates/{sample}/alignments/{rate}/{ref_genome}/{sample}.{type}.{modification_string}.sorted.filterednosup.bam.bai", ref_genome = "analysis_default",rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples),
         dmrs = "ldna/results/{mod_code}/tables/dmrs.tsv",
         repeatmaskerbgz = "/users/mkelsey/data/Nanopore/alz/RTE/aref/extended/A.REF_annotations/A.REF_repeatmasker.complete.gtf.gz",
     resources:
@@ -1745,7 +1932,7 @@ samtools view {input.targetAlignmentROI} | awk -F'\t' '{{print $1}}' > {output.r
 
 rule subsetBamByReadIDs:
     input:
-        genomebam = "ldna/intermediates/{sample}/alignments/{sample}.sorted.filtered.bam",
+        genomebam = "ldna/intermediates/{sample}/alignments/{sample}.sorted.filterednosup.bam",
         readIDs = "ldna/intermediates/{sample}/alignments/{sample}_to_{target}_ROI.readIDs.txt"
     output:
         bam = "ldna/intermediates/{sample}/alignments/{sample}_genome_extracted_reads_that_mapped_to_{target}.bam",

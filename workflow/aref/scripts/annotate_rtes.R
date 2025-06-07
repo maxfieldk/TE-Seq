@@ -271,6 +271,7 @@ tryCatch(
                 modal_widths <- as.numeric(conf$orf_intactness$manual_subfamilies_of_interest[[element]])
             }
 
+            blast_results_list <- list()
             element_orf_intactness_df <- tibble(gene_id = names(active_family_ss))
             for (modal_width in modal_widths) {
                 # first build the consensus sequence using only fl elements
@@ -308,6 +309,8 @@ tryCatch(
                     names(ss) <- c(row$element_orf_id)
                     orf_ss_all <- c(orf_ss_all, ss)
                 }
+                orf_ss_all_path <- sprintf("%s/intactness_annotation_workdir/%s_all_orfs_nt.fa", outputdir, element)
+                writeXStringSet(orf_ss_all, orf_ss_all_path)
 
                 system(sprintf("makeblastdb -in %s -dbtype 'prot'", orf_aa_consensus_path))
 
@@ -320,7 +323,12 @@ tryCatch(
                 bres <- read_delim(orf_aa_ss_all_blast_results_path, comment = "#", delim = "\t", col_names = c("qseqid", "sseqid", "pident", "length", "mismatch", "gapopen", "qstart", "qend", "sstart", "send", "evalue", "bitscore"))
                 bres <- bres %>%
                     separate_wider_delim(cols = qseqid, delim = ":", names = c("gene_id", "orf_start")) %>%
-                    mutate(gene_orf_id = paste(gene_id, orf_start, delim = ":"))
+                    mutate(gene_orf_id = paste(gene_id, orf_start, sep = ":")) %>%
+                    mutate(orf_modal_width = modal_width)
+                blast_results_list[[as.character(modal_width)]] <- orf_frame_all %>%
+                    mutate(gene_orf_id = paste(group_name, start, sep = ":")) %>%
+                    dplyr::select(gene_orf_id, orf_start_nt = start, orf_end_nt = end) %>%
+                    left_join(bres)
 
                 # get intact ORFs
                 fully_intact_orfs <- bres %>%
@@ -347,6 +355,8 @@ tryCatch(
                 element_specific_orf_specific_df <- full_join(fully_intact_orfs, partially_intact_orfs)
                 element_orf_intactness_df <- left_join(element_orf_intactness_df, element_specific_orf_specific_df)
             }
+            blast_res_df <- purrr::reduce(blast_results_list, bind_rows)
+            write_csv(blast_res_df, sprintf("%s/intactness_annotation_workdir/%s_orf_all_blast_results.csv", outputdir, element))
             element_info_list[[element]] <- element_orf_intactness_df
         }
         rm(intactness_ann)
