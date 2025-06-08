@@ -1134,127 +1134,128 @@ tryCatch(
     }
 )
 
+if ((conf$single_condition == "no")) {
+    ########## PCA
+    library(PCAtools)
+    pcaframe <- perl1hs_5utr_region %>%
+        filter(region == "909") %>%
+        dplyr::select(sample, mean_meth, gene_id) %>%
+        pivot_wider(names_from = gene_id, values_from = mean_meth) %>%
+        arrange(sample) %>%
+        column_to_rownames(var = "sample") %>%
+        as.matrix() %>%
+        t()
+    pcaObj <- pca(pcaframe, center = TRUE, scale = FALSE, metadata = sample_table %>% column_to_rownames(var = "sample_name"))
 
-########## PCA
-library(PCAtools)
-pcaframe <- perl1hs_5utr_region %>%
-    filter(region == "909") %>%
-    dplyr::select(sample, mean_meth, gene_id) %>%
-    pivot_wider(names_from = gene_id, values_from = mean_meth) %>%
-    arrange(sample) %>%
-    column_to_rownames(var = "sample") %>%
-    as.matrix() %>%
-    t()
-pcaObj <- pca(pcaframe, center = TRUE, scale = FALSE, metadata = sample_table %>% column_to_rownames(var = "sample_name"))
-
-p <- screeplot(pcaObj, title = "") + mtopen + anchorbar
-mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/pca/screeplot.pdf", params$mod_code), 5, 4)
-
-
-# p <- plotloadings(pcaObj,
-#     components = getComponents(pcaObj, seq_len(3)),
-#     rangeRetain = 0.045, labSize = 2
-# ) + mtopen
-# mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/pca/loadings.pdf", params$mod_code), 5, 4)
-
-if (is.null(adjustment_set_categorical)) {
-    p <- biplot(pcaObj,
-        showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0, legendPosition = "right", colby = "condition",
-        labSize = 5, pointSize = 5, sizeLoadingsNames = 5
-    ) + mtopen + scale_conditions
-    mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/pca/biplot.pdf", params$mod_code), 5, 5)
-} else {
-    p <- biplot(pcaObj,
-        showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0, legendPosition = "right", shape = ifelse(is.null(adjustment_set_categorical), "", adjustment_set_categorical[1]), colby = "condition",
-        labSize = 5, pointSize = 5, sizeLoadingsNames = 5
-    ) + mtopen + scale_conditions
-    mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/pca/biplot.pdf", params$mod_code), 5, 5)
-}
+    p <- screeplot(pcaObj, title = "") + mtopen + anchorbar
+    mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/pca/screeplot.pdf", params$mod_code), 5, 4)
 
 
+    # p <- plotloadings(pcaObj,
+    #     components = getComponents(pcaObj, seq_len(3)),
+    #     rangeRetain = 0.045, labSize = 2
+    # ) + mtopen
+    # mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/pca/loadings.pdf", params$mod_code), 5, 4)
 
-
-
-pf <- pcaframe %>%
-    colMeans() %>%
-    as.data.frame() %>%
-    rownames_to_column() %>%
-    dplyr::rename(sample_name = "rowname", mean_meth = ".") %>%
-    tibble() %>%
-    left_join(sample_table) %>%
-    mutate(sample_name = fct_reorder(sample_name, mean_meth))
-p <- pf %>%
-    ggplot(aes(y = sample_name, x = mean_meth, fill = condition)) +
-    geom_col() +
-    scale_conditions +
-    new_scale_fill() +
-    geom_tile(aes(x = -1, fill = !!sym(asc)), width = 2) + # Add metadata strip
-    scale_palette +
-    mtopen
-stats <- summary(lm(formula(sprintf("%s ~ %s", "mean_meth", lm_right_hand_side)), pf)) %>% broom::tidy()
-mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/pca/mean_meth_bar1.pdf", params$mod_code), 5, 4, sf = stats)
-
-tryCatch(
-    {
-        p <- pf %>%
-            mutate(sample_name = fct_reorder(paste0(sample_name, "_", age), mean_meth)) %>%
-            ggplot(aes(y = sample_name, x = mean_meth, fill = condition)) +
-            geom_col() +
-            scale_conditions +
-            new_scale_fill() +
-            geom_tile(aes(x = -1, fill = !!sym(asc)), width = 2) + # Add metadata strip
-            scale_palette +
-            mtopen
-        stats <- summary(lm(formula(sprintf("%s ~ %s", "mean_meth", lm_right_hand_side)), pf)) %>% broom::tidy()
-        mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/pca/mean_meth_bar_withage.pdf", params$mod_code), 5, 4, sf = stats)
-
-        p <- pf %>%
-            mutate(sample_name = fct_reorder(paste0(sample_name, "_", age), age)) %>%
-            ggplot(aes(y = sample_name, x = mean_meth, fill = condition)) +
-            geom_col() +
-            scale_conditions +
-            new_scale_fill() +
-            geom_tile(aes(x = -1, fill = !!sym(asc)), width = 2) + # Add metadata strip
-            scale_palette +
-            mtopen
-        stats <- summary(lm(formula(sprintf("%s ~ %s", "mean_meth", lm_right_hand_side)), pf)) %>% broom::tidy()
-        mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/pca/mean_meth_bar_withage_ordered.pdf", params$mod_code), 5, 4, sf = stats)
-
-
-        p <- pf %>%
-            mutate(sample_name = fct_reorder(paste0(sample_name, "_", age), age)) %>%
-            ggplot(aes(y = sample_name, x = mean_meth, color = condition, shape = !!sym(asc))) +
-            geom_point(size = 3) +
-            scale_conditions +
-            geom_vline(xintercept = pf %>% filter(condition == condition2) %$% mean_meth %>% mean(), color = "blue", linetype = "dashed") +
-            geom_vline(xintercept = pf %>% filter(condition == condition1) %$% mean_meth %>% mean(), color = "grey", linetype = "dashed") +
-            geom_text_repel(aes(label = apoe)) +
-            # new_scale_fill() +
-            # geom_tile(aes(x = -1, fill = sex), width = 2) + # Add metadata strip
-            scale_conditions +
-            mtopen
-        stats <- summary(lm(formula(sprintf("%s ~ %s", "mean_meth", lm_right_hand_side)), pf)) %>% broom::tidy()
-        mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/pca/mean_meth_point_withage_ordered.pdf", params$mod_code), 5, 4, sf = stats)
-
-        p <- pf %>%
-            mutate(sample_name = fct_reorder(paste0(sample_name, "_", age), mean_meth)) %>%
-            ggplot(aes(y = sample_name, x = mean_meth, color = condition, shape = !!sym(asc))) +
-            geom_point(size = 3) +
-            scale_conditions +
-            geom_vline(xintercept = pf %>% filter(condition == condition2) %$% mean_meth %>% mean(), color = "blue", linetype = "dashed") +
-            geom_vline(xintercept = pf %>% filter(condition == condition1) %$% mean_meth %>% mean(), color = "grey", linetype = "dashed") +
-            geom_text_repel(aes(label = apoe)) +
-            # new_scale_fill() +
-            # geom_tile(aes(x = -1, fill = sex), width = 2) + # Add metadata strip
-            scale_conditions +
-            mtopen
-        stats <- summary(lm(formula(sprintf("%s ~ %s", "mean_meth", lm_right_hand_side)), pf)) %>% tidy()
-        mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/pca/mean_meth_point_withage_orderedmeth.pdf", params$mod_code), 5, 4, sf = stats)
-    },
-    error = function(e) {
-
+    if (is.null(adjustment_set_categorical)) {
+        p <- biplot(pcaObj,
+            showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0, legendPosition = "right", colby = "condition",
+            labSize = 5, pointSize = 5, sizeLoadingsNames = 5
+        ) + mtopen + scale_conditions
+        mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/pca/biplot.pdf", params$mod_code), 5, 5)
+    } else {
+        p <- biplot(pcaObj,
+            showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0, legendPosition = "right", shape = ifelse(is.null(adjustment_set_categorical), "", adjustment_set_categorical[1]), colby = "condition",
+            labSize = 5, pointSize = 5, sizeLoadingsNames = 5
+        ) + mtopen + scale_conditions
+        mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/pca/biplot.pdf", params$mod_code), 5, 5)
     }
-)
+
+
+
+
+
+    pf <- pcaframe %>%
+        colMeans() %>%
+        as.data.frame() %>%
+        rownames_to_column() %>%
+        dplyr::rename(sample_name = "rowname", mean_meth = ".") %>%
+        tibble() %>%
+        left_join(sample_table) %>%
+        mutate(sample_name = fct_reorder(sample_name, mean_meth))
+    p <- pf %>%
+        ggplot(aes(y = sample_name, x = mean_meth, fill = condition)) +
+        geom_col() +
+        scale_conditions +
+        new_scale_fill() +
+        geom_tile(aes(x = -1, fill = !!sym(asc)), width = 2) + # Add metadata strip
+        scale_palette +
+        mtopen
+    stats <- summary(lm(formula(sprintf("%s ~ %s", "mean_meth", lm_right_hand_side)), pf)) %>% broom::tidy()
+    mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/pca/mean_meth_bar1.pdf", params$mod_code), 5, 4, sf = stats)
+
+    tryCatch(
+        {
+            p <- pf %>%
+                mutate(sample_name = fct_reorder(paste0(sample_name, "_", age), mean_meth)) %>%
+                ggplot(aes(y = sample_name, x = mean_meth, fill = condition)) +
+                geom_col() +
+                scale_conditions +
+                new_scale_fill() +
+                geom_tile(aes(x = -1, fill = !!sym(asc)), width = 2) + # Add metadata strip
+                scale_palette +
+                mtopen
+            stats <- summary(lm(formula(sprintf("%s ~ %s", "mean_meth", lm_right_hand_side)), pf)) %>% broom::tidy()
+            mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/pca/mean_meth_bar_withage.pdf", params$mod_code), 5, 4, sf = stats)
+
+            p <- pf %>%
+                mutate(sample_name = fct_reorder(paste0(sample_name, "_", age), age)) %>%
+                ggplot(aes(y = sample_name, x = mean_meth, fill = condition)) +
+                geom_col() +
+                scale_conditions +
+                new_scale_fill() +
+                geom_tile(aes(x = -1, fill = !!sym(asc)), width = 2) + # Add metadata strip
+                scale_palette +
+                mtopen
+            stats <- summary(lm(formula(sprintf("%s ~ %s", "mean_meth", lm_right_hand_side)), pf)) %>% broom::tidy()
+            mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/pca/mean_meth_bar_withage_ordered.pdf", params$mod_code), 5, 4, sf = stats)
+
+
+            p <- pf %>%
+                mutate(sample_name = fct_reorder(paste0(sample_name, "_", age), age)) %>%
+                ggplot(aes(y = sample_name, x = mean_meth, color = condition, shape = !!sym(asc))) +
+                geom_point(size = 3) +
+                scale_conditions +
+                geom_vline(xintercept = pf %>% filter(condition == condition2) %$% mean_meth %>% mean(), color = "blue", linetype = "dashed") +
+                geom_vline(xintercept = pf %>% filter(condition == condition1) %$% mean_meth %>% mean(), color = "grey", linetype = "dashed") +
+                geom_text_repel(aes(label = apoe)) +
+                # new_scale_fill() +
+                # geom_tile(aes(x = -1, fill = sex), width = 2) + # Add metadata strip
+                scale_conditions +
+                mtopen
+            stats <- summary(lm(formula(sprintf("%s ~ %s", "mean_meth", lm_right_hand_side)), pf)) %>% broom::tidy()
+            mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/pca/mean_meth_point_withage_ordered.pdf", params$mod_code), 5, 4, sf = stats)
+
+            p <- pf %>%
+                mutate(sample_name = fct_reorder(paste0(sample_name, "_", age), mean_meth)) %>%
+                ggplot(aes(y = sample_name, x = mean_meth, color = condition, shape = !!sym(asc))) +
+                geom_point(size = 3) +
+                scale_conditions +
+                geom_vline(xintercept = pf %>% filter(condition == condition2) %$% mean_meth %>% mean(), color = "blue", linetype = "dashed") +
+                geom_vline(xintercept = pf %>% filter(condition == condition1) %$% mean_meth %>% mean(), color = "grey", linetype = "dashed") +
+                geom_text_repel(aes(label = apoe)) +
+                # new_scale_fill() +
+                # geom_tile(aes(x = -1, fill = sex), width = 2) + # Add metadata strip
+                scale_conditions +
+                mtopen
+            stats <- summary(lm(formula(sprintf("%s ~ %s", "mean_meth", lm_right_hand_side)), pf)) %>% tidy()
+            mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/pca/mean_meth_point_withage_orderedmeth.pdf", params$mod_code), 5, 4, sf = stats)
+        },
+        error = function(e) {
+
+        }
+    )
+}
 # split_frame <- pf %>% group_by(sample, condition, rte_subfamily) %>%
 #     summarise(mean_meth = mean(mean_meth)) %>%
 #     ungroup() %>%
@@ -1750,8 +1751,8 @@ read_analysis2 <- function(
     required_fraction_of_total_cg = 0.75,
     meth_thresholds = c(0.1, 0.25, 0.5),
     context = "CpG") {
-    dir.create(sprintf("ldna/results/%s/tables/reads_new/%s_%s", params$mod_code, region, required_fraction_of_total_cg), recursive = TRUE)
     region <- "L1HS_FL"
+    dir.create(sprintf("ldna/results/%s/tables/reads_new/%s_%s", params$mod_code, region, required_fraction_of_total_cg), recursive = TRUE)
     sprintf("ldna/results/%s/tables/reads_new/%s_%s/by_gene.csv", params$mod_code, region, required_fraction_of_total_cg)
     readsdf1 <- readscg %>%
         left_join(rmann %>%
@@ -2065,71 +2066,73 @@ read_analysis2 <- function(
             rlang::set_names(names)
     }
 
-    groups_needed <- length(condition1samples) + 1
+    if (enough_samples_per_condition_for_stats) {
+        groups_needed <- length(condition1samples) + 1
 
-    n_under_consideration <- by_gene_id %>%
-        ungroup() %>%
-        mutate(split_var = paste0(gene_id, "/", subset, "/", meth_threshold)) %>%
-        left_join(sample_table %>% dplyr::rename(sample = sample_name)) %>%
-        filter(group_size >= groups_needed) %>%
-        group_by(subset_threshold) %>%
-        dplyr::select(subset_threshold, gene_id) %>%
-        distinct() %>%
-        summarise(n_under_consideration = n())
+        n_under_consideration <- by_gene_id %>%
+            ungroup() %>%
+            mutate(split_var = paste0(gene_id, "/", subset, "/", meth_threshold)) %>%
+            left_join(sample_table %>% dplyr::rename(sample = sample_name)) %>%
+            filter(group_size >= groups_needed) %>%
+            group_by(subset_threshold) %>%
+            dplyr::select(subset_threshold, gene_id) %>%
+            distinct() %>%
+            summarise(n_under_consideration = n())
 
-    stats <- by_gene_id %>%
-        ungroup() %>%
-        mutate(split_var = paste0(gene_id, "/", subset, "/", meth_threshold)) %>%
-        left_join(sample_table %>% dplyr::rename(sample = sample_name)) %>%
-        filter(group_size >= groups_needed) %>%
-        named_group_split(split_var) %>%
-        map(~ broom::tidy(summary(lm(formula(sprintf("%s ~ %s", "propUnmeth", lm_right_hand_side)), .)))) %>%
-        imap_dfr(~ .x %>% mutate(subset = .y)) %>%
-        tidyr::separate(subset, into = c("gene_id", "subset", "meth_threshold"), sep = "/", convert = TRUE)
-    write_csv(stats, sprintf("ldna/results/%s/tables/reads_new/%s_%s/by_gene.csv", params$mod_code, region, required_fraction_of_total_cg))
+        stats <- by_gene_id %>%
+            ungroup() %>%
+            mutate(split_var = paste0(gene_id, "/", subset, "/", meth_threshold)) %>%
+            left_join(sample_table %>% dplyr::rename(sample = sample_name)) %>%
+            filter(group_size >= groups_needed) %>%
+            named_group_split(split_var) %>%
+            map(~ broom::tidy(summary(lm(formula(sprintf("%s ~ %s", "propUnmeth", lm_right_hand_side)), .)))) %>%
+            imap_dfr(~ .x %>% mutate(subset = .y)) %>%
+            tidyr::separate(subset, into = c("gene_id", "subset", "meth_threshold"), sep = "/", convert = TRUE)
+        write_csv(stats, sprintf("ldna/results/%s/tables/reads_new/%s_%s/by_gene.csv", params$mod_code, region, required_fraction_of_total_cg))
 
 
-    tryCatch(
-        {
-            p <- stats %>%
-                mutate(p.value = ifelse(is.nan(p.value), 1, p.value)) %>%
-                filter(p.value <= 0.05) %>%
-                filter(grepl("condition", term)) %>%
-                mutate(dir_stat = factor(ifelse(statistic > 0, "Hypo", "Hyper"), levels = c("Hyper", "Hypo"))) %>%
-                count(meth_threshold, subset, dir_stat) %>%
-                complete(meth_threshold, subset, dir_stat, fill = list(n = 0)) %>%
-                ggplot(aes(x = as.character(meth_threshold), y = n, fill = dir_stat)) +
-                geom_col(position = "dodge", color = "black") +
-                facet_wrap(vars(subset), nrow = 1) +
-                ggtitle(sprintf("Significant Loci")) +
-                labs(x = "Meth Threshold", y = sprintf("Number DM")) +
-                mtclosed +
-                anchorbar +
-                scale_methylation
-            mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/num_de_wasp.pdf", params$mod_code, region, required_fraction_of_total_cg), 5.5, 4, pl = p)
+        tryCatch(
+            {
+                p <- stats %>%
+                    mutate(p.value = ifelse(is.nan(p.value), 1, p.value)) %>%
+                    filter(p.value <= 0.05) %>%
+                    filter(grepl("condition", term)) %>%
+                    mutate(dir_stat = factor(ifelse(statistic > 0, "Hypo", "Hyper"), levels = c("Hyper", "Hypo"))) %>%
+                    count(meth_threshold, subset, dir_stat) %>%
+                    complete(meth_threshold, subset, dir_stat, fill = list(n = 0)) %>%
+                    ggplot(aes(x = as.character(meth_threshold), y = n, fill = dir_stat)) +
+                    geom_col(position = "dodge", color = "black") +
+                    facet_wrap(vars(subset), nrow = 1) +
+                    ggtitle(sprintf("Significant Loci")) +
+                    labs(x = "Meth Threshold", y = sprintf("Number DM")) +
+                    mtclosed +
+                    anchorbar +
+                    scale_methylation
+                mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/num_de_wasp.pdf", params$mod_code, region, required_fraction_of_total_cg), 5.5, 4, pl = p)
 
-            p <- stats %>%
-                filter(subset != "400to600") %>%
-                mutate(p.value = ifelse(is.nan(p.value), 1, p.value)) %>%
-                filter(p.value <= 0.05) %>%
-                filter(grepl("condition", term)) %>%
-                mutate(dir_stat = factor(ifelse(statistic > 0, "Hypo", "Hyper"), levels = c("Hyper", "Hypo"))) %>%
-                count(meth_threshold, subset, dir_stat) %>%
-                complete(meth_threshold, subset, dir_stat, fill = list(n = 0)) %>%
-                ggplot(aes(x = as.character(meth_threshold), y = n, fill = dir_stat)) +
-                geom_col(position = "dodge", color = "black") +
-                facet_wrap(vars(subset), nrow = 1) +
-                ggtitle(sprintf("Significant Loci")) +
-                labs(x = "Meth Threshold", y = sprintf("Number DM")) +
-                mtclosed +
-                anchorbar +
-                scale_methylation
-            mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/num_de.pdf", params$mod_code, region, required_fraction_of_total_cg), 5, 4, pl = p)
-        },
-        error = function(e) {
-            print("no sig de")
-        }
-    )
+                p <- stats %>%
+                    filter(subset != "400to600") %>%
+                    mutate(p.value = ifelse(is.nan(p.value), 1, p.value)) %>%
+                    filter(p.value <= 0.05) %>%
+                    filter(grepl("condition", term)) %>%
+                    mutate(dir_stat = factor(ifelse(statistic > 0, "Hypo", "Hyper"), levels = c("Hyper", "Hypo"))) %>%
+                    count(meth_threshold, subset, dir_stat) %>%
+                    complete(meth_threshold, subset, dir_stat, fill = list(n = 0)) %>%
+                    ggplot(aes(x = as.character(meth_threshold), y = n, fill = dir_stat)) +
+                    geom_col(position = "dodge", color = "black") +
+                    facet_wrap(vars(subset), nrow = 1) +
+                    ggtitle(sprintf("Significant Loci")) +
+                    labs(x = "Meth Threshold", y = sprintf("Number DM")) +
+                    mtclosed +
+                    anchorbar +
+                    scale_methylation
+                mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/num_de.pdf", params$mod_code, region, required_fraction_of_total_cg), 5, 4, pl = p)
+            },
+            error = function(e) {
+                print("no sig de")
+            }
+        )
+    }
 }
 
 
@@ -3749,32 +3752,36 @@ p <- base::eval(base::parse(text = paste0("hms[['", conf$samples, "']]", collaps
 mysaveandstore(sprintf("%s/%s_methylation_%s1.pdf", outputdir_meth_clustering, "all", subfam), w = 36, h = 6)
 rm(p)
 
+hms <- list()
+for (sample in conf$samples) {
+    p <- merged %>%
+        filter(sample == !!sample) %>%
+        group_by(gene_id) %>%
+        mutate(cpgs_detected_per_element = n()) %>%
+        ungroup() %>%
+        filter(cpgs_detected_per_element > 50) %>%
+        heatmap(gene_id, consensus_pos, pctM, cluster_rows = TRUE, cluster_columns = FALSE) %>%
+        add_tile(genic_loc) %>%
+        add_tile(intactness_req) %>%
+        add_tile(loc_superlowres_integrative_stranded) %>%
+        add_tile(refstatus) %>%
+        as_ComplexHeatmap()
+    hms[[sample]] <- p
+    dir.create(outputdir_meth_clustering, recursive = TRUE)
+    mysaveandstore(sprintf("%s/%s_methylation_%s_refstatus.pdf", outputdir_meth_clustering, sample, subfam), w = 8, h = 10)
+}
+# Generate the expression as a string and parse it
+p <- base::eval(base::parse(text = paste0("hms[['", conf$samples, "']]", collapse = " + ")))
+mysaveandstore(sprintf("%s/%s_methylation_%s1_refstatus.pdf", outputdir_meth_clustering, "all", subfam), w = 36, h = 6)
+rm(p)
 
 
 # nonref analysis
+rmann_nr <- rmann %>% filter(refstatus == "NonRef")
+grsdf_nr <- read_delim("ldna/Rintermediates/m/grsdf_nonref.tsv")
+grs_nr <- GRanges(grsdf_nr)
 
-
-
-rmann_nr_list <- list()
-merged_nr_list <- list()
-for (sample in sample_table$sample_name) {
-    rmann_nr_temp <- read_csv(sprintf("aref/extended/%s_annotations/%s_rmann_nonref.csv", sample, sample))
-    rmann_nr_temp$sample_name <- sample
-    rmann_nr_list[[sample]] <- rmann_nr_temp
-    grs_nr_temp <- grs_nr[mcols(grs_nr)$sample == sample]
-    merged_temp <- merge_with_grs(grs_nr_temp, GRanges(rmann_nr_temp))
-    merged_nr_list[[sample]] <- merged_temp
-}
-
-rmann_nr <- do.call(rbind, rmann_nr_list) %>%
-    tibble() %>%
-    mutate(gene_id = paste0(sample_name, "___", gene_id)) %>%
-    mutate(seqnames = paste0(sample_name, "___", seqnames))
-
-merged_nr <- do.call(rbind, merged_nr_list) %>%
-    tibble() %>%
-    mutate(gene_id = paste0(sample_name, "___", gene_id)) %>%
-    mutate(seqnames = paste0(sample_name, "___", seqnames))
+merged_nr <- merge_with_grs(grs_nr, GRanges(rmann_nr))
 
 l1hs_nr <- GRanges(merged_nr %>% filter(rte_subfamily == "L1HS")) %>%
     as.data.frame() %>%
