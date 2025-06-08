@@ -1471,6 +1471,8 @@ if ((conf$single_condition == "no")) {
 
     p <- screeplot(pcaObj, title = "") + mtopen + anchorbar
     mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/pca/screeplot.pdf", params$mod_code), 5, 4)
+    p <- screeplot(pcaObj, title = "") + mtopen + anchorbar
+    mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/pca/screeplot.pdf", params$mod_code), 5, 4)
 
 
     # p <- plotloadings(pcaObj,
@@ -1478,7 +1480,25 @@ if ((conf$single_condition == "no")) {
     #     rangeRetain = 0.045, labSize = 2
     # ) + mtopen
     # mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/pca/loadings.pdf", params$mod_code), 5, 4)
+    # p <- plotloadings(pcaObj,
+    #     components = getComponents(pcaObj, seq_len(3)),
+    #     rangeRetain = 0.045, labSize = 2
+    # ) + mtopen
+    # mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/pca/loadings.pdf", params$mod_code), 5, 4)
 
+    if (is.null(adjustment_set_categorical)) {
+        p <- biplot(pcaObj,
+            showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0, legendPosition = "right", colby = "condition",
+            labSize = 5, pointSize = 5, sizeLoadingsNames = 5
+        ) + mtopen + scale_conditions
+        mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/pca/biplot.pdf", params$mod_code), 5, 5)
+    } else {
+        p <- biplot(pcaObj,
+            showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0, legendPosition = "right", shape = ifelse(is.null(adjustment_set_categorical), "", adjustment_set_categorical[1]), colby = "condition",
+            labSize = 5, pointSize = 5, sizeLoadingsNames = 5
+        ) + mtopen + scale_conditions
+        mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/pca/biplot.pdf", params$mod_code), 5, 5)
+    }
     if (is.null(adjustment_set_categorical)) {
         p <- biplot(pcaObj,
             showLoadings = FALSE, gridlines.major = FALSE, gridlines.minor = FALSE, borderWidth = 0, legendPosition = "right", colby = "condition",
@@ -2836,6 +2856,24 @@ read_analysis2 <- function(
                 TRUE ~ statistic
             ))
 
+        tryCatch(
+            {
+                p <- stats %>%
+                    mutate(p.value = ifelse(is.nan(p.value), 1, p.value)) %>%
+                    filter(p.value <= 0.05) %>%
+                    filter(grepl("condition", term)) %>%
+                    mutate(dir_stat = factor(ifelse(statistic > 0, "Hypo", "Hyper"), levels = c("Hyper", "Hypo"))) %>%
+                    count(meth_threshold, subset, dir_stat) %>%
+                    complete(meth_threshold, subset, dir_stat, fill = list(n = 0)) %>%
+                    ggplot(aes(x = as.character(meth_threshold), y = n, fill = dir_stat)) +
+                    geom_col(position = "dodge", color = "black") +
+                    facet_wrap(vars(subset), nrow = 1) +
+                    ggtitle(sprintf("Significant Loci")) +
+                    labs(x = "Meth Threshold", y = sprintf("Number DM")) +
+                    mtclosed +
+                    anchorbar +
+                    scale_methylation
+                mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/num_de_wasp.pdf", params$mod_code, region, required_fraction_of_total_cg), 5.5, 4, pl = p)
         tryCatch(
             {
                 p <- stats %>%
@@ -4832,7 +4870,6 @@ p <- base::eval(base::parse(text = paste0("hms[['", conf$samples, "']]", collaps
 mysaveandstore(sprintf("%s/%s_methylation_%s.pdf", outputdir_meth_clustering, "all", subfam), w = 36, h = 6)
 rm(p)
 
-# methylation heatmaps
 hms <- list()
 for (sample in conf$samples) {
     p <- merged %>%
@@ -4842,55 +4879,45 @@ for (sample in conf$samples) {
         ungroup() %>%
         filter(cpgs_detected_per_element > 50) %>%
         heatmap(gene_id, consensus_pos, pctM, cluster_rows = TRUE, cluster_columns = FALSE) %>%
+        add_tile(genic_loc) %>%
+        add_tile(intactness_req) %>%
+        add_tile(loc_superlowres_integrative_stranded) %>%
+        add_tile(refstatus) %>%
         as_ComplexHeatmap()
     hms[[sample]] <- p
     dir.create(outputdir_meth_clustering, recursive = TRUE)
-    mysaveandstore(sprintf("%s/%s_methylation_%s_noannot.pdf", outputdir_meth_clustering, sample, subfam), w = 6, h = 6)
+    mysaveandstore(sprintf("%s/%s_methylation_%s_refstatus.pdf", outputdir_meth_clustering, sample, subfam), w = 8, h = 10)
 }
 # Generate the expression as a string and parse it
 p <- base::eval(base::parse(text = paste0("hms[['", conf$samples, "']]", collapse = " + ")))
-mysaveandstore(sprintf("%s/%s_methylation_%s_noannot.pdf", outputdir_meth_clustering, "all", subfam), w = 36, h = 6)
+mysaveandstore(sprintf("%s/%s_methylation_%s1_refstatus.pdf", outputdir_meth_clustering, "all", subfam), w = 36, h = 6)
 rm(p)
 
 
 # nonref analysis
-if (conf$single_condition == "no") {
-
-    grsdf_nr <- read_delim(sprintf("ldna/Rintermediates/%s/grsdf_nonref.tsv", params$mod_code))
-    grs_nr <- GRanges(grsdf_nr)
-    rmann_nr_list <- list()
-    merged_nr_list <- list()
-
-    if (confALL$aref$update_ref_with_tldr$per_sample == "yes") {
-        for (sample in sample_table$sample_name) {
-            rmann_nr_temp <- read_csv(sprintf("aref/extended/%s_annotations/%s_rmann_nonref.csv", sample, sample))
-            rmann_nr_temp$sample_name <- sample
-            rmann_nr_list[[sample]] <- rmann_nr_temp
-            grs_nr_temp <- grs_nr[mcols(grs_nr)$sample == sample]
-            merged_temp <- merge_with_grs(grs_nr_temp, GRanges(rmann_nr_temp))
-            merged_nr_list[[sample]] <- merged_temp
-        }
-    } else {
-        for (sample in c("A.REF")) {
-            rmann_nr_temp <- read_csv(sprintf("aref/extended/%s_annotations/%s_rmann_nonref.csv", sample, sample))
-            rmann_nr_temp$sample_name <- sample
-            rmann_nr_list[[sample]] <- rmann_nr_temp
-            grs_nr_temp <- grs_nr[mcols(grs_nr)$sample == sample]
-            merged_temp <- merge_with_grs(grs_nr_temp, GRanges(rmann_nr_temp))
-            merged_nr_list[[sample]] <- merged_temp
-        }
-    }
 
 
-    rmann_nr <- do.call(rbind, rmann_nr_list) %>%
-        tibble() %>%
-        mutate(gene_id = paste0(sample_name, "___", gene_id)) %>%
-        mutate(seqnames = paste0(sample_name, "___", seqnames))
 
-    merged_nr <- do.call(rbind, merged_nr_list) %>%
-        tibble() %>%
-        mutate(gene_id = paste0(sample_name, "___", gene_id)) %>%
-        mutate(seqnames = paste0(sample_name, "___", seqnames))
+rmann_nr_list <- list()
+merged_nr_list <- list()
+for (sample in sample_table$sample_name) {
+    rmann_nr_temp <- read_csv(sprintf("aref/extended/%s_annotations/%s_rmann_nonref.csv", sample, sample))
+    rmann_nr_temp$sample_name <- sample
+    rmann_nr_list[[sample]] <- rmann_nr_temp
+    grs_nr_temp <- grs_nr[mcols(grs_nr)$sample == sample]
+    merged_temp <- merge_with_grs(grs_nr_temp, GRanges(rmann_nr_temp))
+    merged_nr_list[[sample]] <- merged_temp
+}
+
+rmann_nr <- do.call(rbind, rmann_nr_list) %>%
+    tibble() %>%
+    mutate(gene_id = paste0(sample_name, "___", gene_id)) %>%
+    mutate(seqnames = paste0(sample_name, "___", seqnames))
+
+merged_nr <- do.call(rbind, merged_nr_list) %>%
+    tibble() %>%
+    mutate(gene_id = paste0(sample_name, "___", gene_id)) %>%
+    mutate(seqnames = paste0(sample_name, "___", seqnames))
 
     l1hs_nr <- GRanges(merged_nr %>% filter(rte_subfamily == "L1HS")) %>%
         as.data.frame() %>%

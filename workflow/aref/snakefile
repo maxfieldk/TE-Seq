@@ -771,6 +771,28 @@ run_pepper_margin_deepvariant call_variant \
 --ont_r10_q20
         """
 
+rule savana:
+    input:
+        sortedbam = expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
+        sortedbamindex = expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
+        snpvcf = "aref/intermediates/{sample_or_ref}/pepper/hq_snps.vcf.gz"
+    output:
+        outfile = "aref/intermediates/{sample_or_ref}/savana/outfile.txt"
+    params:
+        ref = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"]
+    resources:
+        runtime = 1000,
+        mem_mb = 128000,
+        cpus_per_task = 32
+    conda: "ame"
+    container: None
+    shell:
+        """
+mkdir -p $(dirname {output.outfile})
+savana to --tumour {input.sortedbam} --ref {params.ref} --ref_index {params.ref}.fai --overwrite --threads 30 --outdir $(dirname {output.outfile}) --sample {wildcards.sample_or_ref} --ont --snp_vcf {input.snpvcf} --chromosomes 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24
+        """
+
+
 rule get_reference_gatk_dict:
     input:
         gatk_container = ancient(gatk_container)
