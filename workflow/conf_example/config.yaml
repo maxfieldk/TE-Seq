@@ -128,6 +128,7 @@ srna:
   peptable: "conf/peptable_srna.csv"
   per_sample_ref: "no" #yes or no
   map_to_mycoplasma: "yes" #yes or no
+  run_tetranscripts: "no" #yes or no; runs tetranscripts in addition to telescope. In most cases this extra analysis is fully superceded by telescope and should be turned off.
   samples:
     - "PRO_low_O2_1"
     - "PRO_low_O2_2"
