@@ -796,7 +796,11 @@ rule enrichment_analysis_repeats:
 rule repeatanalysis_plots:
     input:
         resultsdf = "srna/results/agg/deseq/resultsdf.tsv",
-        tetranscripts_resultsdf = "srna/results/agg/deseq_tetranscripts/resultsdf.tsv"
+        **(
+            {"tetranscripts_resultsdf": "srna/results/agg/deseq_tetranscripts/resultsdf.tsv"}
+            if config["srna"]["run_tetranscripts"] == "yes"
+            else {}
+        )
     params:
         counttype = lambda w: w.counttype,
         contrasts = config["srna"]["contrasts"],
