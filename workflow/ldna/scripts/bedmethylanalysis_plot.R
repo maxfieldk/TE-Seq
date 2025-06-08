@@ -136,9 +136,10 @@ merge_with_grs <- function(grs, rte_frame) {
 ref_annotation_dir <- conf$reference_annotation_dir
 rte_subfamily_read_level_analysis <- conf$rte_subfamily_read_level_analysis
 
-r_annotation_fragmentsjoined <- read_csv(conf$r_annotation_fragmentsjoined)
-r_repeatmasker_annotation <- read_csv(conf$r_repeatmasker_annotation)
-rmann <- left_join(r_annotation_fragmentsjoined, r_repeatmasker_annotation)
+rmann <- get_repeat_annotations(
+    default_or_extended = "default",
+    keep_non_central = FALSE
+)
 
 
 flRTEpromoter <- read_delim(sprintf("ldna/Rintermediates/%s/flRTEpromoter.tsv", params$mod_code), col_names = TRUE)
