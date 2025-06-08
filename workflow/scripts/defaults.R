@@ -34,12 +34,6 @@ get_repeat_annotations <- function(
             }
         } else if (confALL$aref$update_ref_with_tldr$per_sample == "no") {
             rmann <- rmannShared
-            if (append_NI_samplename_modifier) {
-                rmann <- rmann %>% mutate(gene_id = case_when(
-                    grepl("_NI_", gene_id) ~ paste0("A.REF", "__", gene_id),
-                    TRUE ~ gene_id
-                ))
-            }
             if (!keep_non_central) {
                 rmann <<- rmann %>% filter(refstatus != "NonCentral")
             }
