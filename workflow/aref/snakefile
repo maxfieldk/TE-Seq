@@ -784,6 +784,7 @@ rule savana:
         """
 mkdir -p $(dirname {output.outfile})
 savana to --tumour {input.sortedbam} --ref {params.ref} --ref_index {params.ref}.fai --overwrite --threads 30 --outdir $(dirname {output.outfile}) --sample {wildcards.sample_or_ref} --ont --snp_vcf {input.snpvcf} --chromosomes 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24
+touch {output.outfile}
         """
 
 
