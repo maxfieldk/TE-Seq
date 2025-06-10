@@ -641,133 +641,142 @@ for (ontology in c("rte_subfamily_limited", "l1_subfamily_limited", "rte_family"
             }
         )
     }
-    base_level <- conf$levels[[1]]
-    # keep only contrasts vs base level to not artificially inflate number of independent comparisons
-    te_gene_matrix_all <- Reduce(
-        bind_rows,
-        te_gene_matrix_list[grepl(sprintf("_vs_%s", base_level), names(te_gene_matrix_list))]
-    )
 
-    cor_df <- te_gene_matrix_all %>%
-        group_by(!!sym(ontology), req_integrative, loc_integrative, rte_length_req) %>%
-        mutate(groupN = n()) %>%
-        filter(groupN > 4) %>%
-        summarise(cor = cor.test(TE, GENE, method = "spearman")$estimate, pval = cor.test(TE, GENE, method = "spearman")$p.value) %>%
-        mutate(padj = p.adjust(pval, method = "fdr"))
-    cor_df %$% req_integrative %>% unique()
-    pf <- cor_df %>%
-        ungroup() %>%
-        complete(!!sym(ontology), req_integrative, loc_integrative)
+    tryCatch({    
+        base_level <- conf$levels[[1]]
+        # keep only contrasts vs base level to not artificially inflate number of independent comparisons
+        te_gene_matrix_all <- Reduce(
+            bind_rows,
+            te_gene_matrix_list[grepl(sprintf("_vs_%s", base_level), names(te_gene_matrix_list))]
+        )
 
-    p <- pf %>%
-        ggplot() +
-        geom_tile(aes(x = !!sym(ontology), y = loc_integrative, fill = cor)) +
-        facet_grid(~req_integrative, space = "free", scales = "free") +
-        scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.8, 0, 0.8), na.value = "dark grey") +
-        mtclosed +
-        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-        labs(x = "", y = "")
-    mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_%s.pdf", outputdir, counttype, "pan_contrast", ontology), 10, 6)
+        cor_df <- te_gene_matrix_all %>%
+            group_by(!!sym(ontology), req_integrative, loc_integrative, rte_length_req) %>%
+            mutate(groupN = n()) %>%
+            filter(groupN > 4) %>%
+            summarise(cor = cor.test(TE, GENE, method = "spearman")$estimate, pval = cor.test(TE, GENE, method = "spearman")$p.value) %>%
+            mutate(padj = p.adjust(pval, method = "fdr"))
+        cor_df %$% req_integrative %>% unique()
+        pf <- cor_df %>%
+            ungroup() %>%
+            complete(!!sym(ontology), req_integrative, loc_integrative)
 
-
-    p <- pf %>%
-        ggplot(aes(x = !!sym(ontology), y = loc_integrative)) +
-        geom_tile(aes(fill = cor)) +
-        facet_grid(~req_integrative, space = "free", scales = "free") +
-        geom_text(aes(label = ifelse(padj < 0.05, "*", "")), size = 3) +
-        scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.8, 0, 0.8), na.value = "dark grey") +
-        mtclosed +
-        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-        labs(x = "", y = "")
-    mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_pval_%s.pdf", outputdir, counttype, "pan_contrast", ontology), 10, 6)
-
-    cor_df <- te_gene_matrix_all %>%
-        group_by(!!sym(ontology), loc_integrative, rte_length_req) %>%
-        mutate(groupN = n()) %>%
-        filter(groupN > 4) %>%
-        summarise(cor = cor.test(TE, GENE, method = "spearman")$estimate, pval = cor.test(TE, GENE, method = "spearman")$p.value) %>%
-        mutate(padj = p.adjust(pval, method = "fdr"))
-
-    pf <- cor_df %>%
-        ungroup() %>%
-        complete(!!sym(ontology), loc_integrative, rte_length_req)
-    p <- pf %>%
-        ggplot(aes(x = !!sym(ontology), y = loc_integrative)) +
-        geom_tile(aes(fill = cor)) +
-        facet_grid(~rte_length_req, space = "free", scales = "free") +
-        geom_text(aes(label = ifelse(padj < 0.05, "*", "")), size = 3) +
-        scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.5, 0, 0.5), na.value = "dark grey") +
-        mtclosed +
-        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-        labs(x = "", y = "")
-    mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_length_req_pval1_%s.pdf", outputdir, counttype, "pan_contrast", ontology), 5, 4)
-
-    cor_df <- te_gene_matrix_all %>%
-        group_by(!!sym(ontology), loc_highres_integrative_stranded, rte_length_req) %>%
-        mutate(groupN = n()) %>%
-        filter(groupN > 4) %>%
-        summarise(cor = cor.test(TE, GENE, method = "spearman")$estimate, pval = cor.test(TE, GENE, method = "spearman")$p.value) %>%
-        mutate(padj = p.adjust(pval, method = "fdr"))
-    pf <- cor_df %>%
-        ungroup() %>%
-        complete(!!sym(ontology), loc_highres_integrative_stranded, rte_length_req)
-    p <- pf %>%
-        ggplot(aes(x = !!sym(ontology), y = loc_highres_integrative_stranded)) +
-        geom_tile(aes(fill = cor)) +
-        facet_grid(~rte_length_req, space = "free", scales = "free") +
-        geom_text(aes(label = ifelse(padj < 0.05, "*", "")), size = 3) +
-        scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.5, 0, 0.5), na.value = "dark grey") +
-        mtclosed +
-        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-        labs(x = "", y = "")
-    mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_length_req_pval_highres_stranded_%s.pdf", outputdir, counttype, "pan_contrast", ontology), 6, 5)
-
-    cor_df <- te_gene_matrix_all %>%
-        group_by(!!sym(ontology), loc_lowres_integrative_stranded, rte_length_req) %>%
-        mutate(groupN = n()) %>%
-        filter(groupN > 4) %>%
-        summarise(cor = cor.test(TE, GENE, method = "spearman")$estimate, pval = cor.test(TE, GENE, method = "spearman")$p.value) %>%
-        mutate(padj = p.adjust(pval, method = "fdr"))
-
-    pf <- cor_df %>%
-        ungroup() %>%
-        complete(!!sym(ontology), loc_lowres_integrative_stranded, rte_length_req)
-    p <- pf %>%
-        ggplot(aes(x = !!sym(ontology), y = loc_lowres_integrative_stranded)) +
-        geom_tile(aes(fill = cor)) +
-        facet_grid(~rte_length_req, space = "free", scales = "free") +
-        geom_text(aes(label = ifelse(padj < 0.05, "*", "")), size = 3) +
-        scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.5, 0, 0.5), na.value = "dark grey") +
-        mtclosed +
-        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-        labs(x = "", y = "")
-    mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_length_req_pval_lowres_stranded_%s.pdf", outputdir, counttype, "pan_contrast", ontology), 6, 5)
+        p <- pf %>%
+            ggplot() +
+            geom_tile(aes(x = !!sym(ontology), y = loc_integrative, fill = cor)) +
+            facet_grid(~req_integrative, space = "free", scales = "free") +
+            scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.8, 0, 0.8), na.value = "dark grey") +
+            mtclosed +
+            theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+            labs(x = "", y = "")
+        mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_%s.pdf", outputdir, counttype, "pan_contrast", ontology), 10, 6)
 
 
-    if (grepl("subfamily", ontology)) {
-        cross_frame <- te_gene_matrix_all %>%
-            select(rte_subfamily, loc_lowres_integrative_stranded, rte_length_req) %>%
-            crossing()
-        for (i in seq(1:length(rownames(cross_frame)))) {
-            row <- cross_frame[i, ]
-            a <- row$rte_subfamily
-            b <- row$rte_length_req
-            c <- row$loc_lowres_integrative_stranded
-            p <- te_gene_matrix_all %>%
-                filter(rte_subfamily == a) %>%
-                filter(rte_length_req == b) %>%
-                filter(loc_lowres_integrative_stranded == c) %>%
-                dplyr::select(TE, GENE, cor_contrast) %>%
-                ggplot(aes(x = TE, y = GENE, color = cor_contrast)) +
-                theme(aspect.ratio = 1) +
-                geom_point(alpha = 0.3) +
-                labs(x = "TE L2FC", y = "GENE L2FC") +
-                ggtitle(sprintf("%s %s\n%s", a, c, b)) +
-                scale_contrasts +
-                mtclosed
-            mysaveandstore(pl = p, fn = sprintf("%s/%s/%s/rte_gene_cor/scatter_gene_te_corr/%s_%s_%s.pdf", outputdir, counttype, "pan_contrast", a, b, c), 6, 4)
+        p <- pf %>%
+            ggplot(aes(x = !!sym(ontology), y = loc_integrative)) +
+            geom_tile(aes(fill = cor)) +
+            facet_grid(~req_integrative, space = "free", scales = "free") +
+            geom_text(aes(label = ifelse(padj < 0.05, "*", "")), size = 3) +
+            scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.8, 0, 0.8), na.value = "dark grey") +
+            mtclosed +
+            theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+            labs(x = "", y = "")
+        mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_pval_%s.pdf", outputdir, counttype, "pan_contrast", ontology), 10, 6)
+
+        cor_df <- te_gene_matrix_all %>%
+            group_by(!!sym(ontology), loc_integrative, rte_length_req) %>%
+            mutate(groupN = n()) %>%
+            filter(groupN > 4) %>%
+            summarise(cor = cor.test(TE, GENE, method = "spearman")$estimate, pval = cor.test(TE, GENE, method = "spearman")$p.value) %>%
+            mutate(padj = p.adjust(pval, method = "fdr"))
+
+        pf <- cor_df %>%
+            ungroup() %>%
+            complete(!!sym(ontology), loc_integrative, rte_length_req)
+        p <- pf %>%
+            ggplot(aes(x = !!sym(ontology), y = loc_integrative)) +
+            geom_tile(aes(fill = cor)) +
+            facet_grid(~rte_length_req, space = "free", scales = "free") +
+            geom_text(aes(label = ifelse(padj < 0.05, "*", "")), size = 3) +
+            scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.5, 0, 0.5), na.value = "dark grey") +
+            mtclosed +
+            theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+            labs(x = "", y = "")
+        mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_length_req_pval1_%s.pdf", outputdir, counttype, "pan_contrast", ontology), 5, 4)
+
+        cor_df <- te_gene_matrix_all %>%
+            group_by(!!sym(ontology), loc_highres_integrative_stranded, rte_length_req) %>%
+            mutate(groupN = n()) %>%
+            filter(groupN > 4) %>%
+            summarise(cor = cor.test(TE, GENE, method = "spearman")$estimate, pval = cor.test(TE, GENE, method = "spearman")$p.value) %>%
+            mutate(padj = p.adjust(pval, method = "fdr"))
+        pf <- cor_df %>%
+            ungroup() %>%
+            complete(!!sym(ontology), loc_highres_integrative_stranded, rte_length_req)
+        p <- pf %>%
+            ggplot(aes(x = !!sym(ontology), y = loc_highres_integrative_stranded)) +
+            geom_tile(aes(fill = cor)) +
+            facet_grid(~rte_length_req, space = "free", scales = "free") +
+            geom_text(aes(label = ifelse(padj < 0.05, "*", "")), size = 3) +
+            scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.5, 0, 0.5), na.value = "dark grey") +
+            mtclosed +
+            theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+            labs(x = "", y = "")
+        mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_length_req_pval_highres_stranded_%s.pdf", outputdir, counttype, "pan_contrast", ontology), 6, 5)
+
+        cor_df <- te_gene_matrix_all %>%
+            group_by(!!sym(ontology), loc_lowres_integrative_stranded, rte_length_req) %>%
+            mutate(groupN = n()) %>%
+            filter(groupN > 4) %>%
+            summarise(cor = cor.test(TE, GENE, method = "spearman")$estimate, pval = cor.test(TE, GENE, method = "spearman")$p.value) %>%
+            mutate(padj = p.adjust(pval, method = "fdr"))
+
+        pf <- cor_df %>%
+            ungroup() %>%
+            complete(!!sym(ontology), loc_lowres_integrative_stranded, rte_length_req)
+        p <- pf %>%
+            ggplot(aes(x = !!sym(ontology), y = loc_lowres_integrative_stranded)) +
+            geom_tile(aes(fill = cor)) +
+            facet_grid(~rte_length_req, space = "free", scales = "free") +
+            geom_text(aes(label = ifelse(padj < 0.05, "*", "")), size = 3) +
+            scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.5, 0, 0.5), na.value = "dark grey") +
+            mtclosed +
+            theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+            labs(x = "", y = "")
+        mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_length_req_pval_lowres_stranded_%s.pdf", outputdir, counttype, "pan_contrast", ontology), 6, 5)
+
+
+        if (grepl("subfamily", ontology)) {
+            cross_frame <- te_gene_matrix_all %>%
+                select(rte_subfamily, loc_lowres_integrative_stranded, rte_length_req) %>%
+                crossing()
+            for (i in seq(1:length(rownames(cross_frame)))) {
+                row <- cross_frame[i, ]
+                a <- row$rte_subfamily
+                b <- row$rte_length_req
+                c <- row$loc_lowres_integrative_stranded
+                p <- te_gene_matrix_all %>%
+                    filter(rte_subfamily == a) %>%
+                    filter(rte_length_req == b) %>%
+                    filter(loc_lowres_integrative_stranded == c) %>%
+                    dplyr::select(TE, GENE, cor_contrast) %>%
+                    ggplot(aes(x = TE, y = GENE, color = cor_contrast)) +
+                    theme(aspect.ratio = 1) +
+                    geom_point(alpha = 0.3) +
+                    labs(x = "TE L2FC", y = "GENE L2FC") +
+                    ggtitle(sprintf("%s %s\n%s", a, c, b)) +
+                    scale_contrasts +
+                    mtclosed
+                mysaveandstore(pl = p, fn = sprintf("%s/%s/%s/rte_gene_cor/scatter_gene_te_corr/%s_%s_%s.pdf", outputdir, counttype, "pan_contrast", a, b, c), 6, 4)
+            }
         }
-    }
+
+    }, error = function(e) {
+        print("problem in")
+        print(ontology)
+        print(e)
+    })
+
 }
 
 
