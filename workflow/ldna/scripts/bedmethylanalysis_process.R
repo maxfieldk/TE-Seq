@@ -549,34 +549,34 @@ mem_used()
 dir.create("ldna/results/plots/reads")
 library(Biostrings)
 
-readslist <- list()
-for (region in conf$rte_subfamily_read_level_analysis) {
-    for (sample_name in samples) {
-        df <- read_delim(
-            grep(region,
-                grep(sprintf("/%s/", sample_name),
-                    inputs$read_mods,
-                    value = TRUE
-                ),
-                value = TRUE
-            )
-        )
-        df$region <- region
-        df$sample <- sample_name
-        df$condition <- sample_table[sample_table$sample_name == sample_name, "condition"]
-        grsx <- GRanges(df %>% dplyr::rename(seqnames = chrom, start = ref_position, strand = ref_strand) %>% mutate(end = start))
-        eoi <- import(paste0("aref/extended/A.REF_annotations/A.REF_rte_beds/", region, ".bed"))
-        mbo <- mergeByOverlaps(grsx, eoi)
-        df1 <- as.data.frame(mbo) %>%
-            tibble() %>%
-            dplyr::select(starts_with("grsx"), name) %>%
-            dplyr::rename(gene_id = name)
-        colnames(df1) <- gsub("grsx.", "", colnames(df1))
-        readslist <- c(readslist, list(df1))
-    }
-}
-reads <- Reduce(rbind, readslist) %>% filter(mod_code == params$mod_code)
-write_delim(reads, sprintf("ldna/Rintermediates/%s/reads_context_all.tsv", params$mod_code), col_names = TRUE)
+# readslist <- list()
+# for (region in conf$rte_subfamily_read_level_analysis) {
+#     for (sample_name in samples) {
+#         df <- read_delim(
+#             grep(region,
+#                 grep(sprintf("/%s/", sample_name),
+#                     inputs$read_mods,
+#                     value = TRUE
+#                 ),
+#                 value = TRUE
+#             )
+#         )
+#         df$region <- region
+#         df$sample <- sample_name
+#         df$condition <- sample_table[sample_table$sample_name == sample_name, "condition"]
+#         grsx <- GRanges(df %>% dplyr::rename(seqnames = chrom, start = ref_position, strand = ref_strand) %>% mutate(end = start))
+#         eoi <- import(paste0("aref/extended/A.REF_annotations/A.REF_rte_beds/", region, ".bed"))
+#         mbo <- mergeByOverlaps(grsx, eoi)
+#         df1 <- as.data.frame(mbo) %>%
+#             tibble() %>%
+#             dplyr::select(starts_with("grsx"), name) %>%
+#             dplyr::rename(gene_id = name)
+#         colnames(df1) <- gsub("grsx.", "", colnames(df1))
+#         readslist <- c(readslist, list(df1))
+#     }
+# }
+# reads <- Reduce(rbind, readslist) %>% filter(mod_code == params$mod_code)
+# write_delim(reads, sprintf("ldna/Rintermediates/%s/reads_context_all.tsv", params$mod_code), col_names = TRUE)
 # reads <- read_delim(sprintf("ldna/Rintermediates/%s/reads_context_cpg.tsv", params$mod_code), col_names = TRUE)
 
 readslistcg <- list()
