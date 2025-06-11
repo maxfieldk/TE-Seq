@@ -78,28 +78,48 @@ mkdir -p $(dirname {output.k15_db})
         """
 
 
-
-rule align_to_ref_winnowmap:
+rule align_to_ref_default:
     input:
         fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq",
-        repetitive_k15 = "ldna/repetitive_k15.txt"
     benchmark:
-        "ldna/benchmarks/winnowmap/{sample}.tsv"
+        "ldna/benchmarks/align_to_ref_default/{sample}.tsv"
     params:
-        winnowmap = config["aref"]["winnowmap"],
         reference = lambda wildcards: "aref/extended/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF.fa"
     container: None
+    conda: "minimap2"
     output:
         sam = temp(expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sam",ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]))
     resources:
-        cpus_per_task =20,
+        cpus_per_task = 60,
         runtime = 2400,
-        mem_mb = 128000
+        mem_mb = 350000
     shell:
         """
 mkdir -p $(dirname {output.sam})
-{params.winnowmap} -W {input.repetitive_k15} -t {resources.cpus_per_task} -y -ax map-ont {params.reference} {input.fastq} > {output.sam}
+minimap2 -t {resources.cpus_per_task} -y -ax map-ont -g 10000 --rmq=yes --rmq-inner=8000 {params.reference} {input.fastq} > {output.sam}
         """
+
+# rule align_to_ref_winnowmap:
+#     input:
+#         fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq",
+#         repetitive_k15 = "ldna/repetitive_k15.txt"
+#     benchmark:
+#         "ldna/benchmarks/winnowmap/{sample}.tsv"
+#     params:
+#         winnowmap = config["aref"]["winnowmap"],
+#         reference = lambda wildcards: "aref/extended/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF.fa"
+#     container: None
+#     output:
+#         sam = temp(expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sam",ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]))
+#     resources:
+#         cpus_per_task =20,
+#         runtime = 2400,
+#         mem_mb = 128000
+#     shell:
+#         """
+# mkdir -p $(dirname {output.sam})
+# {params.winnowmap} -W {input.repetitive_k15} -t {resources.cpus_per_task} -g 10000 -y -ax map-ont {params.reference} {input.fastq} > {output.sam}
+#         """
 
 rule get_winnowmap:
     input:

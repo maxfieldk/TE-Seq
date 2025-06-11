@@ -215,7 +215,8 @@ basecaller \
 {params.input_dir} \
 --recursive \
 --verbose \
---reference {params.reference} > {output.calls}.unfinished
+--reference {params.reference} \
+--mm2-opts "-x map-ont -g 10000 --rmq=yes --rmq-inner=8000" > {output.calls}.unfinished
 mv {output.calls}.unfinished {output.calls}
         """
 
@@ -456,8 +457,8 @@ samtools index  -@6 {input.bam}
 species = config["aref"]["species"]
 rule tldr_aggregate_multiple_samples:
     input:
-        bams = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam", sample = config["aref"]["samples"], rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
-        bais = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam.bai", sample = config["aref"]["samples"], rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
+        bams = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam", sample = config["aref"]["samples"], rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
+        bais = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam.bai", sample = config["aref"]["samples"], rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
     params:
         tldr_input_bam_ref = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"],
         tldr_te_ref = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_te_ref"][species],

@@ -679,6 +679,7 @@ p <- sample_table %>%
     ggtexttable(theme = ttheme("minimal"))
 mysaveandstore(pl = p, sprintf("aref/results/sample_chars_means.pdf"), 6, 3)
 # load tldr germinline tldr insertions that wind up in reference
+
 dfs_filtered <- list()
 if (conf$update_ref_with_tldr$per_sample == "yes") {
     for (sample in sample_table$sample_name) {
@@ -725,7 +726,18 @@ if (conf$update_ref_with_tldr$per_sample == "yes") {
 }
 
 dfall %>% write_csv("aref/results/dfall_allsamples.csv")
+dfall_old
+dfall_ldna <- read_delim("/users/mkelsey/data/n2102ep/RTE/aref/A.REFldnaref/A.REFldnaref.table.txt")
+dfall <- dfall_old
+old_curated <- read_csv("/users/mkelsey/data/n2102ep/RTE/aref_may302025/results/somatic_insertions/insert_characteristics/curated_inserts.txt", col_names = FALSE)$X1
+dfall_old_cur <- dfall_old %>% filter(UUID %in% old_curated)
 
+dfalloldcurgrs <- GRanges(dfall_old_cur)
+
+GRanges(dfall_ldna %>% filter(Strand != "None")) %>% subsetByOverlaps(dfalloldcurgrs, ignore.strand = TRUE)
+GRanges(dfall %>% filter(Strand != "None")) %>% subsetByOverlaps(dfalloldcurgrs, ignore.strand = TRUE)
+
+dfalloldcurgrs %>% subsetByOverlaps(dfall %>% filter(Strand != "None") %>% GRanges(), ignore.strand = TRUE, invert = TRUE)
 # somatic_naught_processedpseudogene <- dfall %>%
 #     filter(is.na(Family)) %>%
 #     filter(Filter == "UnmapCoverNA,NoFamily,NoTEAlignment") %>%

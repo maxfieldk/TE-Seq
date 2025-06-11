@@ -54,6 +54,7 @@ df_filtered <- read_delim(inputs$filtered_tldr) %>% dplyr::rename(nonref_UUID = 
 
 nrdf <- rmann %>%
     filter(refstatus == "NonRef") %>%
+    filter(!grepl("__AS$", gene_id)) %>%
     left_join(df_filtered, by = "nonref_UUID") %>%
     mutate(zygosity = factor(ifelse(fraction_reads_count >= 0.95, "homozygous", "heterozygous"), levels = c("homozygous", "heterozygous"))) %>%
     mutate(known_nonref = factor(
@@ -106,7 +107,7 @@ p1 <- nrdf %>%
     group_by(rte_family, rte_subfamily, req_integrative) %>%
     summarise(count = n()) %>%
     mutate(counts = count) %>%
-    ggbarplot(x = "rte_subfamily", y = "counts", fill = "req_integrative") +
+    ggbarplot(x = "rte_subfamily", y = "counts", fill = "req_integrative", label = TRUE) +
     ggtitle("Non-reference RTE Insertions") +
     labs(x = "Subfamily", y = "Counts") +
     scale_palette +
@@ -151,6 +152,9 @@ np <- novel_frac_df %>%
 ptch <- p1 / np / hp + plot_layout(heights = c(0.4, 0.4, 0.4), axis_titles = "collect")
 mysaveandstore(pl = ptch, sprintf("%s/insertions_subfamily_patch.pdf", outputdir), 6, 6)
 
+ptch <- p1 / hp + plot_layout(heights = c(0.4, 0.2), axis_titles = "collect")
+mysaveandstore(pl = ptch, sprintf("%s/insertions_subfamily_patch_2.pdf", outputdir), 6, 5)
+
 for (rte in homozyg_frac_df %$% rte_subfamily) {
     pf <- homozyg_frac_df %>%
         filter(rte_subfamily == rte) %>%
@@ -191,7 +195,7 @@ p <- nrdf %>%
     mtopen +
     scale_palette +
     anchorbar
-mysaveandstore(sprintf("%s/l1hs_length_in_updated_ref.pdf", outputdir), 5, 5)
+mysaveandstore(sprintf("%s/l1hs_length_in_updated_ref.pdf", outputdir), 4, 4)
 
 
 x <- tibble(OUT = "")
