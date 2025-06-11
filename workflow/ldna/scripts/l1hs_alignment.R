@@ -202,49 +202,67 @@ write_csv(consensus_index_long, sprintf("%s/%s_fl_mapping_to_consensus_table.csv
 
 ##########
 consensus_index_long
-consensus_index_long %>% filter(sequence_pos <10)
-consensus_index_long %>% filter(gene_id == "L1HS_12q21.1_1") %>% pl()
-consensus_index_long %>% filter(consensus_pos>10) %>% filter(sequence_pos <10)
-consensus_index_long %>% filter(!is.na(consensus_pos)) %>% group_by(gene_id) %>% summarise(minsp = min(consensus_pos, na.rm = TRUE)) %$% minsp %>% table()
+consensus_index_long %>% filter(sequence_pos < 10)
+consensus_index_long %>%
+    filter(gene_id == "L1HS_12q21.1_1") %>%
+    pl()
+consensus_index_long %>%
+    filter(consensus_pos > 10) %>%
+    filter(sequence_pos < 10)
+consensus_index_long %>%
+    filter(!is.na(consensus_pos)) %>%
+    group_by(gene_id) %>%
+    summarise(minsp = min(consensus_pos, na.rm = TRUE)) %$% minsp %>%
+    table()
 consensus_index_long %>% filter(sequence_pos == 1)
 consensus_index_long %>% filter(gene_id == "L1HS_10p11.21_4")
 
-consensus_index_long %>% filter(!is.na(sequence_pos)) %>% group_by(gene_id) %>% summarise(minsp = min(consensus_pos, na.rm = TRUE)) %$% minsp %>% table()
+consensus_index_long %>%
+    filter(!is.na(sequence_pos)) %>%
+    group_by(gene_id) %>%
+    summarise(minsp = min(consensus_pos, na.rm = TRUE)) %$% minsp %>%
+    table()
 consensus_index_long %$% gene_id %>% unique()
-consensus_index_long %>% filter(!is.na(sequence_pos)) %>% group_by(gene_id) %>% summarise(minsp = min(consensus_pos, na.rm = TRUE)) %$% minsp %>% table() %>% sum()
+consensus_index_long %>%
+    filter(!is.na(sequence_pos)) %>%
+    group_by(gene_id) %>%
+    summarise(minsp = min(consensus_pos, na.rm = TRUE)) %$% minsp %>%
+    table() %>%
+    sum()
 
-consensus_index_long %>% 
-    filter(!is.na(sequence_pos)) %>% 
-    mutate(m_ind = if_else(seq == consensus_seq, 0, 1)) %>% 
-    filter(consensus_pos <21) %>% 
-    filter(consensus_pos >= 10) %>% 
-    group_by(gene_id) %>% 
-    summarise(n = n(), mm = sum(m_ind)) %$% 
-    mm %>% table()
-perfect_yy1_elements <- consensus_index_long %>% 
-    filter(!is.na(sequence_pos)) %>% 
-    mutate(m_ind = if_else(seq == consensus_seq, 0, 1)) %>% 
-    filter(consensus_pos <=21) %>% 
+consensus_index_long %>%
+    filter(!is.na(sequence_pos)) %>%
+    mutate(m_ind = if_else(seq == consensus_seq, 0, 1)) %>%
+    filter(consensus_pos < 21) %>%
+    filter(consensus_pos >= 10) %>%
+    group_by(gene_id) %>%
+    summarise(n = n(), mm = sum(m_ind)) %$%
+    mm %>%
+    table()
+perfect_yy1_elements <- consensus_index_long %>%
+    filter(!is.na(sequence_pos)) %>%
+    mutate(m_ind = if_else(seq == consensus_seq, 0, 1)) %>%
+    filter(consensus_pos <= 21) %>%
     filter(consensus_pos >= 11) %>%
-    group_by(gene_id) %>% 
+    group_by(gene_id) %>%
     summarise(n = n(), mm = sum(m_ind)) %>%
-    filter(mm == 0) %>% 
+    filter(mm == 0) %>%
     filter(n == 11) %$% gene_id
-ok_yy1_elements <- consensus_index_long %>% 
-    filter(!is.na(sequence_pos)) %>% 
-    mutate(m_ind = if_else(seq == consensus_seq, 0, 1)) %>% 
-    filter(consensus_pos <=21) %>% 
+ok_yy1_elements <- consensus_index_long %>%
+    filter(!is.na(sequence_pos)) %>%
+    mutate(m_ind = if_else(seq == consensus_seq, 0, 1)) %>%
+    filter(consensus_pos <= 21) %>%
     filter(consensus_pos >= 11) %>%
-    group_by(gene_id) %>% 
+    group_by(gene_id) %>%
     summarise(n = n(), mm = sum(m_ind)) %>%
-    filter(mm < 4) %>% 
-    filter(n >9) %$% gene_id
+    filter(mm < 4) %>%
+    filter(n > 9) %$% gene_id
 
-p <- perelementdf_promoters %>% filter(rte_subfamily == "L1HS", rte_length_req == "FL") %>% 
-mutate(yy1 = if_else(gene_id %in% ok_yy1_elements, "yes", "no")) %>%
-ggplot() +
-    geom_density(aes(x = mean_meth, group = yy1, color = yy1))
-mysaveandstore("zztemp3.pdf")
+# p <- perelementdf_promoters %>% filter(rte_subfamily == "L1HS", rte_length_req == "FL") %>%
+# mutate(yy1 = if_else(gene_id %in% ok_yy1_elements, "yes", "no")) %>%
+# ggplot() +
+#     geom_density(aes(x = mean_meth, group = yy1, color = yy1))
+# mysaveandstore("zztemp3.pdf")
 
 ##############
 # METHYLATION CLUSTERING

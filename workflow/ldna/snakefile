@@ -1180,7 +1180,7 @@ rule bedmethylanalysis_process:
         grsdf = "ldna/Rintermediates/{mod_code}/grsdf.tsv"
     resources:
         cpus_per_task =10,
-        mem_mb = 250000,
+        mem_mb = 600000,
         runtime = 400
     conda:
         "ds"
@@ -1198,7 +1198,7 @@ rule bedmethylanalysis_process_single_condition:
         grsdf = "ldna/Rintermediates/{mod_code}/grsdf.tsv"
     resources:
         cpus_per_task =10,
-        mem_mb = 250000,
+        mem_mb = 300000,
         runtime = 400
     conda:
         "ds"
