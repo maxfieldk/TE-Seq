@@ -530,9 +530,15 @@ for (subset in c("rtes", "genes")) {
         ) + mtopen + scale_conditions
         mysaveandstore(paste(outputdir, counttype, subset, sprintf("batchRemoved_%s", batchnormed), "pca_large.pdf", sep = "/"), 16, 16)
 
-
-        p <- pairsplot(pcaObj, colby = "condition", title = "Condition", legendPosition = "right")
-        mysaveandstore(paste(outputdir, counttype, subset, sprintf("batchRemoved_%s", batchnormed), "pca_pairs_condition.pdf", sep = "/"), 15, 15)
+        tryCatch(
+            {
+                p <- pairsplot(pcaObj, colby = "condition", title = "Condition", legendPosition = "right")
+                mysaveandstore(paste(outputdir, counttype, subset, sprintf("batchRemoved_%s", batchnormed), "pca_pairs_condition.pdf", sep = "/"), 15, 15)
+            },
+            error = function(e) {
+                print("likely not enough PCs")
+            }
+        )
 
 
         p <- biplot(pcaObj,
