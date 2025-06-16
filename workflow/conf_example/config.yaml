@@ -89,7 +89,7 @@ aref:
 
   #MODULE SETTINGS
   prefix: aref
-  species: human #The species name must be a valid NCBI Taxonomy Database species name and be contained in the RepeatMasker repeat database.
+  species: human #If Homo sapiens or Mus musculus, use human or mouse, respectively. For other species, the species name must be a valid NCBI Taxonomy Database species name and be contained in the RepeatMasker repeat database.
 
   #PARAMETERS RELVANT IF UPDATING REFERENCE WITH LONG READ DATA, ELSE YOU CAN IGNORE
   sample_table: "conf/sample_table_aref.csv"
