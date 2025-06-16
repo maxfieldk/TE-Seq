@@ -44,7 +44,7 @@ rule mod_bam_to_fastq:
     input:
         bam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
     output:
-        fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq"
+        fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq.gz"
     conda: 
         "omics"
     resources:
@@ -52,7 +52,9 @@ rule mod_bam_to_fastq:
     shell:
         """
 mkdir -p $(dirname {output.fastq})
-samtools fastq -T MM,ML,qs {input.bam} > {output.fastq}
+samtools fastq -T MM,ML,qs {input.bam} > {output.fastq}.temp
+gzip {output.fastq}.temp
+mv {output.fastq}.temp.gz {output.fastq}
         """
 
 
@@ -80,7 +82,7 @@ mkdir -p $(dirname {output.k15_db})
 
 rule align_to_ref_default:
     input:
-        fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq",
+        fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq.gz",
     benchmark:
         "ldna/benchmarks/align_to_ref_default/{sample}.tsv"
     params:
@@ -101,7 +103,7 @@ minimap2 -t {resources.cpus_per_task} -y -ax map-ont {params.reference} {input.f
 
 # rule align_to_ref_winnowmap:
 #     input:
-#         fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq",
+#         fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq.gz",
 #         repetitive_k15 = "ldna/repetitive_k15.txt"
 #     benchmark:
 #         "ldna/benchmarks/winnowmap/{sample}.tsv"
@@ -194,7 +196,7 @@ mv {wildcards.sample} $(dirname {output.tldr})/
 
 rule align_to_hg38:
     input:
-        fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq",
+        fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq.gz",
         aref = ancient("aref.done.outfile")
     params:
         ref = "/oscar/data/jsedivy/mkelsey/ref/genomes/hg38/hg38.p13.sorted.fa"
@@ -233,7 +235,7 @@ samtools faidx {output.ref_telometer}
 
 rule telometer_align:
     input:
-        fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq",
+        fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq.gz",
         ref_telometer = "aref/extended/A.REF_telometer.fa"
     output:
         sam = temp(expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sam",ref_genome = "telometer", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]))
@@ -308,7 +310,9 @@ rule samToBam:
 samtools view -@8 -bS {input.sam} > {output.bam}
         """
 
-
+rule getnewbams:
+    input:
+        expand("ldna/intermediates/{sample}/alignments/{rate}/analysis_default/{sample}.{type}.{modification_string}.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = config["ldna"]["samples"])
 
 rule dorado_barcode:
     input:
@@ -429,7 +433,7 @@ rule call_alnl1hsconsensus:
 
 rule mycoplasmaCheck:
     input:
-        fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq",
+        fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq.gz",
         aref = ancient("aref.done.outfile")
     params:
         reference = "resources/genomes/mycoplasma/mycoplasma.fa"
@@ -1867,22 +1871,22 @@ rule gimmeplots:
 #         """
 
 #tag INSERT_ANALYSIS
-rule extractFastqs:
-    input:
-        bam = "ldna/intermediates/{sample}/alignments/{sample}.sorted.bam"
-    output:
-        fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq"
-    resources:
-        cpus_per_task =10,
-        threads = 10,
-        runtime = 300,
-        mem_mb = 32000
-    conda: "omics"
-    shell:
-        """
-mkdir -p $(dirname {output})
-samtools fastq -c6 -@8 {input.bam} > {output.fastq}
-        """
+# rule extractFastqs:
+#     input:
+#         bam = "ldna/intermediates/{sample}/alignments/{sample}.sorted.bam"
+#     output:
+#         fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq"
+#     resources:
+#         cpus_per_task =10,
+#         threads = 10,
+#         runtime = 300,
+#         mem_mb = 32000
+#     conda: "omics"
+#     shell:
+#         """
+# mkdir -p $(dirname {output})
+# samtools fastq -c6 -@8 {input.bam} > {output.fastq}
+#         """
 
 rule reAlignFqs:
     input:
