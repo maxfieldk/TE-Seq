@@ -163,7 +163,6 @@ tryCatch(
             filter(if_any(starts_with("padj_"), ~ . <= 0.05)) %$%
             gene_id
 
-        gois <- c("L1HS_2p13.2_1", "L1HS_2q21.1_2", "L1HS_4q28.3_9")
         resultsdf_unique <- resultsdf1 %>%
             filter(counttype == "telescope_unique") %>%
             full_join(rmann)
@@ -365,7 +364,7 @@ tryCatch(
         }
     },
     error = function(e) {
-        print("something went wrong")
+        print("Something went wrong if your species is human. If you are working with other species, no output is normal")
     }
 )
 
