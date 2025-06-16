@@ -96,7 +96,7 @@ rule align_to_ref_default:
     shell:
         """
 mkdir -p $(dirname {output.sam})
-minimap2 -t {resources.cpus_per_task} -y -ax map-ont -g 10000 --rmq=yes --rmq-inner=8000 {params.reference} {input.fastq} > {output.sam}
+minimap2 -t {resources.cpus_per_task} -y -ax map-ont {params.reference} {input.fastq} > {output.sam}
         """
 
 # rule align_to_ref_winnowmap:

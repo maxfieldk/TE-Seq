@@ -216,7 +216,7 @@ basecaller \
 --recursive \
 --verbose \
 --reference {params.reference} \
---mm2-opts "-x map-ont -g 10000 --rmq=yes --rmq-inner=8000" > {output.calls}.unfinished
+--mm2-opts "-x map-ont" > {output.calls}.unfinished
 mv {output.calls}.unfinished {output.calls}
         """
 

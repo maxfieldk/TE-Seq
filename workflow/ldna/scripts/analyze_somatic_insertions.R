@@ -37,11 +37,7 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            tldroutput = if (conf$update_ref_with_tldr$per_sample == "yes") {
-                sprintf("aref/%s_tldr/%s.table.txt", conf$samples, conf$samples)
-            } else {
-                rep(sprintf("aref/%s_tldr/%s.table.txt", "A.REF", "A.REF"), length(sample_table$sample_name))
-            },
+            tldroutput = sprintf("ldna/tldr/%s_tldr/%s.table.txt", conf$samples, conf$samples),
             blast_njs = if (conf$update_ref_with_tldr$per_sample == "yes") {
                 sprintf("aref/default/blastdb/%s.njs", conf$samples)
             } else {
@@ -53,12 +49,12 @@ tryCatch(
             } else {
                 sprintf("aref/default/%s.table.kept_in_updated_ref.txt", "A.REF")
             },
-            bam = sprintf("aref/intermediates/%s/alignments/%s/%s.%s.%s.sorted.bam", sample_table$sample_name, conf$rate, sample_table$sample_name, conf$type, conf$modification_string),
+            bam = sprintf("ldna/intermediates/%s/alignments/%s/analysis_default/%s.%s.%s.sorted.bam", sample_table$sample_name, conf$rate, sample_table$sample_name, conf$type, conf$modification_string),
             r_annotation_fragmentsjoined = "aref/default/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
             r_repeatmasker_annotation = "aref/default/A.REF_annotations/A.REF_repeatmasker_annotation.csv"
         ), env = globalenv())
         assign("outputs", list(
-            plots = "aref/results/somatic_insertions/analyze_nongermline_insertions.rds"
+            plots = "ldna/results/somatic_insertions/analyze_nongermline_insertions.rds"
         ), env = globalenv())
     }
 )
@@ -133,11 +129,8 @@ dir.create(outputdir, recursive = TRUE, showWarnings = FALSE)
                 mean_mapq <- alndf$mapq %>% mean()
                 insert_mean_mapqs[[insert_id]] <- mean_mapq
                 # insert fails if it was captured in a read which has supplementary alignments
-                if (conf$update_ref_with_tldr$per_sample == "yes") {
-                    tldr_df <- read_delim(sprintf("aref/%s_tldr/%s/%s.detail.out", sample, sample, insert_id))
-                } else {
-                    tldr_df <- read_delim(sprintf("aref/%s_tldr/%s/%s.detail.out", "A.REF", "A.REF", insert_id))
-                }
+                tldr_df <- read_delim(sprintf("ldna/tldr/%s_tldr/%s/%s.detail.out", sample, sample, insert_id))
+
                 read_name <- tldr_df %>% filter(Useable == TRUE & IsSpanRead == TRUE) %$% ReadName
                 read_of_interest <- alndf %>% filter(qname %in% read_name)
                 insert_supplementary_status[[insert_id]] <- ifelse(all(is.na(read_of_interest$SA)), TRUE, FALSE)
@@ -644,7 +637,7 @@ sample_table %>%
     left_join(sample_sequencing_data) %>%
     dplyr::select(-condition, -nanopore_rawdata_dir) %>%
     mutate(coverage = bases_number / (3.1 * 10**9)) %>%
-    write_delim(sprintf("aref/results/sample_chars.txt"))
+    write_delim(sprintf("ldna/results/sample_chars.txt"))
 p <- sample_table %>%
     left_join(sample_sequencing_data) %>%
     dplyr::select(-condition, -nanopore_rawdata_dir) %>%
@@ -654,7 +647,7 @@ p <- sample_table %>%
         ~ formatC(as.numeric(.x), format = "e", digits = 2)
     )) %>%
     ggtexttable(theme = ttheme("minimal"))
-mysaveandstore(pl = p, sprintf("aref/results/sample_chars.pdf"), 8, 5)
+mysaveandstore(pl = p, sprintf("ldna/results/sample_chars.pdf"), 8, 5)
 p <- sample_table %>%
     left_join(sample_sequencing_data) %>%
     dplyr::select(-nanopore_rawdata_dir) %>%
@@ -666,7 +659,7 @@ p <- sample_table %>%
         ~ formatC(as.numeric(.x), format = "e", digits = 2)
     )) %>%
     ggtexttable(theme = ttheme("minimal"))
-mysaveandstore(pl = p, sprintf("aref/results/sample_chars_grouped_means.pdf"), 6, 3)
+mysaveandstore(pl = p, sprintf("ldna/results/sample_chars_grouped_means.pdf"), 6, 3)
 p <- sample_table %>%
     left_join(sample_sequencing_data) %>%
     dplyr::select(-nanopore_rawdata_dir) %>%
@@ -677,7 +670,7 @@ p <- sample_table %>%
         ~ formatC(as.numeric(.x), format = "e", digits = 2)
     )) %>%
     ggtexttable(theme = ttheme("minimal"))
-mysaveandstore(pl = p, sprintf("aref/results/sample_chars_means.pdf"), 6, 3)
+mysaveandstore(pl = p, sprintf("ldna/results/sample_chars_means.pdf"), 6, 3)
 # load tldr germinline tldr insertions that wind up in reference
 
 dfs_filtered <- list()
@@ -720,12 +713,35 @@ if (conf$update_ref_with_tldr$per_sample == "yes") {
         left_join(sample_sequencing_data) %>%
         left_join(sample_table)
 } else {
-    dfall <- read.table("aref/A.REF_tldr/A.REF.table.txt", header = TRUE) %>%
+    dfall <- read.table(inputs$tldroutput, header = TRUE) %>%
         mutate(faName = paste0("NI_", "A.REF", "_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>%
         tibble()
 }
 
-dfall %>% write_csv("aref/results/dfall_allsamples.csv")
+# dfall <- read.table("/users/mkelsey/data/n2102ep/RTE/ldna/tldr/N2102EP1_tldr/N2102EP1.table.txt", header = TRUE) %>%
+#     mutate(faName = paste0("NI_", "A.REF", "_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>%
+#     tibble()
+
+dfall %>% write_csv("ldna/results/dfall_allsamples.csv")
+dfall_old <- read_delim("/users/mkelsey/data/n2102ep/RTE/aref_may302025/A.REF_tldr/A.REF.table.txt")
+old_curated <- read_csv("/users/mkelsey/data/n2102ep/RTE/aref_may302025/results/somatic_insertions/insert_characteristics/curated_inserts.txt", col_names = FALSE)$X1
+dfall_old_cur <- dfall_old %>% filter(UUID %in% old_curated)
+
+dfalloldcurgrs <- GRanges(dfall_old_cur)
+
+
+GRanges(dfall %>% filter(Strand != "None")) %>% subsetByOverlaps(dfalloldcurgrs, ignore.strand = TRUE)
+GRanges(dfall %>% filter(Strand != "None")) %>% subsetByOverlaps(dfalloldcurgrs, ignore.strand = TRUE)
+
+dfalloldcurgrs %>%
+    promoters(upstream = 100, downstream = 100) %>%
+    subsetByOverlaps(dfall %>% filter(Strand != "None") %>% GRanges(), ignore.strand = TRUE, invert = TRUE)
+dfalloldcurgrs %>% subsetByOverlaps(dfall %>% filter(Strand != "None") %>% GRanges(), ignore.strand = TRUE, invert = FALSE)
+
+
+dfall %>%
+    filter(Chrom == "chr18") %>%
+    filter(grepl("^715", as.character(Start)))
 
 # somatic_naught_processedpseudogene <- dfall %>%
 #     filter(is.na(Family)) %>%
@@ -820,7 +836,7 @@ all_nr <- dfall_AD %>%
 all_grs <- GRanges(all_nr)
 somatic_alpha_annotated_grs <- somatic_alpha_annotated %>%
     GRanges() %>%
-    flank(width = 20, both = TRUE)
+    flank(width = 100, both = TRUE)
 other_sample_filter <- list()
 for (sample in somatic_alpha_annotated$sample_name %>% unique()) {
     sample_somatic_alpha_annotated_grs <- somatic_alpha_annotated %>%
@@ -835,8 +851,8 @@ for (sample in somatic_alpha_annotated$sample_name %>% unique()) {
 surv <- purrr::reduce(other_sample_filter, bind_rows)
 somatic_alpha_annotated <- somatic_alpha_annotated %>% mutate(not_found_in_other_samples = ifelse(UUID %in% surv$UUID, TRUE, FALSE))
 
-write_csv(somatic_alpha_annotated, "aref/results/somatic_insertions/somatic_alpha_annotated.csv")
-somatic_alpha_annotated <- read_csv("aref/results/somatic_insertions/somatic_alpha_annotated.csv")
+write_csv(somatic_alpha_annotated, "ldna/results/somatic_insertions/somatic_alpha_annotated.csv")
+somatic_alpha_annotated <- read_csv("ldna/results/somatic_insertions/somatic_alpha_annotated.csv")
 
 
 
@@ -896,6 +912,19 @@ f4_less_stringent_l1hs_extended <- f3_l1hs_extended %>%
 
 sdf <- rbind(f4, f4_less_stringent)
 sdf_l1hs_extended <- rbind(f4_l1hs_extended, f4_less_stringent_l1hs_extended)
+
+
+dfalloldcurgrs %>%
+    promoters(upstream = 100, downstream = 100) %>%
+    subsetByOverlaps(sdf %>% GRanges(), ignore.strand = TRUE, invert = FALSE)
+
+dfalloldcurgrs %>%
+    promoters(upstream = 100, downstream = 100) %>%
+    subsetByOverlaps(sdf %>% GRanges(), ignore.strand = TRUE, invert = TRUE)
+dfalloldcurgrs %>%
+    promoters(upstream = 100, downstream = 100) %>%
+    subsetByOverlaps(sdf_l1hs_extended %>% GRanges(), ignore.strand = TRUE, invert = FALSE)
+
 
 
 sdf %$% inrepregion %>% table()
@@ -963,11 +992,11 @@ if (file.exists(curated_elements_path)) {
     curation_df_complete <- tibble(UUID = ce$X1, pass_curation = TRUE)
 
     for (UUID in curation_df_complete$UUID) {
-        path <- system(sprintf("find aref/results/somatic_insertions/unique_insert_data -name %s", UUID), intern = TRUE)
+        path <- system(sprintf("find ldna/results/somatic_insertions/unique_insert_data -name %s", UUID), intern = TRUE)
         tryCatch(
             {
-                system("mkdir -p aref/results/somatic_insertions/insert_characteristics/curated_elements/insert_data")
-                system(sprintf("cp -r %s aref/results/somatic_insertions/insert_characteristics/curated_elements/insert_data", path))
+                system("mkdir -p ldna/results/somatic_insertions/insert_characteristics/curated_elements/insert_data")
+                system(sprintf("cp -r %s ldna/results/somatic_insertions/insert_characteristics/curated_elements/insert_data", path))
                 file.exists(path)
             },
             error = function(e) {
@@ -977,7 +1006,7 @@ if (file.exists(curated_elements_path)) {
     }
 
 
-    somatic_alpha_annotated <- read_csv("aref/results/somatic_insertions/somatic_alpha_annotated.csv")
+    somatic_alpha_annotated <- read_csv("ldna/results/somatic_insertions/somatic_alpha_annotated.csv")
 
     if (is.null(somatic_alpha_annotated$condition)) {
         somatic_alpha_annotated$condition <- conf$levels
@@ -1167,7 +1196,7 @@ if (file.exists(curated_elements_path)) {
     p <- as.data.frame(sapply(data, summary))
     df <- as.data.frame(lapply(p, function(x) if (is.numeric(x)) round(x, 0) else x))
 
-    cut_site_df <- read_csv("aref/results/somatic_insertions/insert_characteristics/curated_elements/curated_element_cutsite_region.csv")
+    cut_site_df <- read_csv("ldna/results/somatic_insertions/insert_characteristics/curated_elements/curated_element_cutsite_region.csv")
     p <- pass %>%
         left_join(cut_site_df) %>%
         mutate(tsd_length = nchar(TSD)) %>%
