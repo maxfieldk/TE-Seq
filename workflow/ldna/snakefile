@@ -140,14 +140,14 @@ rule tldr_per_sample:
     benchmark:
         "ldna/benchmarks/tldr_per_sample/{sample}.tsv"
     params:
-        tldr_input_bam_ref = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"],
+        tldr_input_bam_ref = lambda wildcards: "aref/extended/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF.fa",
         tldr_te_ref = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_te_ref"][species],
         known_nonref = lambda w: [config["aref"]["update_ref_with_tldr"]["known_nonref"]["path"] if config["aref"]["update_ref_with_tldr"]["known_nonref"]["response"] == "yes" else "not_provided"][0]
     output:
         tldr = "ldna/tldr/{sample}_tldr/{sample}.table.txt"
     resources:
-        cpus_per_task = 24,
-        mem_mb = 100000,
+        cpus_per_task = 42,
+        mem_mb = 200000,
         runtime = 300
     conda:
         "tldr"
@@ -162,7 +162,7 @@ then
 tldr -b {input.bam} \
 -e {params.tldr_te_ref} \
 -r {params.tldr_input_bam_ref} \
--p 20 \
+-p 40 \
 --minreads 1 \
 --outbase {wildcards.sample} \
 --detail_output \
@@ -174,7 +174,7 @@ else
 tldr -b {input.bam} \
 -e {params.tldr_te_ref} \
 -r {params.tldr_input_bam_ref} \
--p 20 \
+-p 40 \
 --nonref {params.known_nonref} \
 --minreads 1 \
 --outbase {wildcards.sample} \

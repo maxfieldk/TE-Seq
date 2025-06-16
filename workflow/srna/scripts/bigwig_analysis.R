@@ -432,8 +432,8 @@ for (ontology in c("rte_family", "rte_subfamily_limited")) {
                                 filter(!!sym(ontology) == group)
                         }
 
-                        if (length(rownames(elements_of_interest)) > 10000) {
-                            elements_of_interest <- elements_of_interest %>% sample_n(10000)
+                        if (length(rownames(elements_of_interest)) > 5000) {
+                            elements_of_interest <- elements_of_interest %>% sample_n(5000)
                         }
                         signal_group <- paste0(group, "_", filter_var)
                         windowsF <- elements_of_interest %>%
