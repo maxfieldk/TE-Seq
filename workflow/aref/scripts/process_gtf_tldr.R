@@ -184,7 +184,6 @@ if (params$tldr_switch == "process_gtf_tldr") {
     writeXStringSet(ss, paste0(dirname(inputs$ref), "/nonrefcontigs.fa"), append = FALSE, format = "fasta")
 
 
-
     genome_lengths <- fasta.seqlengths(inputs$ref)
     genome_lengths_df <- data.frame(seqnames = names(genome_lengths), contig_length = genome_lengths) %>% tibble()
     refcontigs <- genome_lengths_df %>%
@@ -193,14 +192,22 @@ if (params$tldr_switch == "process_gtf_tldr") {
     nonrefcontigs <- rmfragments %>% filter(grepl("^NI_", seqnames))
     # this will ensure that 1) only elements which are actually picked up by repeat masker (as opposed to 3p transductions with a tiny bit of TE sequence, are retainined in the reference
     # and that 2) I can make a gtf with only those elements which inserted, and not elements which are merely contained in the nonref contig (but which are also present in the reference).
+    tldrsubfamtofammap <- df %>%
+        dplyr::select(tldrfam = Family, tldrsubfam = Subfamily) %>%
+        dplyr::distinct()
     nonrefelementspass <- nonrefcontigs %>%
         mutate(seqnames_element_type = gsub("_chr.*", "", gsub("NI_", "", seqnames))) %>%
         mutate(seqnames_element_type = gsub("L1Ta", "L1HS", seqnames_element_type)) %>%
         mutate(seqnames_element_type = gsub("L1preTa", "L1HS", seqnames_element_type)) %>%
-        mutate(family_element_type = gsub("^.*/", "", family)) %>%
-        filter(seqnames_element_type == family_element_type)
-
-    sum(nonrefelementspass %$% seqnames %>% table() > 1)
+        mutate(family_element_type = gsub("-int", "", gsub("^.*/", "", family))) %>%
+        mutate(tldrsubfam = gsub("_chr.*", "", gsub("NI_", "", seqnames))) %>%
+        left_join(tldrsubfamtofammap) %>%
+        mutate(tldrsubfam = gsub("L1Ta", "L1HS", gsub("L1preTa", "L1HS", tldrsubfam))) %>%
+        mutate(ins_type_subfam = gsub("^.*/", "", gsub("/NI_.*", "", family))) %>%
+        mutate(ins_type_fam = str_split(family, "/", simplify = FALSE) %>%
+            lapply(function(x) if (length(x) >= 2) x[length(x) - 1] else NA_character_) %>%
+            unlist())
+    # note that I now retain all nonrefcontigs regardless of whether repeatmasker reidentifies the same insert. If it doesn't get an insert in the same family, then there are just no nonrefcentral elements
     contigs_to_keep <- c(refcontigs, nonrefelementspass$seqnames %>% unique() %>% as.character())
     write_delim(as.data.frame(contigs_to_keep), outputs$contigs_to_keep, delim = "\n", col_names = FALSE)
 
@@ -214,30 +221,26 @@ if (params$tldr_switch == "process_gtf_tldr") {
     rmnonref <- rmfragments %>%
         filter(grepl("^NI_", seqnames)) %>%
         filter(seqnames %in% contigs_to_keep)
-    rmnonrefkeep <- nonrefelementspass
+    rmnonrefkeep <- nonrefelementspass %>%
+        rowwise() %>%
+        filter(grepl(toupper(tldrfam), toupper(ins_type_fam))) %>%
+        ungroup()
     # determine which of these is the bona fide nonref ins, and which are just ref ins which are on a nonref contig
-    a <- rmnonrefkeep %>%
-        mutate(seqname_ins_type = gsub("_chr.*", "", gsub("NI_", "", seqnames))) %>%
-        mutate(seqname_ins_type = gsub("L1Ta", "L1HS", gsub("L1preTa", "L1HS", seqname_ins_type))) %>%
-        mutate(ins_type = gsub("^.*/", "", gsub("/NI_.*", "", family))) %>%
-        filter(ins_type == seqname_ins_type)
-
     # bonafide element should be the center of the contig, so select the central element
-    a <- a %>%
+    rmnonrefkeep <- rmnonrefkeep %>%
         left_join(genome_lengths_df) %>%
         mutate(center = contig_length / 2) %>%
-        mutate(dist = abs(center - (end - start) / 2))
+        mutate(dist = abs(center - (end + start) / 2))
 
-    rmnonrefkeep_central_element <- a %>%
+    rmnonrefkeep_central_element <- rmnonrefkeep %>%
         left_join(df %>% dplyr::rename(seqnames = faName) %>% dplyr::select(seqnames, Strand)) %>%
         group_by(seqnames) %>%
-        filter(dist == min(dist)) %>%
         filter(strand == Strand) %>%
+        filter(dist == min(dist)) %>%
         ungroup() %>%
-        dplyr::select(-center, -dist, -Strand, -seqname_ins_type, -ins_type, -contig_length, -seqnames_element_type, -family_element_type) %>%
+        dplyr::select(-dist, -center, -Strand, -tldrsubfam, -ins_type_subfam, -ins_type_fam, -contig_length, -seqnames_element_type, -family_element_type) %>%
         left_join(df_filtered %>% dplyr::select(faName, UUID), by = c("seqnames" = "faName")) %>%
         dplyr::rename(nonref_UUID = UUID)
-
 
     rmnonref_noncentral_elements <- rmnonref %>%
         anti_join(rmnonrefkeep_central_element) %>%
