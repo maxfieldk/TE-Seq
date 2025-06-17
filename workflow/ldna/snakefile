@@ -48,7 +48,8 @@ rule mod_bam_to_fastq:
     conda: 
         "omics"
     resources:
-        cpus_per_task =12
+        cpus_per_task =12,
+        runtime = 500
     shell:
         """
 mkdir -p $(dirname {output.fastq})
