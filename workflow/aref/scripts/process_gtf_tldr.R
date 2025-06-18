@@ -25,7 +25,7 @@ tryCatch(
             ref = "aref/default/A.REF-pre-ins-filtering.fa"
         ), env = globalenv())
         assign("params", list(
-            tldr_switch = "process_gtf",
+            tldr_switch = "process_gtf_tldr",
             sample_or_ref = "A.REF"
         ), env = globalenv())
         assign("outputs", list(

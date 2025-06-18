@@ -75,4 +75,11 @@ writeXStringSet(ss, outputs$non_ref_contigs, append = FALSE, format = "fasta")
 dir.create(dirname(outputs$updated_reference), recursive = TRUE, showWarnings = FALSE)
 system(sprintf("cp %s %s", inputs$reference, outputs$updated_reference))
 writeXStringSet(ss, outputs$updated_reference, append = TRUE, format = "fasta")
-system(sprintf("samtools faidx %s", outputs$updated_reference))
+
+conda_base_path <- system("conda info --base", intern = TRUE)
+system(
+    sprintf(
+        "bash -c 'source %s/etc/profile.d/conda.sh && conda activate omics && samtools faidx %s'",
+        conda_base_path, outputs$updated_reference
+    )
+)

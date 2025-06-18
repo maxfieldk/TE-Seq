@@ -75,4 +75,11 @@ writeXStringSet(ss_plusflank, outputs$non_ref_contigs_plusflank, append = FALSE,
 
 system(sprintf("cp %s %s", inputs$reference, outputs$updated_reference_plusflank))
 writeXStringSet(ss_plusflank, outputs$updated_reference_plusflank, append = TRUE, format = "fasta")
-system(sprintf("samtools faidx %s", outputs$updated_reference_plusflank))
+
+conda_base_path <- system("conda info --base", intern = TRUE)
+system(
+    sprintf(
+        "bash -c 'source %s/etc/profile.d/conda.sh && conda activate omics && samtools faidx %s'",
+        conda_base_path, outputs$updated_reference
+    )
+)
