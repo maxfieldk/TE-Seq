@@ -238,7 +238,7 @@ if (params$tldr_switch == "process_gtf_tldr") {
         filter(strand == Strand) %>%
         filter(dist == min(dist)) %>%
         ungroup() %>%
-        dplyr::select(-dist, -center, -Strand, -tldrsubfam, -ins_type_subfam, -ins_type_fam, -contig_length, -seqnames_element_type, -family_element_type) %>%
+        dplyr::select(-dist, -center, -Strand, -tldrfam, -tldrsubfam, -ins_type_subfam, -ins_type_fam, -contig_length, -seqnames_element_type, -family_element_type) %>%
         left_join(df_filtered %>% dplyr::select(faName, UUID), by = c("seqnames" = "faName")) %>%
         dplyr::rename(nonref_UUID = UUID)
 
