@@ -33,6 +33,7 @@ library(ggnewscale)
 library(betareg)
 library(scales)
 library(ggnewscale)
+library(glmmTMB)
 
 samples <- conf$samples
 sample_table <- sample_table[match(samples, sample_table$sample_name), ]
@@ -6585,7 +6586,7 @@ ggplot() +
     geom_density(aes(x = mean_meth, group = yy1, color = yy1)) +
     scale_palette +
     mtclosed
-mysaveandstore("zztemp9.pdf")
+mysaveandstore(sprintf("ldna/results/%s/plots/rte/yy1/l1hs_meth_by_perfect_yy1.pdf", params$mod_code))
 
 p <- perelementdf_promoters %>% filter(rte_subfamily == "L1HS", rte_length_req == "FL") %>% 
 mutate(yy1 = if_else(gene_id %in% perfect_yy1_elements, "yes", "no")) %>%
@@ -6594,7 +6595,7 @@ ggplot() +
     facet_wrap(~yy1, scales = "free_y") +
     scale_palette +
     mtclosed
-mysaveandstore("zztemp10.pdf")
+mysaveandstore(sprintf("ldna/results/%s/plots/rte/yy1/l1hs_meth_by_perfect_yy1_hist.pdf", params$mod_code))
 
 
 
@@ -6611,6 +6612,7 @@ global_model <- glmmTMB(
     data = data_model,
     family = binomial()
 )
+library(broom.mixed)
 broom::tidy(global_model) %>% write_mycsv(sprintf("ldna/results/%s/tables/rte/yy1_model.csv", params$mod_code))
 
 
@@ -6713,3 +6715,28 @@ mysaveandstore(fn = str_glue("RTE/ldna/results/m/plots/{sample}_coverage_individ
 }
 
 
+########## regressing cpg methylation on region features
+
+perelementdf_promoters %>% pw()
+
+perelementdf_promoters %>% filter(refstatus == "Ref") %>% 
+    filter(rte_subfamily == "L1HS") %>%
+
+
+data_model <- rtedf_promoters %>% filter(rte_subfamily == "L1HS", rte_length_req == "FL") %>% 
+mutate(
+    total_sites = cov,
+    methylated_sites = round(cov * pctM / 100)
+)
+
+global_model <- glmmTMB(
+    cbind(methylated_sites, total_sites - methylated_sites) ~
+        loc_lowres_integrative_stranded,
+    data = data_model %>%
+        mutate(loc_lowres_integrative_stranded = factor(loc_lowres_integrative_stranded, levels = c("Intergenic", "Genic_Sense", "Genic_Antisense", "Gene_Adj_Sense", "Gene_Adj_Antisense"))),
+    family = binomial()
+)
+library(broom.mixed)
+broom::tidy(global_model) %>% write_mycsv(sprintf("ldna/results/%s/tables/rte/loclowres_model.csv", params$mod_code))
+res_text <- capture.output(global_model %>% summary())
+writeLines(res_text, sprintf("ldna/results/%s/tables/rte/loclowres_model_summary.csv", params$mod_code))
