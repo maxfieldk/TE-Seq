@@ -231,7 +231,6 @@ rule dorado_unmappedbam:
     benchmark:
         "aref/benchmarks/dorado_fq/{rate}.{sample}.{type}.{modifications_string}.tsv"
     params:
-        dorado = config["aref"]["dorado"],
         input_dir = lambda wildcards: sample_table.loc[sample_table["sample_name"] == wildcards.sample, "nanopore_rawdata_dir"].iloc[0]
     resources:
         cpus_per_task =12,
@@ -271,7 +270,6 @@ rule dorado_resume:
         modifications_string = "[0-9A-Za-z_-]+"
     container: dorado_container
     params:
-        dorado = config["aref"]["dorado"],
         basecallingModel = lambda w: config["aref"]["basecallingModel"][w.rate][w.type],
         reference = config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"],
         input_dir = lambda wildcards: sample_table.loc[sample_table["sample_name"] == wildcards.sample, "nanopore_rawdata_dir"].iloc[0]
@@ -300,8 +298,6 @@ rule dorado_seqsummary:
     input:
         sortedbam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
         sortedbamindex = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam.bai", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
-    params:
-        dorado = config["aref"]["dorado"]
     benchmark:
         "aref/benchmarks/dorado_seqsummary/{sample}.tsv"
     output:
