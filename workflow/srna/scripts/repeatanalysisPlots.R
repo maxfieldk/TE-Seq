@@ -333,24 +333,26 @@ stripp <- function(df, stats = "no", extraGGoptions = NULL, facet_var = "ALL", f
         df <- df %>% filter(str_detect(!!sym(filter_var), "FL$|^Intact"))
     }
     if (facet_var != "ALL") {
-        pf <- df %>%
-            group_by(sample, !!sym(facet_var)) %>%
-            summarise(sample_sum = sum(counts), condition = dplyr::first(condition))
         if (both_counttypes == "yes") {
             pf <- df %>%
                 group_by(sample, !!sym(facet_var)) %>%
                 summarise(multi = sum(telescope_multi), unique = sum(telescope_unique), condition = dplyr::first(condition)) %>%
                 pivot_longer(cols = c(multi, unique), names_to = "tecounttype", values_to = "sample_sum")
+        } else {
+            pf <- df %>%
+                group_by(sample, !!sym(facet_var)) %>%
+                summarise(sample_sum = sum(counts), condition = dplyr::first(condition))
         }
     } else {
-        pf <- df %>%
-            group_by(sample) %>%
-            summarise(sample_sum = sum(counts), condition = dplyr::first(condition))
         if (both_counttypes == "yes") {
             pf <- df %>%
                 group_by(sample) %>%
                 summarise(multi = sum(telescope_multi), unique = sum(telescope_unique), condition = dplyr::first(condition)) %>%
                 pivot_longer(cols = c(multi, unique), names_to = "tecounttype", values_to = "sample_sum")
+        } else {
+            pf <- df %>%
+                group_by(sample) %>%
+                summarise(sample_sum = sum(counts), condition = dplyr::first(condition))
         }
     }
 
