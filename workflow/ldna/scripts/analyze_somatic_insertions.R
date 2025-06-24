@@ -736,7 +736,9 @@ GRanges(dfall %>% filter(Strand != "None")) %>% subsetByOverlaps(dfalloldcurgrs,
 dfalloldcurgrs %>%
     promoters(upstream = 100, downstream = 100) %>%
     subsetByOverlaps(dfall %>% filter(Strand != "None") %>% GRanges(), ignore.strand = TRUE, invert = TRUE)
-dfalloldcurgrs %>% subsetByOverlaps(dfall %>% filter(Strand != "None") %>% GRanges(), ignore.strand = TRUE, invert = FALSE)
+dfalloldcurgrs %>%
+    promoters(upstream = 100, downstream = 100) %>%
+    subsetByOverlaps(dfall %>% filter(Strand != "None") %>% GRanges(), ignore.strand = TRUE, invert = FALSE)
 
 
 dfall %>%

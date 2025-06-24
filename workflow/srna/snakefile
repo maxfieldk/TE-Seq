@@ -501,7 +501,8 @@ rule telescope:
         gff = lambda wildcards: "aref/default/%s_annotations/%s_repeatmasker.gff2"%(wildcards.sample, wildcards.sample) if config["srna"]["per_sample_ref"] == "yes" else "aref/default/A.REF_annotations/A.REF_repeatmasker.gff2"
     retries: 3
     output:
-        counts = "srna/outs/{sample}/telescope/telescope-run_stats.tsv"
+        counts = "srna/outs/{sample}/telescope/telescope-run_stats.tsv",
+        bam =  "srna/outs/{sample}/telescope/telescope-updated.bam"
     benchmark:
         "srna/benchmarks/telescope/{sample}.tsv"
     threads: 4
@@ -522,6 +523,7 @@ awk -v FS='\t' -v OFS='\t' '$0 ~ /^#/ || $9 !~ /__AS"/' {params.gff} > {output.c
 telescope assign \
 --attribute gene_id \
 --ncpu 1 \
+--updated_sam \
 --stranded_mode {params.strandparam} \
 --reassign_mode average \
 --outdir $(dirname {output.counts}) \
@@ -535,6 +537,7 @@ else
 telescope assign \
 --attribute gene_id \
 --ncpu 1 \
+--updated_sam \
 --stranded_mode {params.strandparam} \
 --reassign_mode average \
 --outdir $(dirname {output.counts}) \
@@ -543,6 +546,32 @@ telescope assign \
 
 fi
         """
+
+rule sortIndexTelescopeBam:
+    input:
+        bam =  "srna/outs/{sample}/telescope/telescope-updated.bam"
+    output:
+        sortedbam =  "srna/outs/{sample}/telescope/telescope-updated.sorted.bam",
+        sortedbambai =  "srna/outs/{sample}/telescope/telescope-updated.sorted.bam.bai"
+    benchmark:
+        "srna/benchmarks/telescope/{sample}.tsv"
+    threads: 10
+    conda:
+        "telescope3"
+    resources:
+        mem_mb  = 128000,
+        runtime = 600
+    shell:
+        """
+samtools sort -@8 -m4g {input.bam} > {output.sortedbam}
+samtools index  -@6 {output.sortedbam} 
+        """
+
+rule gettelescope:
+    input:
+        expand("srna/outs/{sample}/telescope/telescope-updated.sorted.bam.bai", sample = samples)
+
+
 
 rule tetranscripts:
     input:

@@ -58,13 +58,10 @@ nrdf <- rmann %>%
     left_join(df_filtered, by = "nonref_UUID") %>%
     mutate(zygosity = factor(ifelse(fraction_reads_count >= 0.95, "homozygous", "heterozygous"), levels = c("homozygous", "heterozygous"))) %>%
     mutate(known_nonref = factor(
-        ifelse(conf$update_ref_with_tldr$known_nonref$response == "no",
-            "NotCalled",
-            ifelse(
-                is.na(NonRef),
-                "novel",
-                "known"
-            )
+        case_when(
+            conf$update_ref_with_tldr$known_nonref$response == "no" ~ "NotCalled",
+            is.na(NonRef) ~ "novel",
+            TRUE ~ "known"
         ),
         levels = c("novel", "known", "NotCalled")
     ))
@@ -80,6 +77,51 @@ p1 <- nrdf %>%
     scale_palette +
     mtclosed + anchorbar + theme(axis.text.x = element_text(angle = 45, hjust = 1))
 mysaveandstore(pl = p1, sprintf("%s/insertions_subfamily.pdf", outputdir), 6, 4)
+
+p1 <- nrdf %>%
+    group_by(rte_family, rte_subfamily, req_integrative) %>%
+    summarise(count = n()) %>%
+    mutate(counts = count) %>%
+    ggbarplot(x = "rte_subfamily", y = "counts", fill = "req_integrative") +
+    facet_grid2(rows = vars(rte_family), scales = "free", space = "free_x", independent = "y") +
+    ggtitle("Non-reference RTE Insertions") +
+    labs(x = "Subfamily", y = "Counts") +
+    scale_palette +
+    mtclosed + anchorbar + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+mysaveandstore(pl = p1, sprintf("%s/insertions_subfamily_tall.pdf", outputdir), 6, 5)
+
+p1 <- nrdf %>%
+    filter(rte_subfamily != "Other") %>%
+    group_by(rte_family, rte_subfamily, req_integrative) %>%
+    summarise(count = n()) %>%
+    mutate(counts = count) %>%
+    ggbarplot(x = "rte_subfamily", y = "counts", fill = "req_integrative", label = TRUE) +
+    facet_grid2(rows = vars(rte_family), scales = "free", space = "free_x", independent = "y") +
+    ggtitle("Non-reference RTE Insertions") +
+    labs(x = "Subfamily", y = "Counts") +
+    scale_palette +
+    mtclosed + anchorbar + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+mysaveandstore(pl = p1, sprintf("%s/insertions_subfamily_tall_noother.pdf", outputdir), 6, 5)
+
+p1 <- nrdf %>%
+    filter(rte_subfamily != "Other") %>%
+    group_by(rte_family, rte_subfamily, req_integrative) %>%
+    summarise(count = n()) %>%
+    mutate(counts = count) %>%
+    ggbarplot(x = "rte_subfamily", y = "counts", fill = "req_integrative", label = TRUE) +
+    facet_grid2(cols = vars(rte_family), scales = "free", space = "free_x", independent = "y") +
+    ggtitle("Non-reference RTE Insertions") +
+    labs(x = "Subfamily", y = "Counts") +
+    scale_palette +
+    mtclosed +
+    scale_y_continuous(expand = expansion(mult = c(0, .1))) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+mysaveandstore(pl = p1, sprintf("%s/insertions_subfamily_tall_noother_wide.pdf", outputdir), 7, 4)
+
+
+nrdf %>%
+    filter(rte_subfamily == "Other") %>%
+    pw()
 
 p1 <- nrdf %>%
     group_by(rte_family, rte_subfamily, known_nonref) %>%
@@ -116,6 +158,7 @@ mysaveandstore(pl = p1, sprintf("%s/insertions_subfamily_nofacet.pdf", outputdir
 
 
 novel_frac_df <- nrdf %>%
+    filter(rte_subfamily != "Other") %>%
     group_by(rte_subfamily, known_nonref, .drop = FALSE) %>%
     summarise(n = n()) %>%
     ungroup() %>%
@@ -127,6 +170,7 @@ novel_frac_df <- nrdf %>%
     mutate(frac_novel = frac_total, frac_known = 1 - frac_total)
 
 homozyg_frac_df <- nrdf %>%
+    filter(rte_subfamily != "Other") %>%
     group_by(rte_subfamily, zygosity, .drop = FALSE) %>%
     summarise(n = n()) %>%
     ungroup() %>%
@@ -179,7 +223,8 @@ p2 <- nrdf %>%
     scale_palette +
     coord_flip() +
     mtclosed + anchorbar
-mysaveandstore(pl = p2, sprintf("%s/insertions_genomic_context.pdf", outputdir), 6, 4)
+mysaveandstore(pl = p2, sprintf("%s/insertions_genomic_context.pdf", outputdir), 4.5, 3.5)
+
 library(patchwork)
 p <- p1 + p2 + plot_layout(widths = c(1, 1), guides = "collect")
 mysaveandstore(sprintf("%s/insertions_sub_fig.pdf", outputdir), 12, 5)
@@ -195,7 +240,7 @@ p <- nrdf %>%
     mtopen +
     scale_palette +
     anchorbar
-mysaveandstore(sprintf("%s/l1hs_length_in_updated_ref.pdf", outputdir), 4, 4)
+mysaveandstore(sprintf("%s/l1hs_length_in_updated_ref.pdf", outputdir), 3, 4)
 
 
 x <- tibble(OUT = "")

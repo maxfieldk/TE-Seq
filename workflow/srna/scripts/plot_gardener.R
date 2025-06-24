@@ -55,13 +55,13 @@ tryCatch(
             "txdbrefseq" = "aref/default/A.REF_annotations/refseq.sqlite",
             "txdbrep" = "aref/default/A.REF_annotations/A.REF_repeatmasker.complete.sqlite",
             "txdb" = "aref/default/A.REF_annotations/A.REF_repeatmasker_refseq.complete.sqlite",
-            "counttype" = "telescope_unique",
-            alignment_typ = "unique"
+            "counttype" = "telescope_primary",
+            "alignment_type" = "primary"
         ), env = globalenv())
         assign("inputs", list(
             "resultsdf" = "srna/results/agg/deseq/resultsdf.tsv",
-            bwF = sprintf("srna/outs/%s/star_output/%s.unique.F.bw", conf$samples, conf$samples),
-            bwR = sprintf("srna/outs/%s/star_output/%s.unique.R.bw", conf$samples, conf$samples)
+            bwF = sprintf("srna/outs/%s/star_output/%s.primary.F.bw", conf$samples, conf$samples),
+            bwR = sprintf("srna/outs/%s/star_output/%s.primary.R.bw", conf$samples, conf$samples)
         ), env = globalenv())
         assign("outputs", list(
             "outfile" = "outfiles/genomebrowserplots.out"
@@ -163,7 +163,7 @@ tryCatch(
             filter(if_any(starts_with("padj_"), ~ . <= 0.05)) %$%
             gene_id
 
-        gois <- c("L1HS_2p13.2_1", "L1HS_2q21.1_2", "L1HS_4q28.3_9")
+        gois <- c("L1HS_4q25_4", "L1HS_17p13.1_1", "L1HS_2q21.1_1", "L1HS_5q35.3_1", "L1HS_17q24.2_2", "L1HS_2p13.2_1", "L1HS_2q21.1_2", "L1HS_4q28.3_9")
         resultsdf_unique <- resultsdf1 %>%
             filter(counttype == "telescope_unique") %>%
             full_join(rmann)
@@ -269,7 +269,7 @@ tryCatch(
             {
                 path <- sprintf("%s/%s.png", params$outputdir, element)
                 dir.create(dirname(path), recursive = TRUE)
-                pdf(sprintf("%s/%s_flank_%s_maxsig_%s.pdf", params$outputdir, element, flank, ifelse(max_sig == TRUE, "T", "F")), width = pagewidth, height = total_height)
+                pdf(sprintf("%s/%s_%s_flank_%s_maxsig_%s.pdf", params$outputdir, element, alignment_type, flank, ifelse(max_sig == TRUE, "T", "F")), width = pagewidth, height = total_height)
                 pageCreate(width = pagewidth, height = total_height, default.units = "inches")
                 i <- 0
                 for (ii in c(1:length(samples_to_plot))) {

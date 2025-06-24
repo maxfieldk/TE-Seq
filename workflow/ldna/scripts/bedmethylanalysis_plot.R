@@ -2601,11 +2601,11 @@ read_analysis2 <- function(
             axis.ticks.y = element_blank(),
             axis.title.y = element_blank()
         )
-    mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/heatmap_propunmeth_noNA.pdf", params$mod_code, region, required_fraction_of_total_cg), 5, 5, pl = p)
-    mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/heatmap_propunmeth_noNA.pdf", params$mod_code, region, required_fraction_of_total_cg), 5, 5, pl = p, raster = TRUE)
-}, error = function(e) {
+        mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/heatmap_propunmeth_noNA.pdf", params$mod_code, region, required_fraction_of_total_cg), 5, 5, pl = p)
+        mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/heatmap_propunmeth_noNA.pdf", params$mod_code, region, required_fraction_of_total_cg), 5, 5, pl = p, raster = TRUE)
+    }, error = function(e) {
 
-})
+    })
 
     #
 
@@ -3012,9 +3012,10 @@ read_analysis2 <- function(
 
         # anova(mod0, mod05)
         # anova(mod05binom_morebinom, mod05morebinom)
-    }
+    }, error = function(e) {}
+        )
 }
-
+    }
 
 read_analysis2(readscg, cg_indices)
 
@@ -3036,6 +3037,11 @@ grs_cpg_opensea$islandStatus <- "opensea"
 # SETTING UP SOME SUBSETS FOR EXPLORATION
 set.seed(75)
 possample <- sample(grsdf$pos, size = 1000, replace = FALSE)
+possample <- grsdf %>%
+  group_by(islandStatus) %>%
+  slice_sample(n = 1000) %>%
+  ungroup() %>%
+  pull(pos)
 grsdfs <- grsdf %>% filter(pos %in% possample)
 grss <- GRanges(grsdfs)
 
@@ -3128,9 +3134,9 @@ tryCatch(
 
 p <- grsdfs %>% ggplot() +
     geom_boxplot(aes(x = islandStatus, y = pctM, fill = condition), outliers = FALSE) +
-    mtopen +
+    mtclosed +
     scale_conditions
-mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/cpgislandstatusbox.pdf", params$mod_code), w = 5, h = 4, res = 300, pl = p)
+mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/cpgislandstatusbox.pdf", params$mod_code), w = 4, h = 4, res = 300, pl = p)
 
 
 p <- grsdfs %>%
@@ -3138,7 +3144,7 @@ p <- grsdfs %>%
     summarize(pctM = mean(pctM)) %>%
     ggplot() +
     geom_col(aes(x = islandStatus, y = pctM, fill = condition), position = "dodge", color = "black") +
-    mtopen +
+    mtclosed +
     scale_conditions +
     anchorbar
 mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/cpgislandstatusbar_1000.pdf", params$mod_code), w = 4, h = 4, res = 300, pl = p)

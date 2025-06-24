@@ -58,6 +58,68 @@ gzip {output.fastq}.temp
 mv {output.fastq}.temp.gz {output.fastq}
         """
 
+rule mod_bam_to_fastq_nonrefinsert:
+    input:
+        bam = lambda w: expand("aref/intermediates/{sample_or_aref}/alignments/{rate}/{sample_or_aref}.{type}.{modification_string}.sorted.bam", sample_or_aref = w.sample_or_aref if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "A.REF", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        bambai = lambda w: expand("aref/intermediates/{sample_or_aref}/alignments/{rate}/{sample_or_aref}.{type}.{modification_string}.sorted.bam.bai", sample_or_aref = w.sample_or_aref if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "A.REF", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        nonrefcontigs = lambda w: expand("aref/extended/{sample_or_aref}-pre-ins-filtering_nonrefcontigs.fa", sample_or_aref = w.sample_or_aref if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "A.REF")
+    output:
+        sortedbam = "ldna/intermediates/{sample_or_aref}/alignments/nonref/{insert_name}_sorted.bam"
+    container: None
+    conda: "minimap2"
+    retries: 3
+    resources:
+        cpus_per_task =4,
+        runtime = 40
+    shell:
+        """
+outdir=$(dirname {output.sortedbam})
+mkdir -p $outdir
+insert_name={wildcards.insert_name}
+region=$(echo "$insert_name" | awk -F'_' '{{start = $(NF-1) - 20; end = $NF + 20; print $(NF-2) ":" start "-" end}}')
+samtools view -b {input.bam} $region > ${{outdir}}/${{insert_name}}.extracted.bam
+samtools fastq -T MM,ML,qs ${{outdir}}/${{insert_name}}.extracted.bam > ${{outdir}}/${{insert_name}}.extracted.fq
+
+if [ ! -f {input.nonrefcontigs}.fai ]; then
+    samtools faidx {input.nonrefcontigs}
+fi
+
+samtools faidx {input.nonrefcontigs} $insert_name > ${{outdir}}/${{insert_name}}.fa
+samtools faidx ${{outdir}}/${{insert_name}}.fa
+minimap2 -t {resources.cpus_per_task} -y -ax map-ont ${{outdir}}/${{insert_name}}.fa ${{outdir}}/${{insert_name}}.extracted.fq > ${{outdir}}/${{insert_name}}.sam
+samtools view -b ${{outdir}}/${{insert_name}}.sam > ${{outdir}}/${{insert_name}}.bam
+samtools sort ${{outdir}}/${{insert_name}}.bam > {output.sortedbam}
+samtools index {output.sortedbam}
+        """
+
+# ruleorder: get_non_ref_alignments > sortBam
+
+rule get_non_ref_alignments:
+    input:
+        sample_bams = lambda w: expand("ldna/intermediates/{{sample_or_aref}}/alignments/nonref/{insert_name}_sorted.bam", insert_name = [e for e in pd.read_table("aref/extended/" +  [w.sample_or_aref if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "A.REF"][0] + "_contigs_to_keep.txt", header = None).iloc[:,0] if e.startswith("NI_")]),
+        aref_bam = lambda w: expand("aref/intermediates/{sample_or_arefW}/alignments/{{rate}}/{sample_or_arefW}.{{type}}.{{modification_string}}.sorted.bam", sample_or_arefW = w.sample_or_aref if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "A.REF"),
+    output:
+        catbam = "ldna/intermediates/{sample_or_aref}/alignments/{rate}/analysis_default/{sample_or_aref}.{type}.{modification_string}.sorted.bam",
+    conda:
+        "omics"
+    resources:
+        cpus_per_task =10,
+        runtime = 1200,
+        mem_mb = 300000
+    shell:
+        """
+samtools cat {input.sample_bams} > {output.catbam}.temp
+echo "done"
+samtools cat {input.aref_bam} {output.catbam}.temp > {output.catbam}.temp1.bam
+echo "done1"
+samtools sort -@8 {output.catbam}.temp1.bam > {output.catbam}.temp1.sorted.bam
+mv {output.catbam}.temp1.sorted.bam {output.catbam}
+        """
+
+rule call_nonrefalignments:
+    input:
+        catbams = lambda w: expand("ldna/intermediates/{sample_or_aref}/alignments/{rate}/analysis_default/{sample_or_aref}.{type}.{modification_string}.sorted.bam", sample_or_aref = config["ldna"]["samples"], rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+
 
 rule generate_meryl_index:
     benchmark:
@@ -81,26 +143,27 @@ mkdir -p $(dirname {output.k15_db})
         """
 
 
-rule align_to_ref_default:
-    input:
-        fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq.gz",
-    benchmark:
-        "ldna/benchmarks/align_to_ref_default/{sample}.tsv"
-    params:
-        reference = lambda wildcards: "aref/extended/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF.fa"
-    container: None
-    conda: "minimap2"
-    output:
-        sam = temp(expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sam",ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]))
-    resources:
-        cpus_per_task = 60,
-        runtime = 2400,
-        mem_mb = 350000
-    shell:
-        """
-mkdir -p $(dirname {output.sam})
-minimap2 -t {resources.cpus_per_task} -y -ax map-ont {params.reference} {input.fastq} > {output.sam}
-        """
+# rule align_to_ref_default:
+#     input:
+#         fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq.gz",
+#     benchmark:
+#         "ldna/benchmarks/align_to_ref_default/{sample}.tsv"
+#     params:
+#         reference = lambda wildcards: "aref/extended/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF.fa"
+#     container: None
+#     conda: "minimap2"
+#     output:
+#         sam = temp(expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sam",ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]))
+#     resources:
+#         cpus_per_task = 60,
+#         runtime = 2400,
+#         mem_mb = 350000
+#     shell:
+#         """
+# mkdir -p $(dirname {output.sam})
+# minimap2 -t {resources.cpus_per_task} -y -ax map-ont {params.reference} {input.fastq} > {output.sam}
+#         """
+
 
 # rule align_to_ref_winnowmap:
 #     input:
@@ -505,9 +568,9 @@ rule getcov:
 rule pycoQC:
     input:
         seqsummary = "ldna/qc/{sample}/{sample}.doradosummary.txt",
-        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
     output:
-        "ldna/qc/{sample}/{sample}pycoQC.html"
+        "ldna/qc/{sample}/{sample}pycoC.html"
     conda:
         "pycoQC"
     shell:
@@ -612,7 +675,6 @@ rule filterbamnosup:
         "omics"
     shell: 
         """
-#keeps on only primary and supplementary alignments
 samtools view -b -F 2304 -q {params.min_mapq} -e '[qs] >= {params.min_qscore}' {input.bam} > {output.bam}
         """
 #tag PHASING
