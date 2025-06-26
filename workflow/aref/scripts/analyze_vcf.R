@@ -30,8 +30,8 @@ tryCatch(
     },
     error = function(e) {
         assign("inputs", list(
-            SV = sprintf("ldna/intermediates/%s/snpeff/snpeff_sv.pass.vcf", sample_table$sample_name),
-            SML = sprintf("ldna/intermediates/%s/snpeff/snpeff_sml.pass.vcf", sample_table$sample_name)
+            SV = sprintf("ldna/intermediates/%s/snpeff/snpeff_sv.pass.vcf", ifelse(conf$update_ref_with_tldr$per_sample == "yes", sample_table$sample_name, "A.REF")),
+            SML = sprintf("ldna/intermediates/%s/snpeff/snpeff_sml.pass.vcf", ifelse(conf$update_ref_with_tldr$per_sample == "yes", sample_table$sample_name, "A.REF"))
         ), env = globalenv())
         assign("outputs", list(
             plots = "ldna/results/plots/variation/vcf_plots.rds"

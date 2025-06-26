@@ -108,12 +108,14 @@ rule get_non_ref_alignments:
         mem_mb = 300000
     shell:
         """
-samtools cat {input.sample_bams} > {output.catbam}.temp
+samtools merge -@ 4 -o {output.catbam}.tempmerged.bam {input.sample_bams}
 echo "done"
-samtools cat {input.aref_bam} {output.catbam}.temp > {output.catbam}.temp1.bam
+samtools merge -@ 4 -o {output.catbam}.tempmerged1.bam {input.aref_bam} {output.catbam}.tempmerged.bam
 echo "done1"
-samtools sort -@8 {output.catbam}.temp1.bam > {output.catbam}.temp1.sorted.bam
-mv {output.catbam}.temp1.sorted.bam {output.catbam}
+samtools sort -@8 {output.catbam}.tempmerged1.bam > {output.catbam}.tempmerged1.sorted.bam
+mv {output.catbam}.tempmerged1.sorted.bam {output.catbam}
+rm {output.catbam}.tempmerged1.bam
+rm {output.catbam}.tempmerged.bam
         """
 
 rule call_nonrefalignments:
@@ -540,12 +542,12 @@ rule dorado_seqsummary:
 
 rule coverage:
     input:
-        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-        sortedbambai = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.bam.bai", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        sortedbambai = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.bam.bai", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
     params:
         fai = lambda wildcards: "aref/extended/%s.fa.fai"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF.fa.fai"
     output:
-        bg = "ldna/intermediates/{sample}/coverage/{ref_genome}/{sample}.sorted.filterednosup.bg"
+        bg = "ldna/intermediates/{sample}/coverage/{ref_genome}/{sample}.sorted.bg"
     resources:
         cpus_per_task = 8,
         runtime = 100,
@@ -563,7 +565,7 @@ zcat {output.bg}.mosdepth.regions.bed.gz \
 
 rule getcov:
     input:
-        expand("ldna/intermediates/{sample}/coverage/{ref_genome}/{sample}.sorted.filterednosup.bg", sample = samples, ref_genome = "analysis_default")
+        expand("ldna/intermediates/{sample}/coverage/{ref_genome}/{sample}.sorted.bg", sample = samples, ref_genome = "analysis_default")
 
 rule pycoQC:
     input:
@@ -1248,7 +1250,7 @@ rule bedmethylanalysis_process:
     resources:
         cpus_per_task =10,
         mem_mb = 600000,
-        runtime = 400
+        runtime = 600
     conda:
         "ds"
     script:
@@ -1266,7 +1268,7 @@ rule bedmethylanalysis_process_single_condition:
     resources:
         cpus_per_task =10,
         mem_mb = 300000,
-        runtime = 400
+        runtime = 600
     conda:
         "ds"
     script:
