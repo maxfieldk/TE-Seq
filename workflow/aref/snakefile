@@ -1270,7 +1270,7 @@ else
 species={params.species}
 fi
 mkdir -p $(dirname {output})
-RepeatMasker -species "$species" -engine nhmmer -s -pa {resources.cpus_per_task} -gff {input.fasta} -dir $(dirname {output})
+RepeatMasker -species "$species" -s -pa {resources.cpus_per_task} -gff {input.fasta} -dir $(dirname {output})
         """
 if config["aref"]["symlink_aref"]["response"] == "no":
     if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
