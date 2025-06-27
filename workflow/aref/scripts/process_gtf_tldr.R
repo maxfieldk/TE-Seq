@@ -178,6 +178,7 @@ if (params$tldr_switch == "process_gtf_tldr") {
     df$emptyreadsnum <- emptyreadsnum %>% replace_na(0)
     df <- df %>%
         mutate(fraction_reads_count = UsedReads / (UsedReads + emptyreadsnum))
+    df <- df[!(df %$% faName %>% duplicated()), ]
 
     ss <- DNAStringSet(df %>% dplyr::arrange(faName) %$% Consensus)
     names(ss) <- df %>% dplyr::arrange(faName) %$% faName
