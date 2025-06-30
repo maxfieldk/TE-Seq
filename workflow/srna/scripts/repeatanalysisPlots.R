@@ -39,7 +39,6 @@ library(rtracklayer)
 library(ComplexUpset)
 library(patchwork)
 library(scales)
-library(ggbeeswarm)
 
 
 tryCatch(
@@ -370,9 +369,12 @@ stripp <- function(df, stats = "no", extraGGoptions = NULL, facet_var = "ALL", f
                             color = "black",
                             width = 0.9
                         ) +
-                        geom_beeswarm(
-                            method = "swarm",
-                            dodge.width = 0.9
+                        geom_jitter(
+                            position = position_jitterdodge(
+                                dodge.width = 0.9,
+                                jitter.width = 0.2,
+                                jitter.height = 0
+                            )
                         ) +
                         facet_grid(cols = vars(!!sym(facet_var))) +
                         labs(x = "", y = "Sum Normalized Counts", subtitle = counttype_label) +
