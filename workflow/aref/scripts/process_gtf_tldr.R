@@ -269,11 +269,11 @@ if (params$tldr_switch == "process_gtf_tldr") {
         ASPpos <- ASP %>%
             filter(strand == "+") %>%
             GRanges() %>%
-            promoters(upstream = 30, downstream = 500)
+            promoters(upstream = 0, downstream = 500)
         ASPneg <- ASP %>%
             filter(strand == "-") %>%
             GRanges() %>%
-            promoters(upstream = 30, downstream = 500)
+            promoters(upstream = 0, downstream = 500)
         strand(ASPpos) <- "-"
         strand(ASPneg) <- "+"
         ASPfinal <- c(ASPpos, ASPneg) %>%

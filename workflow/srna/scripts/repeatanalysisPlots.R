@@ -940,38 +940,40 @@ for (rte_fam in rte_fams) {
 
 tryCatch(
     {
-        tidy_ASP <- tidydf %>%
-            filter(grepl("__AS$", gene_id)) %>%
-            dplyr::select(sample, counts, gene_id) %>%
-            dplyr::rename(ASP_counts = counts) %>%
-            mutate(gene_id = case_when(
-                TRUE ~ gsub("__AS$", "", gene_id)
-            )) %>%
-            left_join(tidydf)
+        if (confALL$aref$species == "human") {
+            tidy_ASP <- tidydf %>%
+                filter(grepl("__AS$", gene_id)) %>%
+                dplyr::select(sample, counts, gene_id) %>%
+                dplyr::rename(ASP_counts = counts) %>%
+                mutate(gene_id = case_when(
+                    TRUE ~ gsub("__AS$", "", gene_id)
+                )) %>%
+                left_join(tidydf)
 
 
-        p <- tidy_ASP %>%
-            filter(rte_subfamily == "L1HS") %>%
-            ggplot(aes(x = counts, y = ASP_counts)) +
-            geom_point() +
-            facet_wrap(~loc_lowres_integrative_stranded) +
-            mtclosed
-        mysaveandstore(str_glue("{outputdir}/L1HS_SP_ASP_cor.pdf"), w = 10, h = 6)
+            p <- tidy_ASP %>%
+                filter(rte_subfamily == "L1HS") %>%
+                ggplot(aes(x = counts, y = ASP_counts)) +
+                geom_point() +
+                facet_wrap(~loc_lowres_integrative_stranded) +
+                mtclosed
+            mysaveandstore(str_glue("{outputdir}/L1HS_SP_ASP_cor.pdf"), w = 10, h = 6)
 
-        p <- tidy_ASP %>%
-            filter(rte_subfamily == "L1HS") %>%
-            ggplot(aes(x = log(counts + 1), y = log(ASP_counts + 1))) +
-            geom_point() +
-            facet_wrap(~loc_lowres_integrative_stranded) +
-            mtclosed
-        mysaveandstore(str_glue("{outputdir}/L1HS_SP_ASP_log_cor.pdf"), w = 10, h = 6)
+            p <- tidy_ASP %>%
+                filter(rte_subfamily == "L1HS") %>%
+                ggplot(aes(x = log(counts + 1), y = log(ASP_counts + 1))) +
+                geom_point() +
+                facet_wrap(~loc_lowres_integrative_stranded) +
+                mtclosed
+            mysaveandstore(str_glue("{outputdir}/L1HS_SP_ASP_log_cor.pdf"), w = 10, h = 6)
 
 
-        tASP <- tidy_ASP %>%
-            dplyr::select(-counts) %>%
-            dplyr::rename(counts = ASP_counts) %>%
-            left_join(sample_table %>% dplyr::rename(sample = sample_name))
-        pancontrastbarplots(tdf = tASP, ontology_column = "rte_subfamily", ontology_column_value = "L1HS", ontology_column_value_modifier = "_ASP", facetvars = c("req_integrative", "loc_lowres_integrative_stranded"), refstatus_to_include = c("Ref", "NonRef"))
+            tASP <- tidy_ASP %>%
+                dplyr::select(-counts) %>%
+                dplyr::rename(counts = ASP_counts) %>%
+                left_join(sample_table %>% dplyr::rename(sample = sample_name))
+            pancontrastbarplots(tdf = tASP, ontology_column = "rte_subfamily", ontology_column_value = "L1HS", ontology_column_value_modifier = "_ASP", facetvars = c("req_integrative", "loc_lowres_integrative_stranded"), refstatus_to_include = c("Ref", "NonRef"))
+        }
     },
     error = function(e) {
 
