@@ -644,6 +644,9 @@ rule cleanup_updated_ref:
         contigs_to_keep = "aref/{default_or_extended}/A.REF_contigs_to_keep.txt"
     output:
         filtered_ref = "aref/{default_or_extended}/A.REF.fa"
+    params:
+        spike_in_indicator = config["aref"]["spike_in_contigs"]["response"],
+        spike_in_path = config["aref"]["spike_in_contigs"]["path_to_fasta"]
     priority: 100
     benchmark:
         "aref/benchmarks/cleanup_updated_ref/cleanup_updated_ref_{default_or_extended}.tsv"
@@ -651,13 +654,21 @@ rule cleanup_updated_ref:
         "omics"
     shell:
         """
-seqkit grep --by-name -f {input.contigs_to_keep} {input.updated_reference} > {output.filtered_ref}
+if [[ {params.spike_in_indicator} == no ]]; then
+    seqkit grep --by-name -f {input.contigs_to_keep} {input.updated_reference} > {output.filtered_ref}
+else
+    seqkit grep --by-name -f {input.contigs_to_keep} {input.updated_reference} > {output.filtered_ref}
+    cat {params.spike_in_path} >> {output.filtered_ref}
+fi
         """
 
 rule cleanup_updated_sample_ref:
     input:
         updated_reference = "aref/{default_or_extended}/{sample}-pre-ins-filtering.fa",
         contigs_to_keep = "aref/{default_or_extended}/{sample}_contigs_to_keep.txt"
+    params:
+        spike_in_indicator = config["aref"]["spike_in_contigs"]["response"],
+        spike_in_path = config["aref"]["spike_in_contigs"]["path_to_fasta"]
     output:
         filtered_ref = "aref/{default_or_extended}/{sample}.fa"
     priority: 100
@@ -677,7 +688,10 @@ rule cleanup_updated_ref_and_patch:
     input:
         updated_reference = "aref/{default_or_extended}/A.REF-pre-ins-filtering.fa",
         contigs_to_keep = "aref/{default_or_extended}/A.REF_contigs_to_keep.txt",
-        hq_snps = "aref/intermediates/A.REF/pepper/hq_snps.vcf.gz",
+        hq_snps = "aref/intermediates/A.REF/pepper/hq_snps.vcf.gz"
+    params:
+        spike_in_indicator = config["aref"]["spike_in_contigs"]["response"],
+        spike_in_path = config["aref"]["spike_in_contigs"]["path_to_fasta"]
     output:
         filtered_ref = "aref/{default_or_extended}/A.REF.snp_patched.fa"
     priority: 100
