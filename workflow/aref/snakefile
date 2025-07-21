@@ -254,33 +254,30 @@ basecaller \
 mv {output.calls}.unfinished {output.calls}
         """
 
-rule call_dorado_resume:
-    input:
-        expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.bam.unfinished", sample = config["aref"]["samples"], rate = config["aref"]["rate"], type = config["aref"]["type"], modifications_string = config["aref"]["modification_string"])
 
 rule dorado_resume:
     input:
         unfinished = "aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.bam.unfinished"
     output:
-        calls = "aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.bam.finished"
-    benchmark:
-        "aref/benchmarks/dorado_resume/{rate}.{sample}.{type}.{modifications_string}.tsv"
+        calls = "aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.finished.bam"
     wildcard_constraints:
         sample="[0-9A-Za-z_]+",
         type = "[0-9A-Za-z]+",
         rate = "[0-9A-Za-z]+",
         modifications_string = "[0-9A-Za-z_-]+"
-    container: dorado_container
+    benchmark:
+        "aref/benchmarks/dorado_resume/{rate}.{sample}.{type}.{modifications_string}.tsv"
     params:
-        dorado = config["aref"]["dorado"],
-        basecallingModel = lambda w: config["aref"]["basecallingModel"][w.rate][w.type],
         reference = config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"],
         input_dir = lambda wildcards: sample_table.loc[sample_table["sample_name"] == wildcards.sample, "nanopore_rawdata_dir"].iloc[0]
+    container:
+        dorado_container
     resources:
         cpus_per_task =12,
         slurm_partition="gpu-he",
         mem_mb = 128000,
-        slurm_extra="--time=48:00:00 --prefer=a6000 --gres=gpu:2"
+        runtime = 5760,
+        slurm_extra="'--gres=gpu:2'"
     shell:
         """
 mkdir -p $(dirname {output.calls})
@@ -293,9 +290,15 @@ basecaller \
 --resume-from {input.unfinished} \
 --recursive \
 --verbose \
---reference {params.reference} > {output.calls}.temp
-mv {output.calls}.temp {output.calls}
+--reference {params.reference} \
+--mm2-opts "-x map-ont" > {output.calls}.temp.bam
+mv {output.calls}.temp.bam {output.calls}
         """
+        
+rule call_dorado_resume:
+    input:
+        expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.bam.finished", sample = config["aref"]["samples"], rate = config["aref"]["rate"], type = config["aref"]["type"], modifications_string = config["aref"]["modification_string"])
+
 
 rule dorado_seqsummary:
     input:
