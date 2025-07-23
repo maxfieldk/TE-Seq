@@ -59,6 +59,71 @@ https://www.neb.com/en-us/products/e6310-nebnext-rrna-depletion-kit-human-mouse-
 ### Hardware Requirements
   This pipeline allows for the parallel execution of many jobs which can occur simultaneously. Consequently, it is highly recommended to execute this pipeline on a compute cluster to take advantage of the corresponding diminishment of total runtime afforded by parallelization. Snakemake is designed to work with many commonly-used cluster workload managers such as SLURM.  
   Many steps require a substantial amount of RAM (north of 20 GB) to be available on your system, else they will fail and give you OOM (out-of-memory) errors.  This pipeline will likely fail if run on a personal computer without at least 64 GB of RAM.
+
+# Quick start - run pipeline with test data
+The following code clone the pipeline and test data, and will create a conda environment. Requires mamba and singularity to be installed.
+```
+#download
+mamba create -y \
+  -c conda-forge \
+  -c bioconda \
+  --name teseq \
+  'snakemake=8.*' \
+  snakemake-executor-plugin-slurm
+
+#create project directory and clone te-seq
+mkdir teseq_test
+cd teseq_test
+git clone -b stable https://github.com/maxfieldk/TE-Seq.git
+#prepare a live configuartion directory
+cd TE-Seq
+cp -r workflow/conf_example conf
+#download test data and accompanying genome annotations
+cd ..
+git clone https://github.com/maxfieldk/TE-Seq_test_rawdata.git
+cd TE-Seq
+mkdir -p srna_rawdata
+mv ../TE-Seq_test_rawdata/test_srna/*.fq.gz srna_rawdata
+mv ../TE-Seq_test_rawdata/genome_files ../genome_files
+#configure singularity bind paths in snakemake slurm and local machine profiles
+pathstobind=$(echo $(dirname $(pwd))/genome_files,$(dirname $(pwd)))
+awk -v bpath="$pathstobind" '                     
+{
+  if ($0 ~ /--bind/ && !done) {
+    sub(/--bind/, "--bind " bpath)
+    done = 1
+  }
+  print
+}' conf/profile/default/config.yaml > tmp.txt
+mv tmp.txt conf/profile/default/config.yaml
+awk -v bpath="$pathstobind" '                     
+{
+  if ($0 ~ /--bind/ && !done) {
+    sub(/--bind/, "--bind " bpath)
+    done = 1
+  }
+  print
+}' conf/profile/local_system/config.yaml > tmplocal.txt
+mv tmplocal.txt conf/profile/local_system/config.yaml
+#activate conda environment
+conda activate teseq
+```
+The following code will 
+```
+#pipeline dry-run
+snakemake --profile conf/profile/default -n
+#run pipeline
+snakemake --profile conf/profile/default
+```
+If running the pipeline on your local machine
+```
+#pipeline dry-run
+snakemake --profile conf/profile/local_system -n
+#run pipeline
+snakemake --profile conf/profile/local_system
+```
+
+
 # Installation
 ## Create a Snakemake containing Conda environment
   Create a Snakemake Conda environment from which you can run the Snakemake pipeline. If your computer / compute cluster uses a workload manager (e.g. slurm) install any workload manager specific Snakemake executor plugins in this environment (e.g. the snakemake-executor-plugin-slurm if your system uses slurm. A full listing of the availible plugins is availible at https://snakemake.github.io/snakemake-plugin-catalog/ ). If Singularity is not installed on your system already (you can check by running the "singularity version" at the command line) then you should include Singularity in your conda environment. The following call will create a snakemake environment for use on a slurm cluster and include singularity:
