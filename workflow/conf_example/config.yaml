@@ -15,27 +15,31 @@ pipelines_to_deploy:
 containers:
   teseq:
     use_preexisting_response: "no"
-    path: ""
+    path: "/users/mkelsey/data/Nanopore/alz/RTE/.snakemake/singularity/a2dc848073a26995b643e7ba1e3d2cd9.simg"
   tetools:
     use_preexisting_response: "no"
-    path: ""
+    path: "/users/mkelsey/data/Nanopore/alz/RTE/containers/tetools_1.88.5.sif"
   gatk:
     use_preexisting_response: "no"
-    path: ""
+    path: "/users/mkelsey/data/Nanopore/alz/RTE/containers/gatk:4.6.1.0.sif"
   pepper_deepvariant:
     use_preexisting_response: "no"
-    path: ""
+    path: "/users/mkelsey/data/Nanopore/alz/RTE/containers/pepper_deepvariant:r0.8.sif"
   dorado:
     use_preexisting_response: "no"
-    path: ""
+    path: "/users/mkelsey/data/Nanopore/alz/RTE/containers/dorado:sha268dcb4cd02093e75cdc58821f8b93719c4255ed.sif"
   tetranscripts:
     use_preexisting_response: "no"
-    path: ""
+    path: "/users/mkelsey/data/Nanopore/alz/RTE/containers/tetranscripts:2.2.3.sif"
 
 shared:
   #leave palette values as empty string for default color
   default_palette_condition: "" #e.g. "ggsci::default_aaas" palette must be at least as long as the number of biological conditions you model; paletteer palettes https://emilhvitfeldt.github.io/paletteer/
   default_palette_descriptive: "" #e.g "ggthemes::few_Dark"paletteer palettes https://emilhvitfeldt.github.io/paletteer/
+  condition_colors: # to manually assign colors to conditions, uncomment and replace with your conditions
+    # PRO: "#CCCCCC"
+    # ESEN: "#B3C8FF"
+    # LSEN: "#B3FFEB"
 
 #PIPELINE SETTINGS - Ignore settings for pipelines not being deployed (i.e. not in pipelines_to_deploy)
 aref:
@@ -130,48 +134,26 @@ srna:
   map_to_mycoplasma: "yes" #yes or no
   run_tetranscripts: "no" #yes or no; runs tetranscripts in addition to telescope. In most cases this extra analysis is fully superceded by telescope and should be turned off.
   samples:
-    - "PRO_low_O2_1"
-    - "PRO_low_O2_2"
-    - "PRO_low_O2_3"
-    - "RS_0w_low_O2_1"
-    - "RS_0w_low_O2_2"
-    - "RS_0w_low_O2_3"
-    - "RS_0w_low_O2_4"
-    - "RS_0w_low_O2_5"
-    - "RS_0w_low_O2_6"
-    - "RS_4w_low_O2_1"
-    - "RS_4w_low_O2_2"
-    - "RS_4w_low_O2_3"
-    - "RS_8w_low_O2_1"
-    - "RS_8w_low_O2_2"
-    - "RS_8w_low_O2_3"
-    - "RS_12w_low_O2_1"
-    - "RS_12w_low_O2_2"
-    - "RS_12w_low_O2_3"
-    - "PRO_normoxic_1"
-    - "PRO_normoxic_2"
-    - "PRO_normoxic_3"
-    - "DDIS_8w_low_O2_1"
-    - "DDIS_8w_low_O2_2"
-    - "DDIS_8w_low_O2_3"
+    - "PRO1"
+    - "PRO2"
+    - "PRO3"
+    - "ESEN1"
+    - "ESEN2"
+    - "ESEN3"
+    - "LSEN1"
+    - "LSEN2"
+    - "LSEN3"
+    
   library_type: PE #paired end (PE), or single end (SE)
+
   levels: #order matters for levels! first is the base comparator
-    - "PRO_low_O2"
-    - "RS_0w_low_O2"
-    - "RS_4w_low_O2"
-    - "RS_8w_low_O2"
-    - "RS_12w_low_O2"
-    - "PRO_normoxic"
-    - "DDIS_8w_low_O2"
+    - "PRO"
+    - "ESEN"
+    - "LSEN"
 
   contrasts: #follows the syntax: condition_ + level from "levels" + _vs_ + level from "levels". The second condition is the base of the contrast.
-    - "condition_RS_0w_low_O2_vs_PRO_low_O2"
-    - "condition_RS_4w_low_O2_vs_PRO_low_O2"
-    - "condition_RS_8w_low_O2_vs_PRO_low_O2"
-    - "condition_RS_12w_low_O2_vs_PRO_low_O2"
-    - "condition_PRO_normoxic_vs_PRO_low_O2"
-    - "condition_DDIS_8w_low_O2_vs_PRO_low_O2"
-
+    - "condition_ESEN_vs_PRO"
+    - "condition_LSEN_vs_PRO"
 
   paralellize_bioc: 8
   counttypes: #For TEs, whether to consider unique + multi mapping reads OR only unique mappers. Default is to run the pipeline for both.

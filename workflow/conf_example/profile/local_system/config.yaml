@@ -1,20 +1,19 @@
 software-deployment-method: 
   - conda
   - apptainer
-singularity-args: '--nv --bind /users/mkelsey/data,/users/jsedivy/data/mkelsey,/oscar/data/jsedivy/mkelsey,/oscar/home/jkreilin/data/vesicle_RNAseq,/users/jsedivy/data/rkalekar/Github_2024/RTE/srna'
+singularity-args: '--nv --bind /users/mkelsey/data/REVIEWER_TESEQ_TEST/genome_files,/users/mkelsey/data/REVIEWER_TESEQ_TEST'
+#e.g. '--nv --bind /users/mkelsey/data,/oscar/data/jsedivy/mkelsey /users/mkelsey/data/REVIEWER_TESEQ_TEST/genome_files /users/mkelsey/data/REVIEWER_TESEQ_TEST/genome_files /users/mkelsey/data/REVIEWER_TESEQ_TEST/genome_files  /users/mkelsey/data,/users/jsedivy/data/mkelsey,/oscar/data/jsedivy/mkelsey,/oscar/home/jkreilin/data/vesicle_RNAseq,/users/jsedivy/data/rkalekar/Github_2024/RTE/srna'
+
 rerun-triggers: mtime
 keep-going: True
 rerun-incomplete: True
 latency-wait: 30
-executor: slurm
 jobs: 30
 retries: 2
 
 default-resources:
   mem_mb: attempt * 12500
   disk_mb: 200000
-  slurm_account: default
-  slurm_partition: batch
   threads: 1
   runtime: attempt * 70
 set-resources:
@@ -31,7 +30,7 @@ set-resources:
     srna_deseq:
         mem_mb: attempt * 60000
     srna_bigwigplots:
-        mem_mb: attempt * 125000
+        mem_mb: attempt * 65000
     srna_common_sortIndexBam:
         mem_mb: attempt * 35000
     srna_alignSTAR_PE:
@@ -39,14 +38,12 @@ set-resources:
     srna_alignSTAR_SE:
         mem_mb: attempt * 35000
     aref_tldr_aggregate_multiple_samples:
-        mem_mb: attempt * 125000
+        mem_mb: attempt * 100000
         runtime: attempt * 200
     aref_process_gtf_tldr:
         mem_mb: attempt * 35000
     aref_process_gtf:
         mem_mb: attempt * 35000
-    aref_element_analysis:
-        mem_mb: attempt * 50000
     aref_merge_genes_and_repeats_gtf:
         mem_mb: attempt * 120000
         runtime: attempt * 300
@@ -70,8 +67,6 @@ set-resources:
     aref_annotate_rtes:
         mem_mb: attempt * 35000
     aref_dorado:
-        cpus_per_task: 12
-        slurm_partition: "gpu-he"
+        threads: 12
         mem_mb: 128000
         runtime: 5760
-        slurm_extra: "'--gres=gpu:2'"
