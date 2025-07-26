@@ -259,33 +259,30 @@ basecaller \
 mv {output.calls}.unfinished {output.calls}
         """
 
-rule call_dorado_resume:
-    input:
-        expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.bam.unfinished", sample = config["aref"]["samples"], rate = config["aref"]["rate"], type = config["aref"]["type"], modifications_string = config["aref"]["modification_string"])
 
 rule dorado_resume:
     input:
         unfinished = "aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.bam.unfinished"
     output:
-        calls = "aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.bam.finished"
-    benchmark:
-        "aref/benchmarks/dorado_resume/{rate}.{sample}.{type}.{modifications_string}.tsv"
+        calls = "aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.finished.bam"
     wildcard_constraints:
         sample="[0-9A-Za-z_]+",
         type = "[0-9A-Za-z]+",
         rate = "[0-9A-Za-z]+",
         modifications_string = "[0-9A-Za-z_-]+"
-    container: dorado_container
+    benchmark:
+        "aref/benchmarks/dorado_resume/{rate}.{sample}.{type}.{modifications_string}.tsv"
     params:
-        dorado = config["aref"]["dorado"],
-        basecallingModel = lambda w: config["aref"]["basecallingModel"][w.rate][w.type],
         reference = config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"],
         input_dir = lambda wildcards: sample_table.loc[sample_table["sample_name"] == wildcards.sample, "nanopore_rawdata_dir"].iloc[0]
+    container:
+        dorado_container
     resources:
         cpus_per_task =12,
         slurm_partition="gpu-he",
         mem_mb = 128000,
-        slurm_extra="--time=48:00:00 --prefer=a6000 --gres=gpu:2"
+        runtime = 5760,
+        slurm_extra="'--gres=gpu:2'"
     shell:
         """
 mkdir -p $(dirname {output.calls})
@@ -298,9 +295,15 @@ basecaller \
 --resume-from {input.unfinished} \
 --recursive \
 --verbose \
---reference {params.reference} > {output.calls}.temp
-mv {output.calls}.temp {output.calls}
+--reference {params.reference} \
+--mm2-opts "-x map-ont" > {output.calls}.temp.bam
+mv {output.calls}.temp.bam {output.calls}
         """
+        
+rule call_dorado_resume:
+    input:
+        expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modifications_string}.bam.finished", sample = config["aref"]["samples"], rate = config["aref"]["rate"], type = config["aref"]["type"], modifications_string = config["aref"]["modification_string"])
+
 
 rule dorado_seqsummary:
     input:
@@ -649,6 +652,9 @@ rule cleanup_updated_ref:
         contigs_to_keep = "aref/{default_or_extended}/A.REF_contigs_to_keep.txt"
     output:
         filtered_ref = "aref/{default_or_extended}/A.REF.fa"
+    params:
+        spike_in_indicator = config["aref"]["spike_in_contigs"]["response"],
+        spike_in_path = config["aref"]["spike_in_contigs"]["path_to_fasta"]
     priority: 100
     benchmark:
         "aref/benchmarks/cleanup_updated_ref/cleanup_updated_ref_{default_or_extended}.tsv"
@@ -656,13 +662,21 @@ rule cleanup_updated_ref:
         "omics"
     shell:
         """
-seqkit grep --by-name -f {input.contigs_to_keep} {input.updated_reference} > {output.filtered_ref}
+if [[ {params.spike_in_indicator} == no ]]; then
+    seqkit grep --by-name -f {input.contigs_to_keep} {input.updated_reference} > {output.filtered_ref}
+else
+    seqkit grep --by-name -f {input.contigs_to_keep} {input.updated_reference} > {output.filtered_ref}
+    cat {params.spike_in_path} >> {output.filtered_ref}
+fi
         """
 
 rule cleanup_updated_sample_ref:
     input:
         updated_reference = "aref/{default_or_extended}/{sample}-pre-ins-filtering.fa",
         contigs_to_keep = "aref/{default_or_extended}/{sample}_contigs_to_keep.txt"
+    params:
+        spike_in_indicator = config["aref"]["spike_in_contigs"]["response"],
+        spike_in_path = config["aref"]["spike_in_contigs"]["path_to_fasta"]
     output:
         filtered_ref = "aref/{default_or_extended}/{sample}.fa"
     priority: 100
@@ -682,7 +696,10 @@ rule cleanup_updated_ref_and_patch:
     input:
         updated_reference = "aref/{default_or_extended}/A.REF-pre-ins-filtering.fa",
         contigs_to_keep = "aref/{default_or_extended}/A.REF_contigs_to_keep.txt",
-        hq_snps = "aref/intermediates/A.REF/pepper/hq_snps.vcf.gz",
+        hq_snps = "aref/intermediates/A.REF/pepper/hq_snps.vcf.gz"
+    params:
+        spike_in_indicator = config["aref"]["spike_in_contigs"]["response"],
+        spike_in_path = config["aref"]["spike_in_contigs"]["path_to_fasta"]
     output:
         filtered_ref = "aref/{default_or_extended}/A.REF.snp_patched.fa"
     priority: 100

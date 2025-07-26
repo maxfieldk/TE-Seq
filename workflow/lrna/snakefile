@@ -1,3 +1,39 @@
+#container definitions
+teseq_container = (
+    config["containers"]["teseq"]["path"]
+    if config["containers"]["teseq"]["use_preexisting_response"] == "yes"
+    else "docker://maxfieldkelsey/te-seq:v1.3"
+)
+
+tetools_container = (
+    config["containers"]["tetools"]["path"]
+    if config["containers"]["tetools"]["use_preexisting_response"] == "yes"
+    else "containers/tetools_1.88.5.sif"
+)
+pepper_deepvariant_container = (
+    config["containers"]["pepper_deepvariant"]["path"]
+    if config["containers"]["pepper_deepvariant"]["use_preexisting_response"] == "yes"
+    else "containers/pepper_deepvariant:r0.8.sif"
+)
+gatk_container = (
+    config["containers"]["gatk"]["path"]
+    if config["containers"]["gatk"]["use_preexisting_response"] == "yes"
+    else "containers/gatk:4.6.1.0.sif"
+)
+dorado_container = (
+    config["containers"]["dorado"]["path"]
+    if config["containers"]["dorado"]["use_preexisting_response"] == "yes"
+    else "containers/dorado:sha268dcb4cd02093e75cdc58821f8b93719c4255ed.sif"
+)
+tetranscripts_container = (
+    config["containers"]["tetranscripts"]["path"]
+    if config["containers"]["tetranscripts"]["use_preexisting_response"] == "yes"
+    else "containers/tetranscripts:2.2.3.sif"
+)
+
+container: teseq_container
+
+
 import os
 import pandas as pd
 from pathlib import Path
@@ -492,27 +528,28 @@ find aref/ -type d -name 'RM_*' -exec rm -r {{}} +
 #     script:
 #         "scripts/maskedReadAnalysis.R"
 
-# rule minimap2RNAGENOME:
-#     input:
-#         fq = "lrna/intermediates/{sample}/fastqs/{alignmenttype}/{sample}.fq.gz"
-#     params:
-#         junctionbed = config["lrna"]["junctionbed"],
-#         reference = lambda wildcards: "aref/%s.fa"%(wildcards.sample) if config["lrna"]["per_sample_ref"] == "yes" else "aref/A.REF.fa"
-#     output:
-#         bam = "lrna/intermediates/{sample}/alignments/{sample}.sorted.bam"
-#     resources:
-#         cpus_per_task =20,
-#         runtime = 900,
-#         mem_mb = 80000
-#     conda:
-#         "minimap2"
-#     shell:
-#         """
-# minimap2 -ax splice -uf -N 10 -k14 -t 12 --junc-bed {params.junctionbed} {params.reference} {input.fq} | \
-# samtools sort -@4 -T {wildcards.sample} -O bam -o {output.bam}
-# samtools index -@8 {output.bam}
-# samtools stats {output.bam} > {output.bam}.stats.txt        
-#         """
+rule minimap2pacbio:
+    input:
+        fq = "lrna/intermediates/{sample}/fastqs/pacbio/{sample}.fq.gz"
+    params:
+        junctionbed = config["lrna"]["junctionbed"],
+        reference = lambda wildcards: "aref/extended/%s.fa"%(wildcards.sample) if config["lrna"]["per_sample_ref"] == "yes" else "aref/extended/A.REF.fa"
+    output:
+        bam = "lrna/intermediates/{sample}/alignments/{sample}.sorted.bam"
+    resources:
+        cpus_per_task =46,
+        runtime = 900,
+        mem_mb = 120000
+    container: None
+    conda:
+        "minimap2"
+    shell:
+        """
+minimap2 -ax splice:hq -uf -t 40 --junc-bed {params.junctionbed} {params.reference} {input.fq} | \
+samtools sort -@4 -T {wildcards.sample} -O bam -o {output.bam}
+samtools index -@8 {output.bam}
+samtools stats {output.bam} > {output.bam}.stats.txt        
+        """
 
 
 # rule minimap2RNATRANSCRIPTOME:
@@ -554,7 +591,7 @@ find aref/ -type d -name 'RM_*' -exec rm -r {{}} +
 
 rule fc_relaxed:
     input:
-        sortedbam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["lrna"]["rate"], type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"]),
+        sortedbam = "lrna/intermediates/{sample}/alignments/{sample}.sorted.bam",
         libtype = "lrna/qc/library_type.txt"
     output:
         countsmessy = "lrna/intermediates/{sample}/counts/relaxed/{sample}rtesandgenes.counts_messy.txt",
@@ -565,7 +602,7 @@ rule fc_relaxed:
         featureCountsstrandparam = getFeatureCountsStrandParam(),
         annotation_genesandrtes = lambda wildcards: "aref/default/%s_annotations/%s_repeatmasker_refseq.complete.gtf"%(wildcards.sample, wildcards.sample) if config["lrna"]["per_sample_ref"] == "yes" else "aref/default/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf"
     conda:
-        "subread"
+        "omics"
     resources:
         cpus_per_task =4,
         runtime = 3000,
@@ -590,7 +627,7 @@ rule fc_relaxed_unstranded:
     params: 
         annotation_genesandrtes = lambda wildcards: "aref/default/%s_annotations/%s_repeatmasker_refseq.complete.gtf"%(wildcards.sample, wildcards.sample) if config["lrna"]["per_sample_ref"] == "yes" else "aref/default/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf"
     conda:
-        "subread"
+        "omics"
     resources:
         cpus_per_task =4,
         runtime = 3000,
@@ -615,7 +652,7 @@ rule fc_relaxedunstrandedmapped:
     params: 
         annotation_genesandrtes = lambda wildcards: "aref/default/%s_annotations/%s_repeatmasker_refseq.complete.gtf"%(wildcards.sample, wildcards.sample) if config["lrna"]["per_sample_ref"] == "yes" else "aref/default/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf"
     conda:
-        "subread"
+        "omics"
     resources:
         cpus_per_task =4,
         runtime = 3000,
@@ -630,7 +667,7 @@ cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
 
 rule fc_stringent:
     input:
-        sortedbam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["lrna"]["rate"], type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"]),
+        sortedbam = "lrna/intermediates/{sample}/alignments/{sample}.sorted.bam",
         libtype = "lrna/qc/library_type.txt"
     output:
         countsmessy = "lrna/intermediates/{sample}/counts/stringent/{sample}rtesandgenes.counts_messy.txt",
@@ -654,6 +691,10 @@ featureCounts -s {params.featureCountsstrandparam} -L -O -M --primary --ignoreDu
 cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
         """
 
+rule get_fc:
+        input:
+            stringent = expand("lrna/intermediates/{sample}/counts/stringent/{sample}rtesandgenes.counts.txt", sample = samples),
+            relaxed = expand("lrna/intermediates/{sample}/counts/relaxed/{sample}rtesandgenes.counts.txt", sample = samples)
 rule deseq:
     input:
         counts = expand("lrna/intermediates/{sample}/counts/{{counttype}}/{sample}rtesandgenes.counts.txt", sample = samples),
@@ -1108,7 +1149,7 @@ rule runpycoQC:
 
 rule inferLibraryType:
     input:
-        bam = expand("lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam", sample = samples[0], rate = config["lrna"]["rate"], type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"])
+        bam = expand("lrna/intermediates/{sample}/alignments/{sample}.sorted.bam", sample = samples[0])
     output:
         librarytype = "lrna/qc/library_type.txt"
     params:

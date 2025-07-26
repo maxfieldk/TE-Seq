@@ -3,6 +3,7 @@
 <img width="1665" alt="Screenshot 2024-08-23 at 3 23 28 PM" src="https://github.com/user-attachments/assets/a7148bf4-412a-4250-b539-ce3959e38fb0">
 [TE-SEQ_POSTER.pdf](https://github.com/user-attachments/files/16732892/MCB_RETREAT_POSTER_2024_FINAL.pdf)
 
+# About this pipeline
 This project consists of a __snakemake pipeline__ to analyze transposable element (TE) sequencing data.
 
 To the unacquainted, the analysis of TE, and more generally repetitive element, sequencing data can be a daunting task: the repetitive nature of these elements imposes  analytical pitfalls and raises a number of practical questions including:  
@@ -18,8 +19,38 @@ It also aims address concerns pertaining to:
 - the quality of TE annotations.
 
 This project derives from my work in the __Sedivy Lab at Brown University__, where we study transposable elements, in particular __LINE1__.
-
 **Thank you for your interest!**
+
+# Table of Contents
+- [Pipeline Overview](#pipeline-overview)
+  - [Inputs](#inputs)
+  - [Outputs](#outputs)
+  - [Limitations and various experimental considerations](#limitations-and-various-experimental-considerations)
+  - [Computational Requirements](#computational-requirements)
+    - [Software Requirements](#software-requirements)
+    - [Hardware Requirements](#hardware-requirements)
+- [Quick start: install and run pipeline with test data](#quick-start-install-and-run-pipeline-with-test-data)
+- [Installation](#installation)
+  - [Create a Snakemake containing Conda environment](#create-a-snakemake-containing-conda-environment)
+  - [Setup your project directory](#setup-your-project-directory)
+  - [Configure your analysis](#configure-your-analysis)
+    - [HUMAN - Genome: T2T-HS1](#human---genome-t2t-hs1)
+    - [MOUSE - Genome: MM39](#mouse---genome-mm39)
+    - [Downsampled HUMAN - Genome: HS1 -  Downsampled genome for a pipeline test-run](#downsampled-human---genome-hs1----downsampled-genome-for-a-pipeline-test-run)
+  - [Workflow Logic:](#workflow-logic)
+    - [AREF](#aref)
+      - [If supplying long Nanopore DNA reads (optional)](#if-supplying-long-nanopore-dna-reads-optional)
+    - [SRNA](#srna)
+  - [Applying this pipeline to non-human/mouse species.](#applying-this-pipeline-to-non-humanmouse-species)
+  - [Deploying the pipeline](#deploying-the-pipeline)
+  - [Outputs](#outputs-1)
+    - [Location of reference files:](#location-of-reference-files)
+    - [Overview of results](#overview-of-results)
+    - [Location of main result tables:](#location-of-main-result-tables)
+    - [Location of important files:](#location-of-important-files)
+    - [Notes on interpreting plots](#notes-on-interpreting-plots)
+  - [Common Issues](#common-issues)
+  - [Attribution](#attribution)
 
 ## Pipeline Overview
   This pipeline conducts an end-to-end analysis of raw sequencing data, implementing state of the art TE-minded computational methods. It produces a comprehensive analyses of repetitive element expression at both the level of an individual repetitive element as well as family groupings of these elements. It consists of 4 modules, "Annotate Referene" (AREF), short-read RNA-Seq (SRNA), long-read RNA-Seq (LRNA), and long-read DNA-Seq (LDNA). LRNA and LDNA remain in active development and will be formally released at a future date. Accordingly, this guide pertains only to the AREF and SRNA modules. 
@@ -59,6 +90,70 @@ https://www.neb.com/en-us/products/e6310-nebnext-rrna-depletion-kit-human-mouse-
 ### Hardware Requirements
   This pipeline allows for the parallel execution of many jobs which can occur simultaneously. Consequently, it is highly recommended to execute this pipeline on a compute cluster to take advantage of the corresponding diminishment of total runtime afforded by parallelization. Snakemake is designed to work with many commonly-used cluster workload managers such as SLURM.  
   Many steps require a substantial amount of RAM (north of 20 GB) to be available on your system, else they will fail and give you OOM (out-of-memory) errors.  This pipeline will likely fail if run on a personal computer without at least 64 GB of RAM.
+
+# QUICK START install and run pipeline with test data
+The following code clone the pipeline and test data, and will create a conda environment. Requires mamba and singularity to be installed. This section provides little guidance - for a proper walk through of how to install and setup a custom analysis, skip this section and proceed to [Create a Snakemake containing Conda environment](#create-a-snakemake-containing-conda-environment)
+```
+#download
+mamba create -y \
+  -c conda-forge \
+  -c bioconda \
+  --name teseq \
+  'snakemake=8.*' \
+  snakemake-executor-plugin-slurm
+
+#create project directory and clone te-seq
+mkdir teseq_test
+cd teseq_test
+git clone -b stable https://github.com/maxfieldk/TE-Seq.git
+#prepare a live configuartion directory
+cd TE-Seq
+cp -r workflow/conf_example conf
+#download test data and accompanying genome annotations
+cd ..
+git clone https://github.com/maxfieldk/TE-Seq_test_rawdata.git
+cd TE-Seq
+mkdir -p srna_rawdata
+mv ../TE-Seq_test_rawdata/test_srna/*.fq.gz srna_rawdata
+mv ../TE-Seq_test_rawdata/genome_files ../genome_files
+#configure singularity bind paths in snakemake slurm and local machine profiles
+pathstobind=$(echo $(dirname $(pwd))/genome_files,$(dirname $(pwd)))
+awk -v bpath="$pathstobind" '                     
+{
+  if ($0 ~ /--bind/ && !done) {
+    sub(/--bind/, "--bind " bpath)
+    done = 1
+  }
+  print
+}' conf/profile/default/config.yaml > tmp.txt
+mv tmp.txt conf/profile/default/config.yaml
+awk -v bpath="$pathstobind" '                     
+{
+  if ($0 ~ /--bind/ && !done) {
+    sub(/--bind/, "--bind " bpath)
+    done = 1
+  }
+  print
+}' conf/profile/local_system/config.yaml > tmplocal.txt
+mv tmplocal.txt conf/profile/local_system/config.yaml
+#activate conda environment
+conda activate teseq
+```
+The following code will deploy the pipeline on a slurm cluster
+```
+#pipeline dry-run
+snakemake --profile conf/profile/default -n
+#run pipeline
+snakemake --profile conf/profile/default
+```
+The following code will deploy the pipeline on your local machine
+```
+#pipeline dry-run
+snakemake --profile conf/profile/local_system -n
+#run pipeline
+snakemake --profile conf/profile/local_system
+```
+
 # Installation
 ## Create a Snakemake containing Conda environment
   Create a Snakemake Conda environment from which you can run the Snakemake pipeline. If your computer / compute cluster uses a workload manager (e.g. slurm) install any workload manager specific Snakemake executor plugins in this environment (e.g. the snakemake-executor-plugin-slurm if your system uses slurm. A full listing of the availible plugins is availible at https://snakemake.github.io/snakemake-plugin-catalog/ ). If Singularity is not installed on your system already (you can check by running the "singularity version" at the command line) then you should include Singularity in your conda environment. The following call will create a snakemake environment for use on a slurm cluster and include singularity:
