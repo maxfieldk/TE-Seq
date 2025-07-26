@@ -3,6 +3,7 @@ conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
 confALL <- configr::read.config(file = "conf/config.yaml")
 source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
+
 set.seed(123)
 
 library(knitr)
@@ -203,7 +204,8 @@ pf <- region_annot1 %>%
     group_by(sample_name, loc_integrative) %>%
     summarise(score_sum = sum(score)) %>%
     left_join(sample_table) %>%
-    ungroup()
+    ungroup() %>%
+    mutate(condition = factor(condition, levels = conf$levels))
 
 RINcol <- colnames(pf)[colnames(pf) == "RIN" | colnames(pf) == "batchCon_RIN"]
 if (length(RINcol) > 0) {
@@ -245,6 +247,26 @@ p <- pf %>%
     ) + scale_conditions + mtclosed + anchorbar + labs(x = "", y = "Normalized Read Count")
 
 mysaveandstore(str_glue("{outputdir}/genomic_context/gene_oriented_signal_faceted.pdf"), 8, 3.8)
+
+loc_levels <- unique(pf$loc_integrative)
+
+# Loop over levels
+for (loc in loc_levels) {
+    df_subset <- pf %>% filter(loc_integrative == loc)
+
+    p <- ggbarplot(df_subset,
+        x = "condition",
+        y = "score_sum",
+        fill = "condition",
+        add = c("mean_se", "dotplot"),
+        scales = "free_y"
+    ) +
+        ggtitle(loc) + scale_conditions + mtclosed + anchorbar
+
+    mysaveandstore(
+        str_glue("{outputdir}/genomic_context/{loc}_gene_oriented_signal_faceted.pdf"), 4, 3.8
+    )
+}
 
 pf <- region_annot_rm %>%
     group_by(sample_name, loc_integrative) %>%

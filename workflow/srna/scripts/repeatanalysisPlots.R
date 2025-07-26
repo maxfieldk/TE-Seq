@@ -39,7 +39,6 @@ library(rtracklayer)
 library(ComplexUpset)
 library(patchwork)
 library(scales)
-library(ggbeeswarm)
 
 
 tryCatch(
@@ -800,7 +799,7 @@ pvp <- function(df, facet_var = "ALL", filter_var = "ALL", labels = "no", scale_
             {
                 ggplot(data = ., mapping = aes(x = !!sym(contrast_level_1), y = !!sym(contrast_level_2))) +
                     geom_abline(intercept = 0, slope = 1, alpha = 0.5) +
-                    geom_point(aes(color = loc_integrative, shape = ifelse(is.na(padj), FALSE, ifelse(padj < 0.05, TRUE, FALSE)))) +
+                    geom_point(aes(color = loc_lowres_integrative_stranded, shape = ifelse(is.na(padj), FALSE, ifelse(padj < 0.05, TRUE, FALSE)))) +
                     scale_shape_manual(values = c(1, 19, 3)) +
                     scale_size_manual(values = c(1, 2, 1)) +
                     labs(
@@ -825,7 +824,7 @@ pvp <- function(df, facet_var = "ALL", filter_var = "ALL", labels = "no", scale_
             {
                 ggplot(data = ., mapping = aes(x = !!sym(contrast_level_1), y = !!sym(contrast_level_2))) +
                     geom_abline(intercept = 0, slope = 1, alpha = 0.5) +
-                    geom_point(aes(color = loc_integrative, shape = ifelse(is.na(padj), FALSE, ifelse(padj < 0.05, TRUE, FALSE)))) +
+                    geom_point(aes(color = loc_lowres_integrative_stranded, shape = ifelse(is.na(padj), FALSE, ifelse(padj < 0.05, TRUE, FALSE)))) +
                     scale_shape_manual(values = c(1, 19, 3)) +
                     scale_size_manual(values = c(1, 2, 1)) +
                     labs(
@@ -970,9 +969,10 @@ stripp <- function(df, stats = "no", extraGGoptions = NULL, facet_var = "ALL", f
                             color = "black",
                             width = 0.9
                         ) +
-                        geom_beeswarm(
-                            method = "swarm",
-                            dodge.width = 0.9
+                        geom_jitter(
+                            aes(alpha = tecounttype),
+                            position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.9),
+                            color = "black"
                         ) +
                         labs(x = "", y = "Sum Normalized Counts", subtitle = counttype_label) +
                         mtclosedgridh +
@@ -1661,7 +1661,7 @@ for (contrast in contrasts) {
                     }
                 }
                 eligible_filter_modifiers <- c(eligible_modifiers[grepl("_req$", eligible_modifiers)], "ALL")
-                eligible_facet_modifiers <- c(eligible_modifiers[grepl("genic_loc$", eligible_modifiers)], "ALL")
+                eligible_facet_modifiers <- c(eligible_modifiers[grepl("genic_loc$", eligible_modifiers)], eligible_modifiers[grepl("loc_superlowres_integrative_stranded$", eligible_modifiers)], "ALL")
                 eligible_modifier_combinations <- expand.grid(filter_var = eligible_filter_modifiers, facet_var = eligible_facet_modifiers, stringsAsFactors = FALSE)
                 for (i in seq(1, length(rownames(eligible_modifier_combinations)))) {
                     filter_var <- eligible_modifier_combinations[i, ]$filter_var
@@ -1689,7 +1689,7 @@ for (contrast in contrasts) {
                                     p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var) + ggtitle(plot_title)
                                     mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s.pdf", outputdir, counttype, contrast, function_name, group, filter_var, facet_var), plot_width + 2, plot_height + 2)
                                     p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, labels = "yes") + ggtitle(plot_title)
-                                    mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_labels.pdf", outputdir, counttype, contrast, function_name, group, filter_var, facet_var), plot_width, plot_height)
+                                    mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_labels.pdf", outputdir, counttype, contrast, function_name, group, filter_var, facet_var), plot_width + 2, plot_height + 2)
                                     p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, labels = "no", scale_log2 = "yes") + ggtitle(plot_title)
                                     mysaveandstore(sprintf("%s/%s/%s/%s/%s_%s_%s_log2.pdf", outputdir, counttype, contrast, function_name, group, filter_var, facet_var), plot_width + 2, plot_height + 2)
                                     p <- function_current(groupframe, filter_var = filter_var, facet_var = facet_var, labels = "yes", scale_log2 = "yes") + ggtitle(plot_title)

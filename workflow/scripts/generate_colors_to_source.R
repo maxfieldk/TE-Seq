@@ -107,7 +107,7 @@ if (length(conf$levels) == 1) {
     mycolor <- "grey"
 } else if (length(conf$levels) <= 1 + condition_palette_length) {
     manual_color_vec <- confALL$shared$condition_colors %>% unlist()
-    if (all(conf$levels %in% manual_color_vec)) {
+    if (all(conf$levels %in% names(manual_color_vec))) {
         condition_palette <- manual_color_vec
     } else {
         tryCatch(
@@ -196,7 +196,7 @@ if (length(conf$levels) == 1) {
     mycolor <- "grey"
 } else if (length(conf$levels) > 1 + condition_palette_length) {
     manual_color_vec <- confALL$shared$condition_colors %>% unlist()
-    if (all(conf$levels %in% manual_color_vec)) {
+    if (all(conf$levels %in% names(manual_color_vec))) {
         condition_palette <- manual_color_vec
     } else {
         tryCatch(

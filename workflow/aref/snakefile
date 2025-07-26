@@ -15,6 +15,11 @@ pepper_deepvariant_container = (
     if config["containers"]["pepper_deepvariant"]["use_preexisting_response"] == "yes"
     else "containers/pepper_deepvariant:r0.8.sif"
 )
+sniffles_container = (
+    config["containers"]["sniffles"]["path"]
+    if config["containers"]["sniffles"]["use_preexisting_response"] == "yes"
+    else "containers/sniffles:v2.5.2.sif"
+)
 gatk_container = (
     config["containers"]["gatk"]["path"]
     if config["containers"]["gatk"]["use_preexisting_response"] == "yes"
@@ -730,6 +735,26 @@ rule sniffles:
         cpus_per_task = 32
     conda: "sniffles"
     container: None
+    shell:
+        """
+mkdir -p $(dirname {output})
+sniffles -i {input.sortedbam} -v {output.vcf} --threads 28 --mosaic --reference {params.ref}
+        """
+
+rule snifflesNew:
+    input:
+        sortedbam = expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
+        sortedbamindex = expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"])
+        sniffles_container = ancient(sniffles_container),
+    output:
+        vcf = "aref/intermediates/{sample_or_ref}/sniffles/sniffles.vcf"
+    params:
+        ref = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"]
+    resources:
+        runtime = 1000,
+        mem_mb = 128000,
+        cpus_per_task = 32
+    container: sniffles_container
     shell:
         """
 mkdir -p $(dirname {output})
@@ -2057,3 +2082,16 @@ outfile={output.insert_maf}
 rule call_te_rex:
     input:
         expand("aref/terex/{sample}/{sample}-out-insert.maf", sample = config["aref"]["samples"])
+
+
+#RULE OVERRIDES
+def maybe_include_rule_override(module_name):
+    path = config.get(module_name, {}).get("rule_override", None)
+    if path and str(path).strip():  # skip if path is None, "", or just whitespace
+        path = str(path).strip()
+        if not Path(path).exists():
+            raise ValueError(f"Override rule file not found for {module_name}: {path}")
+        include: path
+        print(f"CAUTION USING {module_name} RULE OVERRIDES - CHECK conf/config.yaml {module_name} rule_overrides")
+
+maybe_include_rule_override("aref")

@@ -1367,3 +1367,15 @@ rule bedmethylanalysis_plot:
         "ds"
     script:
         "scripts/bedmethylanalysis_process.R"
+
+#RULE OVERRIDES
+def maybe_include_rule_override(module_name):
+    path = config.get(module_name, {}).get("rule_override", None)
+    if path and str(path).strip():  # skip if path is None, "", or just whitespace
+        path = str(path).strip()
+        if not Path(path).exists():
+            raise ValueError(f"Override rule file not found for {module_name}: {path}")
+        include: path
+        print(f"CAUTION USING {module_name} RULE OVERRIDES - CHECK conf/config.yaml {module_name} rule_overrides")
+        
+maybe_include_rule_override("lrna")
