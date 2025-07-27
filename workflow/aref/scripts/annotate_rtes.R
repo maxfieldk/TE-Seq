@@ -21,7 +21,8 @@ tryCatch(
         assign("inputs", list(
             r_annotation_fragmentsjoined = "aref/default/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
             ref = "aref/default/A.REF.fa",
-            txdbrefseq = "aref/default/A.REF_annotations/refseq.sqlite"
+            txdbrefseq = "aref/default/A.REF_annotations/refseq.sqlite",
+            absent_tes_to_mask = "aref/intermediates/A.REF/sniffles/tes_to_mask.bed"
         ), env = globalenv())
         assign("outputs", list(
             r_repeatmasker_annotation = "aref/default/A.REF_annotations/A.REF_repeatmasker_annotation.csv",
@@ -1010,7 +1011,35 @@ annots %$% gene_id %>%
     duplicated() %>%
     sum()
 
+
 rmann <- left_join(rmfragments, annots)
+
+# add in optional info on te presense in sample if nanopore sequencing is availible
+if (confALL$aref$patch_ref == "yes") {
+    print("adding info about TE presence in sample from nanopore DNA seq")
+    absencedf <- rtracklayer::import(inputs$absent_tes_to_mask) %>%
+        as.data.frame() %>%
+        tibble() %>%
+        mutate(gene_id = name, masked_in_ref = "yes", fraction_masked = score) %>%
+        dplyr::select(gene_id, masked_in_ref, fraction_masked) %>%
+        group_by(gene_id) %>%
+        summarise(masked_in_ref = "yes", fraction_masked = sum(fraction_masked))
+    zygositydf <- read_csv(paste0(dirname(inputs$absent_tes_to_mask), "/zygosity_annotation.csv")) %>%
+        dplyr::select(gene_id, fraction_deleted, gt) %>%
+        group_by(gene_id) %>%
+        summarise(
+            gt = case_when(
+                n() > 1 ~ paste(gt, collapse = ","),
+                TRUE ~ dplyr::first(gt)
+            ),
+            fraction_deleted = case_when(
+                n() > 1 ~ sum(fraction_deleted),
+                TRUE ~ dplyr::first(fraction_deleted)
+            )
+        )
+    optional_annot <- full_join(absencedf, zygositydf)
+    rmann <- rmann %>% left_join(optional_annot)
+}
 
 write_csv(annots, outputs$r_repeatmasker_annotation)
 write_csv(rmann, outputs$rmann)

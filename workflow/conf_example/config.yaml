@@ -25,6 +25,9 @@ containers:
   pepper_deepvariant:
     use_preexisting_response: "no"
     path: "/users/mkelsey/data/Nanopore/alz/RTE/containers/pepper_deepvariant:r0.8.sif"
+  sniffles:
+    use_preexisting_response: "no"
+    path: "/users/mkelsey/data/Nanopore/alz/RTE/containers/sniffles:v2.5.2.sif"
   dorado:
     use_preexisting_response: "no"
     path: "/users/mkelsey/data/Nanopore/alz/RTE/containers/dorado:sha268dcb4cd02093e75cdc58821f8b93719c4255ed.sif"
@@ -105,8 +108,8 @@ aref:
 
   rmann_shared: "aref/default/A.REF_annotations/A.REF_rmann.csv"
 
-  #if you would like snps to be incorporated into the reference? Only use if you have at least 20X long read coverage
-  patch_ref: "no"
+  patch_ref: "no"   #if you would like snps to be incorporated into the reference and for repetitive elements that are absent from the sample to be masked. Only recommended if you have at least 20X long read coverage
+  rte_mask_supporting_read_count_threshold: 10 # require at least this many reads supporing the empty site for a repeat to be masked.
   update_ref_with_tldr:
     response: "no"
     #if making one ref per sample (i.e. each sample has unique inserts), then "yes", else "no"

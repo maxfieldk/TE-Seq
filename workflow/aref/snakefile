@@ -15,6 +15,11 @@ pepper_deepvariant_container = (
     if config["containers"]["pepper_deepvariant"]["use_preexisting_response"] == "yes"
     else "containers/pepper_deepvariant:r0.8.sif"
 )
+sniffles_container = (
+    config["containers"]["sniffles"]["path"]
+    if config["containers"]["sniffles"]["use_preexisting_response"] == "yes"
+    else "containers/sniffles:2.6.0.sif"
+)
 gatk_container = (
     config["containers"]["gatk"]["path"]
     if config["containers"]["gatk"]["use_preexisting_response"] == "yes"
@@ -412,6 +417,25 @@ mkdir -p $(dirname {output})
 samtools sort -@8 -m4g {input.bam} > {output.sortedbam}
         """
 
+rule filterbamnosup:
+    input:
+        bam = "aref/{path}.sorted.bam"
+    params:
+        min_mapq = 60,
+        min_qscore = 10
+    output:
+        bam = "aref/{path}.sorted.filterednosupMapq60.bam"
+    resources:
+        cpus_per_task =6,
+        mem_mb = 40000,
+        runtime = 300
+    conda:
+        "omics"
+    shell: 
+        """
+samtools view -b -F 2304 -q {params.min_mapq} -e '[qs] >= {params.min_qscore}' {input.bam} > {output.bam}
+        """
+
 rule filterbam:
     input:
         bam = "aref/{path}.sorted.bam"
@@ -667,6 +691,7 @@ rule cleanup_updated_ref_and_patch:
         updated_reference = "aref/{default_or_extended}/A.REF-pre-ins-filtering.fa",
         contigs_to_keep = "aref/{default_or_extended}/A.REF_contigs_to_keep.txt",
         hq_snps = "aref/intermediates/A.REF/pepper/hq_snps.vcf.gz",
+        absent_tes_to_mask =  "aref/intermediates/A.REF/sniffles/tes_to_mask.bed"
     output:
         filtered_ref = "aref/{default_or_extended}/A.REF.snp_patched.fa"
     priority: 100
@@ -677,8 +702,10 @@ rule cleanup_updated_ref_and_patch:
     shell:
         """
 seqkit grep --by-name -f {input.contigs_to_keep} {input.updated_reference} > {output.filtered_ref}.temp
-bcftools consensus -I -f {output.filtered_ref}.temp -o {output.filtered_ref} {input.hq_snps}
+bcftools consensus -I -f {output.filtered_ref}.temp -o {output.filtered_ref}.snp.fa {input.hq_snps}
 rm {output.filtered_ref}.temp
+bedtools maskfasta -fi {output.filtered_ref}.snp.fa -bed {input.absent_tes_to_mask} -fo {output.filtered_ref} 
+rm {output.filtered_ref}.snp.fa
 samtools faidx {output.filtered_ref}
         """
 
@@ -687,6 +714,7 @@ rule cleanup_updated_sample_ref_and_patch:
         updated_reference = "aref/{default_or_extended}/{sample}-pre-ins-filtering.fa",
         contigs_to_keep = "aref/{default_or_extended}/{sample}_contigs_to_keep.txt",
         hq_snps = "aref/intermediates/{sample}/pepper/hq_snps.vcf.gz",
+        absent_tes_to_mask = "aref/intermediates/{sample}/sniffles/tes_to_mask.bed"
     output:
         filtered_ref = "aref/{default_or_extended}/{sample}.snp_patched.fa"
     priority: 100
@@ -698,17 +726,20 @@ rule cleanup_updated_sample_ref_and_patch:
         "omics"
     shell:
         """
-seqkit grep --by-name -f {input.contigs_to_keep} {input.updated_reference} > {output.filtered_ref}
-bcftools consensus -I -f {output.filtered_ref}.temp -o {output.filtered_ref} {input.hq_snps}
+seqkit grep --by-name -f {input.contigs_to_keep} {input.updated_reference} > {output.filtered_ref}.temp
+bcftools consensus -I -f {output.filtered_ref}.temp -o {output.filtered_ref}.snp.fa {input.hq_snps}
 rm {output.filtered_ref}.temp
+bedtools maskfasta -fi {output.filtered_ref}.snp.fa -bed {input.absent_tes_to_mask} -fo {output.filtered_ref} 
+rm {output.filtered_ref}.snp.fa
 samtools faidx {output.filtered_ref}
         """
 
 #Variant calling for ref patching
 rule sniffles:
     input:
-        sortedbam = expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
-        sortedbamindex = expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"])
+        mapq60bam = expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
+        mapq60bamindex = expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
+        sniffles_container = ancient(sniffles_container)
     output:
         vcf = "aref/intermediates/{sample_or_ref}/sniffles/sniffles.vcf"
     params:
@@ -717,13 +748,26 @@ rule sniffles:
         runtime = 1000,
         mem_mb = 128000,
         cpus_per_task = 32
-    conda: "sniffles"
-    container: None
+    container: sniffles_container
     shell:
         """
 mkdir -p $(dirname {output})
-sniffles -i {input.sortedbam} -v {output.vcf} --threads 28 --mosaic --reference {params.ref}
+sniffles -i {input.mapq60bam} -v {output.vcf} --threads 28 --reference {params.ref}
         """
+
+rule determine_tes_to_mask:
+    input:
+        vcf = "aref/intermediates/{sample_or_ref}/sniffles/sniffles.vcf",
+        r_annotation_fragmentsjoined = "aref/default/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
+    resources:
+        runtime = 60
+    output:
+        absent_tes_to_mask = "aref/intermediates/{sample_or_ref}/sniffles/tes_to_mask.bed",
+        te_zygosity_annot = "aref/intermediates/{sample_or_ref}/sniffles/zygosity_annotation.csv"
+    conda: 
+        "evo2"
+    script:
+        "scripts/detect_absent_RTE_polymphism.R"
 
 rule pepper:
     input:
@@ -735,7 +779,6 @@ rule pepper:
     output:
         outfile = "aref/intermediates/{sample_or_ref}/pepper/{chr}/pepper.out.outfile",
         vcf = "aref/intermediates/{sample_or_ref}/pepper/{chr}/PEPPER_MARGIN_DEEPVARIANT_FINAL_OUTPUT.vcf.gz"
-
     resources:
         cpus_per_task =20,
         runtime = 600,
@@ -1620,12 +1663,18 @@ rule get_transcriptome:
 agat_sp_extract_sequences.pl -g {input.gtf} -f {input.ref} -t exon --merge -o {output.fa}
         """
 
+def te_absense_status_input_for_annotate_rtes(wildcards):
+    if config["aref"]["patch_ref"] == "yes":
+        return expand("aref/intermediates/{sample_or_ref}/sniffles/tes_to_mask.bed", sample_or_ref = wildcards.sample_or_ref)
+    else:
+        return []
 rule annotate_rtes:
     input:
         r_annotation_fragmentsjoined = "aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
         ref = "aref/{default_or_extended}/{sample_or_ref}.fa",
         fai = "aref/{default_or_extended}/{sample_or_ref}.fa.fai",
         txdbrefseq = "aref/default/A.REF_annotations/refseq.sqlite",
+        absent_tes_to_mask = te_absense_status_input_for_annotate_rtes
     output:
         r_repeatmasker_annotation = "aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_annotation.csv",
         rmann = "aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_rmann.csv",
