@@ -1038,7 +1038,14 @@ if (confALL$aref$patch_ref == "yes") {
             )
         )
     optional_annot <- full_join(absencedf, zygositydf)
-    rmann <- rmann %>% left_join(optional_annot)
+    rmann <- rmann %>%
+        left_join(optional_annot) %>%
+        mutate(
+            masked_in_ref     = coalesce(masked_in_ref, "no"),
+            fraction_masked   = coalesce(fraction_masked, 0),
+            gt                = coalesce(gt, "NotMutated"),
+            fraction_deleted  = coalesce(fraction_deleted, 0)
+        )
 }
 
 write_csv(annots, outputs$r_repeatmasker_annotation)
