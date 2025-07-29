@@ -976,11 +976,11 @@ rule genomebrowserplots:
         multiqc = "srna/qc/multiqc/multiqc_report.html",
         resultsdf = "srna/results/agg/deseq/resultsdf.tsv"
     params:
-        outputdir = lambda w, output: os.path.dirname(os.path.dirname(output.outfile)),
+        outputdir = lambda w, output: os.path.dirname(output.outfile),
         r_annotation_fragmentsjoined = config["srna"]["r_annotation_fragmentsjoined"],
         r_repeatmasker_annotation = config["srna"]["r_repeatmasker_annotation"],
         txdbrefseq = "aref/default/A.REF_annotations/refseq.sqlite",
-        txdbrep = "aref/default/A.REF_annotations//users/mkelsey/data/Nanopore/alz/RTE/aref/default/A.REF_annotations/A.REF_repeatmasker.complete.sqlite",
+        txdbrep = "aref/default/A.REF_annotations/A.REF_repeatmasker.complete.sqlite",
         alignment_type = lambda w: w.alignment_type,
         module_name = "srna"
     benchmark:

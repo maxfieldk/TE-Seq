@@ -229,7 +229,7 @@ pvp <- function(df, facet_var = "ALL", filter_var = "ALL", labels = "no", scale_
             {
                 ggplot(data = ., mapping = aes(x = !!sym(contrast_level_1), y = !!sym(contrast_level_2))) +
                     geom_abline(intercept = 0, slope = 1, alpha = 0.5) +
-                    geom_point(aes(color = loc_integrative, shape = ifelse(is.na(padj), FALSE, ifelse(padj < 0.05, TRUE, FALSE)))) +
+                    geom_point(aes(color = loc_superlowres_integrative_stranded, shape = ifelse(is.na(padj), FALSE, ifelse(padj < 0.05, TRUE, FALSE)))) +
                     scale_shape_manual(values = c(1, 19, 3)) +
                     scale_size_manual(values = c(1, 2, 1)) +
                     labs(
@@ -254,7 +254,7 @@ pvp <- function(df, facet_var = "ALL", filter_var = "ALL", labels = "no", scale_
             {
                 ggplot(data = ., mapping = aes(x = !!sym(contrast_level_1), y = !!sym(contrast_level_2))) +
                     geom_abline(intercept = 0, slope = 1, alpha = 0.5) +
-                    geom_point(aes(color = loc_integrative, shape = ifelse(is.na(padj), FALSE, ifelse(padj < 0.05, TRUE, FALSE)))) +
+                    geom_point(aes(color = loc_superlowres_integrative_stranded, shape = ifelse(is.na(padj), FALSE, ifelse(padj < 0.05, TRUE, FALSE)))) +
                     scale_shape_manual(values = c(1, 19, 3)) +
                     scale_size_manual(values = c(1, 2, 1)) +
                     labs(
@@ -917,8 +917,8 @@ for (rte_subfam in rte_subfams) {
     pancontrastbarplots(ontology_column = "rte_subfamily", ontology_column_value = rte_subfam, facetvars = c("req_integrative", "genic_loc"), refstatus_to_include = c("Ref", "NonRef"), element_subttypes_to_remove = c("genic_loc" = "Genic"))
     pancontrastbarplots(ontology_column = "rte_subfamily", ontology_column_value = rte_subfam, facetvars = c("req_integrative", "genic_loc"), refstatus_to_include = c("NonRef"))
     pancontrastbarplots(ontology_column = "rte_subfamily", ontology_column_value = rte_subfam, facetvars = c("req_integrative", "loc_highres_integrative_stranded"), refstatus_to_include = c("Ref", "NonRef"))
-    pancontrastbarplots(ontology_column = "rte_subfamily", ontology_column_value = rte_subfam, facetvars = c("req_integrative", "loc_lowres_integrative_stranded"), refstatus_to_include = c("Ref", "NonRef"))
-    pancontrastbarplots(ontology_column = "rte_subfamily", ontology_column_value = rte_subfam, facetvars = c("req_integrative", "loc_lowres_integrative_stranded"), refstatus_to_include = c("Ref", "NonRef"), element_subttypes_to_remove = c("loc_lowres_integrative_stranded" = "Genic_Sense"))
+    pancontrastbarplots(ontology_column = "rte_subfamily", ontology_column_value = rte_subfam, facetvars = c("req_integrative", "loc_superlowres_integrative_stranded"), refstatus_to_include = c("Ref", "NonRef"))
+    pancontrastbarplots(ontology_column = "rte_subfamily", ontology_column_value = rte_subfam, facetvars = c("req_integrative", "loc_superlowres_integrative_stranded"), refstatus_to_include = c("Ref", "NonRef"), element_subttypes_to_remove = c("loc_superlowres_integrative_stranded" = "Genic_Sense"))
     if (tidydf %>% filter(rte_subfamily == rte_subfam) %$% rte_superfamily %>% unique() == "LTR") {
         pancontrastbarplots(ontology_column = "rte_subfamily", ontology_column_value = rte_subfam, facetvars = c("ltr_viral_status", "genic_loc"), refstatus_to_include = c("Ref", "NonRef"))
     }
@@ -932,7 +932,7 @@ for (rte_fam in rte_fams) {
     pancontrastbarplots(ontology_column = "rte_family", ontology_column_value = rte_fam, facetvars = c("req_integrative", "genic_loc"), refstatus_to_include = c("Ref", "NonRef"))
     pancontrastbarplots(ontology_column = "rte_family", ontology_column_value = rte_fam, facetvars = c("req_integrative", "genic_loc"), refstatus_to_include = c("NonRef"))
     pancontrastbarplots(ontology_column = "rte_family", ontology_column_value = rte_fam, facetvars = c("req_integrative", "loc_highres_integrative_stranded"), refstatus_to_include = c("Ref", "NonRef"))
-    pancontrastbarplots(ontology_column = "rte_family", ontology_column_value = rte_fam, facetvars = c("req_integrative", "loc_lowres_integrative_stranded"), refstatus_to_include = c("Ref", "NonRef"))
+    pancontrastbarplots(ontology_column = "rte_family", ontology_column_value = rte_fam, facetvars = c("req_integrative", "loc_superlowres_integrative_stranded"), refstatus_to_include = c("Ref", "NonRef"))
     if (tidydf %>% filter(rte_family == rte_fam) %$% rte_superfamily %>% unique() == "LTR") {
         pancontrastbarplots(ontology_column = "rte_family", ontology_column_value = rte_fam, facetvars = c("ltr_viral_status", "genic_loc"), refstatus_to_include = c("Ref", "NonRef"))
     }
@@ -1095,7 +1095,7 @@ for (contrast in contrasts) {
                     }
                 }
                 eligible_filter_modifiers <- c(eligible_modifiers[grepl("_req$", eligible_modifiers)], "ALL")
-                eligible_facet_modifiers <- c(eligible_modifiers[grepl("genic_loc$", eligible_modifiers)], "ALL")
+                eligible_facet_modifiers <- c(eligible_modifiers[grepl("genic_loc$", eligible_modifiers)], eligible_modifiers[grepl("loc_superlowres_integrative_stranded$", eligible_modifiers)], "ALL")
                 eligible_modifier_combinations <- expand.grid(filter_var = eligible_filter_modifiers, facet_var = eligible_facet_modifiers, stringsAsFactors = FALSE)
                 for (i in seq(1, length(rownames(eligible_modifier_combinations)))) {
                     filter_var <- eligible_modifier_combinations[i, ]$filter_var

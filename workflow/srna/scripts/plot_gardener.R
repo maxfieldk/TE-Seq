@@ -56,7 +56,7 @@ tryCatch(
             "txdbrep" = "aref/default/A.REF_annotations/A.REF_repeatmasker.complete.sqlite",
             "txdb" = "aref/default/A.REF_annotations/A.REF_repeatmasker_refseq.complete.sqlite",
             "counttype" = "telescope_unique",
-            alignment_typ = "unique"
+            alignment_type = "unique"
         ), env = globalenv())
         assign("inputs", list(
             "resultsdf" = "srna/results/agg/deseq/resultsdf.tsv",
