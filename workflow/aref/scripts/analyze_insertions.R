@@ -54,11 +54,24 @@ rmann <- get_repeat_annotations(
 
 df_filtered <- read_delim(inputs$filtered_tldr) %>% dplyr::rename(nonref_UUID = UUID)
 
+
+rmann %>%
+    filter(rte_subfamily == "L1HS") %>%
+    filter(refstatus != "NonCentral") %>%
+    mutate(sniffles_gtInsPresence_full_deletion = case_when(
+        (refstatus == "Ref") & (fraction_deleted < 0.95) ~ "1/1",
+        TRUE ~ sniffles_gtInsPresence
+    )) %>%
+    group_by(refstatus, sniffles_gtInsPresence_full_deletion) %>%
+    summarise(n = n())
+
+
 nrdf <- rmann %>%
     filter(refstatus == "NonRef") %>%
     filter(!grepl("__AS$", gene_id)) %>%
     left_join(df_filtered, by = "nonref_UUID") %>%
-    mutate(zygosity = factor(ifelse(fraction_reads_count >= 0.95, "homozygous", "heterozygous"), levels = c("homozygous", "heterozygous"))) %>%
+    mutate(zygosity = sniffles_gtInsPresence) %>%
+    # mutate(zygosity = factor(ifelse(fraction_reads_count >= 0.95, "homozygous", "heterozygous"), levels = c("homozygous", "heterozygous"))) %>%
     mutate(known_nonref = factor(
         case_when(
             conf$update_ref_with_tldr$known_nonref$response == "no" ~ "NotCalled",
@@ -180,7 +193,7 @@ homozyg_frac_df <- nrdf %>%
     mutate(family_n = sum(n)) %>%
     mutate(frac_total = n / family_n) %>%
     ungroup() %>%
-    dplyr::filter(zygosity == "heterozygous") %>%
+    dplyr::filter(zygosity == "0/1") %>%
     mutate(frac_heterozygous = frac_total, frac_homozygous = 1 - frac_total)
 
 hp <- homozyg_frac_df %>%

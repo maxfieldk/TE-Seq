@@ -1025,12 +1025,12 @@ if (confALL$aref$patch_ref == "yes") {
         group_by(gene_id) %>%
         summarise(masked_in_ref = "yes", fraction_masked = sum(fraction_masked))
     zygositydf <- read_csv(paste0(dirname(inputs$absent_tes_to_mask), "/zygosity_annotation.csv")) %>%
-        dplyr::select(gene_id, fraction_deleted, gt) %>%
+        dplyr::select(gene_id, fraction_deleted, sniffles_gtInsPresence) %>%
         group_by(gene_id) %>%
         summarise(
             gt = case_when(
-                n() > 1 ~ paste(gt, collapse = ","),
-                TRUE ~ dplyr::first(gt)
+                n() > 1 ~ paste(sniffles_gtInsPresence, collapse = ","),
+                TRUE ~ dplyr::first(sniffles_gtInsPresence)
             ),
             fraction_deleted = case_when(
                 n() > 1 ~ sum(fraction_deleted),
@@ -1041,10 +1041,10 @@ if (confALL$aref$patch_ref == "yes") {
     rmann <- rmann %>%
         left_join(optional_annot) %>%
         mutate(
-            masked_in_ref     = coalesce(masked_in_ref, "no"),
-            fraction_masked   = coalesce(fraction_masked, 0),
-            gt                = coalesce(gt, "NotMutated"),
-            fraction_deleted  = coalesce(fraction_deleted, 0)
+            masked_in_ref = coalesce(masked_in_ref, "no"),
+            fraction_masked = coalesce(fraction_masked, 0),
+            sniffles_gtInsPresence = coalesce(sniffles_gtInsPresence, "NotMutated"),
+            fraction_deleted = coalesce(fraction_deleted, 0)
         )
 }
 
