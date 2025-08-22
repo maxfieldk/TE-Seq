@@ -112,6 +112,7 @@ aref:
   rte_mask_supporting_read_count_threshold: 10 # require at least this many reads supporing the empty site for a repeat to be masked.
   update_ref_with_tldr:
     response: "no"
+    require_tsd: "yes" #require that insertions have a detected target site duplication TSD for inclusion into the reference. Removing this requirement increases sensitivity as TSDs can sometimes be absent/undetected, but may come at the cost of decreased specificity for products of retrotransposition (versus other forms of mutation).
     #if making one ref per sample (i.e. each sample has unique inserts), then "yes", else "no"
     per_sample: "no"
     #IF updating reference with tldr inserts; else NULL
