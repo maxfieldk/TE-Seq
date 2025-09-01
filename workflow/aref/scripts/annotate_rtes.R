@@ -218,7 +218,7 @@ rmfragments %$% refstatus %>% unique()
 if (conf$orf_intactness$automatically_find_subfamilies_of_interest == "no") {
     element_to_annotate <- names(conf$orf_intactness$manual_subfamilies_of_interest)
 } else if (conf$species == "human") {
-    element_to_annotate <- c("L1HS", "L1PA2")
+    element_to_annotate <- c("L1HS", "L1PA2", "L1PA3")
 } else if (conf$species == "mouse") {
     element_to_annotate <- c(
         "L1MdTf_I", "L1MdTf_II", "L1MdTf_III",
@@ -241,14 +241,34 @@ tryCatch(
             active_family_ss <- getSeq(fa, active_family_ranges)
             mcols(active_family_ss) <- mcols(active_family_ranges)
             names(active_family_ss) <- mcols(active_family_ss)$gene_id
-            flss <- active_family_ss[as.numeric(mcols(active_family_ss)$pctconsensuscovered) >= 95]
+
+
+            pos <- ORFik::findORFs(active_family_ss, startCodon = "ATG", longestORF = TRUE, minimumLength = 75) # note min length is in AA terms not NT
+            names(pos) <- names(active_family_ss[as.integer(names(pos))])
+            orf_frame_all <- as.data.frame(pos) %>%
+                tibble()
+            tdf <- orf_frame_all %>% mutate(element_orf_id = paste(group_name, start, sep = ":"))
+            orf_ss_all <- DNAStringSet()
+            for (i in seq(1, length(rownames(tdf)))) {
+                row <- tdf[i, ]
+                ss <- subseq(active_family_ss[row$group_name], start = row$start, end = row$end)
+                names(ss) <- c(row$element_orf_id)
+                orf_ss_all <- c(orf_ss_all, ss)
+            }
+            orf_ss_all_path <- sprintf("%s/intactness_annotation_workdir/%s_all_orfs_nt.fa", outputdir, element)
+            writeXStringSet(orf_ss_all, orf_ss_all_path)
+
+            orf_aa_ss_all <- Biostrings::translate(orf_ss_all)
+            orf_aa_ss_all_path <- sprintf("%s/intactness_annotation_workdir/%s_all_orfs_aa.fa", outputdir, element)
+            writeXStringSet(orf_aa_ss_all, orf_aa_ss_all_path)
 
             # orf analysis
+            flss <- active_family_ss[as.numeric(mcols(active_family_ss)$pctconsensuscovered) >= 95]
             if (conf$orf_intactness$automatically_find_subfamilies_of_interest == "yes") {
                 z_score_cutoff <- 4
-                pos <- ORFik::findORFs(flss, startCodon = "ATG", longestORF = TRUE, minimumLength = 333)
-                names(pos) <- names(flss[as.integer(names(pos))])
-                orf_frame <- as.data.frame(pos) %>%
+                pos_fl <- ORFik::findORFs(flss, startCodon = "ATG", longestORF = TRUE, minimumLength = 333)
+                names(pos_fl) <- names(flss[as.integer(names(pos_fl))])
+                orf_frame <- as.data.frame(pos_fl) %>%
                     tibble()
                 binwidth_df <- orf_frame %>%
                     group_by(width) %>%
@@ -275,10 +295,16 @@ tryCatch(
             element_orf_intactness_df <- tibble(gene_id = names(active_family_ss))
             for (modal_width in modal_widths) {
                 # first build the consensus sequence using only fl elements
-                tdf <- orf_frame %>% filter(width == modal_width)
+                if (conf$orf_intactness$automatically_find_subfamilies_of_interest != "yes") {
+                    pos_fl <- ORFik::findORFs(flss, startCodon = "ATG", longestORF = TRUE, minimumLength = 333)
+                    names(pos_fl) <- names(flss[as.integer(names(pos_fl))])
+                    orf_frame <- as.data.frame(pos_fl) %>%
+                        tibble()
+                }
+                tdf_fl <- orf_frame %>% filter(width == modal_width)
                 orf_ss <- DNAStringSet()
-                for (i in seq(1, length(rownames(tdf)))) {
-                    row <- tdf[i, ]
+                for (i in seq(1, length(rownames(tdf_fl)))) {
+                    row <- tdf_fl[i, ]
                     ss <- subseq(flss[row$group_name], start = row$start, end = row$end)
                     orf_ss <- c(orf_ss, ss)
                 }
@@ -295,13 +321,7 @@ tryCatch(
                 writeXStringSet(consensus_aa_ss, file = orf_aa_consensus_path)
 
                 # next blast all ORFs from elements of all lengths
-                pos <- ORFik::findORFs(active_family_ss, startCodon = "ATG", longestORF = TRUE, minimumLength = 333)
-                names(pos) <- names(active_family_ss[as.integer(names(pos))])
-                orf_frame_all <- as.data.frame(pos) %>%
-                    tibble()
                 ###### BLAST ANALYSIS
-                tdf <- orf_frame_all
-                tdf <- tdf %>% mutate(element_orf_id = paste(group_name, start, sep = ":"))
                 orf_ss_all <- DNAStringSet()
                 for (i in seq(1, length(rownames(tdf)))) {
                     row <- tdf[i, ]
@@ -314,9 +334,6 @@ tryCatch(
 
                 system(sprintf("makeblastdb -in %s -dbtype 'prot'", orf_aa_consensus_path))
 
-                orf_aa_ss_all <- Biostrings::translate(orf_ss_all)
-                orf_aa_ss_all_path <- sprintf("%s/intactness_annotation_workdir/%s_all_orfs_aa.fa", outputdir, element)
-                writeXStringSet(orf_aa_ss_all, orf_aa_ss_all_path)
 
                 orf_aa_ss_all_blast_results_path <- sprintf("%s/intactness_annotation_workdir/%s_orf_length_%s_aa_blast_to_consensus_results.tsv", outputdir, element, modal_width)
                 system(sprintf("blastp -db %s -query %s -out %s -outfmt 7", orf_aa_consensus_path, orf_aa_ss_all_path, orf_aa_ss_all_blast_results_path))
@@ -328,7 +345,8 @@ tryCatch(
                 blast_results_list[[as.character(modal_width)]] <- orf_frame_all %>%
                     mutate(gene_orf_id = paste(group_name, start, sep = ":")) %>%
                     dplyr::select(gene_orf_id, orf_start_nt = start, orf_end_nt = end) %>%
-                    left_join(bres)
+                    left_join(bres) %>%
+                    mutate(orf_modal_width = as.character(orf_modal_width))
 
                 # get intact ORFs
                 fully_intact_orfs <- bres %>%
@@ -355,10 +373,62 @@ tryCatch(
                 element_specific_orf_specific_df <- full_join(fully_intact_orfs, partially_intact_orfs)
                 element_orf_intactness_df <- left_join(element_orf_intactness_df, element_specific_orf_specific_df)
             }
+
+            if (conf$species == "human" & conf$orf_intactness$annotate_ORF2_domains$response == "yes") {
+                for (domain in c("EN", "RT")) {
+                    orf_aa_consensus_path <- conf$orf_intactness$annotate_ORF2_domains[[domain]]
+
+                    system(sprintf("makeblastdb -in %s -dbtype 'prot'", orf_aa_consensus_path))
+
+                    orf_aa_ss_all_blast_results_path <- sprintf("%s/intactness_annotation_workdir/%s_orf_length_%s_aa_blast_to_consensus_results.tsv", outputdir, element, domain)
+                    system(sprintf("blastp -db %s -query %s -out %s -outfmt 7", orf_aa_consensus_path, orf_aa_ss_all_path, orf_aa_ss_all_blast_results_path))
+                    bres <- read_delim(orf_aa_ss_all_blast_results_path, comment = "#", delim = "\t", col_names = c("qseqid", "sseqid", "pident", "length", "mismatch", "gapopen", "qstart", "qend", "sstart", "send", "evalue", "bitscore"))
+                    bres <- bres %>%
+                        separate_wider_delim(cols = qseqid, delim = ":", names = c("gene_id", "orf_start")) %>%
+                        mutate(gene_orf_id = paste(gene_id, orf_start, sep = ":")) %>%
+                        mutate(orf_modal_width = domain)
+                    blast_results_list[[as.character(domain)]] <- orf_frame_all %>%
+                        mutate(gene_orf_id = paste(group_name, start, sep = ":")) %>%
+                        dplyr::select(gene_orf_id, orf_start_nt = start, orf_end_nt = end) %>%
+                        left_join(bres) %>%
+                        mutate(orf_modal_width = as.character(orf_modal_width))
+                    # bres %>% filter(gene_orf_id == "L1HS_10p15.1_1:4418")
+                    # orf_frame_all %>%
+                    #     mutate(gene_orf_id = paste(group_name, start, sep = ":")) %>%
+                    #     dplyr::select(gene_orf_id, orf_start_nt = start, orf_end_nt = end) %>% filter(gene_orf_id == "L1HS_10p15.1_1:4418")
+                    # get intact ORFs
+                    modal_width <- width(readAAStringSet(orf_aa_consensus_path)) * 3
+                    fully_intact_orfs <- bres %>%
+                        filter(pident > 90) %>%
+                        filter(length > 0.9 * (modal_width / 3)) %>%
+                        filter(length < 1.1 * (modal_width / 3)) %>%
+                        dplyr::select(gene_id, pident) %>%
+                        dplyr::rename(!!sym(paste0("fl_orf_", domain)) := pident)
+                    ids <- fully_intact_orfs %$% gene_id
+                    # filter out duplicates, these can occur for misannotated elements which are of much greater lengths than in actuality (ie, a 90000bp long L1)
+                    fully_intact_orfs <- fully_intact_orfs[!(ids %>% duplicated()), ]
+
+                    # get fragments of ORFs
+                    partially_intact_orfs <- bres %>%
+                        filter(!(gene_id %in% fully_intact_orfs$gene_id)) %>%
+                        filter(pident > 90) %>%
+                        filter(length > 0.9 * (modal_width / 9)) %>%
+                        dplyr::select(gene_id, pident) %>%
+                        dplyr::rename(!!sym(paste0("partial_orf_", domain)) := pident)
+                    ids <- partially_intact_orfs %$% gene_id
+                    # filter out duplicates, these can occur for misannotated elements which are of much greater lengths than in actuality (ie, a 90000bp long L1)
+                    partially_intact_orfs <- partially_intact_orfs[!(ids %>% duplicated()), ]
+
+                    element_specific_orf_specific_df <- full_join(fully_intact_orfs, partially_intact_orfs)
+                    element_orf_intactness_df <- left_join(element_orf_intactness_df, element_specific_orf_specific_df)
+                }
+            }
+
             blast_res_df <- purrr::reduce(blast_results_list, bind_rows)
             write_csv(blast_res_df, sprintf("%s/intactness_annotation_workdir/%s_orf_all_blast_results.csv", outputdir, element))
             element_info_list[[element]] <- element_orf_intactness_df
         }
+
         rm(intactness_ann)
         for (i in 1:length(element_info_list)) {
             tdf <- element_info_list[[i]] %>%

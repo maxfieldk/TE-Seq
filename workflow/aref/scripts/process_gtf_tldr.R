@@ -272,11 +272,11 @@ if (params$tldr_switch == "process_gtf_tldr") {
         ASPpos <- ASP %>%
             filter(strand == "+") %>%
             GRanges() %>%
-            promoters(upstream = 30, downstream = 500)
+            promoters(upstream = 0, downstream = 500)
         ASPneg <- ASP %>%
             filter(strand == "-") %>%
             GRanges() %>%
-            promoters(upstream = 30, downstream = 500)
+            promoters(upstream = 0, downstream = 500)
         strand(ASPpos) <- "-"
         strand(ASPneg) <- "+"
         ASPfinal <- c(ASPpos, ASPneg) %>%
@@ -305,11 +305,11 @@ if (params$tldr_switch == "process_gtf_tldr") {
         ASPposgr <- ASPgr %>%
             filter(strand == "+") %>%
             GRanges() %>%
-            promoters(upstream = 30, downstream = 500)
+            promoters(upstream = 0, downstream = 500)
         ASPneggr <- ASPgr %>%
             filter(strand == "-") %>%
             GRanges() %>%
-            promoters(upstream = 30, downstream = 500)
+            promoters(upstream = 0, downstream = 500)
         strand(ASPposgr) <- "-"
         strand(ASPneggr) <- "+"
         ASPfinalgr <- c(ASPposgr, ASPneggr) %>%
@@ -342,11 +342,11 @@ if (params$tldr_switch == "process_gtf_tldr") {
         ASPpos <- ASP %>%
             filter(strand == "+") %>%
             GRanges() %>%
-            promoters(upstream = 30, downstream = 500)
+            promoters(upstream = 0, downstream = 500)
         ASPneg <- ASP %>%
             filter(strand == "-") %>%
             GRanges() %>%
-            promoters(upstream = 30, downstream = 500)
+            promoters(upstream = 0, downstream = 500)
         strand(ASPpos) <- "-"
         strand(ASPneg) <- "+"
         ASPfinal <- c(ASPpos, ASPneg) %>%
@@ -375,11 +375,11 @@ if (params$tldr_switch == "process_gtf_tldr") {
         ASPposgr <- ASPgr %>%
             filter(strand == "+") %>%
             GRanges() %>%
-            promoters(upstream = 30, downstream = 500)
+            promoters(upstream = 0, downstream = 500)
         ASPneggr <- ASPgr %>%
             filter(strand == "-") %>%
             GRanges() %>%
-            promoters(upstream = 30, downstream = 500)
+            promoters(upstream = 0, downstream = 500)
         strand(ASPposgr) <- "-"
         strand(ASPneggr) <- "+"
         ASPfinalgr <- c(ASPposgr, ASPneggr) %>%

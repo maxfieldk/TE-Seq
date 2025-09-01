@@ -1,0 +1,22 @@
+{
+  "version": "1.2",
+  "dbname": "L1.2_RT_domain_aa.fa",
+  "dbtype": "Protein",
+  "db-version": 5,
+  "description": "resources/sequences/L1.2_RT_domain_aa.fa",
+  "number-of-letters": 276,
+  "number-of-sequences": 1,
+  "last-updated": "2025-07-03T16:19:00",
+  "number-of-volumes": 1,
+  "bytes-total": 37384,
+  "bytes-to-cache": 422,
+  "files": [
+    "L1.2_RT_domain_aa.fa.pdb",
+    "L1.2_RT_domain_aa.fa.phr",
+    "L1.2_RT_domain_aa.fa.pin",
+    "L1.2_RT_domain_aa.fa.pot",
+    "L1.2_RT_domain_aa.fa.psq",
+    "L1.2_RT_domain_aa.fa.ptf",
+    "L1.2_RT_domain_aa.fa.pto"
+  ]
+}

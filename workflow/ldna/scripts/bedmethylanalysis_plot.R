@@ -8678,8 +8678,8 @@ broom::tidy(global_model) %>% write_mycsv(sprintf("ldna/results/%s/tables/rte/yy
 
 #########
 for (sample in confALL$ldna$samples) {
-mean_cov <- read_delim(str_glue("ldna/intermediates/{sample}/coverage/analysis_default/{sample}.sorted.filterednosup.bg.mosdepth.mosdepth.summary.txt"))
-coverage <- rtracklayer::import(str_glue("ldna/intermediates/{sample}/coverage/analysis_default/{sample}.sorted.filterednosup.bg.mosdepth.regions.bed.gz"))
+mean_cov <- read_delim(str_glue("ldna/intermediates/{sample}/coverage/analysis_default/{sample}.sorted.bg.mosdepth.mosdepth.summary.txt"))
+coverage <- rtracklayer::import(str_glue("ldna/intermediates/{sample}/coverage/analysis_default/{sample}.sorted.bg.mosdepth.regions.bed.gz"))
 
 
 mcols(coverage)$coverage <- as.numeric(mcols(coverage)$name)
@@ -8698,6 +8698,21 @@ mean_coverage <- tapply(mcols(coverage)$coverage[queryHits(hits)], subjectHits(h
 # Store average coverage in the 100kb bins
 mcols(bins100k)$mean_coverage <- NA
 mcols(bins100k)$mean_coverage[as.integer(names(mean_coverage))] <- mean_coverage
+
+# Define 100kb bins across the genome
+bins10k <- tileGenome(seqlengths(sample_fa),
+                       tilewidth = 10000,
+                       cut.last.tile.in.chrom = TRUE)
+
+hits <- findOverlaps(coverage, bins10k)
+
+# Aggregate coverage: average coverage of 1kb bins per 100kb bin
+mean_coverage <- tapply(mcols(coverage)$coverage[queryHits(hits)], subjectHits(hits), mean)
+
+# Store average coverage in the 100kb bins
+mcols(bins10k)$mean_coverage <- NA
+mcols(bins10k)$mean_coverage[as.integer(names(mean_coverage))] <- mean_coverage
+
 
 segdupsdf <- read_delim("/users/mkelsey/data/Nanopore/alz/segdups.bed", col_names = TRUE, delim = "\t")
 segdups <- segdupsdf %>%
@@ -8726,6 +8741,11 @@ df <- bins100k_norep %>% as.data.frame() %>% tibble() %>%
     mutate(refstatus = if_else(seqnames %in% nonrefchromosomes, "NonRef", "Ref")) %>% 
     filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS_REF) %>%
     mutate(seqnames = factor(seqnames, levels = CHROMOSOMESINCLUDEDINANALYSIS_REF))
+df <- bins100k %>% as.data.frame() %>% tibble() %>%
+    mutate(refstatus = if_else(seqnames %in% nonrefchromosomes, "NonRef", "Ref")) %>% 
+    filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS_REF) %>%
+    mutate(seqnames = factor(seqnames, levels = CHROMOSOMESINCLUDEDINANALYSIS_REF))
+
 
 global_mean <- df %$% mean_coverage %>% mean()
 p <- df %>% ggplot() +
@@ -8767,9 +8787,17 @@ p <- df %>% ggplot() +
     theme(axis.text.x = element_blank())
 mysaveandstore(fn = str_glue("RTE/ldna/results/m/plots/{sample}_coverage_individualmeans_notext.pdf"), w = 12, h = 12, raster = TRUE)
 
+####
 
+bins10k %>% as.data.frame() %$% mean_coverage %>% quantile(probs = seq(0,1, 0.05), na.rm = TRUE)
+lowcovbins <- bins10k %>% as.data.frame() %>% tibble() %>% filter(mean_coverage < 5)
+lowcovbinsgrs <- GRanges(lowcovbins)
 
+lowcovbins %$% seqnames %>% table()
 
+lowcovbins %>% GRanges()
+
+lowcovgenes <- genes_gr %>% subsetByOverlaps(lowcovbinsgrs) %>% as.data.frame() %>% tibble() 
 
 }
 
