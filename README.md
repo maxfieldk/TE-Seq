@@ -157,7 +157,12 @@ snakemake --profile conf/profile/local_system -n
 snakemake --profile conf/profile/local_system
 snakemake --profile conf/profile/local_system --report report.html
 ```
-The report.html contains a select subset of the plots produced. Note that some plots may be blank - this is expected behavior for a number of plots in the event that there are, for instance, no differentially expressed elements of a particular rarified subtype. This is particularly true in the case of the provided test data, which are highly sparse to keep runtime and storage requirements low. 
+The report.html compiles a select subset of the plots produced. Several plots to search for in the report and examine might be (note you can enter the paths provided below into the search box in the top left of the report): 
+ - gene expression PCA: srna/results/agg/deseq/telescope_multi/genes/batchRemoved_no/pca.pdf 
+ - heatmap of differentially expressed L1 elements: srna/results/agg/repeatanalysis/telescope_multi/pan_contrast/heatmap/L1_de.pdf
+ - bar plot showing the total expression for various classes of L1 elements: srna/results/agg/repeatanalysis/telescope_multi/pan_contrast/bar_sum/L1/L1_bar_stats_req_integrative_loc_superlowres_integrative_stranded_Ref_NonRef_FilterOut_Nothing.pdf
+
+Note that some plots may be blank - this is expected behavior for a number of plots in the event that there are, for instance, no differentially expressed elements of a particular rarified subtype. This is particularly true in the case of the provided test data, which are highly sparse to keep runtime and storage requirements low. 
 
 # Installation
 ## Create a Snakemake containing Conda environment
