@@ -214,9 +214,11 @@ basecaller \
 {wildcards.type},$mod_string \
 {params.input_dir} \
 --recursive \
+--modified-bases-threshold 0 \
+--trim all \
 --verbose \
 --reference {params.reference} \
---mm2-opts "-x map-ont" > {output.calls}.unfinished
+--mm2-opts "-x map-ont -Y" > {output.calls}.unfinished
 mv {output.calls}.unfinished {output.calls}
         """
 
@@ -746,7 +748,6 @@ rule pepper:
     output:
         outfile = "aref/intermediates/{sample_or_ref}/pepper/{chr}/pepper.out.outfile",
         vcf = "aref/intermediates/{sample_or_ref}/pepper/{chr}/PEPPER_MARGIN_DEEPVARIANT_FINAL_OUTPUT.vcf.gz"
-
     resources:
         cpus_per_task =20,
         runtime = 600,
@@ -771,6 +772,38 @@ run_pepper_margin_deepvariant call_variant \
 --pepper_delete_p_value 0.3 \
 --ont_r10_q20
         """
+
+rule pepper_getmarginoutput:
+    input:
+        pepper_deepvariant_container = ancient(pepper_deepvariant_container),
+        pepper_outfile = "aref/intermediates/{sample_or_ref}/pepper/{chr}/pepper.out.outfile",
+        sortedbam = ancient(expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"])),
+        sortedbamindex = ancient(expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]))
+    params:
+        ref = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"],
+    output:
+        bam = "aref/intermediates/{sample_or_ref}/pepper/{chr}/PHASED.PEPPER_MARGIN.haplotagged.bam"
+    resources:
+        cpus_per_task =20,
+        runtime = 600,
+        mem_mb = 75000
+    container:
+        pepper_deepvariant_container
+    shell:	
+        """
+margin phase \
+{input.sortedbam} \
+{params.ref} \
+aref/intermediates/{wildcards.sample_or_ref}/pepper/{wildcards.chr}/intermediate_files/PEPPER_VARIANT_FULL.vcf.gz \
+/opt/margin_dir/params/phase/allParams.haplotag.ont-r94g507.snp.json \
+-t 20 -r {wildcards.chr} -V \
+-o aref/intermediates/{wildcards.sample_or_ref}/pepper/{wildcards.chr}/PHASED.PEPPER_MARGIN 2>&1 | \
+tee aref/intermediates/{wildcards.sample_or_ref}/pepper/{wildcards.chr}/logs/2_margin_haplotag.log
+
+samtools index -@18 {output.bam}
+        """
+
+
 
 rule savana:
     input:
@@ -972,6 +1005,32 @@ rm {output.vcf}.temp
 rm {output.vcf}.temp.sorted
         """
 
+def merge_haplobams_input(wildcards):
+    checkpoint_output = checkpoints.index_dorado_ref
+    if os.path.exists(config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"] + ".fai"):
+        return expand("aref/intermediates/{{sample_or_ref}}/pepper/{chromosome}/PHASED.PEPPER_MARGIN.haplotagged.bam", chromosome = [e for e in pd.read_table(config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"] + ".fai", header = None).iloc[:,0] if e != "chrM"])
+    else:
+        return []
+rule merge_haplobams:
+    input:
+        bams = merge_haplobams_input
+    output:
+        bam = "aref/intermediates/{sample_or_ref}/pepper/merged.bam"
+    conda:
+        "omics"
+    resources:
+        cpus_per_task =20,
+        runtime = 60,
+        mem_mb = 75000
+    shell:
+        """
+samtools cat -o {output.bam} {input.bams}
+samtools index -@18 {output.bam}
+        """
+
+rule get_haplobams:
+    input:
+        expand("aref/intermediates/{sample_or_ref}/pepper/merged.bam", sample_or_ref = config["aref"]["samples"])
 
 rule extract_highquality_snps:
     input:

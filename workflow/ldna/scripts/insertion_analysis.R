@@ -106,8 +106,10 @@ ann <- do.call(rbind, anns) %>% tibble()
 
 nrdf <- ann %>%
     filter(refstatus == "NonRef") %>%
+    filter(asp != "asp") %>%
     dplyr::rename(UUID = nonref_UUID) %>%
     left_join(dff) %>%
+    mutate(sample_name = factor(sample_name, levels = conf$samples)) %>%
     mutate(zygosity = factor(ifelse(fraction_reads_count >= 0.95, "homozygous", "heterozygous"), levels = c("homozygous", "heterozygous"))) %>%
     mutate(
         known_nonref = factor(
@@ -118,7 +120,12 @@ nrdf <- ann %>%
             ),
             levels = c("novel", "known", "NotCalled")
         )
-    )
+    ) %>%
+    mutate(rte_subfamily = case_when(
+        grepl("HERVK", rte_subfamily) ~ "HERVK",
+        TRUE ~ rte_subfamily
+    ))
+
 
 # removing the rmann seqnames, start, stop, leaving only the tldr (ref genome coordinate based ones)
 nrdfgrs <- GRanges(nrdf %>% dplyr::rename(rmann_seqnames = seqnames) %>% dplyr::select(-start, -end, -strand))
@@ -290,6 +297,85 @@ ptch <- p1 / np / sp / hp + plot_layout(heights = c(0.4, 0.4, 0.4, 0.4), axis_ti
 mysaveandstore(pl = ptch, sprintf("%s/insertions_subfamily_patch_all.pdf", outputdir), 6, 8)
 
 
+if (confALL$aref$species == "human") {
+    rte_subfam_of_interest <- c("L1HS", "L1PA2", "AluY", "HERVK", "SVA_E", "SVA_F")
+
+    nrdf %>%
+        filter(rte_subfamily %in% rte_subfam_of_interest) %>%
+        group_by(rte_subfamily, sample_name) %>%
+        summarise(n = n()) %>%
+        group_by(rte_subfamily) %>%
+        summarise(mc = mean(n))
+    hp <- homozyg_frac_df %>%
+        filter(rte_subfamily %in% rte_subfam_of_interest) %>%
+        mutate(rte_subfamily = factor(rte_subfamily, levels = rte_subfam_of_interest)) %>%
+        pivot_longer(cols = c(frac_heterozygous, frac_homozygous)) %>%
+        ggbarplot(x = "rte_subfamily", y = "value", fill = "name") +
+        mtclosed + theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        scale_fill_manual(values = c("tan", "lightblue")) +
+        labs(x = "Subfamily")
+    sp <- shared_frac_df %>%
+        filter(rte_subfamily %in% rte_subfam_of_interest) %>%
+        mutate(rte_subfamily = factor(rte_subfamily, levels = rte_subfam_of_interest)) %>%
+        pivot_longer(cols = c(frac_shared, frac_unique)) %>%
+        ggbarplot(x = "rte_subfamily", y = "value", fill = "name") +
+        mtclosed + theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        scale_fill_manual(values = c("#018458", "#ffc354")) +
+        labs(x = "Subfamily")
+
+    np <- novel_frac_df %>%
+        filter(rte_subfamily %in% rte_subfam_of_interest) %>%
+        mutate(rte_subfamily = factor(rte_subfamily, levels = rte_subfam_of_interest)) %>%
+        pivot_longer(cols = c(frac_novel, frac_known)) %>%
+        ggbarplot(x = "rte_subfamily", y = "value", fill = "name") +
+        mtclosed + theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        scale_fill_manual(values = c("brown", "grey")) +
+        labs(x = "Subfamily")
+    library(patchwork)
+
+    mss(pl = hp, sprintf("%s/insertions_maybeactive_subfamily_zygosity.pdf", outputdir), 6, 2, 3, 2.25, plus_void = TRUE)
+    mss(pl = sp, sprintf("%s/insertions_maybeactive_subfamily_sharedprop.pdf", outputdir), 6, 2, 3, 2.25, plus_void = TRUE)
+    mss(pl = np, sprintf("%s/insertions_maybeactive_subfamily_novelprop.pdf", outputdir), 6, 2, 3, 2.25, plus_void = TRUE)
+    ptch <- np / hp + plot_layout(heights = c(0.4, 0.4), axis_titles = "collect")
+    mysaveandstore(pl = ptch, sprintf("%s/insertions_maybeactive_subfamily_patch_only_annot.pdf", outputdir), 6, 4, )
+    ptch <- sp / hp + plot_layout(heights = c(0.4, 0.4), axis_titles = "collect")
+    mysaveandstore(pl = ptch, sprintf("%s/insertions_maybeactive_subfamily_patch_only_annot_shared.pdf", outputdir), 6, 4, )
+
+
+    ptch <- p1 / np / hp + plot_layout(heights = c(0.4, 0.4, 0.4), axis_titles = "collect")
+    mysaveandstore(pl = ptch, sprintf("%s/insertions_maybeactive_subfamily_patch.pdf", outputdir), 6, 6)
+
+    ptch <- p1 / sp / hp + plot_layout(heights = c(0.4, 0.4, 0.4), axis_titles = "collect")
+    mysaveandstore(pl = ptch, sprintf("%s/insertions_maybeactive_subfamily_patch_shared.pdf", outputdir), 6, 6)
+
+    ptch <- p1 / np / sp / hp + plot_layout(heights = c(0.4, 0.4, 0.4, 0.4), axis_titles = "collect")
+    mysaveandstore(pl = ptch, sprintf("%s/insertions_maybeactive_subfamily_patch_all.pdf", outputdir), 6, 8)
+
+
+    p1 <- nrdf %>%
+        filter(rte_subfamily %in% rte_subfam_of_interest) %>%
+        mutate(rte_subfamily = factor(rte_subfamily, levels = rte_subfam_of_interest)) %>%
+        mutate(req_integrative = factor(gsub("Yng ", "", gsub("Old ", "", req_integrative)), levels = rev(c("Intact", "FL", "Trnc")))) %>%
+        group_by(rte_family, rte_subfamily, req_integrative, sample_name) %>%
+        summarise(count = n()) %>%
+        ungroup() %>%
+        complete(
+            rte_subfamily,
+            req_integrative,
+            sample_name,
+            fill = list(count = 0)
+        ) %>%
+        mutate(rte_subfamily = factor(rte_subfamily, levels = rte_subfam_of_interest)) %>%
+        mutate(counts = count) %>%
+        ggbarplot(x = "sample_name", y = "counts", fill = "req_integrative") +
+        facet_grid2(cols = vars(rte_subfamily), scales = "free", space = "free_x", independent = "y") +
+        ggtitle("Non-reference RTE Insertions") +
+        labs(x = "Subfamily", y = "Counts") +
+        scale_palette +
+        mtclosed + anchorbar + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    mss(pl = p1, sprintf("%s/insertions_maybeactive_l1_req_integrative1.pdf", outputdir), 11, 4, 6, 4, plus_void = TRUE)
+}
+
 for (rte in homozyg_frac_df %$% rte_subfamily) {
     pf <- homozyg_frac_df %>%
         filter(rte_subfamily == rte) %>%
@@ -324,23 +410,12 @@ p <- nrdf %>%
     filter(rte_subfamily == "L1HS") %>%
     ggplot() +
     geom_histogram(aes(x = LengthIns)) +
-    geom_vline(xintercept = 6000, color = "red", linetype = 2) +
     ggtitle("L1HS Insertion Lengths") +
     labs(x = "Length (bp)", y = "Count") +
-    mtopen +
+    mtclosed +
     scale_palette +
     anchorbar
-mysaveandstore(sprintf("%s/l1hs_length_in_updated_ref.pdf", outputdir), 5, 5)
-
-
-x <- tibble(OUT = "")
-write_tsv(x, file = outputs$plots)
-
-
-
-
-
-
+mysaveandstore(sprintf("%s/l1hs_length_in_updated_ref.pdf", outputdir), 4, 4)
 
 
 x <- tibble(OUT = "")

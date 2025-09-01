@@ -203,13 +203,15 @@ l1hs_promoterregion_meth_by_sample_tidy_strictly_intergenic_sense <- l1hs_promot
     ungroup()
 
 
-l1hs_promoterregion_hdmr_by_gene_tidy <- read_csv(sprintf("ldna/Rintermediates/%s/%s/highly_demethylated_reads_by_gene_id.csv", params$mod_code, "L1HS_FL")) %>%
+l1hs_promoterregion_hdmr_by_gene_tidy <- read_csv(sprintf("ldna/Rintermediates/%s/%s/cut_highly_demethylated_reads_by_gene_id.csv", params$mod_code, "L1HS_FL")) %>%
     dplyr::rename(sample_name = sample) %>%
     mutate(gene_id = case_when(
         grepl("NI_", gene_id) ~ paste0(sample_name, "_", gene_id),
         TRUE ~ gene_id
     )) %>%
-    left_join(RMdf %>% dplyr::rename(NI_sample = sample_name))
+    left_join(RMdf %>% dplyr::rename(NI_sample = sample_name)) %>%
+    mutate(subset_threshold = subset_bin) %>% # NEEDED FOR CUT VERSION
+    mutate(propUnmeth = prop_in_bin) # NEEDED FOR CUT VERSION
 
 l1hs_promoterregion_hdmr_by_gene_tidy_strictly_intergenic <- l1hs_promoterregion_hdmr_by_gene_tidy %>%
     filter(loc_superlowres_integrative_stranded_incl_pred2 %in% c("Intergenic", "Genic_Antisense", "GenicPred_Antisense", "TxAdj_Antisense")) %>%
@@ -769,6 +771,7 @@ for (tecounttype in c("telescope_unique")) {
         scale_fill_distiller(palette = "Blues", direction = 1, name = "p-value") + # Use distiller for continuous
         scale_y_continuous(expand = expansion(mult = c(0, .075)))
     mysaveandstore(pl = p, str_glue("{outputdir}/L1HS/hdr_by_sample_strictly_intergenic_noasp_rsq.pdf"), w = 6, h = 4, sf = mf)
+
     p <- mf %>%
         filter(region != "400to600") %>%
         ggplot() +

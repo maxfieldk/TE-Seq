@@ -583,19 +583,24 @@ readslistcg <- list()
 for (region in conf$rte_subfamily_read_level_analysis) {
     for (sample_name in samples) {
         df <- read_delim(
-            grep(region,
-                grep(sprintf("/%s/", sample_name),
-                    inputs$read_mods_cg,
+            grep(
+                "CpG",
+                grep(region,
+                    grep(sprintf("/%s/", sample_name),
+                        inputs$read_mods_cg,
+                        value = TRUE
+                    ),
                     value = TRUE
-                ),
-                value = TRUE
-            )
+                )
+            ),
+            value = TRUE
         )
         df$region <- region
         df$sample <- sample_name
         df$condition <- sample_table[sample_table$sample_name == sample_name, "condition"]
         grsx <- GRanges(df %>% dplyr::rename(seqnames = chrom, start = ref_position, strand = ref_strand) %>% mutate(end = start))
         eoi <- import(paste0("aref/extended/A.REF_annotations/A.REF_rte_beds/", region, ".bed"))
+        strand(eoi) <- "*"
         mbo <- mergeByOverlaps(grsx, eoi)
         df1 <- as.data.frame(mbo) %>%
             tibble() %>%
@@ -606,6 +611,6 @@ for (region in conf$rte_subfamily_read_level_analysis) {
     }
 }
 
-readscg <- Reduce(rbind, readslistcg) %>% filter(mod_code == params$mod_code)
+readscg <- Reduce(rbind, readslistcg)
 write_delim(readscg, sprintf("ldna/Rintermediates/%s/reads_context_cpg.tsv", params$mod_code), col_names = TRUE)
 # readscg <- read_delim(sprintf("ldna/Rintermediates/%s/reads_context_cpg.tsv", params$mod_code), col_names = TRUE)

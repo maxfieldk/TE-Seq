@@ -86,20 +86,20 @@ fi
 
 samtools faidx {input.nonrefcontigs} $insert_name > ${{outdir}}/${{insert_name}}.fa
 samtools faidx ${{outdir}}/${{insert_name}}.fa
-minimap2 -t {resources.cpus_per_task} -y -ax map-ont ${{outdir}}/${{insert_name}}.fa ${{outdir}}/${{insert_name}}.extracted.fq > ${{outdir}}/${{insert_name}}.sam
+minimap2 -t {resources.cpus_per_task} -y -Y -ax map-ont ${{outdir}}/${{insert_name}}.fa ${{outdir}}/${{insert_name}}.extracted.fq > ${{outdir}}/${{insert_name}}.sam
 samtools view -b ${{outdir}}/${{insert_name}}.sam > ${{outdir}}/${{insert_name}}.bam
 samtools sort ${{outdir}}/${{insert_name}}.bam > {output.sortedbam}
 samtools index {output.sortedbam}
         """
 
-# ruleorder: get_non_ref_alignments > sortBam
+ruleorder: get_non_ref_alignments > sortBam
 
 rule get_non_ref_alignments:
     input:
         sample_bams = lambda w: expand("ldna/intermediates/{{sample_or_aref}}/alignments/nonref/{insert_name}_sorted.bam", insert_name = [e for e in pd.read_table("aref/extended/" +  [w.sample_or_aref if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "A.REF"][0] + "_contigs_to_keep.txt", header = None).iloc[:,0] if e.startswith("NI_")]),
         aref_bam = lambda w: expand("aref/intermediates/{sample_or_arefW}/alignments/{{rate}}/{sample_or_arefW}.{{type}}.{{modification_string}}.sorted.bam", sample_or_arefW = w.sample_or_aref if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "A.REF"),
     output:
-        catbam = "ldna/intermediates/{sample_or_aref}/alignments/{rate}/analysis_default/{sample_or_aref}.{type}.{modification_string}.sorted.bam",
+        catbam = "ldna/intermediates/{sample_or_aref}/alignments/{rate}/analysis_default_MERGED/{sample_or_aref}.{type}.{modification_string}.sorted.bam",
     conda:
         "omics"
     resources:
@@ -120,7 +120,7 @@ rm {output.catbam}.tempmerged.bam
 
 rule call_nonrefalignments:
     input:
-        catbams = lambda w: expand("ldna/intermediates/{sample_or_aref}/alignments/{rate}/analysis_default/{sample_or_aref}.{type}.{modification_string}.sorted.bam", sample_or_aref = config["ldna"]["samples"], rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+        catbams = lambda w: expand("ldna/intermediates/{sample_or_aref}/alignments/{rate}/analysis_default_MERGED/{sample_or_aref}.{type}.{modification_string}.sorted.bam", sample_or_aref = config["ldna"]["samples"], rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
 
 
 rule generate_meryl_index:
@@ -679,6 +679,29 @@ rule filterbamnosup:
         """
 samtools view -b -F 2304 -q {params.min_mapq} -e '[qs] >= {params.min_qscore}' {input.bam} > {output.bam}
         """
+
+rule endmethfilteredbam:
+    input:
+        bam = "ldna/{path}.sorted.filterednosup.bam",
+        endmethreads_to_remove = "ldna/Rintermediates/yng_l1_promoter_potentially_compromised_reads.txt"
+    output:
+        bam = "ldna/{path}.sorted.filterednosup.endmethfilteredyngl1.bam"
+    resources:
+        cpus_per_task =6,
+        mem_mb = 40000,
+        runtime = 300
+    conda:
+        "omics"
+    shell: 
+        """
+samtools view -h {input.bam} | grep -v -F -f {input.endmethreads_to_remove} | samtools view -b -o {output.bam} -
+samtools index {output.bam}
+        """
+
+rule getendmethfilteredbam:
+    input:
+        expand("ldna/intermediates/{sample}/alignments/{rate}/{ref_genome}/{sample}.{type}.{modification_string}.sorted.filterednosup.endmethfilteredyngl1.bam", sample = samples, ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+
 #tag PHASING
 
 
@@ -833,6 +856,7 @@ mkdir -p $(dirname {output})
 /oscar/data/jsedivy/mkelsey/tools/modkit pileup {input.sortedbam} {output.bed} \
 --ref {params.ref} \
 --interval-size 30000 \
+--edge-filter 20 \
 --combine-strands \
 --cpg \
 -t {resources.cpus_per_task}
@@ -868,6 +892,7 @@ mkdir -p $(dirname {output})
 --ref {params.ref} \
 --interval-size 30000 \
 --combine-strands \
+--edge-filter 20 \
 --cpg \
 --include-bed {params.regions} \
 -t {resources.cpus_per_task}
@@ -944,6 +969,7 @@ bedpath=$(echo {params.reference_annotation_dir}/annotations/rte_beds/{wildcards
 --ref {params.ref} \
 --interval-size 30000 \
 --include-bed $bedpath \
+--edge-filter 20 \
 --force-allow-implicit \
 -t {resources.cpus_per_task}
 
@@ -1031,10 +1057,13 @@ rule extractmods:
     shell: 
         """
 mkdir -p $(dirname {output})
+awk -F '\t' -v OFS='\t' '{{print $1, $2, $3, $4, $5, "."}}' $(dirname {params.region})/{wildcards.region}.bed > {output.read_mods}.temp_rtebed.bed
+
 /oscar/data/jsedivy/mkelsey/tools/modkit extract \
 --mapped \
 --no-filtering \
---include-bed $(dirname {params.region})/{wildcards.region}.bed \
+--edge-filter 20 \
+--include-bed {output.read_mods}.temp_rtebed.bed \
 --ref {params.ref} \
 --threads {resources.cpus_per_task} \
 {input.sortedbam} \
@@ -1059,16 +1088,19 @@ rule extractmods_cg_context:
     shell: 
         """
 mkdir -p $(dirname {output})
+awk -F '\t' -v OFS='\t' '{{print $1, $2, $3, $4, $5, "."}}' $(dirname {params.region})/{wildcards.region}.bed > {output.read_mods}.temp_rtebed.bed
 
 /oscar/data/jsedivy/mkelsey/tools/modkit extract \
 --cpg \
 --mapped \
 --no-filtering \
---include-bed $(dirname {params.region})/{wildcards.region}.bed \
+--edge-filter 20 \
+--include-bed {output.read_mods}.temp_rtebed.bed \
 --ref {params.ref} \
 --threads {resources.cpus_per_task} \
 {input.sortedbam} \
 {output.read_mods}
+rm {output.read_mods}.temp_rtebed.bed
         """
 
 rule extractmods_cg_context_cpgislands:
@@ -1092,6 +1124,7 @@ mkdir -p $(dirname {output})
 --cpg \
 --mapped \
 --no-filtering \
+--edge-filter 20 \
 --include-bed aref/extended/A.REF_annotations/cpg_islands.proper.bed \
 --ref {params.ref} \
 --threads {resources.cpus_per_task} \
@@ -1157,6 +1190,7 @@ mkdir -p $(dirname {output})
 --cpg \
 --mapped \
 --no-filtering \
+--edge-filter 20 \
 --include-bed ldna/Rintermediates/m/regions_to_extract_reads_from.bed \
 --ref {params.ref} \
 --threads {resources.cpus_per_task} \
@@ -1409,9 +1443,9 @@ touch {output.outfile}
 rule wgbs_bam2pat:
     input:
         outfile = "aref/extended/A.REF.{ref_genome}.wgbs.init.out",
-        bam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        bam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.endmethfilteredyngl1.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
     output:
-        pat = expand("ldna/results/{{mod_code}}/wgbs/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        pat = expand("ldna/results/{{mod_code}}/wgbs/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.endmethfilteredyngl1.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
     resources:
         runtime = 1000,
         mem_mb = 128000,
@@ -1449,7 +1483,7 @@ uxm deconv --include Neuron Oligodend --atlas {params.atlas} --output ${{outputc
 
 rule get_merged_pat:
     input:
-        pat = expand("ldna/results/{{mod_code}}/wgbs/analysis_default/{sample}.{type}.{modification_string}.sorted.filterednosup.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
+        pat = expand("ldna/results/{{mod_code}}/wgbs/analysis_default/{sample}.{type}.{modification_string}.sorted.filterednosup.endmethfilteredyngl1.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
     params:
         inputdir = lambda wildcards: "ldna/results/%s/wgbs/analysis_default"%wildcards.mod_code,
         level1 = config["ldna"]["levels"][0],
@@ -1578,6 +1612,46 @@ coordfnsafe=$(echo $coord | sed 's/:/-/')
 done
 touch {output.outfile}
         """
+
+rule pat_fig_boringcpgi_by_sample:
+    input:
+        outfile = "ldna/results/m/wgbs/analysis_default/merged/merged.outfile"
+        # pat = expand("ldna/results/wgbs/{sample}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
+    params:
+        fl_rte = "/users/mkelsey/data/Nanopore/alz/RTE/ldna/Rintermediates/m/boringcpgi.tsv"
+    output:
+        outfile = "ldna/results/m/wgbs/plots/boringcpgi/by_sample/boringcpgi_by_sample.outfile"
+        # pat_fig = "ldna/results/wgbs/plots/{region}.pat.pdf"
+    resources:
+        runtime = 100,
+        mem_mb = 10000,
+        cpus_per_task = 4
+    container: None
+    conda: "omics"
+    shell:
+        """
+coords_array=()
+rte_name_array=()
+
+while read -r line; do
+    coords_array+=("$(awk '{{print $1":"$2"-"$3}}' <<< "$line")")
+    rte_name_array+=("$(awk '{{print $6}}' <<< "$line")")
+done < <(cat {params.fl_rte})
+
+echo "read lines"
+
+for (( i=0; i<${{#coords_array[@]}}; i++ ))
+do
+coord=${{coords_array[$i]}}
+rte_name=${{rte_name_array[$i]}}
+coordfnsafe=$(echo $coord | sed 's/:/-/')
+/users/mkelsey/data/tools/wgbs_tools/wgbstools pat_fig --nanopore --shuffle --line_width 0.5 --col_wrap 1 --font_size 3 --meth_color "beige" --unmeth_color "black"  -o $(dirname {output.outfile})/${{rte_name}}_1col.pdf -r $coord --title $rte_name --strict --genome hs1 $(dirname $(dirname {input.outfile}))/*.pat.gz
+/users/mkelsey/data/tools/wgbs_tools/wgbstools pat_fig --nanopore --shuffle --line_width 0.5 --col_wrap 6 --font_size 3 --meth_color "beige" --unmeth_color "black"  -o $(dirname {output.outfile})/${{rte_name}}_6col.pdf -r $coord --title $rte_name --strict --genome hs1 $(dirname $(dirname {input.outfile}))/*.pat.gz
+
+done
+touch {output.outfile}
+        """
+
 
 rule methylartistlocusplot_loci_of_interest:
     input:

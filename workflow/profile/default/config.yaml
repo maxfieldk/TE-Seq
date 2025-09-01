@@ -70,8 +70,8 @@ set-resources:
     aref_annotate_rtes:
         mem_mb: attempt * 35000
     aref_dorado:
-        cpus_per_task: 12
+        cpus_per_task: 24
         slurm_partition: "gpu-he"
-        mem_mb: 128000
+        mem_mb: 256000
         runtime: 5760
-        slurm_extra: "'--gres=gpu:2'"
+        slurm_extra: "'--gres=gpu:4'"
