@@ -92,7 +92,7 @@ https://www.neb.com/en-us/products/e6310-nebnext-rrna-depletion-kit-human-mouse-
   Many steps require a substantial amount of RAM (north of 20 GB) to be available on your system, else they will fail and give you OOM (out-of-memory) errors.  This pipeline will likely fail if run on a personal computer without at least 64 GB of RAM.
 
 # QUICK START install and run pipeline with test data
-In order to check that the pipeline can be successfully run in your compute environment, the following code will create a conda environment, clone the pipeline, and clone test data (chr22 human reference genome annotations + chr22-mapping reads from proliferating (PRO), early senescent (ESEN) and late senescent (LSEN) fibroblasts). Requires mamba and singularity/apptainer to be installed. This section provides little guidance - for a proper walk through of how to install and setup a custom analysis, skip this section and proceed to [Installation](#installation)
+In order to check that the pipeline can be successfully run in your compute environment, the following code will create a conda environment, clone the pipeline, and clone test data (chr22 human reference genome annotations + chr22-mapping RNA-Seq reads from proliferating (PRO), early senescent (ESEN) and late senescent (LSEN) fibroblasts). Requires mamba and singularity/apptainer to be installed. This section provides little guidance - for a proper walk through of how to install and setup a custom analysis, skip this section and proceed to [Installation](#installation)
 ```
 #download
 mamba create -y \
