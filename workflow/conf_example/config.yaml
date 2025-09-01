@@ -25,6 +25,9 @@ containers:
   pepper_deepvariant:
     use_preexisting_response: "no"
     path: "/users/mkelsey/data/Nanopore/alz/RTE/containers/pepper_deepvariant:r0.8.sif"
+  sniffles:
+    use_preexisting_response: "no"
+    path: "/users/mkelsey/data/Nanopore/alz/RTE/containers/sniffles:v2.6.0.sif"
   dorado:
     use_preexisting_response: "no"
     path: "/users/mkelsey/data/Nanopore/alz/RTE/containers/dorado:sha268dcb4cd02093e75cdc58821f8b93719c4255ed.sif"
