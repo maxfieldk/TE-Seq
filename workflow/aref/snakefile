@@ -833,6 +833,7 @@ rule pepper_getmarginoutput:
         pepper_deepvariant_container
     shell:	
         """
+mkdir -p $(dirname {output.bam})
 margin phase \
 {input.sortedbam} \
 {params.ref} \
