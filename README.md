@@ -22,14 +22,17 @@ This project derives from my work in the __Sedivy Lab at Brown University__, whe
 **Thank you for your interest!**
 
 # Table of Contents
-- [Pipeline Overview](#pipeline-overview)
-  - [Inputs](#inputs)
-  - [Outputs](#outputs)
-  - [Limitations and various experimental considerations](#limitations-and-various-experimental-considerations)
+- [TE-Seq: A Transposable Element Annotation \& RNA-Seq Pipeline](#te-seq-a-transposable-element-annotation--rna-seq-pipeline)
+- [About this pipeline](#about-this-pipeline)
+- [Table of Contents](#table-of-contents)
+  - [Pipeline Overview](#pipeline-overview)
+    - [Inputs](#inputs)
+    - [Outputs](#outputs)
+    - [Limitations and various experimental considerations](#limitations-and-various-experimental-considerations)
   - [Computational Requirements](#computational-requirements)
     - [Software Requirements](#software-requirements)
     - [Hardware Requirements](#hardware-requirements)
-- [Quick start: install and run pipeline with test data](#quick-start-install-and-run-pipeline-with-test-data)
+- [QUICK START install and run pipeline with test data](#quick-start-install-and-run-pipeline-with-test-data)
 - [Installation](#installation)
   - [Create a Snakemake containing Conda environment](#create-a-snakemake-containing-conda-environment)
   - [Setup your project directory](#setup-your-project-directory)

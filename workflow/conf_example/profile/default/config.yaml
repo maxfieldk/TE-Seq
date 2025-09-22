@@ -1,7 +1,9 @@
 software-deployment-method: 
   - conda
   - apptainer
-singularity-args: '--nv --bind /users/mkelsey/data,/users/jsedivy/data/mkelsey,/oscar/data/jsedivy/mkelsey,/oscar/home/jkreilin/data/vesicle_RNAseq,/users/jsedivy/data/rkalekar/Github_2024/RTE/srna'
+singularity-args: '--nv --bind'
+#e.g. '--nv --bind /users/mkelsey/data,/oscar/data/jsedivy/mkelsey /users/mkelsey/data/REVIEWER_TESEQ_TEST/genome_files /users/mkelsey/data/REVIEWER_TESEQ_TEST/genome_files /users/mkelsey/data/REVIEWER_TESEQ_TEST/genome_files  /users/mkelsey/data,/users/jsedivy/data/mkelsey,/oscar/data/jsedivy/mkelsey,/oscar/home/jkreilin/data/vesicle_RNAseq,/users/jsedivy/data/rkalekar/Github_2024/RTE/srna'
+
 rerun-triggers: mtime
 keep-going: True
 rerun-incomplete: True
@@ -74,4 +76,4 @@ set-resources:
         slurm_partition: "gpu-he"
         mem_mb: 256000
         runtime: 5760
-        slurm_extra: "'--gres=gpu:4'"
+        slurm_extra: "'--gres=gpu:2'"

@@ -93,7 +93,7 @@ sample_table
 #### New stats freq
 
 strat_1_options <- c("none", "rte_length_req", "req_integrative")
-strat_2_options <- c("none", "genic_loc", "loc_lowres_integrative_stranded")
+strat_2_options <- c("none", "genic_loc", "loc_superlowres_integrative_stranded")
 options <- expand_grid(strat_1_options, strat_2_options)
 
 
