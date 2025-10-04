@@ -688,18 +688,6 @@ threeUTRs <- threeUTRsByTranscript(txdb, use.names = TRUE)
 threeUTRs <- threeUTRs[grepl("^NM", names(threeUTRs))]
 
 
-cytobandsdf <- read_delim(conf$ref_cytobands, col_names = FALSE, delim = "\t")
-cytobands <- cytobandsdf %>%
-    dplyr::rename(seqnames = X1, start = X2, end = X3) %>%
-    GRanges()
-centromere <- cytobandsdf %>%
-    filter(X5 == "acen") %>%
-    dplyr::rename(seqnames = X1, start = X2, end = X3) %>%
-    GRanges()
-telomeredf <- read_delim(conf$ref_telomere, col_names = FALSE, delim = "\t")
-telomere <- telomeredf %>%
-    dplyr::rename(seqnames = X1, start = X2, end = X3) %>%
-    GRanges()
 
 getannotation <- function(to_be_annotated, regions_of_interest, property, name_in, name_out) {
     inregions <- to_be_annotated %>% subsetByOverlaps(regions_of_interest, invert = FALSE, ignore.strand = TRUE)
@@ -773,8 +761,62 @@ utr5_annot <- getannotation(rmfragmentsgr_properinsertloc, fiveUTRs, "utr5", "5U
 utr3_annot <- getannotation(rmfragmentsgr_properinsertloc, threeUTRs, "utr3", "3UTR", "Non3UTR")
 
 
-cent_annot <- getannotation(rmfragmentsgr_properinsertloc, centromere, "centromeric", "Centromeric", "NonCentromeric")
-telo_annot <- getannotation(rmfragmentsgr_properinsertloc, telomere, "telomeric", "Telomeric", "NonTelomeric")
+
+# centromere
+tryCatch(
+    {
+        cytobandsdf <- read_delim(conf$ref_cytobands, col_names = FALSE, delim = "\t")
+        cytobands <- cytobandsdf %>%
+            dplyr::rename(seqnames = X1, start = X2, end = X3) %>%
+            GRanges()
+        centromere <- cytobandsdf %>%
+            filter(X5 == "acen") %>%
+            dplyr::rename(seqnames = X1, start = X2, end = X3) %>%
+            GRanges()
+        if (length(centromere) > 0) {
+            cent_annot <<- getannotation(rmfragmentsgr_properinsertloc, centromere, "centromeric", "Centromeric", "NonCentromeric")
+        } else {
+            cent_annot <<- rmfragmentsgr_properinsertloc %>%
+                as.data.frame() %>%
+                dplyr::select(gene_id) %>%
+                tibble() %>%
+                mutate(centromeric = "NotAnnotated")
+        }
+    },
+    error = function(e) {
+        cent_annot <<- rmfragmentsgr_properinsertloc %>%
+            as.data.frame() %>%
+            dplyr::select(gene_id) %>%
+            tibble() %>%
+            mutate(centromeric = "NotAnnotated")
+    }
+)
+
+# telomere
+tryCatch(
+    {
+        telomeredf <- read_delim(conf$ref_telomere, col_names = FALSE, delim = "\t")
+        telomere <- telomeredf %>%
+            dplyr::rename(seqnames = X1, start = X2, end = X3) %>%
+            GRanges()
+        if (length(telomere) > 0) {
+            telo_annot <<- getannotation(rmfragmentsgr_properinsertloc, telomere, "telomeric", "Telomeric", "NonTelomeric")
+        } else {
+            telo_annot <<- rmfragmentsgr_properinsertloc %>%
+                as.data.frame() %>%
+                dplyr::select(gene_id) %>%
+                tibble() %>%
+                mutate(telomeric = "NotAnnotated")
+        }
+    },
+    error = function(e) {
+        telo_annot <<- rmfragmentsgr_properinsertloc %>%
+            as.data.frame() %>%
+            dplyr::select(gene_id) %>%
+            tibble() %>%
+            mutate(telomeric = "NotAnnotated")
+    }
+)
 
 genic_annot %$% genic %>% table()
 cent_annot %$% centromeric %>% table()

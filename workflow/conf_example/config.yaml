@@ -86,10 +86,12 @@ aref:
   ref_refseq_gff3: ../genome_files/refseq.sorted.ucsc.gff3
 
   #PIPELINE INCLUDED ANNOTATIONS FOR T2T-HS1 genome - LEAVE PATHS UNCHANGED OR CHANGE AS NEEDED
-  ref_cytobands: resources/genomes/hs1/annotations/cytobands.bed
-  ref_telomere: resources/genomes/hs1/annotations/telomeres.bed
-  ref_cpgislands: resources/genomes/hs1/annotations/cpgislands.tsv
-  l13fasta: resources/sequences/l1.3.fa
+  ref_cytobands: resources/genomes/hs1/annotations/cytobands.bed #note that if you are unable to find a suitable cytoband annotation for your genome, you can point this path to an empty text file (e.g make a new empty file named cytobandsempty.txt in the TE-Seq directory, and replace the current path with cytobandsempty.txt). TE element naming will just not take into account cytoband information.
+  ref_telomere: resources/genomes/hs1/annotations/telomeres.bed #note that if you are unable to find a suitable telomere annotation for your genome, you can point this path to an empty text file (e.g make a new empty file named telomereempty.txt in the TE-Seq directory, and replace the current path with telomereempty.txt)
+
+  ref_cpgislands: resources/genomes/hs1/annotations/cpgislands.tsv #no need to change this
+  l13fasta: resources/sequences/l1.3.fa #no need to change this
+
   #PATHS TO FILES WHICH WILL BE CREATED
   ref: aref/default/A.REF.fa
   ref_index: aref/default/A.REF.fa.fai
