@@ -380,6 +380,7 @@ mkdir -p $(dirname {output.subsampled})
 
 samtools view -b {input.bam} chr10 > {output.subsampled}
         """
+        
 if config["aref"]["symlink_aref"]["response"] == "no":
     if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
         if config["aref"]["update_ref_with_tldr"]["per_sample"] == "no":
@@ -709,15 +710,11 @@ rule cleanup_updated_sample_ref:
 seqkit grep --by-name -f {input.contigs_to_keep} {input.updated_reference} > {output.filtered_ref}
 samtools faidx {output.filtered_ref}
         """
-
 rule cleanup_updated_ref_and_patch:
     input:
         updated_reference = "aref/{default_or_extended}/A.REF-pre-ins-filtering.fa",
         contigs_to_keep = "aref/{default_or_extended}/A.REF_contigs_to_keep.txt",
-        hq_snps = "aref/intermediates/A.REF/pepper/hq_snps.vcf.gz"
-    params:
-        spike_in_indicator = config["aref"]["spike_in_contigs"]["response"],
-        spike_in_path = config["aref"]["spike_in_contigs"]["path_to_fasta"],
+        hq_snps = "aref/intermediates/A.REF/pepper/hq_snps.vcf.gz",
         absent_tes_to_mask =  "aref/intermediates/A.REF/sniffles/tes_to_mask.bed"
     output:
         filtered_ref = "aref/{default_or_extended}/A.REF.snp_patched.fa"
