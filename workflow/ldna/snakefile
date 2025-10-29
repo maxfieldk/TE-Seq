@@ -3,42 +3,42 @@ import pandas as pd
 from pathlib import Path
 samples = config["ldna"]["samples"]
 
-#tag BASECALLING
-rule dorado:
-    input:
-        aref = ancient("aref.done.outfile")
-    params:
-        input_dir = lambda wildcards: sample_table.loc[sample_table["sample_name"] == wildcards.sample, "nanopore_rawdata_dir"].iloc[0]
-    output:
-        calls = expand("ldna/intermediates/{{sample}}/alignments/{{rate}}/{ref_genome}/{{sample}}.{{type}}.{{modification_string}}.bam", ref_genome = "analysis_default")
-    wildcard_constraints:
-        sample="[0-9A-Za-z_]+",
-        type = "[0-9A-Za-z]+",
-        rate = "[0-9A-Za-z]+",
-        modification_string = "[0-9A-Za-z_-]+"
-    container: None
-    params:
-        dorado = config["ldna"]["dorado"],
-        reference = config["ldna"]["reference"]
-    resources:
-        cpus_per_task =12,
-        threads = 12,
-        slurm_partition="gpu-he",
-        mem_mb = 128000,
-        slurm_extra="--time=48:00:00 --constraint=a6000 --gres=gpu:2"
-    shell:
-        """
-mkdir -p $(dirname {output.calls})
-mod_string=$(echo {wildcards.modification_string} | tr "-" ",")
+# #tag BASECALLING
+# rule dorado:
+#     input:
+#         aref = ancient("aref.done.outfile")
+#     params:
+#         input_dir = lambda wildcards: sample_table.loc[sample_table["sample_name"] == wildcards.sample, "nanopore_rawdata_dir"].iloc[0]
+#     output:
+#         calls = expand("ldna/intermediates/{{sample}}/alignments/{{rate}}/{ref_genome}/{{sample}}.{{type}}.{{modification_string}}.bam", ref_genome = "analysis_default")
+#     wildcard_constraints:
+#         sample="[0-9A-Za-z_]+",
+#         type = "[0-9A-Za-z]+",
+#         rate = "[0-9A-Za-z]+",
+#         modification_string = "[0-9A-Za-z_-]+"
+#     container: None
+#     params:
+#         dorado = config["ldna"]["dorado"],
+#         reference = config["ldna"]["reference"]
+#     resources:
+#         cpus_per_task =12,
+#         threads = 12,
+#         slurm_partition="gpu-he",
+#         mem_mb = 128000,
+#         slurm_extra="--time=48:00:00 --constraint=a6000 --gres=gpu:2"
+#     shell:
+#         """
+# mkdir -p $(dirname {output.calls})
+# mod_string=$(echo {wildcards.modification_string} | tr "-" ",")
 
-{params.dorado} \
-basecaller \
-{wildcards.type},$mod_string \
-{params.input_dir} \
---recursive \
---verbose \
---reference {params.reference} > {output.calls}
-        """
+# {params.dorado} \
+# basecaller \
+# {wildcards.type},$mod_string \
+# {params.input_dir} \
+# --recursive \
+# --verbose \
+# --reference {params.reference} > {output.calls}
+#         """
 
 rule mod_bam_to_fastq:
     input:
@@ -525,20 +525,20 @@ samtools idxstat -@6 {output.bam} > {output.bam}.idxstats.txt
 rule call_mycoplasmaCheck:
     input:
         expand("ldna/qc/mycoplasma/mycoplasma{sample}.bam", sample = samples)
-rule dorado_seqsummary:
-    input:
-        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-    params:
-        dorado = config["ldna"]["dorado"]
-    output:
-        "ldna/qc/{sample}/{sample}.doradosummary.txt"
-    conda:
-        "omics"
-    shell:
-        """
-{params.dorado} summary {input.sortedbam} > {output}
-        """
+# rule dorado_seqsummary:
+#     input:
+#         sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+#         sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+#     params:
+#         dorado = config["ldna"]["dorado"]
+#     output:
+#         "ldna/qc/{sample}/{sample}.doradosummary.txt"
+#     conda:
+#         "omics"
+#     shell:
+#         """
+# {params.dorado} summary {input.sortedbam} > {output}
+#         """
 
 rule coverage:
     input:
