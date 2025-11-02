@@ -97,22 +97,33 @@ if (any(str_detect(rmfragments$refstatus, "NonRef"))) {
     gr_for_overlap_analysis <- GRanges(rmfragments)
 }
 
-cytobandsdf <- read_delim(conf$ref_cytobands, col_names = FALSE, delim = "\t")
-cytobands <- cytobandsdf %>%
-    dplyr::rename(seqnames = X1, start = X2, end = X3) %>%
-    GRanges()
+tryCatch(
+    {
+        cytobandsdf <- read_delim(conf$ref_cytobands, col_names = FALSE, delim = "\t")
+        cytobands <- cytobandsdf %>%
+            dplyr::rename(seqnames = X1, start = X2, end = X3) %>%
+            GRanges()
 
-gr_for_overlap_with_cytobands <- subsetByOverlaps(gr_for_overlap_analysis, cytobands)
-gr_for_overlap_analysis_lacking_cytobands <- subsetByOverlaps(gr_for_overlap_analysis, cytobands, invert = TRUE)
+        gr_for_overlap_with_cytobands <- subsetByOverlaps(gr_for_overlap_analysis, cytobands)
+        gr_for_overlap_analysis_lacking_cytobands <- subsetByOverlaps(gr_for_overlap_analysis, cytobands, invert = TRUE)
 
-overlaps <- findOverlaps(gr_for_overlap_with_cytobands, cytobands, select = "first")
-gr_for_overlap_with_cytobands$cytobands <- mcols(cytobands[overlaps])$X4
-if (length(gr_for_overlap_analysis_lacking_cytobands) != 0) {
-    gr_for_overlap_analysis_lacking_cytobands$cytobands <- "NoCytobandInfo"
-    gr_for_overlap_analysis <<- c(gr_for_overlap_with_cytobands, gr_for_overlap_analysis_lacking_cytobands)
-} else {
-    gr_for_overlap_analysis <<- gr_for_overlap_with_cytobands
-}
+        overlaps <- findOverlaps(gr_for_overlap_with_cytobands, cytobands, select = "first")
+        gr_for_overlap_with_cytobands$cytobands <- mcols(cytobands[overlaps])$X4
+        if (length(gr_for_overlap_analysis_lacking_cytobands) != 0) {
+            gr_for_overlap_analysis_lacking_cytobands$cytobands <- "NoCytobandInfo"
+            gr_for_overlap_analysis <<- c(gr_for_overlap_with_cytobands, gr_for_overlap_analysis_lacking_cytobands)
+        } else {
+            gr_for_overlap_analysis <<- gr_for_overlap_with_cytobands
+        }
+    },
+    error = function(e) {
+        print("Not using cytoband info for TE naming")
+        gr_for_overlap_analysis$cytobands <<- "NoCytobandInfo"
+    }
+)
+
+
+
 new_id_mapping_ref <- gr_for_overlap_analysis %>%
     as.data.frame() %>%
     tibble() %>%

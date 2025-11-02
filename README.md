@@ -3,6 +3,7 @@
 <img width="1665" alt="Screenshot 2024-08-23 at 3 23 28 PM" src="https://github.com/user-attachments/assets/a7148bf4-412a-4250-b539-ce3959e38fb0">
 [TE-SEQ_POSTER.pdf](https://github.com/user-attachments/files/16732892/MCB_RETREAT_POSTER_2024_FINAL.pdf)
 
+# About this pipeline
 This project consists of a __snakemake pipeline__ to analyze transposable element (TE) sequencing data.
 
 To the unacquainted, the analysis of TE, and more generally repetitive element, sequencing data can be a daunting task: the repetitive nature of these elements imposes  analytical pitfalls and raises a number of practical questions including:  
@@ -18,8 +19,38 @@ It also aims address concerns pertaining to:
 - the quality of TE annotations.
 
 This project derives from my work in the __Sedivy Lab at Brown University__, where we study transposable elements, in particular __LINE1__.
-
 **Thank you for your interest!**
+
+# Table of Contents
+- [Pipeline Overview](#pipeline-overview)
+  - [Inputs](#inputs)
+  - [Outputs](#outputs)
+  - [Limitations and various experimental considerations](#limitations-and-various-experimental-considerations)
+  - [Computational Requirements](#computational-requirements)
+    - [Software Requirements](#software-requirements)
+    - [Hardware Requirements](#hardware-requirements)
+- [Quick start: install and run pipeline with test data](#quick-start-install-and-run-pipeline-with-test-data)
+- [Installation](#installation)
+  - [Create a Snakemake containing Conda environment](#create-a-snakemake-containing-conda-environment)
+  - [Setup your project directory](#setup-your-project-directory)
+  - [Configure your analysis](#configure-your-analysis)
+    - [HUMAN - Genome: T2T-HS1](#human---genome-t2t-hs1)
+    - [MOUSE - Genome: MM39](#mouse---genome-mm39)
+    - [Downsampled HUMAN - Genome: HS1 -  Downsampled genome for a pipeline test-run](#downsampled-human---genome-hs1----downsampled-genome-for-a-pipeline-test-run)
+  - [Workflow Logic:](#workflow-logic)
+    - [AREF](#aref)
+      - [If supplying long Nanopore DNA reads (optional)](#if-supplying-long-nanopore-dna-reads-optional)
+    - [SRNA](#srna)
+  - [Applying this pipeline to non-human/mouse species.](#applying-this-pipeline-to-non-humanmouse-species)
+  - [Deploying the pipeline](#deploying-the-pipeline)
+  - [Outputs](#outputs-1)
+    - [Location of reference files:](#location-of-reference-files)
+    - [Overview of results](#overview-of-results)
+    - [Location of main result tables:](#location-of-main-result-tables)
+    - [Location of important files:](#location-of-important-files)
+    - [Notes on interpreting plots](#notes-on-interpreting-plots)
+  - [Common Issues](#common-issues)
+  - [Attribution](#attribution)
 
 ## Pipeline Overview
   This pipeline conducts an end-to-end analysis of raw sequencing data, implementing state of the art TE-minded computational methods. It produces a comprehensive analyses of repetitive element expression at both the level of an individual repetitive element as well as family groupings of these elements. It consists of 4 modules, "Annotate Referene" (AREF), short-read RNA-Seq (SRNA), long-read RNA-Seq (LRNA), and long-read DNA-Seq (LDNA). LRNA and LDNA remain in active development and will be formally released at a future date. Accordingly, this guide pertains only to the AREF and SRNA modules. 
@@ -54,24 +85,90 @@ https://www.neb.com/en-us/products/e6310-nebnext-rrna-depletion-kit-human-mouse-
 ## Computational Requirements
   This pipeline uses the Snakemake workflow manager, and consists of several parts: a main "snakefile" which can deploy a number of module level snakefiles, which in turn contain the rules which specify each step of the analysis. These rules are like functions, they take in inputs and produce outputs.  
 ### Software Requirements
-  Software dependencies are packaged into a Docker containers which will automatically be built and used by the Snakemake pipeline at the time of execution. Singularity must be available in order to have Snakemake deploy containers.These containers contain all dependencies. Users are free to alternatively choose to manually build the several Conda environments required by the pipeline using the provided yaml environment specifications, though this alternative is likely to result in greater overall frustration. Snakemake itself is installed in a Conda environment, and so users will need to have Conda available regardless https://conda.io/projects/conda/en/latest/user-guide/getting-started.html.  
-  This pipeline was primarily developed on a compute cluster running a RedHat Linux OS and which uses the SLURM workload manager. Nevertheless the use of Docker containers should enable users on other operating systems to run the pipeline without difficulty.  
+  Software dependencies are packaged into a Docker containers which will automatically be built and used by the Snakemake pipeline at the time of execution. Singularity/Apptainer must be available in order to have Snakemake deploy containers - Singularity/Apptainer is only availible on linux (Windows users can run a Linux kernel using Windows Subsystem for Linux - WSL - at https://learn.microsoft.com/en-us/windows/wsl/install). These containers contain all dependencies. Users are free to alternatively choose to manually build the several Conda environments required by the pipeline using the provided yaml environment specifications, though this is not the preferred way to run the pipeline as creating conda environments de novo can be difficult / introduce version incompatibilities. Snakemake itself is installed in a Conda environment, and so users will need to have Conda available regardless https://conda.io/projects/conda/en/latest/user-guide/getting-started.html.  
+  This pipeline was primarily developed on a compute cluster running a RedHat Linux OS and which uses the SLURM workload manager.  
 ### Hardware Requirements
   This pipeline allows for the parallel execution of many jobs which can occur simultaneously. Consequently, it is highly recommended to execute this pipeline on a compute cluster to take advantage of the corresponding diminishment of total runtime afforded by parallelization. Snakemake is designed to work with many commonly-used cluster workload managers such as SLURM.  
   Many steps require a substantial amount of RAM (north of 20 GB) to be available on your system, else they will fail and give you OOM (out-of-memory) errors.  This pipeline will likely fail if run on a personal computer without at least 64 GB of RAM.
+
+# QUICK START install and run pipeline with test data
+The following code will clone the pipeline and test data, and will create a conda environment. Requires mamba and singularity/apptainer to be installed. This section provides little guidance - for a proper walk through of how to install and setup a custom analysis, skip this section and proceed to [Installation](#installation)
+```
+#download
+mamba create -y \
+  -c conda-forge \
+  -c bioconda \
+  --name teseq \
+  'snakemake=8.*' \
+  snakemake-executor-plugin-slurm
+
+#create project directory and clone te-seq
+mkdir teseq_test
+cd teseq_test
+git clone -b stable https://github.com/maxfieldk/TE-Seq.git
+#prepare a live configuartion directory
+cd TE-Seq
+cp -r workflow/conf_example conf
+
+#download test data and accompanying genome annotations
+cd ..
+git clone https://github.com/maxfieldk/TE-Seq_test_rawdata.git
+cd TE-Seq
+mkdir -p srna_rawdata
+mv ../TE-Seq_test_rawdata/test_srna/*.fq.gz srna_rawdata
+mv ../TE-Seq_test_rawdata/genome_files ../genome_files
+
+#configure singularity bind paths in snakemake slurm and local machine profiles
+pathstobind=$(echo $(dirname $(pwd))/genome_files,$(dirname $(pwd)))
+awk -v bpath="$pathstobind" '                     
+{
+  if ($0 ~ /--bind/ && !done) {
+    sub(/--bind/, "--bind " bpath)
+    done = 1
+  }
+  print
+}' conf/profile/default/config.yaml > tmp.txt
+mv tmp.txt conf/profile/default/config.yaml
+awk -v bpath="$pathstobind" '                     
+{
+  if ($0 ~ /--bind/ && !done) {
+    sub(/--bind/, "--bind " bpath)
+    done = 1
+  }
+  print
+}' conf/profile/local_system/config.yaml > tmplocal.txt
+mv tmplocal.txt conf/profile/local_system/config.yaml
+#activate conda environment
+conda activate teseq
+```
+The following code will deploy the pipeline on a slurm cluster
+```
+#pipeline dry-run
+snakemake --profile conf/profile/default -n
+#run pipeline
+snakemake --profile conf/profile/default
+```
+The following code will deploy the pipeline on your local machine
+```
+#pipeline dry-run
+snakemake --profile conf/profile/local_system -n
+#run pipeline
+snakemake --profile conf/profile/local_system
+```
+
 # Installation
 ## Create a Snakemake containing Conda environment
-  Create a Snakemake Conda environment from which you can run the Snakemake pipeline. If your computer / compute cluster uses a workload manager (e.g. slurm) install any workload manager specific Snakemake executor plugins in this environment (e.g. the snakemake-executor-plugin-slurm if your system uses slurm. A full listing of the availible plugins is availible at https://snakemake.github.io/snakemake-plugin-catalog/ ). If Singularity is not installed on your system already (you can check by running the "singularity version" at the command line) then you should include Singularity in your conda environment. The following call will create a snakemake environment for use on a slurm cluster and include singularity:
+  Create a Snakemake Conda environment from which you can run the Snakemake pipeline. If your computer / compute cluster uses a workload manager (e.g. slurm) install any workload manager specific Snakemake executor plugins in this environment (e.g. the snakemake-executor-plugin-slurm if your system uses slurm. A full listing of the availible plugins is availible at https://snakemake.github.io/snakemake-plugin-catalog/ ). If Singularity/Apptainer is not installed on your system already (you can check by running the "singularity version" or "apptainer version at the command line) then you should first install Singularity/Apptainer https://apptainer.org/docs/admin/main/installation.html. The following call will create a snakemake environment for use on a slurm cluster:
   ```
-    conda create --name snakemake snakemake snakemake-executor-plugin-slurm singularity
+    conda create --name snakemake snakemake snakemake-executor-plugin-slurm
   ```
-  If you are not able to use Docker/Singularity and/or want to be able to modify environments, you can create all of the environments in the envs/ directory.
+  If you are not able to use Singularity/Apptainer (Singularity/Apptainer is only availible on Linux; for windows you can install Windows Subsystem for Linux - WSL - at https://learn.microsoft.com/en-us/windows/wsl/install) and/or want to be able to modify environments, you can create all of the environments in the envs/ directory.
   ```
    conda env create --file envs/rseqc.yaml
    conda env create --file ...
    ...
   ```
-   It will take time and occupy a substantial amount of disk space to recreate all of these environments. Using a container is the preferred way to deploy this pipeline. I also recommend using the equivalent Mamba command over the Conda command if possible - environment building will proceed much more quickly.
+   It will take time and occupy a substantial amount of disk space to recreate all of these environments. Using the singularity/apptainer containerized workflow is the preferred way to deploy this pipeline. I also recommend using the equivalent Mamba command over the Conda command if possible - environment building will proceed much more quickly. e.g:
   ```
    mamba env create --file envs/rseqc.yaml
   ```
@@ -198,7 +295,7 @@ git clone https://github.com/maxfieldk/TE-Seq_test_rawdata.git
 ```
 ***
 ***
-  I recommend you store these downloaded annotations in a directory one level above your project directory (place genomes_file/ adjacent to the TE-Seq/ directory). Just ensure that the paths are nested within a Singularity bound directory if using the containerized workflow (read on to the segment on "workflow/profile/default/config.yaml" below for more details).  
+  I recommend you store these downloaded annotations in a directory one level above your project directory (place genomes_file/ adjacent to the TE-Seq/ directory). Just ensure that the paths are nested within a Singularity bound directory if using the containerized workflow (read on to the segment on "conf/profile/default/config.yaml" below for more details).  
 
 Create, in the TE-Seq directory a folder called srna_rawdata, and move your fastqs there.
 ```
@@ -219,8 +316,8 @@ Make sure your fastq file naming is consistent with the naming scheme set forth 
       source2: "srna_rawdata/{fq_sample_name}_R2_001.fastq.gz"
   ```
   peptable_srna.csv, is automatically updated each time you call Snakemake, according to the rules set out in conf/project_config_srna.yaml applied to conf/sample_table.csv. This is how rawdata paths can be generated dynamically.  
-  The workflow/profile/default/config.yaml instructs Snakemake how to be run in your compute environment. More information on Snakemake profiles can be found at https://snakemake.readthedocs.io/en/stable/executing/cli.html under the "Profiles" section header.  
-  If using the containerized workflow (default), modify the contents of workflow/profile/default/config.yaml such that Singularity containers have access to a directory which contains all files which are referenced in the pipeline and which contains your project directory. Certain hpc cluster computer systems have multiple paths refer to the same folder (e.g. /users/data/... is equivalent to /hpc_name/data/...). Be sure to include all such paths else you may get read/write errors.
+  The conf/profile/default/config.yaml instructs Snakemake how to be run in your compute environment. More information on Snakemake profiles can be found at https://snakemake.readthedocs.io/en/stable/executing/cli.html under the "Profiles" section header.  
+  If using the containerized workflow (default), modify the contents of conf/profile/default/config.yaml such that Singularity containers have access to a directory which contains all files which are referenced in the pipeline and which contains your project directory. Certain hpc cluster computer systems have multiple paths refer to the same folder (e.g. /users/data/... is equivalent to /hpc_name/data/...). Be sure to include all such paths else you may get read/write errors.
   ```
   SUPPOSE YOUR PIPELINE DIRECTORY'S PATH IS /users/YOURUSERNAME/data/myproject/TE-Seq
   AND THAT YOU HAVE SUPPLIED GENOME ANNOTATIONS WITH THE FOLLOWING PATH /oscar/data/jsedivy/YOURUSERNAME/refseq.gtf
@@ -230,7 +327,7 @@ Make sure your fastq file naming is consistent with the naming scheme set forth 
   singularity-args: '--bind /users/YOURUSERNAME/data,/oscar/data/jsedivy/YOURUSERNAME'
   ```
   Next change the executor key value as needed. If you are not using a workload manager such as slurm, you should delete this key-value pair.
-  This workflow/profile/config file also specifies the default compute resources used by rules, as well as a number of rule-specific resources. If supplying nanopore DNA reads, pay particular attention to the resources specified for the dorado rule, which should if possible be run on a batch partition / system with an Nvidia GPU. Running this step solely on a CPU will take a long time...
+  This conf/profile/config file also specifies the default compute resources used by rules, as well as a number of rule-specific resources. If supplying nanopore DNA reads, pay particular attention to the resources specified for the dorado rule, which should if possible be run on a batch partition / system with an Nvidia GPU. Running this step solely on a CPU will take a long time...
  
 ## Workflow Logic:
 ### AREF
@@ -262,15 +359,15 @@ CTRL F to the only occurrence of "conf$species". You will find two blocks of cod
   First perform a pipeline dry-run. This tells you which rules Snakemake will deploy once called "for real".   Ensure you are calling this command from within your pipeline directory (TE-Seq) which lives in your project folder, i.e. myproject/TE-Seq/
   ```
   conda activate snakemake
-  snakemake --profile workflow/profile/default -n
+  snakemake --profile conf/profile/default -n
   ```
   If you are happy with this plan of action, deploy the pipeline by calling Snakemake. Note that at the onset of the first run, snakemake will pull and build the Docker/Singularity containers. This can be quite memory intensive - accordingly if you are on a shared / cluster computer, this job may be killed by an "out of memory" error. To get around this, call snakemake from an interactive shell afforded ample memory (200Gb) - this is only necessary on the first call of the pipeline.
   ```
-  snakemake --profile workflow/profile/default
+  snakemake --profile conf/profile/default
   ```
   If all rules are executed successfully, you will not recieve an error message. At this point you can run the following command to generate a report which consolidates some of the most insightful visualizations. Note that not every plot is included in this report, seeing as the resulting html file would be too large for practical use.
   ```
-  snakemake --profile workflow/profile/default --report report.html
+  snakemake --profile conf/profile/default --report report.html
   ```
   In the event that a rule fails, all hope is not lost! Failed jobs will be retried twice by default, increasing resource specifications at each pass. Logs are automatically kept facilitating the tracing of any persistent error.     
   I recommend familiarizing yourself with the basics of Snakemake before embarking on a complex analysis with this pipeline. For help with Snakemake, consult its highly usable and detailed docs at https://snakemake.readthedocs.io/en/stable/index.html  
@@ -375,9 +472,8 @@ Bam and BigWig files for each sample:
   srna/outs/{sample_name}/star_output/{sample_name}.R.bw  
 
 Snakemake report
-If you have run “snakemake --profile workflow/profile/default –report”
+If you have run “snakemake --profile conf/profile/default --report report.html”
 There will be a file including the majority of all plots (there are too many produced by the pipeline to include all of them in a reasonably sized file..).
-report.html
 This report makes it straightforward to determine which script produced which plot, and it includes all code used to produce plots (click on the (i) icon by a plot for this information)
 
 ### Notes on interpreting plots
@@ -639,7 +735,7 @@ This error likely indicates that your config.yaml file is invalid (perhaps a dup
 ```
 ERROR: Failed to open file: "PATH"
 ```
-An error of this type, assuming the path indeed exists and you have requisite permissions, could be due to a failure of having bound paths correctly in containerized rules. If the path you are specifying is to for instance, rawdata, ensure that the workflow/profile/default/config.yaml  "singularity-args" key specifies a bind path via which this path is accessible (i.e. has at least one path to a directory in which is nested the path of interest). If it does not, you can append a path to the directory which contains the path of interest. 
+An error of this type, assuming the path indeed exists and you have requisite permissions, could be due to a failure of having bound paths correctly in containerized rules. If the path you are specifying is to for instance, rawdata, ensure that the conf/profile/default/config.yaml  "singularity-args" key specifies a bind path via which this path is accessible (i.e. has at least one path to a directory in which is nested the path of interest). If it does not, you can append a path to the directory which contains the path of interest. 
 
 ---
 ## Attribution
