@@ -52,12 +52,15 @@ df <- df %>%
     filter(fraction_reads_count > 0.25) %>%
     filter(SpanReads > 2) %>%
     filter(UsedReads > 5) %>%
-    mutate(faName = paste0("NI_", "_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>%
+    mutate(faName = paste0("NI_", Subfamily, "_", Chrom, "_", Start, "_", End)) %>%
     filter(!is.na(Family)) %>%
     filter(!is.na(StartTE)) %>%
     filter(Filter == "PASS") %>%
-    filter(!is.na(TSD)) %>%
     filter(MedianMapQ == 60)
+
+if (conf$update_ref_with_tldr$require_tsd == "yes") {
+    df <- df %>% filter(!is.na(TSD))
+}
 
 df <- df[!(df %$% faName %>% duplicated()), ]
 
