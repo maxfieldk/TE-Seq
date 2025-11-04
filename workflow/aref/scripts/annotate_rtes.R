@@ -1070,7 +1070,7 @@ if (confALL$aref$patch_ref == "yes") {
         dplyr::select(gene_id, fraction_deleted, sniffles_gtInsPresence) %>%
         group_by(gene_id) %>%
         summarise(
-            gt = case_when(
+            sniffles_gtInsPresence = case_when(
                 n() > 1 ~ paste(sniffles_gtInsPresence, collapse = ","),
                 TRUE ~ dplyr::first(sniffles_gtInsPresence)
             ),
