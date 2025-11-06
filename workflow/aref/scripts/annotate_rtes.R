@@ -32,6 +32,7 @@ tryCatch(
     }
 )
 outputdir <- dirname(outputs$rmann)
+dir.create(paste0(outputdir, "/intactness_annotation_workdir"), recursive = TRUE)
 rmfragments <- read_csv(inputs$r_annotation_fragmentsjoined, col_names = TRUE)
 
 ########################################################## SETUP GROUPING COLUMNS
