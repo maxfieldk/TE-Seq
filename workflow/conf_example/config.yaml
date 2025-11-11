@@ -67,6 +67,10 @@ aref:
       Other: 15 
   gene_adjacency_threshold: 10000 #capture region around genes to be annotated as "gene adjacent"; value in bp. Default is 10kb
   orf_intactness: #specify which elements to anotate for open reading frame (ORF) intactness. By default, human is annotated for L1HS and L1PA2, and mouse is annotated for the L1MdTf, Gf, and A subfamilies. Other species will have their youngest (least diverged) 7 LINE subfamilies examined. Common ORF lengths will be automatically detected and examined.
+    annotate_ORF2_domains:
+      response: "yes"
+      EN: "resources/sequences/L1.2_EN_domain_aa.fa"
+      RT: "resources/sequences/L1.2_RT_domain_aa.fa"
     automatically_find_subfamilies_of_interest: "yes" #yes or no. If "no" provide values to the "subfamilies_of_interest" key. If "yes" nothing need be provided.
     manual_subfamilies_of_interest:
       L1HS: #specify subfamily names to examine (must be a trailing value (everything after the last "/" character) in the aref/default/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv "family" column); e.g. "L1HS" for the "LINE/L1/L1HS" entry.

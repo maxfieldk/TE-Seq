@@ -455,7 +455,7 @@ rule filterbam:
     resources:
         cpus_per_task =6,
         mem_mb = 40000,
-        runtime = 300
+        runtime = 1000
     conda:
         "omics"
     shell: 
@@ -484,20 +484,20 @@ samtools index  -@6 {input.bam}
 species = config["aref"]["species"]
 rule tldr_aggregate_multiple_samples:
     input:
-        bams = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam", sample = config["aref"]["samples"], rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
-        bais = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam.bai", sample = config["aref"]["samples"], rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
+        bams = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam", sample = config["aref"]["samples"], rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
+        bais = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam.bai", sample = config["aref"]["samples"], rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
     params:
         tldr_input_bam_ref = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"],
         tldr_te_ref = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_te_ref"][species],
         known_nonref = lambda w: [config["aref"]["update_ref_with_tldr"]["known_nonref"]["path"] if config["aref"]["update_ref_with_tldr"]["known_nonref"]["response"] == "yes" else "not_provided"][0]
     benchmark:
-        "aref/benchmarks/tldr_aggregate_multiple_samples/tldr_aggregate_multiple_samples.tsv"
+        "aref/benchmarks/tldr_aggregate_multiple_samples/tldr_aggregate_multiple_samples_{chromosome}.tsv"
     output:
-        tldr = "aref/A.REF_tldr/A.REF.table.txt"
+        tldr = "aref/A.REF_tldr/{chromosome}.table.txt"
     resources:
         cpus_per_task = 24,
         mem_mb = 100000,
-        runtime = 300
+        runtime = 1000
     conda:
         "tldr"
     shell:
@@ -511,25 +511,33 @@ echo $nonrefavailible
 if [[ $nonrefavailible = "not_provided" ]]
 then
 
+echo "usingknown"
+echo {wildcards.chromosome} > {wildcards.chromosome}.txt
+
 tldr -b $commabams \
 -e {params.tldr_te_ref} \
 -r {params.tldr_input_bam_ref} \
 -p 20 \
+-c {wildcards.chromosome}.txt \
 --minreads 1 \
---outbase A.REF \
+--outbase {wildcards.chromosome} \
 --detail_output \
 --extend_consensus 4000 \
 --trdcol
 
 else
 
+echo "noknown"
+echo {wildcards.chromosome} > {wildcards.chromosome}.txt
+
 tldr -b $commabams \
 -e {params.tldr_te_ref} \
 -r {params.tldr_input_bam_ref} \
 -p 20 \
+-c {wildcards.chromosome}.txt \
 --nonref {params.known_nonref} \
 --minreads 1 \
---outbase A.REF \
+--outbase {wildcards.chromosome} \
 --detail_output \
 --extend_consensus 4000 \
 --trdcol
@@ -537,9 +545,33 @@ tldr -b $commabams \
 fi
 
 mkdir -p $(dirname {output.tldr})
-mv A.REF.table.txt {output.tldr}
-mv A.REF $(dirname {output.tldr})/
+mv {wildcards.chromosome}.table.txt {output.tldr}
+mv {wildcards.chromosome} $(dirname {output.tldr})/
         """
+
+def merge_tldr_agg(wildcards):
+    checkpoint_output = checkpoints.index_dorado_ref
+    if os.path.exists(config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"] + ".fai"):
+        return expand("aref/A.REF_tldr/{chromosome}.table.txt", chromosome = [e for e in pd.read_table(config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"] + ".fai", header = None).iloc[:,0] if e != "chrM"])
+    else:
+        return []
+rule merge_agg_tldr:
+    input:
+        tldr = merge_tldr_agg
+    output:
+        df = "aref/A.REF_tldr/A.REF.table.txt"
+    conda:
+        "ds"
+    resources:
+        cpus_per_task = 4,
+        runtime = 1000
+    script:
+        "scripts/merge_tldr_agg.R"
+
+
+
+
+
 
 rule call_tldr_per_sample:
     input:

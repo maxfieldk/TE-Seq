@@ -726,7 +726,8 @@ if (conf$update_ref_with_tldr$per_sample == "yes") {
 }
 
 dfall %>% write_csv("aref/results/dfall_allsamples.csv")
-
+# dfall %>% filter(UsedReads == 1) %>% filter(Subfamily == "AluY") %>%
+#     filter(TEMatch >96) %>% filter(Filter== "PASS") %$% sample_name %>% table()
 # somatic_naught_processedpseudogene <- dfall %>%
 #     filter(is.na(Family)) %>%
 #     filter(Filter == "UnmapCoverNA,NoFamily,NoTEAlignment") %>%
@@ -813,7 +814,7 @@ somatic_alpha_annotated <- somatic_alpha %>%
     annotate_read_metadata() %>%
     annotate_teend()
 
-dfall_AD <- read_csv("/users/mkelsey/data/Nanopore/alz/RTE/aref/results/dfall_allsamples.csv")
+dfall_AD <- read_csv("/users/mkelsey/data/Nanopore/alz/RTE/aref_asofjun26_2025_good/results/dfall_allsamples.csv")
 all_nr <- dfall_AD %>%
     filter(!is.na(Subfamily)) %>%
     mutate(Strand = ifelse(Strand == "None", ".", Strand))

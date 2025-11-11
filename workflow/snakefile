@@ -64,7 +64,7 @@ for pipeline in config["pipelines_to_deploy"]:
             final_input.append(list(flatten([tldr_analysis_per_sample, pycoQC])))
         mycoplasma = expand("ldna/qc/mycoplasma/mycoplasma{sample}.bam", sample = config["ldna"]["samples"])
         multiqc = "ldna/qc/multiqc_report.html"
-        dmrs = "ldna/results/m/tables/dmrs.tsv",
+        dmrs = "ldna/results/m/tables/dmrs.tsv"
         haplo_bam = expand("ldna/intermediates/{sample_or_ref}/alignments/{rate}/{ref_genome}/{sample_or_ref}.{type}.{modification_string}.sorted.filtered.haplotagged.bam", ref_genome = "analysis_default", sample_or_ref = config["ldna"]["samples"], rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
         bedmethanalysis = "ldna/results/m/plots/bedmethylanalysis.rds"
         bedmethanalysis_single_sample = "ldna/outfiles/bedmethylanalysis_single_sample.txt"
@@ -73,12 +73,12 @@ for pipeline in config["pipelines_to_deploy"]:
         methylartist = "ldna/results/m/plots/methylartist/locus/methylartistlocusplot_loci_of_interest.outfile"
         hg38pat = expand("ldna/results/m/wgbs/hg38/{sample}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample=  config["ldna"]["samples"])
         gimme = "ldna/results/m/gimme/gimme_plots.rds"
-        read_level_meth_plots = ["ldna/results/m/wgbs/plots/l1hs/l1hs_fl.outfile"]
+        # read_level_meth_plots = ["ldna/results/m/wgbs/plots/l1hs/l1hs_fl.outfile"]
         aging_clock = "ldna/results/m/plots/clocks/pyaging_clock_plots.outfile"
         # pepper_aref = expand("ldna/intermediates/{sample}/pepper.out.outfile", sample = config["ldna"]["samples"])
         variants_aref = expand("ldna/intermediates/{sample_or_ref}/snpeff/snpeff_sml.pass.vcf", sample_or_ref = "A.REF")
         variants_per_sample = expand("ldna/intermediates/{sample_or_ref}/snpeff/snpeff_sml.pass.vcf", sample_or_ref = config["ldna"]["samples"])
-        for e in list(flatten([bedmethanalysis, read_level_meth_plots])): #aging_clock, multiqc
+        for e in list(flatten([bedmethanalysis])): #aging_clock, multiqc #read_level_meth_plots
             final_input.append(e)
         if config["ldna"]["map_to_mycoplasma"] == "yes":
             for e in list(flatten([mycoplasma])):
