@@ -315,7 +315,7 @@ flFl_Provirus_5LTRgrs <- GRanges(flFl_Provirus_5LTR)
 # for L1HS I get several region of the 5UTR based off of consensus alignment
 l1_aln_dir <- "ldna/results/m/plots/l1_alignment_meth"
 fll1hs_consensus_index_long <- read_csv(sprintf("%s/%s_fl_mapping_to_consensus_table.csv", l1_aln_dir, "L1HS"))
-
+fll1hs_consensus_index_long %$% gene_id %>% unique()
 filter_by_consensus_pos <- function(fl_grs, pos_mapping, pos_vec) {
     pos_start <- pos_vec[1]
     pos_end <- pos_vec[2]
@@ -416,7 +416,6 @@ filter_by_consensus_pos <- function(fl_grs, pos_mapping, pos_vec) {
     l1hs_resized <- purrr::reduce(grlistresized, c)
     return(l1hs_resized)
 }
-
 flL1HS5UTR <- filter_by_consensus_pos(fl_grs = flLINE %>% filter(rte_subfamily == "L1HS") %>% filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS) %>% GRanges(), pos_mapping = fll1hs_consensus_index_long, pos_vec = c(0, 909))
 flL1HS500 <- filter_by_consensus_pos(flLINE %>% filter(rte_subfamily == "L1HS") %>% filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS) %>% GRanges(), fll1hs_consensus_index_long, c(0, 500))
 flL1HS328 <- filter_by_consensus_pos(flLINE %>% filter(rte_subfamily == "L1HS") %>% filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS) %>% GRanges(), fll1hs_consensus_index_long, c(0, 328))
@@ -614,3 +613,156 @@ for (region in conf$rte_subfamily_read_level_analysis) {
 readscg <- Reduce(rbind, readslistcg)
 write_delim(readscg, sprintf("ldna/Rintermediates/%s/reads_context_cpg.tsv", params$mod_code), col_names = TRUE)
 # readscg <- read_delim(sprintf("ldna/Rintermediates/%s/reads_context_cpg.tsv", params$mod_code), col_names = TRUE)
+
+
+
+
+
+
+###################### get bed files for L1 promoters
+
+# RTE PROMOTERS
+# annotate whether full length elements promoters overlap DMRs
+rmannextended <- get_repeat_annotations(
+    default_or_extended = "extended",
+    keep_non_central = FALSE
+)
+flelement <- rmannextended %>% filter(rte_length_req == "FL")
+flSINE <- flelement %>% filter(rte_superfamily == "SINE")
+flLINE <- flelement %>% filter(rte_superfamily == "LINE")
+rmann %$% ltr_viral_status %>% unique()
+flFl_Provirus_5LTR <- flelement %>%
+    filter(str_detect(gene_id, "LTR")) %>%
+    filter(ltr_viral_status == "5'LTR (FL Int)" | ltr_viral_status == "5'LTR (Trnc Int)")
+flSINEgrs <- GRanges(flSINE)
+flFl_Provirus_5LTRgrs <- GRanges(flFl_Provirus_5LTR)
+
+# for L1HS I get several region of the 5UTR based off of consensus alignment
+l1_aln_dir <- "ldna/results/m/plots/l1_alignment_meth"
+fll1hs_consensus_index_long <- read_csv(sprintf("%s/%s_fl_mapping_to_consensus_table.csv", l1_aln_dir, "L1HS"))
+
+filter_by_consensus_pos <- function(fl_grs, pos_mapping, pos_vec) {
+    pos_start <- pos_vec[1]
+    pos_end <- pos_vec[2]
+    pos_genes <- pos_mapping %$% gene_id %>% unique()
+    grs_genes <- mcols(fl_grs)$gene_id %>% unique()
+    genes_to_map <- intersect(pos_genes, grs_genes)
+
+    filter_pos_end_list <- list()
+    i <- 0
+    for (element in genes_to_map) {
+        i <- i + 1
+        print(i)
+        print(element)
+        dfs <- pos_mapping %>% filter(gene_id == element)
+        seqval <- dfs %>%
+            filter(consensus_pos == pos_end) %$% sequence_pos %>%
+            pluck(1)
+        if (!is.na(seqval)) {
+            filter_pos <- seqval
+        } else {
+            start_pos <- pos_end - 1
+            match <- FALSE
+            while (match == FALSE) {
+                seqval <- dfs %>% filter(consensus_pos == start_pos) %$% sequence_pos
+                if (length(seqval) != 0) {
+                    if (!is.na(seqval)) {
+                        filter_pos <- seqval
+                        match <- TRUE
+                    } else {
+                        start_pos <- start_pos - 1
+                    }
+                } else {
+                    filter_pos <- "NoRegionHomology"
+                    match <- TRUE
+                }
+            }
+        }
+        filter_pos_end_list[[element]] <- filter_pos
+    }
+    print("end loop done")
+
+    filter_pos_start_list <- list()
+    i <- 0
+    for (element in genes_to_map) {
+        i <- i + 1
+        print(i)
+        print(element)
+        dfs <- pos_mapping %>% filter(gene_id == element)
+        if (pos_start == 0) {
+            filter_pos <- 1
+        } else {
+            seqval <- dfs %>%
+                filter(consensus_pos == pos_start) %$% sequence_pos %>%
+                pluck(1)
+            if (!is.na(seqval)) {
+                filter_pos <- seqval
+            } else {
+                start_pos <- pos_start
+                match <- FALSE
+                while (match == FALSE) {
+                    seqval <- dfs %>% filter(consensus_pos == start_pos) %$% sequence_pos
+                    if (length(seqval) != 0) {
+                        if (!is.na(seqval)) {
+                            filter_pos <- seqval
+                            match <- TRUE
+                        } else {
+                            start_pos <- start_pos + 1
+                        }
+                    } else {
+                        filter_pos <- "NoRegionHomology"
+                        match <- TRUE
+                    }
+                }
+            }
+        }
+        filter_pos_start_list[[element]] <- filter_pos
+    }
+    print("start loop done")
+    elements_keep <- names(filter_pos_start_list) %>% intersect(names(filter_pos_end_list))
+    filter_pos_start <- filter_pos_start_list[elements_keep]
+    filter_pos_end <- filter_pos_end_list[elements_keep]
+    mapping <- tibble(gene_id = elements_keep, filter_pos_start = unlist(filter_pos_start), filter_pos_end = unlist(filter_pos_end))
+    gene_ids_with_homology <- mapping %>%
+        filter(filter_pos_start != "NoRegionHomology") %>%
+        filter(filter_pos_end != "NoRegionHomology") %$% gene_id
+    fl_grs_with_homology <- fl_grs[mcols(fl_grs)$gene_id %in% gene_ids_with_homology]
+    grlist <- map(seq_along(fl_grs_with_homology), function(x) fl_grs_with_homology[x])
+    grlistresized <- map(grlist, function(x) {
+        if (mcols(x)$gene_id %in% mapping$gene_id) {
+            tempdf <- mapping %>% filter(gene_id == mcols(x)$gene_id)
+            final_width <- tempdf$filter_pos_end - tempdf$filter_pos_start + 1
+            fix_end <- resize(x, width = (tempdf %$% filter_pos_end))
+            fix_start <- resize(fix_end, width = final_width, fix = "end")
+            return(fix_start)
+        }
+    })
+    number_omitted <- length(grlist) - nrow(mapping)
+    l1hs_resized <- purrr::reduce(grlistresized, c)
+    return(l1hs_resized)
+}
+
+flL1HS5UTRnonref <- filter_by_consensus_pos(fl_grs = flLINE %>% filter(rte_subfamily == "L1HS") %>% filter(grepl("^NI", seqnames)) %>% GRanges(), pos_mapping = fll1hs_consensus_index_long, pos_vec = c(0, 909))
+
+flL1HS5UTR <- filter_by_consensus_pos(fl_grs = flLINE %>% filter(rte_subfamily == "L1HS") %>% filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS) %>% GRanges(), pos_mapping = fll1hs_consensus_index_long, pos_vec = c(0, 909))
+flL1HS500 <- filter_by_consensus_pos(flLINE %>% filter(rte_subfamily == "L1HS") %>% filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS) %>% GRanges(), fll1hs_consensus_index_long, c(0, 500))
+flL1HS328 <- filter_by_consensus_pos(flLINE %>% filter(rte_subfamily == "L1HS") %>% filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS) %>% GRanges(), fll1hs_consensus_index_long, c(0, 328))
+flL1HSASP <- filter_by_consensus_pos(flLINE %>% filter(rte_subfamily == "L1HS") %>% filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS) %>% GRanges(), fll1hs_consensus_index_long, c(400, 600))
+
+flL1HS5UTR_bed4 <- flL1HS5UTR %>%
+    as.data.frame() %>%
+    tibble() %>%
+    dplyr::select(seqnames, start, end, gene_id)
+
+flL1HS500_bed4 <- flL1HS500 %>%
+    as.data.frame() %>%
+    tibble() %>%
+    dplyr::select(seqnames, start, end, gene_id)
+
+flL1HS328_bed4 <- flL1HS328 %>%
+    as.data.frame() %>%
+    tibble() %>%
+    dplyr::select(seqnames, start, end, gene_id)
+write_delim(flL1HS5UTR_bed4, "ldna/Rintermediates/FL_L1HS_Ref_909.bed", delim = "\t", col_names = FALSE)
+write_delim(flL1HS500_bed4, "ldna/Rintermediates/FL_L1HS_Ref_500.bed", delim = "\t", col_names = FALSE)
+write_delim(flL1HS328_bed4, "ldna/Rintermediates/FL_L1HS_Ref_328.bed", delim = "\t", col_names = FALSE)

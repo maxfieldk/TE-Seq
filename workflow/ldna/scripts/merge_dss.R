@@ -26,17 +26,17 @@ tryCatch(
     error = function(e) {
         print("not sourced snake variables")
         assign("inputs", list(
-            dmrs = sprintf("ldna/results/tables/dmrs.%s.CG_m.tsv", chr = chrom_to_keep),
-            dmls = sprintf("ldna/results/tables/dmls.%s.CG_m.tsv", chr = chrom_to_keep)
+            dmrs = sprintf("ldna/results/m/tables/dmrs.%s.tsv", chr = chrom_to_keep),
+            dmls = sprintf("ldna/results/m/tables/dmls.%s.tsv", chr = chrom_to_keep)
         ), env = globalenv())
         assign("outputs", list(
-            dmls_unfiltered = "ldna/results/tables/dmls.CG_m.unfiltered.tsv",
-            dmrs_unfiltered = "ldna/results/tables/dmrs.CG_m.unfiltered.tsv",
-            dmls = "ldna/results/tables/dmls.CG_m.tsv",
-            dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
-            dmrs_bed = "ldna/results/tables/dmrs.CG_m.bed",
-            dmrs_hypo_bed = "ldna/results/tables/dmrs_hypo.CG_m.bed",
-            dmrs_hyper_bed = "ldna/results/tables/dmrs_hyper.CG_m.bed"
+            dmls_unfiltered = "ldna/results/m/tables/dmls.unfiltered.tsv",
+            dmrs_unfiltered = "ldna/results/m/tables/dmrs.unfiltered.tsv",
+            dmls = "ldna/results/m/tables/dmls.tsv",
+            dmrs = "ldna/results/m/tables/dmrs.tsv",
+            dmrs_bed = "ldna/results/m/tables/dmrs.bed",
+            dmrs_hypo_bed = "ldna/results/m/tables/dmrs_hypo.bed",
+            dmrs_hyper_bed = "ldna/results/m/tables/dmrs_hyper.bed"
         ), env = globalenv())
     }
 )

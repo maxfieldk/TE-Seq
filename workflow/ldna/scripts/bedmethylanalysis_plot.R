@@ -145,7 +145,10 @@ rmann <- get_repeat_annotations(
     default_or_extended = "default",
     keep_non_central = FALSE
 )
-
+rmannextended <- get_repeat_annotations(
+    default_or_extended = "extended",
+    keep_non_central = FALSE
+)
 
 flRTEpromoter <- read_delim(sprintf("ldna/Rintermediates/%s/flRTEpromoter.tsv", params$mod_code), col_names = TRUE)
 RMdf <- read_delim(sprintf("ldna/Rintermediates/%s/RMdf.tsv", params$mod_code), col_names = TRUE)
@@ -184,31 +187,27 @@ readscg <- read_delim(sprintf("ldna/Rintermediates/%s/reads_context_cpg.tsv", pa
     mutate(sample = factor(sample, levels = sample_table$sample_name)) %>%
     mutate(condition = factor(condition, levels = conf$levels))
 
-readscg %>% filter(read_id == "410738d7-6696-4be0-8a7b-d3692b802703") %>% pl()
-by_read %>% filter(sample == "AD1") %>% filter(gene_id == "L1HS_4q28.3_9") %>% arrange(fraction_meth) %>% pl()
-
-library(dplyr)
-library(purrr)
-
-readscg %>% filter(gene_id == "L1HS_9q22.2_1") %>% dplyr::mutate(mod_indicator = ifelse(mod_qual > 0.5, 1, 0)) %>% group_by(read_id) %>%
-summarise(mm = mean(mod_indicator), n = n()) %>% arrange(mm)
-readscg %>% filter(read_id == "3fc09898-d4bb-4d8a-a7c5-82cfdaa8613c") %>% pl()
-readscg %>% filter(read_id == "3fc09898-d4bb-4d8a-a7c5-82cfdaa8613c") %>% pl()
-readscg %>% filter(read_id == "bd378ec1-20da-476e-a569-6b22c5bf7ff4") %>% pl()
-readscg %>% filter(read_id == "3fc09898-d4bb-4d8a-a7c5-82cfdaa8613c") %>% pl()
-readscg %>% filter(grepl("3fc09898", read_id))
-readscg %>% filter(gene_id == "L1HS_9q22.2_1") %>% dplyr::mutate(mod_indicator = ifelse(mod_qual > 0.5, 1, 0)) %>% group_by(read_id) %>%
-summarise(mm = mean(mod_indicator), n = n()) %>% arrange(mm)
-readscg  %>% filter(read_id == "04b34f09-ee3f-4fa1-b14d-c112f90d2637") %>% filter(mod_code == "m") %>% pl()
-filtered_df %>% pl()
+# readscg %>% filter(read_id == "410738d7-6696-4be0-8a7b-d3692b802703") %>% pl()
+# by_read %>% filter(sample == "AD1") %>% filter(gene_id == "L1HS_4q28.3_9") %>% arrange(fraction_meth) %>% pl()
 
 
-readscg %>% head(100000)
-# library(dplyr)
-# library(purrr)
+# readscg %>% filter(gene_id == "L1HS_9q22.2_1") %>% dplyr::mutate(mod_indicator = ifelse(mod_qual > 0.5, 1, 0)) %>% group_by(read_id) %>%
+# summarise(mm = mean(mod_indicator), n = n()) %>% arrange(mm)
+# readscg %>% filter(read_id == "3fc09898-d4bb-4d8a-a7c5-82cfdaa8613c") %>% pl()
+# readscg %>% filter(read_id == "3fc09898-d4bb-4d8a-a7c5-82cfdaa8613c") %>% pl()
+# readscg %>% filter(read_id == "bd378ec1-20da-476e-a569-6b22c5bf7ff4") %>% pl()
+# readscg %>% filter(read_id == "3fc09898-d4bb-4d8a-a7c5-82cfdaa8613c") %>% pl()
+# readscg %>% filter(grepl("3fc09898", read_id))
+# readscg %>% filter(gene_id == "L1HS_9q22.2_1") %>% dplyr::mutate(mod_indicator = ifelse(mod_qual > 0.5, 1, 0)) %>% group_by(read_id) %>%
+# summarise(mm = mean(mod_indicator), n = n()) %>% arrange(mm)
+# readscg  %>% filter(read_id == "04b34f09-ee3f-4fa1-b14d-c112f90d2637") %>% filter(mod_code == "m") %>% pl()
+# filtered_df %>% pl()
+# readscg %>% head(100000)
+
 
 readscg_endfilt <- readscg %>% 
   group_by(read_id) %>%
+  mutate(read_n_total_mod = n()) %>%
   arrange(desc(forward_read_position), .by_group = TRUE) %>%
   group_split() %>%
   map_dfr(function(df) {
@@ -229,6 +228,132 @@ readscg_endfilt <- readscg %>%
       return(tibble()) 
     }
   })
+
+readscg_5endfilt <- readscg %>% 
+  group_by(read_id) %>%
+  mutate(read_n_total_mod = n()) %>%
+  arrange(forward_read_position, .by_group = TRUE) %>%
+  group_split() %>%
+  map_dfr(function(df) {
+    is_mod <- df$mod_qual > 0.5
+    mod_ix <- which(is_mod)
+
+    if (length(mod_ix) < 2) {
+      return(tibble())
+    }
+
+    between_unmod <- (mod_ix[2] - mod_ix[1]) -1
+
+    if (between_unmod < 4) {
+      return(df[mod_ix[2]:nrow(df), ])
+    } else if (length(mod_ix) >= 3) {
+      return(df[mod_ix[3]:nrow(df), ])
+    } else {
+      return(tibble()) 
+    }
+  })
+
+
+readscg_endfiltnew <- readscg %>% 
+  group_by(read_id) %>%
+  mutate(read_n_total_mod = n()) %>%
+  group_by(read_id, start) %>%
+  mutate(mod_score = sum(mod_qual)) %>%
+  group_by(read_id) %>%
+  arrange(desc(forward_read_position), .by_group = TRUE) %>%
+  group_split() %>%
+  map_dfr(function(df) {
+    mod_score <- df %$% mod_score
+
+    is_mod <- mod_score > 0.5
+    mod_ix <- which(is_mod)
+
+    if (length(mod_ix) < 1) {
+      return(tibble())
+    } else {
+        return(df[mod_ix[1]:nrow(df), ])
+    }
+  })
+
+readscg_endfiltnew5 <- readscg %>% 
+  group_by(read_id) %>%
+  mutate(read_n_total_mod = n()) %>%
+  group_by(read_id, start) %>%
+  mutate(mod_score = sum(mod_qual)) %>%
+  group_by(read_id) %>%
+  arrange(forward_read_position, .by_group = TRUE) %>%
+  group_split() %>%
+  map_dfr(function(df) {
+    mod_score <- df %$% mod_score
+
+    is_mod <- mod_score > 0.5
+    mod_ix <- which(is_mod)
+
+    if (length(mod_ix) < 1) {
+      return(tibble())
+    } else {
+        return(df[mod_ix[1]:nrow(df), ])
+    }
+  })
+
+
+totcpg <- readscg %>% nrow()
+filtcpg3 <- readscg_endfilt %>% nrow()
+filtcpg5 <- readscg_5endfilt %>% nrow()
+(totcpg - filtcpg3)/totcpg
+(totcpg - filtcpg5)/totcpg
+
+
+totcpg <- readscg %>% nrow()
+filtcpg3new <- readscg_endfiltnew %>% nrow()
+filtcpg5new <- readscg_endfiltnew5 %>% nrow()
+(totcpg - filtcpg3new)/totcpg
+(totcpg - filtcpg5new)/totcpg
+
+
+# aaa <- readscg_endfilt %>% filter(mod_code == "m") %>% group_by(read_id) %>% summarise(filtread_n_total_mod = n(), read_n_total_mod = dplyr::first(read_n_total_mod)/2, sample = dplyr::first(sample))
+# bbb <- readscg_5endfilt %>% filter(mod_code == "m") %>% group_by(read_id) %>% summarise(filtread_n_total_mod = n(), read_n_total_mod = dplyr::first(read_n_total_mod)/2, sample = dplyr::first(sample))
+aaanew <- readscg_endfiltnew %>% filter(mod_code == "m") %>% group_by(read_id) %>% summarise(filtread_n_total_mod = n(), read_n_total_mod = dplyr::first(read_n_total_mod)/2, sample = dplyr::first(sample))
+bbbnew <- readscg_endfiltnew5 %>% filter(mod_code == "m") %>% group_by(read_id) %>% summarise(filtread_n_total_mod = n(), read_n_total_mod = dplyr::first(read_n_total_mod)/2, sample = dplyr::first(sample))
+
+# dfa <- aaa %>% mutate(dif = (read_n_total_mod - filtread_n_total_mod)) 
+# dfb <- bbb %>% mutate(dif = (read_n_total_mod - filtread_n_total_mod)) 
+dfanew <- aaanew %>% mutate(dif = (read_n_total_mod - filtread_n_total_mod)) 
+dfbnew <- bbbnew %>% mutate(dif = (read_n_total_mod - filtread_n_total_mod)) 
+
+p <- ggplot() +
+    geom_histogram(data = dfa, aes(x = dif), fill = "blue", alpha = 0.5) +
+    geom_histogram(data = dfb, aes(x = dif), fill = "green", alpha = 0.5) +
+    lims(x = c(0,10)) +
+    mtclosed
+mysaveandstore("zztmp1.pdf")
+
+p <- ggplot() +
+    geom_histogram(data = dfanew, aes(x = dif), fill = "red", alpha = 0.5) +
+    geom_histogram(data = dfbnew, aes(x = dif), fill = "purple", alpha = 0.5) +
+    lims(x = c(-1,10)) +
+    mtclosed
+mysaveandstore("zztmp12.pdf")
+
+
+c(c(dfa %$% dif) > 5) %>% mean()
+c(c(dfb %$% dif) > 5) %>% mean()
+c(c(dfanew %$% dif) > 5) %>% mean()
+c(c(dfbnew %$% dif) > 5) %>% mean()
+
+c(c(dfa %$% dif) > 5) %>% mean()
+c(c(dfb %$% dif) > 5) %>% mean()
+c(c(dfanew %$% dif) > 3) %>% mean()
+c(c(dfbnew %$% dif) > 3) %>% mean()
+
+dfanew %>% filter(dif > 3) %$% dif %>% mean()
+
+
+dfa %>% mutate(affected  = dif > 10) %>% group_by(sample) %>% summarise(ma = mean(affected))
+dfb %>% mutate(affected  = dif > 10) %>% group_by(sample) %>% summarise(ma = mean(affected))
+dfanew %>% mutate(affected  = dif > 10) %>% group_by(sample) %>% summarise(ma = mean(affected))
+dfbnew %>% mutate(affected  = dif > 10) %>% group_by(sample) %>% summarise(ma = mean(affected))
+
 
 { #Get readIDs to filter out from bam for visualization purpose. 
 #Will only remove reads that lose CpGs to filtering in the promoter
@@ -1825,7 +1950,7 @@ if ((conf$single_condition == "no")) {
         filter(rte_subfamily == "L1HS") %>%
         filter(t05 == "Hypo")
     topmovers_l1hs_elements <- flRTEpromoter %>%
-        filter(gene_id %in% top_l1hs_movers_intact)
+        filter(gene_id %in% top_l1hs_movers)
     allfl_l1hs_elements <- flRTEpromoter %>%
         filter(rte_subfamily == "L1HS")
     element_sets_of_interst <- list("dm_fl_l1hs" = dm_fl_l1hs_elements, "dm_intact_l1hs" = dm_intact_l1hs_elements, "Top_Movers" = topmovers_l1hs_elements, "all_elements" = allfl_l1hs_elements)
@@ -1896,6 +2021,21 @@ if ((conf$single_condition == "no")) {
                     labs(y = "Methylation Rolling Mean") +
                     mtclosed +
                     theme(axis.text.x = element_text(angle = 30, vjust = 1, hjust = 1))
+
+                p1line <- pf %>%
+                    filter(gene_id == element) %>%
+                    mutate(start = start - offset) %>%
+                    ggplot() +
+                    geom_line(aes(x = start, y = rM, color = sample)) +
+                    geom_line(data = . %>%
+                        group_by(start, condition) %>%
+                        summarise(rM = mean(rM)), aes(x = start, y = rM), color = "black") +
+                    scale_samples_unique +
+                    labs(y = "Methylation Rolling Mean") +
+                    mtclosed +
+                    theme(axis.text.x = element_text(angle = 30, vjust = 1, hjust = 1))
+            mysaveandstore(pl = p1line, sprintf("ldna/results/%s/plots/rte/%s/%s_methylation_line.pdf", params$mod_code, element_type, element), 5, 5)
+
             } else {
                 modifier <- rmann %>% filter(gene_id == element) %$% end
                 color_intervals <- element_anatomy %>%
@@ -1919,6 +2059,21 @@ if ((conf$single_condition == "no")) {
                     labs(y = "Methylation Rolling Mean") +
                     mtclosed +
                     theme(axis.text.x = element_text(angle = 30, vjust = 1, hjust = 1))
+
+                p1line <- pf %>%
+                    filter(gene_id == element) %>%
+                    mutate(start = (-start) + offset) %>%
+                    ggplot() +
+                    geom_point(aes(x = start, y = rM, fill = sample, color = sample)) +
+                    geom_line(data = . %>%
+                        group_by(start, condition) %>%
+                        summarise(rM = mean(rM)), aes(x = start, y = rM, color = condition)) +
+                    geom_vline(xintercept = c(0, 909)) +
+                    scale_samples_unique +
+                    labs(y = "Methylation Rolling Mean") +
+                    mtclosed +
+                    theme(axis.text.x = element_text(angle = 30, vjust = 1, hjust = 1))
+            mysaveandstore(pl = p1line, sprintf("ldna/results/%s/plots/rte/%s/%s_methylation_line.pdf", params$mod_code, element_type, element), 5, 5)
             }
 
             p <- p1 + plot_layout(heights = c(1))
@@ -2172,13 +2327,14 @@ read_analysis1 <- function(
     mod_code_var = "m",
     regions_of_interest = list(c(0, 328), c(0, 500), c(0, 909), c(400, 600)),
     required_fraction_of_total_cg = 0.75,
-    meth_thresholds = c(0.1, 0.25, 0.5),
+    meth_thresholds = c(0.25, 0.5, 0.75),
     context = "CpG") {
     region <- "L1HS_FL"
     outputdirtables <- sprintf("ldna/results/%s/tables/reads_new/%s_%s", params$mod_code, region, required_fraction_of_total_cg)
     dir.create(outputdirtables, recursive = TRUE)
 
     readsdf1 <- df %>%
+        filter(mod_code == mod_code_var) %>%
         left_join(rmann %>%
             dplyr::select(gene_id, start, end, strand, rte_length_req, intactness_req) %>%
             dplyr::rename(element_strand = strand, element_start = start, element_end = end)) %>%
@@ -2198,7 +2354,6 @@ read_analysis1 <- function(
         numCGneeded <- ceiling(length(cg_indices[(cg_indices <= roiend) & (cg_indices >= roistart)]) * required_fraction_of_total_cg)
 
         utr1 <- readsdf1 %>%
-            filter(mod_code == mod_code_var) %>%
             filter(case_when(
                 element_strand == "+" ~ (start > element_start + roistart) & (start < element_start + roiend),
                 element_strand == "-" ~ (start > element_end - roiend) & (start < element_end - roistart)
@@ -3025,12 +3180,54 @@ read_analysis1 <- function(
         writeLines(res_text, sprintf("%s/dispersion_model_summary.txt", outputdirtables))
         summary_disp <- summary(mod)$dispersion
 
-        # # Extract estimates and standard errors
-        # log_phi_control <- 1.95678
-        # se_log_phi_control <- 0.01539
 
-        # log_phi_diff_AD <- -0.32685
-        # se_log_phi_diff_AD <- 0.01990
+#could it be because read indels mess it up?
+        by_cpg_withgene_id <- by_cpg %>% filter(element_strand == "+", strand == "+") %>% mutate(sequence_pos = (start - element_start) + 2) %>% left_join(cg_positions_df)
+        by_cpg_withgene_id %>% filter(!is.na(consensus_pos)) %$% element_strand %>% table()
+        
+        by_cpg_withgene_id <- by_cpg %>% filter(element_strand == "+", strand == "-") %>% mutate(sequence_pos = (start - element_start) + 1) %>% left_join(cg_positions_df)
+        by_cpg_withgene_id %>% filter(!is.na(consensus_pos)) %$% element_strand %>% table()
+
+        by_cpg_withgene_id <- by_cpg %>% filter(element_strand == "-", strand == "+") %>% mutate(sequence_pos = (element_end - start) - 1) %>% left_join(cg_positions_df)
+        by_cpg_withgene_id %>% filter(!is.na(consensus_pos)) %$% element_strand %>% table()
+        
+        by_cpg_withgene_id <- by_cpg %>% filter(element_strand == "-", strand == "-") %>% mutate(sequence_pos = (element_end - start)) %>% left_join(cg_positions_df)
+        by_cpg_withgene_id %>% filter(!is.na(consensus_pos)) %$% element_strand %>% table()
+
+
+        by_cpg_withgene_id <- by_cpg %>% mutate(sequence_pos = case_when(
+            element_strand == "+" & strand == "+" ~ (start - element_start) + 2,
+            element_strand == "+" & strand == "-" ~ (start - element_start) + 1,
+            element_strand == "-" & strand == "+" ~ (element_end - start) - 1,
+            element_strand == "-" & strand == "-" ~ (element_end - start)
+            )) %>% 
+            left_join(cg_positions_df)
+        by_cpg_withgene_id <- by_cpg_withgene_id %>% filter(!is.na(consensus_pos))
+
+        dispersion_models_withcpgid <- list()
+        for (subsetofinterest in by_cpg$subset %>%
+            unique() %>%
+            grep(pattern = "400to600", ., invert = TRUE, value = TRUE)) {
+            dispersion_model <- glmmTMB(
+                cbind(meth, unmeth) ~ 1 + (1 | sample) + (1 | gene_id) + (1 | consensus_pos) + (1 | sample:gene_id),
+                dispformula = ~condition,
+                family = glmmTMB::betabinomial(),
+                data = by_cpg_withgene_id %>% filter(subset == subsetofinterest) %>%
+                    mutate(meth = fraction_meth * num_cpgs_in_read, unmeth = num_cpgs_in_read - meth)
+            )
+            dispersion_models_withcpgid[[subsetofinterest]] <- dispersion_model
+        }
+
+        res_text_withcpgid <- capture.output(map(dispersion_models_withcpgid, summary))
+        writeLines(res_text_withcpgid, sprintf("%s/dispersion_model_withcpgid_summary.txt", outputdirtables))
+        summary_disp_withcpgid <- summary(mod)$dispersion
+        summary(dispersion_model)
+        # # Extract estimates and standard errors
+        # log_phi_control <- 2.610989
+        # se_log_phi_control <- 0.001710
+
+        # log_phi_diff_AD <- -0.340575
+        # se_log_phi_diff_AD <- 0.002263
 
         # # Compute log(φ) for AD and its SE
         # log_phi_AD <- log_phi_control + log_phi_diff_AD
@@ -3106,7 +3303,7 @@ read_analysis1 <- function(
 }
     }
 
-read_analysis1(readscg_endfilt, cg_indices)
+read_analysis1(readscg_endfiltnew, cg_indices)
 
 
 read_analysis2 <- function(
@@ -3115,7 +3312,7 @@ read_analysis2 <- function(
     mod_code_var = "m",
     regions_of_interest = list(c(0, 328), c(0, 500), c(0, 909), c(400, 600)),
     required_fraction_of_total_cg = 0.75,
-    meth_bins = c(0.5, 0.7, 0.9),
+    meth_bins = c(0.5, 0.75), #meth_bins = c(0.25, 0.5, 0.75) #need the 0,.5 bin for locus demeth analysis
     context = "CpG") {
     region <- "L1HS_FL"
     outputdirtables <- sprintf("ldna/results/%s/tables/reads_new_withendfilter/%s_%s", mod_code_var, region, required_fraction_of_total_cg)
@@ -3176,11 +3373,11 @@ read_analysis2 <- function(
 
 
         by_sample_temp <- by_read_temp %>%
-        mutate(meth_bin = cut(fraction_meth, breaks = breaks, labels = labels, include.lowest = TRUE, right = FALSE)) %>%
-        group_by(sample, region, condition, meth_bin) %>%
-        summarise(n = n(), .groups = "drop_last") %>%
-        mutate(prop_in_bin = n / sum(n)) %>%
-        ungroup()
+            mutate(meth_bin = cut(fraction_meth, breaks = breaks, labels = labels, include.lowest = TRUE, right = FALSE)) %>%
+            group_by(sample, region, condition, meth_bin) %>%
+            summarise(n = n(), .groups = "drop_last") %>%
+            mutate(prop_in_bin = n / sum(n)) %>%
+            ungroup()
         
         by_sample_temp$subset <- as.character(roistring)
         by_sample_temp <- by_sample_temp %>% mutate(subset_bin = paste0(subset, "_", meth_bin))
@@ -3199,7 +3396,7 @@ read_analysis2 <- function(
             mutate(sample_pres = case_when(mean(n) > 0 ~ 1, TRUE ~ 0)) %>%
             group_by(gene_id) %>%
             mutate(group_size = sum(sample_pres) / (length(breaks) - 1)) %>%
-            ungroup() %>% left_join(sample_table %>% dplyr::rename(sample = sample_name))
+            ungroup() %>% left_join(sample_table)
         by_gene_id_temp$subset <- as.character(roistring)
         by_gene_id_temp <- by_gene_id_temp %>% mutate(subset_bin = paste0(subset, "_", meth_bin))
 
@@ -3291,6 +3488,7 @@ read_analysis2 <- function(
     } else {
         mysaveandstore(sprintf("ldna/results/%s/plots/reads_new_withendfilter/%s_%s/barplot.pdf", mod_code_var, region, required_fraction_of_total_cg, context), 9, 4, pl = p)
     }
+
     p <- by_sample %>%
         filter(subset != "400to600") %>%
         mutate(meth_bin = as.character(meth_bin)) %>%
@@ -3305,6 +3503,21 @@ read_analysis2 <- function(
         scale_conditions +
         anchorbar
     mysaveandstore(sprintf("ldna/results/%s/plots/reads_new_withendfilter/%s_%s/barplot_first2bins.pdf", mod_code_var, region, required_fraction_of_total_cg, context), 8, 4, pl = p)
+
+    p <- by_sample %>%
+        filter(subset != "400to600") %>%
+        mutate(meth_bin = as.character(meth_bin)) %>%
+        filter(meth_bin %in% labels[1:3]) %>%
+        ggplot(aes(x = meth_bin)) +
+        stat_summary(aes(y = prop_in_bin, group = condition, fill = condition), color = "black", fun = "mean", geom = "bar", position = position_dodge(width = 0.9)) +
+        geom_point(aes(y = prop_in_bin, group = condition), position = position_dodge(width = 0.9)) +
+        facet_wrap(vars(subset), nrow = 1) +
+        labs(x = "Methylation bin", y = sprintf("Reads Fraction < # methylated")) +
+        ggtitle(sprintf("Read Methylation")) +
+        mtclosedgridh +
+        scale_conditions +
+        anchorbar
+    mysaveandstore(sprintf("ldna/results/%s/plots/reads_new_withendfilter/%s_%s/barplot_first3bins.pdf", mod_code_var, region, required_fraction_of_total_cg, context), 9, 4, pl = p)
 
 
     p1 <- by_sample %>%
@@ -3477,7 +3690,7 @@ read_analysis2 <- function(
         labs(x = "Read Methylation", y = "Proportion of Reads") +
         mtclosedgridh +
         scale_conditions +
-        scale_y_continuous(expand = expansion(mult = c(0, .075)), labels = function(x) sprintf("%.3f", x))
+        scale_y_continuous(expand = expansion(mult = c(0, .075)), labels = function(x) sprintf("%.1f", x))
     mysaveandstore(sprintf("ldna/results/%s/plots/reads_new_withendfilter/%s_%s/readhistogram.pdf", mod_code_var, region, required_fraction_of_total_cg, context), 9, 4, pl = p)
 
     p <- by_read %>%
@@ -3583,6 +3796,55 @@ read_analysis2 <- function(
         scale_y_continuous(expand = expansion(mult = c(0, .075)), labels = function(x) sprintf("%.3f", x))
     mysaveandstore(sprintf("ldna/results/%s/plots/reads_new_withendfilter/%s_%s/readhistogram_betaoverlay_L1HS_4q28.3_9.pdf", mod_code_var, region, required_fraction_of_total_cg, context), 9, 4, pl = p)
 
+
+    beta_overlays <- by_read %>%
+        filter(subset != "400to600") %>%
+        filter(gene_id == "L1HS_7q11.22_1") %>%
+        group_by(subset) %>%
+        summarise(mean_meth = mean(fraction_meth, na.rm = TRUE), numCGneeded = dplyr::first(numCGneeded), .groups = "drop") %>%
+        mutate(
+            alpha = mean_meth * numCGneeded,
+            beta = (1 - mean_meth) * numCGneeded
+        ) %>%
+        rowwise() %>%
+        mutate(
+            x = list(seq(0, 1, length.out = 200)),
+            y = list(dbeta(x, alpha, beta))
+        ) %>%
+        unnest(c(x, y))
+    p <- by_read %>%
+        filter(subset != "400to600") %>%
+        filter(gene_id == "L1HS_7q11.22_1") %>%
+        mutate(condition = factor(condition, levels = c(condition2, condition1))) %>%
+        ggplot() +
+        geom_histogram(
+            data = . %>% filter(condition == "AD"),
+            aes(x = fraction_meth, fill = condition, y = after_stat(count / sum(count))),
+            alpha = 0.7,
+            bins = 30,
+            position = "identity"
+        ) +
+        geom_histogram(
+            data = . %>% filter(condition == "CTRL"),
+            aes(x = fraction_meth, fill = condition, y = after_stat(count / sum(count))),
+            alpha = 0.7,
+            bins = 30,
+            position = "identity"
+        ) +
+        geom_line(
+            data = beta_overlays,
+            aes(x = x, y = 7.5 * y / sum(y)), # normalize for proportion scale
+            size = 0.8,
+            color = "green",
+            inherit.aes = FALSE
+        ) +
+        facet_wrap(vars(subset), nrow = 1) + # allows y-axis to vary if needed
+        ggtitle("Read Methylation Histogram (Proportional)") +
+        labs(x = "Read Methylation", y = "Proportion of Reads") +
+        mtclosedgridh +
+        scale_conditions +
+        scale_y_continuous(expand = expansion(mult = c(0, .075)), labels = function(x) sprintf("%.3f", x))
+    mysaveandstore(sprintf("ldna/results/%s/plots/reads_new_withendfilter/%s_%s/readhistogram_betaoverlay_L1HS_7q11.22_1_.pdf", mod_code_var, region, required_fraction_of_total_cg, context), 9, 4, pl = p)
 
     by_gene_id %>%
         group_by(gene_id, meth_bin, condition, subset) %>%
@@ -3988,25 +4250,25 @@ read_analysis2 <- function(
 
         res_text <- capture.output(map(dispersion_models, summary))
         writeLines(res_text, sprintf("%s/dispersion_model_summary.txt", outputdirtables))
-        summary_disp <- summary(mod)$dispersion
+        # summary_disp <- summary(mod)$dispersion
 
-        # # Extract estimates and standard errors
-        # log_phi_control <- 1.95678
-        # se_log_phi_control <- 0.01539
+        # # # Extract estimates and standard errors
+        # log_phi_control <- 2.233794
+        # se_log_phi_control <- 0.002305
 
-        # log_phi_diff_AD <- -0.32685
-        # se_log_phi_diff_AD <- 0.01990
+        # log_phi_diff_AD <- -0.337098
+        # se_log_phi_diff_AD <- 0.003029
 
-        # # Compute log(φ) for AD and its SE
+        # # # Compute log(φ) for AD and its SE
         # log_phi_AD <- log_phi_control + log_phi_diff_AD
         # se_log_phi_AD <- sqrt(se_log_phi_control^2 + se_log_phi_diff_AD^2)
 
-        # # 95% CI on log-scale
+        # # # 95% CI on log-scale
         # z <- 1.96
         # ci_log_phi_control <- log_phi_control + c(-1, 1) * z * se_log_phi_control
         # ci_log_phi_AD <- log_phi_AD + c(-1, 1) * z * se_log_phi_AD
 
-        # # Exponentiate to get CIs for φ
+        # # # Exponentiate to get CIs for φ
         # phi_control <- exp(log_phi_control)
         # phi_AD <- exp(log_phi_AD)
 
@@ -4072,7 +4334,8 @@ read_analysis2 <- function(
     }
 
 
-read_analysis2(readscg_endfilt %>% filter(mod_code == "m"), cg_indices)
+read_analysis2(readscg_endfiltnew %>% filter(mod_code == "m"), cg_indices)
+# read_analysis2(readscg_endfiltnew %>% filter(mod_code == "m"), cg_indices)
 
 
 read_analysis3 <- function(
@@ -4947,6 +5210,23 @@ read_analysis3 <- function(
                     anchorbar +
                     scale_methylation
                 mysaveandstore(sprintf("ldna/results/%s/plots/reads_new_withendfilter/%s_%s/num_de.pdf", mod_code_var, region, required_fraction_of_total_cg), 5, 4, pl = p)
+
+                p <- stats %>%
+                    filter(subset != "400to600") %>%
+                    mutate(p.value = ifelse(is.nan(p.value), 1, p.value)) %>%
+                    filter(p.value <= 0.05) %>%
+                    filter(grepl("condition", term)) %>%
+                    mutate(dir_stat = factor(ifelse(statistic > 0, "Hypo", "Hyper"), levels = c("Hyper", "Hypo"))) %>%
+                    count(subset, dir_stat) %>%
+                    complete(subset, dir_stat, fill = list(n = 0)) %>%
+                    ggplot(aes(x = subset, y = n, fill = dir_stat)) +
+                    geom_col(position = "dodge", color = "black") +
+                    ggtitle(sprintf("Significant Loci")) +
+                    labs(x = "Subset", y = sprintf("Number DM")) +
+                    mtclosed +
+                    anchorbar +
+                    scale_methylation
+                mysaveandstore(sprintf("ldna/results/%s/plots/reads_new_withendfilter/%s_%s/num_de_bin.pdf", mod_code_var, region, required_fraction_of_total_cg), 4, 4, pl = p)
             },
             error = function(e) {
                 print("no sig de")
@@ -5616,7 +5896,6 @@ if ((conf$single_condition == "no") & enough_samples_per_condition_for_stats) {
         p <- ip_mean %>%
             mutate(condition = factor(condition, levels = conf$levels)) %>%
             ggviolin(x = "condition", y = "mean_meth", fill = "condition", add = c("mean_se", "dotplot")) +
-            scale_conditions +
             scale_conditions +
             mtopen
         mysaveandstore(fn = sprintf("ldna/results/%s/plots/genes/mean_meth_point_genomewide_violin.pdf", params$mod_code), 4.5, 3.75)
@@ -8827,3 +9106,235 @@ library(broom.mixed)
 broom::tidy(global_model) %>% write_mycsv(sprintf("ldna/results/%s/tables/rte/loclowres_model.csv", params$mod_code))
 res_text <- capture.output(global_model %>% summary())
 writeLines(res_text, sprintf("ldna/results/%s/tables/rte/loclowres_model_summary.csv", params$mod_code))
+
+
+
+
+
+################ Overdispersion plots
+
+library(ggplot2)
+library(dplyr)
+
+# Parameters
+
+pf <- tibble(x = numeric(), prob = numeric(), condition = character(), ncpg = numeric())
+for (numcpg in c(25, 34, 39)) {
+p <- 0.75
+phi_ctrl <- 13.61
+phi_ad <- 9.68
+
+# Beta-binomial parameters
+alpha_ctrl <- p * phi_ctrl
+beta_ctrl  <- (1 - p) * phi_ctrl
+
+alpha_ad <- p * phi_ad
+beta_ad  <- (1 - p) * phi_ad
+
+# Function for beta-binomial PMF
+dbetabinom <- function(x, n, alpha, beta) {
+  choose(n, x) * beta(x + alpha, n - x + beta) / beta(alpha, beta)
+}
+x_vals <- 0:numcpg
+
+df <- bind_rows(
+  data.frame(x = x_vals,
+             prob = dbinom(x_vals, numcpg, p),
+             condition = "Bin",
+             ncpg = numcpg),
+  data.frame(x = x_vals,
+             prob = dbetabinom(x_vals, numcpg, alpha_ctrl, beta_ctrl),
+             condition = "BbC",
+             ncpg = numcpg),
+  data.frame(x = x_vals,
+             prob = dbetabinom(x_vals, numcpg, alpha_ad, beta_ad),
+             condition = "BbAD",
+             ncpg = numcpg)
+)
+pf <- pf %>% bind_rows(df)
+}
+pf <- pf %>% mutate(perc_meth = x/ncpg)
+p <- ggplot(pf, aes(x = perc_meth, y = prob, color = condition)) +
+  geom_line(size = 1.2) +
+  geom_point() +
+  labs(x = "Read Percent Methylated",
+       y = "Probability",
+       title = "Binomial vs. Beta-binomial (different φ)") +
+  facet_wrap(~ncpg) +
+  mtclosed +
+  scale_palette
+mysaveandstore(str_glue("overdispersion119.pdf"), w = 8.9, h = 4)
+
+p <- ggplot(pf, aes(x = x, y = prob, color = condition)) +
+  geom_line(size = 1.2) +
+  geom_point() +
+  labs(x = "Number of methylated CpGs per read",
+       y = "Probability",
+       title = "Binomial vs. Beta-binomial (different φ)") +
+  facet_wrap(~ncpg, scales = "free_x") +
+  mtclosed +
+  scale_palette
+mysaveandstore(str_glue("overdispersion1192.pdf"), w = 8.9, h = 4)
+
+
+
+#global entropy
+entropydfs <- list()
+for (sample in sample_table$sample_name) {
+    enttemp <- read_delim(str_glue("ldna/results/m/tables/entropy/{sample}/regions.bed"))
+    enttemp$sample_name <- sample
+    entropydfs[[sample]] <- enttemp
+}
+entdf <- entropydfs %>% purrr::reduce(bind_rows)
+
+
+entdf %>% group_by(region_name) %>% summarise(n_represented = n()) 
+
+
+pf <- entdf %>% group_by(region_name) %>% 
+    mutate(n_represented = n()) %>% 
+    ungroup() %>% filter(n_represented == 12) %>% 
+    left_join(sample_table) %>% group_by(sample_name, condition, sex, age) %>% 
+    summarise(me = mean(mean_entropy), med_ent = mean(median_entropy), mean_num_reads = mean(mean_num_reads)) %>%
+    ungroup()
+p <- pf %>% ggplot() +
+    geom_point(aes(x = condition, y = me))
+mysaveandstore("zztemp.32411111111111111111111111111111111.pdf")
+
+summary(lm(me ~ condition + mean_num_reads + age + sex, pf))
+
+
+entdf %>% group_by(sample_name) %>% 
+
+
+p <- entdf %>% group_by(sample_name) %>% summarise(me = mean(mean_entropy), med_ent = mean(median_entropy), mean_num_reads = mean(mean_num_reads)) %>% ggplot() + 
+    geom_point(aes(x = mean_num_reads, y = me)) +
+    mtclosed
+mysaveandstore("zztemp.3241111111111111111111111111111111.pdf")
+
+
+#dmr entropy
+entropydfs <- list()
+for (subset in c("t05", "hyper_t05", "hypo_t05", "t01", "hyper_t01", "hypo_t01")) {
+    for (sample in sample_table$sample_name) {
+        enttemp <- read_delim(str_glue("ldna/results/m/tables/entropy_{subset}/{sample}/regions.bed"))
+        enttemp$sample_name <- sample
+        enttemp$type <- subset
+        entropydfs[[paste0(sample, subset)]] <- enttemp
+
+    }
+}
+entdf <- entropydfs %>% purrr::reduce(bind_rows)
+
+
+entdf %>% group_by(region_name) %>% summarise(n_represented = n()) 
+
+
+sflist <- list()
+for (subset in c("t05", "hyper_t05", "hypo_t05", "t01", "hyper_t01", "hypo_t01")) {
+    tempdf <- entdf %>% filter(type == subset)
+
+    pf <- tempdf %>% group_by(region_name) %>% 
+        mutate(n_represented = n()) %>% 
+        ungroup() %>% filter(n_represented == 12) %>% 
+        left_join(sample_table) %>% group_by(sample_name, condition, sex, age) %>% 
+        summarise(me = mean(mean_entropy), med_ent = mean(median_entropy), mean_num_reads = mean(mean_num_reads)) %>%
+        ungroup()
+    p <- pf %>% 
+        ggviolin(x = "condition", y = "me", fill = "condition", add = c("mean_se", "dotplot")) +
+        scale_conditions +
+        mtclosed
+    mysaveandstore(str_glue("ldna/results/m/plots/entropy_{subset}/mean_entropy.pdf"), 5, 5, pl = p)
+
+    sftemp <- broom::tidy(summary(lm(me ~ condition + age + sex, pf)))
+    sftemp$type <- subset
+    sflist[[subset]] <- sftemp
+
+    p <- entdf %>% group_by(sample_name) %>% summarise(me = mean(mean_entropy), med_ent = mean(median_entropy), mean_num_reads = mean(mean_num_reads)) %>% ggplot() + 
+        geom_point(aes(x = mean_num_reads, y = me)) +
+        mtclosed
+    mysaveandstore("zztemp.324111111111111111111111111111111111.pdf")
+
+    pfregions <- tempdf %>% group_by(region_name) %>% 
+        mutate(n_represented = n()) %>% 
+        ungroup() %>% filter(n_represented == 12) %>% 
+        left_join(sample_table) %>% group_by(region_name, sample_name, condition, sex, age) %>% 
+        summarise(me = mean(mean_entropy), med_ent = mean(median_entropy), mean_num_reads = mean(mean_num_reads)) %>%
+        ungroup()
+
+    library(ggridges)
+    
+    pfmeans <- pf %>% group_by(condition) %>% summarise(me = mean(me))
+    p <- pfregions %>% group_by(region_name, sample_name, condition) %>% summarise(me = mean(me)) %>%
+    ggplot(aes(y = sample_name, x  = me, fill = sample_name)) +
+    geom_density_ridges2(quantile_lines = TRUE, quantiles = c(0.5)) +
+    # geom_vline(data = pfmeans %>% filter(condition == "AD"), mapping = aes(xintercept = me)) +
+    # geom_vline(data = pfmeans %>% filter(condition == "CTRL"), mapping = aes(xintercept = me)) +
+        scale_samples_unique +
+        ggtitle("DMR Entropy AD - CTRL") +
+        mtclosed
+    mysaveandstore(str_glue("ldna/results/m/plots/entropy_{subset}/entropy_dif_density_by_sample_unique111.pdf"), 5, 5, pl = p)
+
+    
+    p <- pfregions %>% group_by(region_name, condition) %>% summarise(me = mean(me)) %>% 
+        pivot_wider(names_from = condition, values_from = me) %>%
+        mutate(dif = AD - CTRL) %>% 
+        ggplot() +
+        geom_histogram(aes(x = dif)) +
+        geom_vline(xintercept = 0) +
+        ggtitle("DMR Entropy AD - CTRL") +
+        mtclosed
+    mysaveandstore(str_glue("ldna/results/m/plots/entropy_{subset}/entropy_dif_hist.pdf"), 5, 3.5, pl = p)
+
+
+}
+
+tempdf <- entdf %>% filter(type != "t05") %>% filter(type != "t01")
+sf <- purrr::reduce(sflist, bind_rows)
+pf <- tempdf %>% group_by(type, region_name) %>% 
+    mutate(n_represented = n()) %>% 
+    ungroup() %>% filter(n_represented == 12) %>% 
+    left_join(sample_table) %>% group_by(type, sample_name, condition, sex, age) %>% 
+    summarise(me = mean(mean_entropy), med_ent = mean(median_entropy), mean_num_reads = mean(mean_num_reads)) %>%
+    mutate(stat_thresh = gsub(".*_","", type)) %>%
+    mutate(direction = gsub("_.*","", type)) %>%
+    ungroup()
+p <- pf %>% 
+    ggviolin(x = "stat_thresh", y = "me", fill = "condition", facet.by = "direction", add = c("dotplot")) +
+    scale_conditions +
+    mtopen
+mysaveandstore(str_glue("ldna/results/m/plots/entropy_both/entropy_by_direction.pdf"), 6, 4, pl = p, sf = sf)
+p <- pf %>% 
+    filter(direction == "hyper") %>%
+    ggviolin(x = "stat_thresh", y = "me", fill = "condition", add = c("dotplot", "mean_se")) +
+    labs(y = "Mean Entropy", x = "Condition") +
+    ggtitle("Hypo") +
+    scale_conditions +
+    mtopen
+mysaveandstore(str_glue("ldna/results/m/plots/entropy_both/entropy_hyper.pdf"), 3.5, 4, pl = p, sf = sf)
+p <- pf %>% 
+    filter(direction == "hypo") %>%
+    ggviolin(x = "stat_thresh", y = "me", fill = "condition", add = c("dotplot", "mean_se")) +
+    labs(y = "Mean Entropy", x = "Condition") +
+    ggtitle("Hypo") +
+    scale_conditions +
+    mtopen
+mysaveandstore(str_glue("ldna/results/m/plots/entropy_both/entropy_hypo.pdf"), 3.5, 4, pl = p, sf = sf)
+
+pfregions <- tempdf %>% group_by(type, region_name) %>% 
+    mutate(n_represented = n()) %>% 
+    ungroup() %>% filter(n_represented == 12) %>% 
+    left_join(sample_table) %>% group_by(type, region_name, sample_name, condition, sex, age) %>% 
+    summarise(me = mean(mean_entropy), med_ent = mean(median_entropy), mean_num_reads = mean(mean_num_reads)) %>%
+    ungroup()
+
+p <- pfregions %>% group_by(type, region_name, condition) %>% summarise(me = mean(me)) %>% 
+    pivot_wider(names_from = condition, values_from = me) %>%
+    mutate(dif = AD - CTRL) %>% 
+    ggplot() +
+    geom_histogram(aes(x = dif)) +
+    geom_vline(xintercept = 0) +
+    facet_wrap(~type, scales = "free_y") +
+    ggtitle("DMR Entropy AD - CTRL") +
+    mtclosed
+mysaveandstore(str_glue("ldna/results/m/plots/entropy_t05/entropy_dif_hist1.pdf"), 5, 5, pl = p)

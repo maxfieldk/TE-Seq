@@ -982,6 +982,113 @@ awk -v s=1 '$4=="h" {{OFS = "\t"; print $1, $2+s, $10, $12}}' {output.bed} >> {o
 awk -v s=1 '$4=="a" {{OFS = "\t"; print $1, $2+s, $10, $12}}' {output.bed} >> {output.dssInput_a}
         """
 
+
+
+rule modkit_entropy:
+    input:
+        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.endmethfilteredyngl1.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.endmethfilteredyngl1.bam.bai", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+    params:
+        ref = lambda wildcards: "aref/extended/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF.fa",
+        rois = "ldna/Rintermediates/FL_L1HS_Ref_500.bed"
+    resources:
+        cpus_per_task = 32,
+        mem_mb = 64000
+    output:
+        outfile = "ldna/results/m/tables/entropy/{sample}/outfile.txt",
+    conda:
+        "omics"
+    shell: 
+        """
+mkdir -p $(dirname {output.outfile})
+
+/oscar/data/jsedivy/mkelsey/tools/dist_modkit_v0.5.1_8fa79e3/modkit entropy \
+ --in-bam {input.sortedbam} \
+ -o $(dirname {output.outfile}) \
+ --regions {params.rois} \
+ --cpg \
+ --header \
+ --max-filtered-positions 0 \
+ --ref {params.ref} \
+ --threads 30 \
+ --window-size 1000 \
+ --log-filepath $(dirname {output.outfile})/modkit_entropy.log
+touch {output.outfile}
+        """
+
+rule get_entropy:
+    input:
+        expand("ldna/results/m/tables/entropy/{sample}/outfile.txt", sample = samples)
+
+
+rule modkit_entropy_dmrs:
+    input:
+        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.bam.bai", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+    params:
+        ref = lambda wildcards: "aref/extended/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF.fa",
+        rois = lambda wildcards: "ldna/Rintermediates/m/dmrs_%s.bed"%(wildcards.subset)
+    resources:
+        cpus_per_task = 32,
+        mem_mb = 64000
+    output:
+        outfile = "ldna/results/m/tables/entropy_{subset}/{sample}/outfile.txt",
+    conda:
+        "omics"
+    shell: 
+        """
+mkdir -p $(dirname {output.outfile})
+
+/oscar/data/jsedivy/mkelsey/tools/dist_modkit_v0.5.1_8fa79e3/modkit entropy \
+ --in-bam {input.sortedbam} \
+ -o $(dirname {output.outfile}) \
+ --regions {params.rois} \
+ --cpg \
+ --header \
+ --max-filtered-positions 0 \
+ --ref {params.ref} \
+ --threads 30 \
+ --window-size 1000 \
+ --log-filepath $(dirname {output.outfile})/modkit_entropy.log
+touch {output.outfile}
+        """
+
+rule get_entropy_dmrs:
+    input:
+        expand("ldna/results/m/tables/entropy_{subset}/{sample}/outfile.txt", sample = samples, subset = ["hypo_t05", "hyper_t05", "t05", "hypo_t01", "hyper_t01", "t01"] )
+
+
+rule modkit_entropy_genomewide:
+    input:
+        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.bam.bai", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+    params:
+        ref = lambda wildcards: "aref/extended/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF.fa"
+    resources:
+        cpus_per_task = 32,
+        mem_mb = 64000
+    output:
+        bedgraph = "ldna/results/m/tables/entropy_genomewide/{sample}/outfile.txt",
+    conda:
+        "omics"
+    shell: 
+        """
+mkdir -p $(dirname {output.bedgraph})
+
+/oscar/data/jsedivy/mkelsey/tools/dist_modkit_v0.5.1_8fa79e3/modkit entropy \
+ --in-bam {input.sortedbam} \
+ -o {output.bedgraph} \
+ --cpg \
+ --header \
+ --ref {params.ref} \
+ --threads 30 \
+ --log-filepath $(dirname {output.bedgraph})/modkit_entropy.log
+        """
+
+rule get_entropy_genomewide:
+    input:
+        expand("ldna/results/m/tables/entropy_genomewide/{sample}/outfile.txt", sample = samples)
+
 # rule modbamtobedTLDRinsertions:
 #     input:
 #         tldr = "aref/{sample}_tldr/{sample}.table.txt"
