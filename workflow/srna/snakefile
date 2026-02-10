@@ -385,7 +385,15 @@ rule alignSTAR_SE:
         "star"
     shell:
         """
-STAR --genomeDir {params.index} --readFilesCommand zcat --readFilesIn {input.r1} --outFileNamePrefix $(dirname {output.bam})/ --runThreadN {threads} --winAnchorMultimapNmax 1000 --outFilterMultimapNmax 1000
+STAR --genomeDir {params.index} \
+--readFilesCommand zcat \
+--readFilesIn {input.r1} \
+--outFileNamePrefix $(dirname {output.bam})/ \
+--runThreadN {threads} \
+--winAnchorMultimapNmax 1000 \
+--outFilterMultimapNmax 1000 \
+--limitOutSAMoneReadBytes 1000000 \
+--outSAMstrandField intronMotif
         """
 
 rule featurecounts_genes_SE:
