@@ -5,7 +5,7 @@ sample_table <- read_csv(conf[["sample_table"]])
 sample_table <- sample_table[match(conf$samples, sample_table$sample_name), ]
 
 # these are optionally used depending on values set in config.yaml
-custom_descriptive <- c("#4b9b7a", "#ca6728", "#716dab", "#d43f88", "#0068f9", "#ffe100", "#7B3A96FF", "#CB2027FF", "#808180FF", "#1B1919FF")
+custom_descriptive <- c("#4b9c7a", "#ca6628", "#6d68b5", "#d43f88", "#0068f9", "#ffe100", "#7B3A96FF", "#CB2027FF", "#808180FF", "#1B1919FF")
 custom_condition <- c("#3B4992FF", "#EE0000FF", "#008B45FF", "#631879FF", "#008280FF", "#BB0021FF", "#5F559BFF", "#A20056FF", "#808180FF", "#1B1919FF")
 
 tryCatch(
