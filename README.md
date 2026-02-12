@@ -4,7 +4,7 @@
 [TE-SEQ_POSTER.pdf](https://github.com/user-attachments/files/16732892/MCB_RETREAT_POSTER_2024_FINAL.pdf)
 
 # About this pipeline
-This project consists of a __snakemake pipeline__ to analyze transposable element (TE) sequencing data.
+This project consists of a __snakemake pipeline__ to analyze transposable element (TE) sequencing data (published in Mobile DNA: https://link.springer.com/article/10.1186/s13100-025-00381-w).
 
 To the unacquainted, the analysis of TE, and more generally repetitive element, sequencing data can be a daunting task: the repetitive nature of these elements imposes  analytical pitfalls and raises a number of practical questions including:  
 - Should I examine individual repetitive elements or rather groups of similar elements?
@@ -22,14 +22,17 @@ This project derives from my work in the __Sedivy Lab at Brown University__, whe
 **Thank you for your interest!**
 
 # Table of Contents
-- [Pipeline Overview](#pipeline-overview)
-  - [Inputs](#inputs)
-  - [Outputs](#outputs)
-  - [Limitations and various experimental considerations](#limitations-and-various-experimental-considerations)
+- [TE-Seq: A Transposable Element Annotation \& RNA-Seq Pipeline](#te-seq-a-transposable-element-annotation--rna-seq-pipeline)
+- [About this pipeline](#about-this-pipeline)
+- [Table of Contents](#table-of-contents)
+  - [Pipeline Overview](#pipeline-overview)
+    - [Inputs](#inputs)
+    - [Outputs](#outputs)
+    - [Limitations and various experimental considerations](#limitations-and-various-experimental-considerations)
   - [Computational Requirements](#computational-requirements)
     - [Software Requirements](#software-requirements)
     - [Hardware Requirements](#hardware-requirements)
-- [Quick start: install and run pipeline with test data](#quick-start-install-and-run-pipeline-with-test-data)
+- [QUICK START install and run pipeline with test data](#quick-start-install-and-run-pipeline-with-test-data)
 - [Installation](#installation)
   - [Create a Snakemake containing Conda environment](#create-a-snakemake-containing-conda-environment)
   - [Setup your project directory](#setup-your-project-directory)
@@ -747,5 +750,5 @@ An error of this type, assuming the path indeed exists and you have requisite pe
 
 ---
 ## Attribution
-Pending the publication of our manuscript, if you use this pipeline please cite the biorxiv submission: https://www.biorxiv.org/content/10.1101/2024.10.11.617912v1    
+If you use this pipeline please cite our manuscript! [https://www.biorxiv.org/content/10.1101/2024.10.11.617912v1](https://link.springer.com/article/10.1186/s13100-025-00381-w)    
 The workflow graphic contains icons which were adapted from work by Zandra Fagernas. It carries a CC-BY 4.0 license.  

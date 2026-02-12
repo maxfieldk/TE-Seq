@@ -35,21 +35,14 @@ containers:
     use_preexisting_response: "no"
     path: "/users/mkelsey/data/Nanopore/alz/RTE/containers/tetranscripts:2.2.3.sif"
 
-
 shared:
   #leave palette values as empty string for default color
   default_palette_condition: "" #e.g. "ggsci::default_aaas" palette must be at least as long as the number of biological conditions you model; paletteer palettes https://emilhvitfeldt.github.io/paletteer/
   default_palette_descriptive: "" #e.g "ggthemes::few_Dark"paletteer palettes https://emilhvitfeldt.github.io/paletteer/
   condition_colors: # to manually assign colors to conditions, uncomment and replace with your conditions
-    # TP: "#CCCCCC"
-    # TE: "#808080"
-    # TL: "#4D4D4D"
-    # AP: "#99FFE4"
-    # AE: "#2CBF98"
-    # AL: "#24735E"
-    # RP: "#99B6FF"
-    # RE: "#2C56BF"
-    # RL: "#243A73"
+    # PRO: "#CCCCCC"
+    # ESEN: "#B3C8FF"
+    # LSEN: "#B3FFEB"
 
 #PIPELINE SETTINGS - Ignore settings for pipelines not being deployed (i.e. not in pipelines_to_deploy)
 aref:
@@ -74,6 +67,10 @@ aref:
       Other: 15 
   gene_adjacency_threshold: 10000 #capture region around genes to be annotated as "gene adjacent"; value in bp. Default is 10kb
   orf_intactness: #specify which elements to anotate for open reading frame (ORF) intactness. By default, human is annotated for L1HS and L1PA2, and mouse is annotated for the L1MdTf, Gf, and A subfamilies. Other species will have their youngest (least diverged) 7 LINE subfamilies examined. Common ORF lengths will be automatically detected and examined.
+    annotate_ORF2_domains:
+      response: "yes"
+      EN: "resources/sequences/L1.2_EN_domain_aa.fa"
+      RT: "resources/sequences/L1.2_RT_domain_aa.fa"
     automatically_find_subfamilies_of_interest: "yes" #yes or no. If "no" provide values to the "subfamilies_of_interest" key. If "yes" nothing need be provided.
     manual_subfamilies_of_interest:
       L1HS: #specify subfamily names to examine (must be a trailing value (everything after the last "/" character) in the aref/default/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv "family" column); e.g. "L1HS" for the "LINE/L1/L1HS" entry.
@@ -106,7 +103,7 @@ aref:
 
   #MODULE SETTINGS
   prefix: aref
-  species: human #The species name must be a valid NCBI Taxonomy Database species name and be contained in the RepeatMasker repeat database.
+  species: human #If Homo sapiens or Mus musculus, use human or mouse, respectively. For other species, the species name must be a valid NCBI Taxonomy Database species name and be contained in the RepeatMasker repeat database.
 
   #PARAMETERS RELVANT IF UPDATING REFERENCE WITH LONG READ DATA, ELSE YOU CAN IGNORE
   sample_table: "conf/sample_table_aref.csv"
@@ -118,10 +115,11 @@ aref:
 
   rmann_shared: "aref/default/A.REF_annotations/A.REF_rmann.csv"
 
-  #if you would like snps to be incorporated into the reference? Only use if you have at least 20X long read coverage
-  patch_ref: "no"
+  patch_ref: "no"   #if you would like snps to be incorporated into the reference and for repetitive elements that are absent from the sample to be masked. Only recommended if you have at least 20X long read coverage
+  rte_mask_supporting_read_count_threshold: 10 # require at least this many reads supporing the empty site for a repeat to be masked.
   update_ref_with_tldr:
     response: "no"
+    require_tsd: "yes" #require that insertions have a detected target site duplication TSD for inclusion into the reference. Removing this requirement increases sensitivity as TSDs can sometimes be absent/undetected, but may come at the cost of decreased specificity for products of retrotransposition (versus other forms of mutation).
     #if making one ref per sample (i.e. each sample has unique inserts), then "yes", else "no"
     per_sample: "no"
     #IF updating reference with tldr inserts; else NULL
@@ -130,7 +128,7 @@ aref:
     tldr_te_ref:
       human: resources/sequences/teref.ont.human.fa
       mouse: resources/sequences/teref.mouse.fa
-    known_nonref:
+    known_nonref: #provide TLDR with a set of known nonreference TEs, such that identified nonref insertions can be annotated as "known" or "novel"
       response: "no"
       path: resources/genomes/hs1/annotations/nonref.collection.hs1.chr.bed.gz #if using, ensure this file is in your genome's coordinate space! Tabix index of bgzipped bed file with location of nonref insertions
 
@@ -147,51 +145,29 @@ srna:
   sample_table: "conf/sample_table_srna.csv"
   peptable: "conf/peptable_srna.csv"
   per_sample_ref: "no" #yes or no
-  map_to_mycoplasma: "yes" #yes or no
+  map_to_mycoplasma: "no" #yes or no
   run_tetranscripts: "no" #yes or no; runs tetranscripts in addition to telescope. In most cases this extra analysis is fully superceded by telescope and should be turned off.
   samples:
-    - "PRO_low_O2_1"
-    - "PRO_low_O2_2"
-    - "PRO_low_O2_3"
-    - "RS_0w_low_O2_1"
-    - "RS_0w_low_O2_2"
-    - "RS_0w_low_O2_3"
-    - "RS_0w_low_O2_4"
-    - "RS_0w_low_O2_5"
-    - "RS_0w_low_O2_6"
-    - "RS_4w_low_O2_1"
-    - "RS_4w_low_O2_2"
-    - "RS_4w_low_O2_3"
-    - "RS_8w_low_O2_1"
-    - "RS_8w_low_O2_2"
-    - "RS_8w_low_O2_3"
-    - "RS_12w_low_O2_1"
-    - "RS_12w_low_O2_2"
-    - "RS_12w_low_O2_3"
-    - "PRO_normoxic_1"
-    - "PRO_normoxic_2"
-    - "PRO_normoxic_3"
-    - "DDIS_8w_low_O2_1"
-    - "DDIS_8w_low_O2_2"
-    - "DDIS_8w_low_O2_3"
+    - "PRO1"
+    - "PRO2"
+    - "PRO3"
+    - "ESEN1"
+    - "ESEN2"
+    - "ESEN3"
+    - "LSEN1"
+    - "LSEN2"
+    - "LSEN3"
+    
   library_type: PE #paired end (PE), or single end (SE)
+
   levels: #order matters for levels! first is the base comparator
-    - "PRO_low_O2"
-    - "RS_0w_low_O2"
-    - "RS_4w_low_O2"
-    - "RS_8w_low_O2"
-    - "RS_12w_low_O2"
-    - "PRO_normoxic"
-    - "DDIS_8w_low_O2"
+    - "PRO"
+    - "ESEN"
+    - "LSEN"
 
   contrasts: #follows the syntax: condition_ + level from "levels" + _vs_ + level from "levels". The second condition is the base of the contrast.
-    - "condition_RS_0w_low_O2_vs_PRO_low_O2"
-    - "condition_RS_4w_low_O2_vs_PRO_low_O2"
-    - "condition_RS_8w_low_O2_vs_PRO_low_O2"
-    - "condition_RS_12w_low_O2_vs_PRO_low_O2"
-    - "condition_PRO_normoxic_vs_PRO_low_O2"
-    - "condition_DDIS_8w_low_O2_vs_PRO_low_O2"
-
+    - "condition_ESEN_vs_PRO"
+    - "condition_LSEN_vs_PRO"
 
   paralellize_bioc: 8
   counttypes: #For TEs, whether to consider unique + multi mapping reads OR only unique mappers. Default is to run the pipeline for both.

@@ -332,7 +332,7 @@ rule featurecounts_genes_PE:
         "srna/benchmarks/featurecounts_genes_PE/featurecounts_genes_PE.tsv"
     params: 
         gtf = config["srna"]['annotation_genes'],
-        featureCountsstrandparam = getFeatureCountsStrandParam()
+        featureCountsstrandparam = lambda wildcards: getFeatureCountsStrandParam()
     conda: "omics"
     threads: 4
     shell: 
@@ -352,7 +352,7 @@ rule featurecounts_genesandrtes_PE:
         counts = "srna/outs/agg/featurecounts_genesandrtes/counts.txt",
     params: 
         gtf = "aref/default/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf",
-        featureCountsstrandparam = getFeatureCountsStrandParam()
+        featureCountsstrandparam = lambda wildcards: getFeatureCountsStrandParam()
     benchmark:
         "srna/benchmarks/featurecounts_genesandrtes_PE/featurecounts_genesandrtes_PE.tsv"
     conda:
@@ -385,7 +385,15 @@ rule alignSTAR_SE:
         "star"
     shell:
         """
-STAR --genomeDir {params.index} --readFilesCommand zcat --readFilesIn {input.r1} --outFileNamePrefix $(dirname {output.bam})/ --runThreadN {threads} --winAnchorMultimapNmax 1000 --outFilterMultimapNmax 1000
+STAR --genomeDir {params.index} \
+--readFilesCommand zcat \
+--readFilesIn {input.r1} \
+--outFileNamePrefix $(dirname {output.bam})/ \
+--runThreadN {threads} \
+--winAnchorMultimapNmax 1000 \
+--outFilterMultimapNmax 1000 \
+--limitOutSAMoneReadBytes 1000000 \
+--outSAMstrandField intronMotif
         """
 
 rule featurecounts_genes_SE:
@@ -402,7 +410,7 @@ rule featurecounts_genes_SE:
         "srna/benchmarks/featurecounts_genes_SE/featurecounts_genes_SE.tsv"
     params: 
         gtf = config["srna"]['annotation_genes'],
-        featureCountsstrandparam = getFeatureCountsStrandParam()
+        featureCountsstrandparam = lambda wildcards: getFeatureCountsStrandParam()
     conda:
         "omics"
     threads: 4
@@ -497,7 +505,7 @@ rule telescope:
         collatedbam = "srna/outs/{sample}/star_output/{sample}.collated.bam",
         libtype = "srna/qc/library_type.txt",
     params:
-        strandparam = getTelescopeStrandParam(),
+        strandparam = lambda wildcards: getTelescopeStrandParam(),
         gff = lambda wildcards: "aref/default/%s_annotations/%s_repeatmasker.gff2"%(wildcards.sample, wildcards.sample) if config["srna"]["per_sample_ref"] == "yes" else "aref/default/A.REF_annotations/A.REF_repeatmasker.gff2"
     retries: 3
     output:
@@ -579,7 +587,7 @@ rule tetranscripts:
         sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.bam",
         libtype = "srna/qc/library_type.txt"
     params:
-        strandparam = getTEtranscriptsStrandParam(),
+        strandparam = lambda wildcards: getTEtranscriptsStrandParam(),
         repeats_gtf = lambda wildcards: "aref/default/%s_annotations/%s_repeatmasker_tetranscripts.gtf"%(wildcards.sample, wildcards.sample) if config["srna"]["per_sample_ref"] == "yes" else "aref/default/A.REF_annotations/A.REF_repeatmasker_tetranscripts.gtf",
         genes_gtf = config["srna"]['annotation_genes'],
         getcounttype = lambda wildcards: "multi" if wildcards.sample == "multi" else "uniq"
@@ -1005,11 +1013,11 @@ rule genomebrowserplots:
         multiqc = "srna/qc/multiqc/multiqc_report.html",
         resultsdf = "srna/results/agg/deseq/resultsdf.tsv"
     params:
-        outputdir = lambda w, output: os.path.dirname(os.path.dirname(output.outfile)),
+        outputdir = lambda w, output: os.path.dirname(output.outfile),
         r_annotation_fragmentsjoined = config["srna"]["r_annotation_fragmentsjoined"],
         r_repeatmasker_annotation = config["srna"]["r_repeatmasker_annotation"],
         txdbrefseq = "aref/default/A.REF_annotations/refseq.sqlite",
-        txdbrep = "aref/default/A.REF_annotations//users/mkelsey/data/Nanopore/alz/RTE/aref/default/A.REF_annotations/A.REF_repeatmasker.complete.sqlite",
+        txdbrep = "aref/default/A.REF_annotations/A.REF_repeatmasker.complete.sqlite",
         alignment_type = lambda w: w.alignment_type,
         module_name = "srna"
     benchmark:
@@ -1030,7 +1038,7 @@ rule fpkm:
         sortedbam = "srna/outs/{sample}/star_output/{sample}.sorted.primary.bam"
     params:
         bed = "aref/default/A.REF_annotations/A.REF_repeatmasker.complete.bed",
-        FpkmCountStrandParam = getFpkmCountStrandParam()
+        FpkmCountStrandParam = lambda wildcards: getFpkmCountStrandParam()
     output:
         values = "srna/outs/{sample}/star_output/{sample}.fpkm"
     benchmark:
@@ -1075,7 +1083,7 @@ rule stringtie_merge:
         gtfs = expand("srna/outs/{sample}/stringtie/{sample}.gtf", sample = samples)
     params:
         refseq = "aref/default/A.REF_annotations/refseq.complete.gff3",
-        strand_param = getStringTieStrandParam()
+        strand_param = lambda wildcards: getStringTieStrandParam()
     output:
         gtf = "srna/outs/agg/stringtie/merged.gtf"
     benchmark:

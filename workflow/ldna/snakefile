@@ -3,42 +3,42 @@ import pandas as pd
 from pathlib import Path
 samples = config["ldna"]["samples"]
 
-#tag BASECALLING
-rule dorado:
-    input:
-        aref = ancient("aref.done.outfile")
-    params:
-        input_dir = lambda wildcards: sample_table.loc[sample_table["sample_name"] == wildcards.sample, "nanopore_rawdata_dir"].iloc[0]
-    output:
-        calls = expand("ldna/intermediates/{{sample}}/alignments/{{rate}}/{ref_genome}/{{sample}}.{{type}}.{{modification_string}}.bam", ref_genome = "analysis_default")
-    wildcard_constraints:
-        sample="[0-9A-Za-z_]+",
-        type = "[0-9A-Za-z]+",
-        rate = "[0-9A-Za-z]+",
-        modification_string = "[0-9A-Za-z_-]+"
-    container: None
-    params:
-        dorado = config["ldna"]["dorado"],
-        reference = config["ldna"]["reference"]
-    resources:
-        cpus_per_task =12,
-        threads = 12,
-        slurm_partition="gpu-he",
-        mem_mb = 128000,
-        slurm_extra="--time=48:00:00 --constraint=a6000 --gres=gpu:2"
-    shell:
-        """
-mkdir -p $(dirname {output.calls})
-mod_string=$(echo {wildcards.modification_string} | tr "-" ",")
+# #tag BASECALLING
+# rule dorado:
+#     input:
+#         aref = ancient("aref.done.outfile")
+#     params:
+#         input_dir = lambda wildcards: sample_table.loc[sample_table["sample_name"] == wildcards.sample, "nanopore_rawdata_dir"].iloc[0]
+#     output:
+#         calls = expand("ldna/intermediates/{{sample}}/alignments/{{rate}}/{ref_genome}/{{sample}}.{{type}}.{{modification_string}}.bam", ref_genome = "analysis_default")
+#     wildcard_constraints:
+#         sample="[0-9A-Za-z_]+",
+#         type = "[0-9A-Za-z]+",
+#         rate = "[0-9A-Za-z]+",
+#         modification_string = "[0-9A-Za-z_-]+"
+#     container: None
+#     params:
+#         dorado = config["ldna"]["dorado"],
+#         reference = config["ldna"]["reference"]
+#     resources:
+#         cpus_per_task =12,
+#         threads = 12,
+#         slurm_partition="gpu-he",
+#         mem_mb = 128000,
+#         slurm_extra="--time=48:00:00 --constraint=a6000 --gres=gpu:2"
+#     shell:
+#         """
+# mkdir -p $(dirname {output.calls})
+# mod_string=$(echo {wildcards.modification_string} | tr "-" ",")
 
-{params.dorado} \
-basecaller \
-{wildcards.type},$mod_string \
-{params.input_dir} \
---recursive \
---verbose \
---reference {params.reference} > {output.calls}
-        """
+# {params.dorado} \
+# basecaller \
+# {wildcards.type},$mod_string \
+# {params.input_dir} \
+# --recursive \
+# --verbose \
+# --reference {params.reference} > {output.calls}
+#         """
 
 rule mod_bam_to_fastq:
     input:
@@ -58,15 +58,20 @@ gzip {output.fastq}.temp
 mv {output.fastq}.temp.gz {output.fastq}
         """
 
-rule mod_bam_to_fastq_nonrefinsert:
+rule mod_bam_to_mod_bam_nonrefinsert:
     input:
-        bam = lambda w: expand("aref/intermediates/{sample_or_aref}/alignments/{rate}/{sample_or_aref}.{type}.{modification_string}.sorted.bam", sample_or_aref = w.sample_or_aref if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "A.REF", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-        bambai = lambda w: expand("aref/intermediates/{sample_or_aref}/alignments/{rate}/{sample_or_aref}.{type}.{modification_string}.sorted.bam.bai", sample_or_aref = w.sample_or_aref if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "A.REF", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-        nonrefcontigs = lambda w: expand("aref/extended/{sample_or_aref}-pre-ins-filtering_nonrefcontigs.fa", sample_or_aref = w.sample_or_aref if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "A.REF")
+        bam = lambda w: expand("aref/intermediates/{{sample_or_aref}}/alignments/{rate}/{{sample_or_aref}}.{type}.{modification_string}.sorted.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        bambai = lambda w: expand("aref/intermediates/{{sample_or_aref}}/alignments/{rate}/{{sample_or_aref}}.{type}.{modification_string}.sorted.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        nonrefcontigs = lambda w: expand("aref/extended/{sample_or_aref}-pre-ins-filtering_nonrefcontigs.fa", sample_or_aref = w.sample_or_aref if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "A.REF"),
+        ldna_realigned_bam = lambda w: expand("ldna/intermediates/{{sample_or_aref}}/alignments/{rate}/{ref_genome}/{{sample_or_aref}}.{type}.{modification_string}.realigned.sorted.bam",ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        ldna_realigned_bam_bai = lambda w: expand("ldna/intermediates/{{sample_or_aref}}/alignments/{rate}/{ref_genome}/{{sample_or_aref}}.{type}.{modification_string}.realigned.sorted.bam.bai",ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
     output:
         sortedbam = "ldna/intermediates/{sample_or_aref}/alignments/nonref/{insert_name}_sorted.bam"
     container: None
     conda: "minimap2"
+    params:
+        min_mapq = 10,
+        min_qscore = 10
     retries: 3
     resources:
         cpus_per_task =4,
@@ -80,13 +85,35 @@ region=$(echo "$insert_name" | awk -F'_' '{{start = $(NF-1) - 20; end = $NF + 20
 samtools view -b {input.bam} $region > ${{outdir}}/${{insert_name}}.extracted.bam
 samtools fastq -T MM,ML,qs ${{outdir}}/${{insert_name}}.extracted.bam > ${{outdir}}/${{insert_name}}.extracted.fq
 
+#get all non suplementary alignments from the ldna realigned bam on this non-ref chr
+samtools view -b -F 2304 -q {params.min_mapq} -e '[qs] >= {params.min_qscore}' {input.ldna_realigned_bam} {wildcards.insert_name} > ${{outdir}}/${{insert_name}}.from_realigned.bam
+samtools fastq -T MM,ML,qs ${{outdir}}/${{insert_name}}.from_realigned.bam > ${{outdir}}/${{insert_name}}.from_realigned.fq
+
+
+awk 'NR%4==1 {{
+        h = substr($0, 2)        # drop leading "@"
+        sub(/[[:space:]].*/, "", h)  # drop everything after first whitespace
+        print h
+     }}' ${{outdir}}/${{insert_name}}.from_realigned.fq \
+  > ${{outdir}}/${{insert_name}}.from_realigned.names.txt
+
+# Use seqkit to find reads in extracted.fq that are NOT in from_realigned.fq
+seqkit grep \
+  -f ${{outdir}}/${{insert_name}}.from_realigned.names.txt \
+  -v \
+  ${{outdir}}/${{insert_name}}.extracted.fq \
+  -o ${{outdir}}/${{insert_name}}.extracted_unique.fq
+
+# Combine the two sets
+cat ${{outdir}}/${{insert_name}}.from_realigned.fq ${{outdir}}/${{insert_name}}.extracted_unique.fq > ${{outdir}}/${{insert_name}}.combined.fq
+
 if [ ! -f {input.nonrefcontigs}.fai ]; then
     samtools faidx {input.nonrefcontigs}
 fi
 
 samtools faidx {input.nonrefcontigs} $insert_name > ${{outdir}}/${{insert_name}}.fa
-samtools faidx ${{outdir}}/${{insert_name}}.fa
-minimap2 -t {resources.cpus_per_task} -y -Y -ax map-ont ${{outdir}}/${{insert_name}}.fa ${{outdir}}/${{insert_name}}.extracted.fq > ${{outdir}}/${{insert_name}}.sam
+samtools faidx ${{outdir}}/${{insert_name}}.combined.fq
+minimap2 -t {resources.cpus_per_task} -y -Y -ax map-ont ${{outdir}}/${{insert_name}}.fa ${{outdir}}/${{insert_name}}.combined.fq > ${{outdir}}/${{insert_name}}.sam
 samtools view -b ${{outdir}}/${{insert_name}}.sam > ${{outdir}}/${{insert_name}}.bam
 samtools sort ${{outdir}}/${{insert_name}}.bam > {output.sortedbam}
 samtools index {output.sortedbam}
@@ -97,9 +124,9 @@ ruleorder: get_non_ref_alignments > sortBam
 rule get_non_ref_alignments:
     input:
         sample_bams = lambda w: expand("ldna/intermediates/{{sample_or_aref}}/alignments/nonref/{insert_name}_sorted.bam", insert_name = [e for e in pd.read_table("aref/extended/" +  [w.sample_or_aref if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "A.REF"][0] + "_contigs_to_keep.txt", header = None).iloc[:,0] if e.startswith("NI_")]),
-        aref_bam = lambda w: expand("aref/intermediates/{sample_or_arefW}/alignments/{{rate}}/{sample_or_arefW}.{{type}}.{{modification_string}}.sorted.bam", sample_or_arefW = w.sample_or_aref if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "A.REF"),
+        ldna_bam = lambda w: expand("ldna/intermediates/{{sample_or_aref}}/alignments/{{rate}}/analysis_default/{{sample_or_aref}}.{{type}}.{{modification_string}}.realigned.sorted.bam")
     output:
-        catbam = "ldna/intermediates/{sample_or_aref}/alignments/{rate}/analysis_default_MERGED/{sample_or_aref}.{type}.{modification_string}.sorted.bam",
+        catbam = "ldna/intermediates/{sample_or_aref}/alignments/{rate}/analysis_default/{sample_or_aref}.{type}.{modification_string}.sorted.bam",
     conda:
         "omics"
     resources:
@@ -110,13 +137,42 @@ rule get_non_ref_alignments:
         """
 samtools merge -@ 4 -o {output.catbam}.tempmerged.bam {input.sample_bams}
 echo "done"
-samtools merge -@ 4 -o {output.catbam}.tempmerged1.bam {input.aref_bam} {output.catbam}.tempmerged.bam
+samtools merge -@ 4 -o {output.catbam}.tempmerged1.bam {input.ldna_bam} {output.catbam}.tempmerged.bam
 echo "done1"
 samtools sort -@8 {output.catbam}.tempmerged1.bam > {output.catbam}.tempmerged1.sorted.bam
 mv {output.catbam}.tempmerged1.sorted.bam {output.catbam}
 rm {output.catbam}.tempmerged1.bam
 rm {output.catbam}.tempmerged.bam
         """
+
+
+rule call_catbam:
+    input:
+        catbams = lambda w: expand("ldna/intermediates/{sample_or_aref}/alignments/{rate}/analysis_default/{sample_or_aref}.{type}.{modification_string}.sorted.bam", sample_or_aref = config["ldna"]["samples"], rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+
+# rule get_non_ref_alignmentsOLD:
+#     input:
+#         sample_bams = lambda w: expand("ldna/intermediates/{{sample_or_aref}}/alignments/nonref/{insert_name}_sorted.bam", insert_name = [e for e in pd.read_table("aref/extended/" +  [w.sample_or_aref if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "A.REF"][0] + "_contigs_to_keep.txt", header = None).iloc[:,0] if e.startswith("NI_")]),
+#         aref_bam = lambda w: expand("aref/intermediates/{sample_or_arefW}/alignments/{{rate}}/{sample_or_arefW}.{{type}}.{{modification_string}}.sorted.bam", sample_or_arefW = w.sample_or_aref if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "A.REF"),
+#     output:
+#         catbam = "ldna/intermediates/{sample_or_aref}/alignments/{rate}/analysis_default/{sample_or_aref}.{type}.{modification_string}.sorted.bam",
+#     conda:
+#         "omics"
+#     resources:
+#         cpus_per_task =10,
+#         runtime = 1200,
+#         mem_mb = 300000
+#     shell:
+#         """
+# samtools merge -@ 4 -o {output.catbam}.tempmerged.bam {input.sample_bams}
+# echo "done"
+# samtools merge -@ 4 -o {output.catbam}.tempmerged1.bam {input.aref_bam} {output.catbam}.tempmerged.bam
+# echo "done1"
+# samtools sort -@8 {output.catbam}.tempmerged1.bam > {output.catbam}.tempmerged1.sorted.bam
+# mv {output.catbam}.tempmerged1.sorted.bam {output.catbam}
+# rm {output.catbam}.tempmerged1.bam
+# rm {output.catbam}.tempmerged.bam
+#         """
 
 rule call_nonrefalignments:
     input:
@@ -145,26 +201,26 @@ mkdir -p $(dirname {output.k15_db})
         """
 
 
-# rule align_to_ref_default:
-#     input:
-#         fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq.gz",
-#     benchmark:
-#         "ldna/benchmarks/align_to_ref_default/{sample}.tsv"
-#     params:
-#         reference = lambda wildcards: "aref/extended/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF.fa"
-#     container: None
-#     conda: "minimap2"
-#     output:
-#         sam = temp(expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sam",ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]))
-#     resources:
-#         cpus_per_task = 60,
-#         runtime = 2400,
-#         mem_mb = 350000
-#     shell:
-#         """
-# mkdir -p $(dirname {output.sam})
-# minimap2 -t {resources.cpus_per_task} -y -ax map-ont {params.reference} {input.fastq} > {output.sam}
-#         """
+rule align_to_ref_default:
+    input:
+        fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq.gz",
+    benchmark:
+        "ldna/benchmarks/align_to_ref_default/{sample}.tsv"
+    params:
+        reference = lambda wildcards: "aref/extended/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF.fa"
+    container: None
+    conda: "minimap2"
+    output:
+        sam = temp(expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.realigned.sam",ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]))
+    resources:
+        cpus_per_task = 60,
+        runtime = 2400,
+        mem_mb = 350000
+    shell:
+        """
+mkdir -p $(dirname {output.sam})
+minimap2 -t {resources.cpus_per_task} -y -Y -ax map-ont {params.reference} {input.fastq} > {output.sam}
+        """
 
 
 # rule align_to_ref_winnowmap:
@@ -362,9 +418,9 @@ rule call_telometer:
 
 rule samToBam:
     input:
-        sam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+        sam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.realigned.sam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
     output:
-        bam = temp(expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]))
+        bam = temp(expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.realigned.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]))
     conda:
         "omics"
     resources:
@@ -375,7 +431,6 @@ rule samToBam:
         """
 samtools view -@8 -bS {input.sam} > {output.bam}
         """
-
 rule getnewbams:
     input:
         expand("ldna/intermediates/{sample}/alignments/{rate}/analysis_default/{sample}.{type}.{modification_string}.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = config["ldna"]["samples"])
@@ -525,20 +580,20 @@ samtools idxstat -@6 {output.bam} > {output.bam}.idxstats.txt
 rule call_mycoplasmaCheck:
     input:
         expand("ldna/qc/mycoplasma/mycoplasma{sample}.bam", sample = samples)
-rule dorado_seqsummary:
-    input:
-        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-    params:
-        dorado = config["ldna"]["dorado"]
-    output:
-        "ldna/qc/{sample}/{sample}.doradosummary.txt"
-    conda:
-        "omics"
-    shell:
-        """
-{params.dorado} summary {input.sortedbam} > {output}
-        """
+# rule dorado_seqsummary:
+#     input:
+#         sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+#         sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam.bai", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+#     params:
+#         dorado = config["ldna"]["dorado"]
+#     output:
+#         "ldna/qc/{sample}/{sample}.doradosummary.txt"
+#     conda:
+#         "omics"
+#     shell:
+#         """
+# {params.dorado} summary {input.sortedbam} > {output}
+#         """
 
 rule coverage:
     input:
@@ -672,7 +727,7 @@ rule filterbamnosup:
     resources:
         cpus_per_task =6,
         mem_mb = 40000,
-        runtime = 300
+        runtime = 600
     conda:
         "omics"
     shell: 
@@ -1051,7 +1106,8 @@ rule extractmods:
         region = lambda wildcards: "aref/extended/%s_annotations/%s_rte_beds/outfile.txt"%(wildcards.sample, wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF_annotations/A.REF_rte_beds/outfile.txt"
     resources:
         cpus_per_task = 8,
-        mem_mb = 80000
+        mem_mb = 80000,
+        runtime = 400
     conda:
         "omics"
     shell: 
@@ -1082,7 +1138,8 @@ rule extractmods_cg_context:
         region = lambda wildcards: "aref/extended/%s_annotations/%s_rte_beds/outfile.txt"%(wildcards.sample, wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF_annotations/A.REF_rte_beds/outfile.txt"
     resources:
         cpus_per_task = 8,
-        mem_mb = 80000
+        mem_mb = 80000,
+        runtime = 400
     conda:
         "omics"
     shell: 
@@ -1113,7 +1170,8 @@ rule extractmods_cg_context_cpgislands:
         ref = config["ldna"]["reference"],
     resources:
         cpus_per_task = 8,
-        mem_mb = 80000
+        mem_mb = 80000,
+        runtime = 400
     conda:
         "omics"
     shell: 
@@ -1458,6 +1516,24 @@ mkdir -p $(dirname {output})
 /users/mkelsey/data/tools/wgbs_tools/wgbstools bam2pat --genome {wildcards.ref_genome} -@ 26 --nanopore {input.bam} --out_dir $(dirname {output.pat})
         """
 
+rule wgbs_bam2pat_noendfilt:
+    input:
+        outfile = "aref/extended/A.REF.{ref_genome}.wgbs.init.out",
+        bam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+    output:
+        pat = expand("ldna/results/{{mod_code}}/wgbs/{{ref_genome}}_noendfilt/{{sample}}.{type}.{modification_string}.sorted.filterednosup.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+    resources:
+        runtime = 1000,
+        mem_mb = 128000,
+        cpus_per_task = 26
+    container: None
+    conda: "omics"
+    shell:
+        """
+mkdir -p $(dirname {output})
+/users/mkelsey/data/tools/wgbs_tools/wgbstools bam2pat --genome {wildcards.ref_genome} -@ 26 --nanopore {input.bam} --out_dir $(dirname {output.pat})
+        """
+
 rule get_hg38_pat:
     input:
         pat = expand("ldna/results/m/wgbs/hg38/{sample}.{type}.{modification_string}.sorted.filterednosup.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample= samples),
@@ -1582,6 +1658,45 @@ rule pat_fig_rtes_by_sample:
         fl_rte = lambda wildcards: "/users/mkelsey/data/Nanopore/alz/RTE/ldna/Rintermediates/%s/flRTEpromoter.tsv"%wildcards.mod_code
     output:
         outfile = "ldna/results/{mod_code}/wgbs/plots/l1hs/by_sample/l1hs_fl_by_sample.outfile"
+        # pat_fig = "ldna/results/wgbs/plots/{region}.pat.pdf"
+    resources:
+        runtime = 100,
+        mem_mb = 10000,
+        cpus_per_task = 4
+    container: None
+    conda: "omics"
+    shell:
+        """
+coords_array=()
+rte_name_array=()
+
+while read -r line; do
+    coords_array+=("$(awk '{{print $1":"$2"-"$3}}' <<< "$line")")
+    rte_name_array+=("$(awk '{{print $6}}' <<< "$line")")
+done < <(grep "L1HS" {params.fl_rte})
+
+echo "read lines"
+
+for (( i=0; i<${{#coords_array[@]}}; i++ ))
+do
+coord=${{coords_array[$i]}}
+rte_name=${{rte_name_array[$i]}}
+coordfnsafe=$(echo $coord | sed 's/:/-/')
+/users/mkelsey/data/tools/wgbs_tools/wgbstools pat_fig --nanopore --shuffle --line_width 0.5 --col_wrap 1 --font_size 3 --meth_color "beige" --unmeth_color "black"  -o $(dirname {output.outfile})/${{rte_name}}_1col.pdf -r $coord --title $rte_name --strict --genome hs1 $(dirname $(dirname {input.outfile}))/*.pat.gz
+/users/mkelsey/data/tools/wgbs_tools/wgbstools pat_fig --nanopore --shuffle --line_width 0.5 --col_wrap 6 --font_size 3 --meth_color "beige" --unmeth_color "black"  -o $(dirname {output.outfile})/${{rte_name}}_6col.pdf -r $coord --title $rte_name --strict --genome hs1 $(dirname $(dirname {input.outfile}))/*.pat.gz
+
+done
+touch {output.outfile}
+        """
+
+rule pat_fig_rtes_by_sample_noendfilt:
+    input:
+        outfile = "ldna/results/{mod_code}/wgbs/analysis_default_noendfilt/merged/merged.outfile"
+        # pat = expand("ldna/results/wgbs/{sample}.{type}.{modification_string}.sorted.filtered.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
+    params:
+        fl_rte = lambda wildcards: "/users/mkelsey/data/Nanopore/alz/RTE/ldna/Rintermediates/%s/flRTEpromoter.tsv"%wildcards.mod_code
+    output:
+        outfile = "ldna/results/{mod_code}/wgbs/plots_noendfilt/l1hs/by_sample/l1hs_fl_by_sample.outfile"
         # pat_fig = "ldna/results/wgbs/plots/{region}.pat.pdf"
     resources:
         runtime = 100,

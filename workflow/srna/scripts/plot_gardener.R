@@ -55,8 +55,8 @@ tryCatch(
             "txdbrefseq" = "aref/default/A.REF_annotations/refseq.sqlite",
             "txdbrep" = "aref/default/A.REF_annotations/A.REF_repeatmasker.complete.sqlite",
             "txdb" = "aref/default/A.REF_annotations/A.REF_repeatmasker_refseq.complete.sqlite",
-            "counttype" = "telescope_primary",
-            "alignment_type" = "primary"
+            "counttype" = "telescope_unique",
+            alignment_type = "unique"
         ), env = globalenv())
         assign("inputs", list(
             "resultsdf" = "srna/results/agg/deseq/resultsdf.tsv",
@@ -163,7 +163,6 @@ tryCatch(
             filter(if_any(starts_with("padj_"), ~ . <= 0.05)) %$%
             gene_id
 
-        gois <- c("L1HS_4q25_4", "L1HS_17p13.1_1", "L1HS_2q21.1_1", "L1HS_5q35.3_1", "L1HS_17q24.2_2", "L1HS_2p13.2_1", "L1HS_2q21.1_2", "L1HS_4q28.3_9")
         resultsdf_unique <- resultsdf1 %>%
             filter(counttype == "telescope_unique") %>%
             full_join(rmann)
@@ -365,7 +364,7 @@ tryCatch(
         }
     },
     error = function(e) {
-        print("something went wrong")
+        print("Something went wrong if your species is human. If you are working with other species, no output is normal")
     }
 )
 

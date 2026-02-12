@@ -185,6 +185,7 @@ dir.create(sprintf("ldna/results/%s/plots/rte", params$mod_code), showWarnings =
 ## Load Data and add annotations
 r_annotation_fragmentsjoined <- read_csv(conf$r_annotation_fragmentsjoined)
 r_repeatmasker_annotation <- read_csv(conf$r_repeatmasker_annotation)
+r_repeatmasker_annotation %>% filter(intactness_req == "Intact")
 rmann <- left_join(r_annotation_fragmentsjoined, r_repeatmasker_annotation)
 rm(r_annotation_fragmentsjoined)
 RM <- GRanges(rmann)
@@ -591,9 +592,9 @@ for (region in conf$rte_subfamily_read_level_analysis) {
                         value = TRUE
                     ),
                     value = TRUE
-                )
+                ),
+                value = TRUE
             ),
-            value = TRUE
         )
         df$region <- region
         df$sample <- sample_name

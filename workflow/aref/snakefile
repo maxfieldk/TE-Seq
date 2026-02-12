@@ -18,7 +18,7 @@ pepper_deepvariant_container = (
 sniffles_container = (
     config["containers"]["sniffles"]["path"]
     if config["containers"]["sniffles"]["use_preexisting_response"] == "yes"
-    else "containers/sniffles:v2.5.2.sif"
+    else "containers/sniffles:2.6.0.sif"
 )
 gatk_container = (
     config["containers"]["gatk"]["path"]
@@ -239,7 +239,6 @@ rule dorado_unmappedbam:
     benchmark:
         "aref/benchmarks/dorado_fq/{rate}.{sample}.{type}.{modifications_string}.tsv"
     params:
-        dorado = config["aref"]["dorado"],
         input_dir = lambda wildcards: sample_table.loc[sample_table["sample_name"] == wildcards.sample, "nanopore_rawdata_dir"].iloc[0]
     resources:
         cpus_per_task =12,
@@ -311,8 +310,6 @@ rule dorado_seqsummary:
     input:
         sortedbam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
         sortedbamindex = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam.bai", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
-    params:
-        dorado = config["aref"]["dorado"]
     benchmark:
         "aref/benchmarks/dorado_seqsummary/{sample}.tsv"
     output:
@@ -383,6 +380,7 @@ mkdir -p $(dirname {output.subsampled})
 
 samtools view -b {input.bam} chr10 > {output.subsampled}
         """
+        
 if config["aref"]["symlink_aref"]["response"] == "no":
     if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
         if config["aref"]["update_ref_with_tldr"]["per_sample"] == "no":
@@ -427,6 +425,25 @@ mkdir -p $(dirname {output})
 samtools sort -@8 -m4g {input.bam} > {output.sortedbam}
         """
 
+rule filterbamnosup:
+    input:
+        bam = "aref/{path}.sorted.bam"
+    params:
+        min_mapq = 60,
+        min_qscore = 10
+    output:
+        bam = "aref/{path}.sorted.filterednosupMapq60.bam"
+    resources:
+        cpus_per_task =6,
+        mem_mb = 40000,
+        runtime = 300
+    conda:
+        "omics"
+    shell: 
+        """
+samtools view -b -F 2304 -q {params.min_mapq} -e '[qs] >= {params.min_qscore}' {input.bam} > {output.bam}
+        """
+
 rule filterbam:
     input:
         bam = "aref/{path}.sorted.bam"
@@ -438,7 +455,7 @@ rule filterbam:
     resources:
         cpus_per_task =6,
         mem_mb = 40000,
-        runtime = 300
+        runtime = 1000
     conda:
         "omics"
     shell: 
@@ -467,20 +484,20 @@ samtools index  -@6 {input.bam}
 species = config["aref"]["species"]
 rule tldr_aggregate_multiple_samples:
     input:
-        bams = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam", sample = config["aref"]["samples"], rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
-        bais = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam.bai", sample = config["aref"]["samples"], rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
+        bams = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam", sample = config["aref"]["samples"], rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
+        bais = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam.bai", sample = config["aref"]["samples"], rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
     params:
         tldr_input_bam_ref = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"],
         tldr_te_ref = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_te_ref"][species],
         known_nonref = lambda w: [config["aref"]["update_ref_with_tldr"]["known_nonref"]["path"] if config["aref"]["update_ref_with_tldr"]["known_nonref"]["response"] == "yes" else "not_provided"][0]
     benchmark:
-        "aref/benchmarks/tldr_aggregate_multiple_samples/tldr_aggregate_multiple_samples.tsv"
+        "aref/benchmarks/tldr_aggregate_multiple_samples/tldr_aggregate_multiple_samples_{chromosome}.tsv"
     output:
-        tldr = "aref/A.REF_tldr/A.REF.table.txt"
+        tldr = "aref/A.REF_tldr/{chromosome}.table.txt"
     resources:
         cpus_per_task = 24,
         mem_mb = 100000,
-        runtime = 300
+        runtime = 1000
     conda:
         "tldr"
     shell:
@@ -494,25 +511,33 @@ echo $nonrefavailible
 if [[ $nonrefavailible = "not_provided" ]]
 then
 
+echo "usingknown"
+echo {wildcards.chromosome} > {wildcards.chromosome}.txt
+
 tldr -b $commabams \
 -e {params.tldr_te_ref} \
 -r {params.tldr_input_bam_ref} \
 -p 20 \
+-c {wildcards.chromosome}.txt \
 --minreads 1 \
---outbase A.REF \
+--outbase {wildcards.chromosome} \
 --detail_output \
 --extend_consensus 4000 \
 --trdcol
 
 else
 
+echo "noknown"
+echo {wildcards.chromosome} > {wildcards.chromosome}.txt
+
 tldr -b $commabams \
 -e {params.tldr_te_ref} \
 -r {params.tldr_input_bam_ref} \
 -p 20 \
+-c {wildcards.chromosome}.txt \
 --nonref {params.known_nonref} \
 --minreads 1 \
---outbase A.REF \
+--outbase {wildcards.chromosome} \
 --detail_output \
 --extend_consensus 4000 \
 --trdcol
@@ -520,9 +545,33 @@ tldr -b $commabams \
 fi
 
 mkdir -p $(dirname {output.tldr})
-mv A.REF.table.txt {output.tldr}
-mv A.REF $(dirname {output.tldr})/
+mv {wildcards.chromosome}.table.txt {output.tldr}
+mv {wildcards.chromosome} $(dirname {output.tldr})/
         """
+
+def merge_tldr_agg(wildcards):
+    checkpoint_output = checkpoints.index_dorado_ref
+    if os.path.exists(config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"] + ".fai"):
+        return expand("aref/A.REF_tldr/{chromosome}.table.txt", chromosome = [e for e in pd.read_table(config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"] + ".fai", header = None).iloc[:,0] if e != "chrM"])
+    else:
+        return []
+rule merge_agg_tldr:
+    input:
+        tldr = merge_tldr_agg
+    output:
+        df = "aref/A.REF_tldr/A.REF.table.txt"
+    conda:
+        "ds"
+    resources:
+        cpus_per_task = 4,
+        runtime = 1000
+    script:
+        "scripts/merge_tldr_agg.R"
+
+
+
+
+
 
 rule call_tldr_per_sample:
     input:
@@ -693,15 +742,12 @@ rule cleanup_updated_sample_ref:
 seqkit grep --by-name -f {input.contigs_to_keep} {input.updated_reference} > {output.filtered_ref}
 samtools faidx {output.filtered_ref}
         """
-
 rule cleanup_updated_ref_and_patch:
     input:
         updated_reference = "aref/{default_or_extended}/A.REF-pre-ins-filtering.fa",
         contigs_to_keep = "aref/{default_or_extended}/A.REF_contigs_to_keep.txt",
-        hq_snps = "aref/intermediates/A.REF/pepper/hq_snps.vcf.gz"
-    params:
-        spike_in_indicator = config["aref"]["spike_in_contigs"]["response"],
-        spike_in_path = config["aref"]["spike_in_contigs"]["path_to_fasta"]
+        hq_snps = "aref/intermediates/A.REF/pepper/hq_snps.vcf.gz",
+        absent_tes_to_mask =  "aref/intermediates/A.REF/sniffles/tes_to_mask.bed"
     output:
         filtered_ref = "aref/{default_or_extended}/A.REF.snp_patched.fa"
     priority: 100
@@ -712,8 +758,10 @@ rule cleanup_updated_ref_and_patch:
     shell:
         """
 seqkit grep --by-name -f {input.contigs_to_keep} {input.updated_reference} > {output.filtered_ref}.temp
-bcftools consensus -I -f {output.filtered_ref}.temp -o {output.filtered_ref} {input.hq_snps}
+bcftools consensus -I -f {output.filtered_ref}.temp -o {output.filtered_ref}.snp.fa {input.hq_snps}
 rm {output.filtered_ref}.temp
+bedtools maskfasta -fi {output.filtered_ref}.snp.fa -bed {input.absent_tes_to_mask} -fo {output.filtered_ref} 
+rm {output.filtered_ref}.snp.fa
 samtools faidx {output.filtered_ref}
         """
 
@@ -722,6 +770,7 @@ rule cleanup_updated_sample_ref_and_patch:
         updated_reference = "aref/{default_or_extended}/{sample}-pre-ins-filtering.fa",
         contigs_to_keep = "aref/{default_or_extended}/{sample}_contigs_to_keep.txt",
         hq_snps = "aref/intermediates/{sample}/pepper/hq_snps.vcf.gz",
+        absent_tes_to_mask = "aref/intermediates/{sample}/sniffles/tes_to_mask.bed"
     output:
         filtered_ref = "aref/{default_or_extended}/{sample}.snp_patched.fa"
     priority: 100
@@ -733,13 +782,16 @@ rule cleanup_updated_sample_ref_and_patch:
         "omics"
     shell:
         """
-seqkit grep --by-name -f {input.contigs_to_keep} {input.updated_reference} > {output.filtered_ref}
-bcftools consensus -I -f {output.filtered_ref}.temp -o {output.filtered_ref} {input.hq_snps}
+seqkit grep --by-name -f {input.contigs_to_keep} {input.updated_reference} > {output.filtered_ref}.temp
+bcftools consensus -I -f {output.filtered_ref}.temp -o {output.filtered_ref}.snp.fa {input.hq_snps}
 rm {output.filtered_ref}.temp
+bedtools maskfasta -fi {output.filtered_ref}.snp.fa -bed {input.absent_tes_to_mask} -fo {output.filtered_ref} 
+rm {output.filtered_ref}.snp.fa
 samtools faidx {output.filtered_ref}
         """
 
 #Variant calling for ref patching
+<<<<<<< HEAD
 # rule sniffles:
 #     input:
 #         sortedbam = expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
@@ -764,6 +816,12 @@ rule snifflesNew:
     input:
         sortedbam = expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
         sortedbamindex = expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
+=======
+rule sniffles:
+    input:
+        mapq60bam = expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
+        mapq60bamindex = expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
+>>>>>>> 83ce58cf672d7a5be8305c5350ffecb3108a62a5
         sniffles_container = ancient(sniffles_container)
     output:
         vcf = "aref/intermediates/{sample_or_ref}/sniffles/sniffles.vcf"
@@ -777,8 +835,22 @@ rule snifflesNew:
     shell:
         """
 mkdir -p $(dirname {output})
-sniffles -i {input.sortedbam} -v {output.vcf} --threads 28 --mosaic --reference {params.ref}
+sniffles -i {input.mapq60bam} -v {output.vcf} --threads 28 --reference {params.ref}
         """
+
+rule determine_tes_to_mask:
+    input:
+        vcf = "aref/intermediates/{sample_or_ref}/sniffles/sniffles.vcf",
+        r_annotation_fragmentsjoined = "aref/default/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
+    resources:
+        runtime = 60
+    output:
+        absent_tes_to_mask = "aref/intermediates/{sample_or_ref}/sniffles/tes_to_mask.bed",
+        te_zygosity_annot = "aref/intermediates/{sample_or_ref}/sniffles/zygosity_annotation.csv"
+    conda: 
+        "evo2"
+    script:
+        "scripts/detect_absent_RTE_polymphism.R"
 
 rule pepper:
     input:
@@ -867,6 +939,7 @@ rule savana:
         """
 mkdir -p $(dirname {output.outfile})
 savana to --tumour {input.sortedbam} --ref {params.ref} --ref_index {params.ref}.fai --overwrite --threads 30 --outdir $(dirname {output.outfile}) --sample {wildcards.sample_or_ref} --ont --snp_vcf {input.snpvcf} --chromosomes 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24
+touch {output.outfile}
         """
 
 
@@ -1732,12 +1805,18 @@ rule get_transcriptome:
 agat_sp_extract_sequences.pl -g {input.gtf} -f {input.ref} -t exon --merge -o {output.fa}
         """
 
+def te_absense_status_input_for_annotate_rtes(wildcards):
+    if config["aref"]["patch_ref"] == "yes":
+        return expand("aref/intermediates/{sample_or_ref}/sniffles/tes_to_mask.bed", sample_or_ref = wildcards.sample_or_ref)
+    else:
+        return []
 rule annotate_rtes:
     input:
         r_annotation_fragmentsjoined = "aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker.gtf.rformatted.fragmentsjoined.csv",
         ref = "aref/{default_or_extended}/{sample_or_ref}.fa",
         fai = "aref/{default_or_extended}/{sample_or_ref}.fa.fai",
         txdbrefseq = "aref/default/A.REF_annotations/refseq.sqlite",
+        absent_tes_to_mask = te_absense_status_input_for_annotate_rtes
     output:
         r_repeatmasker_annotation = "aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_annotation.csv",
         rmann = "aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_rmann.csv",

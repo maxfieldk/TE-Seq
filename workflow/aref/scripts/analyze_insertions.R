@@ -47,16 +47,31 @@ outputdir <- dirname(outputs$plots)
 dir.create(outputdir, recursive = TRUE, showWarnings = FALSE)
 
 
-rmfragments <- read_csv(inputs$r_annotation_fragmentsjoined, col_names = TRUE)
-rmfamilies <- read_csv(inputs$r_repeatmasker_annotation, col_names = TRUE)
-rmann <- left_join(rmfragments, rmfamilies)
+rmann <- get_repeat_annotations(
+    default_or_extended = "default",
+    keep_non_central = FALSE
+)
+
 df_filtered <- read_delim(inputs$filtered_tldr) %>% dplyr::rename(nonref_UUID = UUID)
+
+
+rmann %>%
+    filter(rte_subfamily == "L1HS") %>%
+    filter(refstatus != "NonCentral") %>%
+    mutate(sniffles_gtInsPresence_full_deletion = case_when(
+        (refstatus == "Ref") & (fraction_deleted < 0.95) ~ "1/1",
+        TRUE ~ sniffles_gtInsPresence
+    )) %>%
+    group_by(refstatus, sniffles_gtInsPresence_full_deletion) %>%
+    summarise(n = n())
+
 
 nrdf <- rmann %>%
     filter(refstatus == "NonRef") %>%
     filter(!grepl("__AS$", gene_id)) %>%
     left_join(df_filtered, by = "nonref_UUID") %>%
-    mutate(zygosity = factor(ifelse(fraction_reads_count >= 0.95, "homozygous", "heterozygous"), levels = c("homozygous", "heterozygous"))) %>%
+    mutate(zygosity = sniffles_gtInsPresence) %>%
+    # mutate(zygosity = factor(ifelse(fraction_reads_count >= 0.95, "homozygous", "heterozygous"), levels = c("homozygous", "heterozygous"))) %>%
     mutate(known_nonref = factor(
         case_when(
             conf$update_ref_with_tldr$known_nonref$response == "no" ~ "NotCalled",
@@ -178,7 +193,7 @@ homozyg_frac_df <- nrdf %>%
     mutate(family_n = sum(n)) %>%
     mutate(frac_total = n / family_n) %>%
     ungroup() %>%
-    dplyr::filter(zygosity == "heterozygous") %>%
+    dplyr::filter(zygosity == "0/1") %>%
     mutate(frac_heterozygous = frac_total, frac_homozygous = 1 - frac_total)
 
 hp <- homozyg_frac_df %>%
@@ -245,3 +260,63 @@ mysaveandstore(sprintf("%s/l1hs_length_in_updated_ref.pdf", outputdir), 3, 4)
 
 x <- tibble(OUT = "")
 write_tsv(x, file = outputs$plots)
+
+
+
+tryCatch(
+    {
+        rmann %$% masked_in_ref %>% unique()
+        tt <- rmann %>%
+            filter(refstatus != "NonCentral") %>%
+            filter(rte_subfamily != "Other") %>%
+            filter(asp != "asp") %>%
+            filter(rte_family %in% c("L1", "Alu", "SVA"))
+        p <- tt %>%
+            filter(masked_in_ref == "yes") %>%
+            filter(fraction_masked == 1) %>%
+            group_by(rte_subfamily) %>%
+            summarise(n = n()) %>%
+            ggplot() +
+            geom_bar(aes(x = rte_subfamily, y = n), color = "black", fill = "lightgrey", stat = "identity") +
+            geom_text(aes(x = rte_subfamily, y = n, label = n),
+                position = position_stack(vjust = 1.1), size = 3
+            ) +
+            labs(title = "NonReference Deletions", x = "Subfamily", y = "Count") +
+            coord_flip() +
+            mtclosed +
+            anchorbar +
+            scale_palette
+        mysaveandstore(sprintf("%s/homozygous_deletions1111.pdf", outputdir), w = 3, h = 4.35)
+
+        p <- rmann %>%
+            filter(rte_subfamily == "L1HS") %>%
+            filter(refstatus != "NonCentral") %>%
+            mutate(length = ifelse(str_detect(rte_length_req, "Trnc"), "Trnc", "FL")) %>%
+            mutate(req_integrative = case_when(
+                fraction_masked == 1 ~ "Masked",
+                rte_length_req == "Trnc" ~ "Trnc",
+                req_integrative == "Yng FL" ~ "FL",
+                req_integrative == "Yng Intact" ~ "Intact",
+                TRUE ~ req_integrative
+            )) %>%
+            group_by(refstatus, req_integrative, length) %>%
+            summarise(n = n()) %>%
+            mutate(req_integrative = factor(req_integrative, levels = c("Masked", "Trnc", "FL", "Intact"))) %>%
+            ungroup() %>%
+            ggplot() +
+            geom_bar(aes(x = refstatus, y = n, fill = req_integrative), color = "black", stat = "identity") +
+            geom_text(aes(x = refstatus, y = n, label = n, group = req_integrative),
+                position = position_stack(vjust = 0.5), size = 3
+            ) +
+            labs(title = "FL L1HS", x = "Subfamily", y = "Count", fill = "") +
+            facet_wrap(~length, scales = "free_y") +
+            mtclosed +
+            anchorbar +
+            scale_palette +
+            theme(axis.text.x = element_text(angle = 45, hjust = 1))
+        mysaveandstore(sprintf("%s/L1HS_FL_masked.pdf", outputdir), w = 4, h = 5)
+    },
+    error = function(e) {
+
+    }
+)
