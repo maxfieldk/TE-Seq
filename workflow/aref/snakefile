@@ -791,37 +791,10 @@ samtools faidx {output.filtered_ref}
         """
 
 #Variant calling for ref patching
-<<<<<<< HEAD
-# rule sniffles:
-#     input:
-#         sortedbam = expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
-#         sortedbamindex = expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"])
-#     output:
-#         vcf = "aref/intermediates/{sample_or_ref}/sniffles/sniffles.vcf"
-#     params:
-#         ref = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"]
-#     resources:
-#         runtime = 1000,
-#         mem_mb = 128000,
-#         cpus_per_task = 32
-#     conda: "sniffles"
-#     container: None
-#     shell:
-#         """
-# mkdir -p $(dirname {output})
-# sniffles -i {input.sortedbam} -v {output.vcf} --threads 28 --mosaic --reference {params.ref}
-#         """
-
-rule snifflesNew:
-    input:
-        sortedbam = expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
-        sortedbamindex = expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
-=======
 rule sniffles:
     input:
         mapq60bam = expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
         mapq60bamindex = expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
->>>>>>> 83ce58cf672d7a5be8305c5350ffecb3108a62a5
         sniffles_container = ancient(sniffles_container)
     output:
         vcf = "aref/intermediates/{sample_or_ref}/sniffles/sniffles.vcf"
