@@ -58,6 +58,11 @@ gzip {output.fastq}.temp
 mv {output.fastq}.temp.gz {output.fastq}
         """
 
+
+rule get_fastqs:
+    input:
+        expand("ldna/intermediates/{sample}/fastqs/{sample}.fq.gz", sample = samples)
+        
 rule mod_bam_to_fastq_nonrefinsert:
     input:
         bam = lambda w: expand("aref/intermediates/{sample_or_aref}/alignments/{rate}/{sample_or_aref}.{type}.{modification_string}.sorted.bam", sample_or_aref = w.sample_or_aref if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "A.REF", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
@@ -99,7 +104,7 @@ rule get_non_ref_alignments:
         sample_bams = lambda w: expand("ldna/intermediates/{{sample_or_aref}}/alignments/nonref/{insert_name}_sorted.bam", insert_name = [e for e in pd.read_table("aref/extended/" +  [w.sample_or_aref if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "A.REF"][0] + "_contigs_to_keep.txt", header = None).iloc[:,0] if e.startswith("NI_")]),
         aref_bam = lambda w: expand("aref/intermediates/{sample_or_arefW}/alignments/{{rate}}/{sample_or_arefW}.{{type}}.{{modification_string}}.sorted.bam", sample_or_arefW = w.sample_or_aref if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "A.REF"),
     output:
-        catbam = "ldna/intermediates/{sample_or_aref}/alignments/{rate}/analysis_default_MERGED/{sample_or_aref}.{type}.{modification_string}.sorted.bam",
+        catbam = "ldna/intermediates/{sample_or_aref}/alignments/{rate}/analysis_default/{sample_or_aref}.{type}.{modification_string}.sorted.bam",
     conda:
         "omics"
     resources:
@@ -120,7 +125,7 @@ rm {output.catbam}.tempmerged.bam
 
 rule call_nonrefalignments:
     input:
-        catbams = lambda w: expand("ldna/intermediates/{sample_or_aref}/alignments/{rate}/analysis_default_MERGED/{sample_or_aref}.{type}.{modification_string}.sorted.bam", sample_or_aref = config["ldna"]["samples"], rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+        catbams = lambda w: expand("ldna/intermediates/{sample_or_aref}/alignments/{rate}/analysis_default/{sample_or_aref}.{type}.{modification_string}.sorted.bam", sample_or_aref = config["ldna"]["samples"], rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
 
 
 rule generate_meryl_index:
@@ -360,21 +365,21 @@ rule call_telometer:
     shell:
         "touch {output}"
 
-rule samToBam:
-    input:
-        sam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
-    output:
-        bam = temp(expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]))
-    conda:
-        "omics"
-    resources:
-        cpus_per_task =10,
-        runtime = 100,
-        mem_mb = 64000
-    shell:
-        """
-samtools view -@8 -bS {input.sam} > {output.bam}
-        """
+# rule samToBam:
+#     input:
+#         sam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+#     output:
+#         bam = temp(expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]))
+#     conda:
+#         "omics"
+#     resources:
+#         cpus_per_task =10,
+#         runtime = 100,
+#         mem_mb = 64000
+#     shell:
+#         """
+# samtools view -@8 -bS {input.sam} > {output.bam}
+#         """
 
 rule getnewbams:
     input:
@@ -1396,6 +1401,12 @@ rule bedmethylanalysis_process:
         "ds"
     script:
         "scripts/bedmethylanalysis_process.R"
+
+rule getdss:
+    input:
+        bedmethylpaths = expand("ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_bedMethyl.bed", sample = ["Y1","Y2"], ref_genome = "analysis_default")
+
+
 
 rule bedmethylanalysis_process_single_condition:
     input:

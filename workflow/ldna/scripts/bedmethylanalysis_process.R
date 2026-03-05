@@ -174,6 +174,12 @@ if (conf$single_condition == "no") {
         fdr = dmls$fdrs,
         direction = dmls$direction
     )
+
+    for (threshold in unique(dmrs$dmr_type)) {
+        write_delim(dmrs %>% filter(dmr_type == threshold) %>% dplyr::select(chr, start, end), str_glue("ldna/Rintermediates/m/dmrs_{threshold}.bed"), delim = "\t", col_names = FALSE)
+        write_delim(dmrs %>% filter(dmr_type == threshold) %>% filter(direction == grep("Hypo", dmrs %$% direction %>% unique(), value = TRUE)) %>% dplyr::select(chr, start, end), str_glue("ldna/Rintermediates/m/dmrs_hypo_{threshold}.bed"), delim = "\t", col_names = FALSE)
+        write_delim(dmrs %>% filter(dmr_type == threshold) %>% filter(direction == grep("Hyper", dmrs %$% direction %>% unique(), value = TRUE)) %>% dplyr::select(chr, start, end), str_glue("ldna/Rintermediates/m/dmrs_hyper_{threshold}.bed"), delim = "\t", col_names = FALSE)
+    }
 }
 
 
