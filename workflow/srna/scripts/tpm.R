@@ -57,10 +57,6 @@ print(counttype)
 contrasts <- params[["contrasts"]]
 levels <- params[["levels"]]
 outputdir <- params[["outputdir"]]
-countspath <- outputs$counts_normed
-countsbatchnotremovedpath <- paste(outputdir, counttype, "counttablesizenormedbatchnotremoved.csv", sep = "/")
-print("countspath")
-print(countspath)
 coldata <- read.csv(params[["sample_table"]])
 samples <- conf$samples
 coldata <- coldata[match(conf$samples, coldata$sample_name), ]
@@ -71,7 +67,7 @@ rmann <- get_repeat_annotations(
     keep_non_central = FALSE
 )
 repeat_lengths <- rmann %>% dplyr::select(gene_id, length)
-repeat_lengths %>% filter(grepl("_NI", gene_id))
+repeat_lengths %>% filter(length == 0)
 
 if (counttype == "telescope_multi") {
     bounddf <- tibble(gene_id = as.character())
@@ -139,7 +135,7 @@ cnames <- colnames(cts)
 lengths <- rbind(gene_lengths, repeat_lengths)
 len_df <- tibble(gene_id = rownames(cts)) %>% left_join(lengths)
 
-filter_out <- len_df %>% filter(if_any(everything(), is.na)) %$% gene_id
+filter_out <- len_df %>% filter(if_any(everything(), is.na) | length == 0) %$% gene_id
 
 
 cts1 <- cts[!(rownames(cts) %in% filter_out), ]

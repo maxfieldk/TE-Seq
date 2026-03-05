@@ -528,12 +528,120 @@ find aref/ -type d -name 'RM_*' -exec rm -r {{}} +
 #     script:
 #         "scripts/maskedReadAnalysis.R"
 
+
+#### Kinnex
+
+# skera split /users/mkelsey/data/n2102ep/pacbio/r84094_20250609_152447/1_A01/hifi_reads/m84094_250609_153212_s2.hifi_reads.bcM0001.bam /users/mkelsey/data/n2102ep/pacbio/mas16_primers.fasta segmented.bam
+# lima /users/mkelsey/data/n2102ep/pacbio/r84094_20250609_152447/1_A01/hifi_reads/segmented.bam IsoSeq_v2_primers_12.fasta segmented.barcoded.bam --isoseq --peek-guess --overwrite-biosample-names --split-named
+# isoseq refine segmented.barcoded.IsoSeqX_bc01_5p--IsoSeqX_3p.bam IsoSeq_v2_primers_12.fasta bc01.flnc.bam
+
+rule skera_split:
+    input:
+        bam = "{path}.bam"
+    params:
+        kinnexprimers = config["lrna"]["kinnex_primers"]
+    output:
+        segbam = "{path}.skerasplit.bam"    
+    resources:
+        cpus_per_task =46,
+        runtime = 900,
+        mem_mb = 120000
+    container: None
+    conda:
+        "pacbio"
+    shell:
+        """
+skera split {input.bam} {params.kinnexprimers} {output.segbam}
+        """
+
+
+# lima produces all barcoded BAMs in one run, so we use a sentinel file
+# to ensure only one lima job per unique input BAM
+rule lima:
+    input:
+        bam = "{path_to_raw_data}/{ubam_base_name}.bam"
+    params:
+        isoseq = config["lrna"]["isoseq_primers"]
+    output:
+        done = "{path_to_raw_data}/{ubam_base_name}.lima_done"
+    resources:
+        cpus_per_task =46,
+        runtime = 900,
+        mem_mb = 120000
+    container: None
+    conda:
+        "pacbio"
+    shell:
+        """
+lima {input.bam} {params.isoseq} {input.bam} --isoseq --peek-guess --overwrite-biosample-names --split-named
+touch {output.done}
+        """
+
+
+rule isoseq_refine:
+    input:
+        lima_done = lambda w: "%s/%s.lima_done" % (
+            sample_table.loc[sample_table.sample_name == w.sample, "path_to_raw_data"].iloc[0],
+            sample_table.loc[sample_table.sample_name == w.sample, "ubam_base_name"].iloc[0]
+        )
+    params:
+        bam = lambda w: "%s/%s.IsoSeqX_%s_5p--IsoSeqX_3p.bam" % (
+            sample_table.loc[sample_table.sample_name == w.sample, "path_to_raw_data"].iloc[0],
+            sample_table.loc[sample_table.sample_name == w.sample, "ubam_base_name"].iloc[0],
+            sample_table.loc[sample_table.sample_name == w.sample, "barcode"].iloc[0]
+        ),
+        isoseq = config["lrna"]["isoseq_primers"]
+    output:
+        bam = "lrna/intermediates/{sample}/alignments/{sample}.unaligned.bam"
+    resources:
+        cpus_per_task =46,
+        runtime = 900,
+        mem_mb = 120000
+    container: None
+    conda:
+        "isoseq"
+    shell:
+        """
+isoseq refine {params.bam} {params.isoseq} {output.bam}
+        """
+
+rule pacbio_bam_to_fastq:
+    input:
+        bam = "lrna/intermediates/{sample}/alignments/{sample}.unaligned.bam"
+    output:
+        fastq = "lrna/intermediates/{sample}/fastqs/pacbio/{sample}.fq.gz"
+    benchmark:
+        "lrna/benchmarks/pacbio_bam_to_fastq/{sample}.tsv"
+    conda: 
+        "omics"
+    resources:
+        cpus_per_task =12
+    shell:
+        """
+mkdir -p $(dirname {output.fastq})
+samtools fastq {input.bam} > {input.bam}.fq
+gzip {input.bam}.fq
+mv {input.bam}.fq.gz {output.fastq}
+        """
+
 rule minimap2pacbio:
     input:
         fq = "lrna/intermediates/{sample}/fastqs/pacbio/{sample}.fq.gz"
     params:
         junctionbed = config["lrna"]["junctionbed"],
-        reference = lambda wildcards: "aref/extended/%s.fa"%(wildcards.sample) if config["lrna"]["per_sample_ref"] == "yes" else "aref/extended/A.REF.fa"
+        reference = lambda wildcards: (
+            # per-sample ref + patched
+            "aref/default/%s.snp_patched.fa" % wildcards.sample
+            if config["lrna"]["per_sample_ref"] == "yes" and config["aref"]["patch_ref"] == "yes"
+            # per-sample ref without patch
+            else "aref/default/%s.fa" % wildcards.sample
+            if config["lrna"]["per_sample_ref"] == "yes"
+            # global patched ref
+            else "aref/default/A.REF.snp_patched.fa"
+            if config["aref"]["patch_ref"] == "yes"
+            # global unpatched ref
+            else "aref/default/A.REF.fa"
+        )
     output:
         bam = "lrna/intermediates/{sample}/alignments/{sample}.sorted.bam"
     resources:
@@ -550,44 +658,6 @@ samtools sort -@4 -T {wildcards.sample} -O bam -o {output.bam}
 samtools index -@8 {output.bam}
 samtools stats {output.bam} > {output.bam}.stats.txt        
         """
-
-
-# rule minimap2RNATRANSCRIPTOME:
-#     input:
-#         fq = "lrna/intermediates/{sample}/fastqs/{sample}.fq.gz"
-#     params:
-#         referencetranscriptome = config["lrna"]["referencetranscriptome"]
-#     output:
-#         bam = "lrna/intermediates/{sample}/alignments/transcriptome/{sample}.sorted.bam"
-#     resources:
-#         cpus_per_task =20,
-#         runtime = 900,
-#         mem_mb = 80000
-#     conda:
-#         "minimap2"
-#     shell:
-#         """
-# minimap2 -ax map-ont -uf -N 10 -k14 -t 12  {params.referencetranscriptome} {input.fq} | \
-# samtools sort -@4 -T {wildcards.sample} -O bam -o {output.bam}
-# samtools index -@8 {output.bam}
-# samtools stats {output.bam} > {output.bam}.stats.txt        
-#         """
-
-# rule NanoCountgenesandRTEs:
-#     input:
-#         sortedbam = "lrna/intermediates/{sample}/alignments/transcriptome/{sample}.sorted.bam"
-#     output:
-#         counts = "lrna/intermediates/{sample}/counts/transcriptome/{sample}.nanocount.tsv",
-#     conda:
-#         "omics"
-#     resources:
-#         cpus_per_task =4,
-#         runtime = 3000,
-#         mem_mb = 32000,
-#     shell: 
-#         """
-# NanoCount -i {input.sortedbam} -o {output.counts} --extra_tx_info
-#         """
 
 rule fc_relaxed:
     input:
@@ -695,6 +765,8 @@ rule get_fc:
         input:
             stringent = expand("lrna/intermediates/{sample}/counts/stringent/{sample}rtesandgenes.counts.txt", sample = samples),
             relaxed = expand("lrna/intermediates/{sample}/counts/relaxed/{sample}rtesandgenes.counts.txt", sample = samples)
+
+
 rule deseq:
     input:
         counts = expand("lrna/intermediates/{sample}/counts/{{counttype}}/{sample}rtesandgenes.counts.txt", sample = samples),

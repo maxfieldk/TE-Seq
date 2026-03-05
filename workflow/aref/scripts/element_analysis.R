@@ -57,10 +57,11 @@ tryCatch(
 
 library(Rsamtools)
 fa <- Rsamtools::FaFile(inputs$ref)
-rmfragments <- read_csv(inputs$r_annotation_fragmentsjoined, col_names = TRUE)
-rmfamilies <- read_csv(inputs$r_repeatmasker_annotation, col_names = TRUE)
-rmann <- left_join(rmfragments, rmfamilies) %>%
-    filter(refstatus != "NonCentral")
+rmann <- get_repeat_annotations(
+    default_or_extended = "default",
+    keep_non_central = FALSE
+)
+
 outputdir <- dirname(outputs$plots)
 dir.create(outputdir, recursive = TRUE, showWarnings = FALSE)
 

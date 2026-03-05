@@ -199,576 +199,6 @@ if (conf$run_tetranscripts == "yes") {
     element_req_modifiers <- modifiers[str_detect(modifiers, "_req$")]
 }
 
-{ # new heatmaps
-    if ("L1HS" %in% (resultsdf %$% rte_subfamily %>% unique() %>% magrittr::extract(!is.na(.)))) { # asking whether the species is human
-        mf <- resultsdf %>%
-            filter(rte_family == "L1") %>%
-            mutate(cfam = substr(gene_id, 1, 3)) %>%
-            group_by(cfam) %>%
-            mutate(n_whole_group = n()) %>%
-            ungroup()
-
-        padj_columns <- select(mf, starts_with("padj"))
-        mf$broad_significance <- apply(padj_columns, 1, function(x) min(x, na.rm = TRUE))
-
-        mf <- mf %>%
-            filter(broad_significance < 0.05) %>%
-            group_by(cfam) %>%
-            mutate(n_de_group = n()) %>%
-            ungroup() %>%
-            filter(!grepl("X9_|MAR", cfam))
-
-
-        splitby <- mf %>%
-            mutate(cfamn = paste0(cfam, "\nn=", n_de_group, "\nOf ", n_whole_group)) %$% cfamn
-        splitby <- factor(splitby, levels = c(
-            grep("L1H", splitby %>% unique(), value = TRUE),
-            grep("L1P", splitby %>% unique(), value = TRUE),
-            grep("L1M", splitby %>% unique(), value = TRUE),
-            grep("HAL", splitby %>% unique(), value = TRUE)
-        ))
-        n <- splitby %>% table()
-        m <- mf %>%
-            dplyr::select(sample_table$sample_name) %>%
-            as.matrix()
-        rownames(m) <- mf %$% gene_id
-        ms <- t(scale(t(m))) %>% na.omit()
-        color_breaks_quantile <- m %>%
-            quantile(probs = c(0, .25, .50, .90)) %>%
-            round()
-        color_breaks_log <- c(0, 10, 100, 1000)
-        condition_vec <- sample_table$condition
-        topAnn <- HeatmapAnnotation(Condition = condition_vec, col = list(Condition = unlist(condition_palette[condition_vec])))
-
-        p <- Heatmap(
-            m,
-            col = circlize::colorRamp2(color_breaks_quantile, c("white", "#FCE61F", "#1E908C", "#443A84")),
-            cluster_rows = TRUE, cluster_columns = FALSE,
-            show_heatmap_legend = TRUE,
-            heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_quantile, break_dist = 1),
-            use_raster = TRUE,
-            cluster_row_slices = FALSE,
-            raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
-            row_split = splitby,
-            column_title = "DE L1s",
-            show_row_names = FALSE,
-            top_annotation = topAnn
-        )
-        mysaveandstore(sprintf("%s/%s/%s/heatmap/l1s_de.pdf", outputdir, counttype, "pan_contrast"), 7.5, 10)
-
-        p <- Heatmap(
-            m,
-            col = circlize::colorRamp2(color_breaks_quantile, c("white", "#FCE61F", "#1E908C", "#443A84")),
-            cluster_rows = TRUE, cluster_columns = TRUE,
-            show_heatmap_legend = TRUE,
-            heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_quantile, break_dist = 1),
-            use_raster = TRUE,
-            cluster_row_slices = FALSE,
-            raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
-            row_split = splitby,
-            column_title = "DE L1s",
-            show_row_names = FALSE,
-            top_annotation = topAnn
-        )
-        mysaveandstore(sprintf("%s/%s/%s/heatmap/l1s_de_col_clust.pdf", outputdir, counttype, "pan_contrast"), 7.5, 10)
-
-        p <- Heatmap(
-            m,
-            col = circlize::colorRamp2(color_breaks_log, c("white", "#FCE61F", "#1E908C", "#443A84")),
-            cluster_rows = TRUE, cluster_columns = FALSE,
-            show_heatmap_legend = TRUE,
-            heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_log, break_dist = 1),
-            use_raster = TRUE,
-            cluster_row_slices = FALSE,
-            raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
-            row_split = splitby,
-            column_title = "DE L1s",
-            show_row_names = FALSE,
-            top_annotation = topAnn
-        )
-        mysaveandstore(sprintf("%s/%s/%s/heatmap/l1s_de_breaks2.pdf", outputdir, counttype, "pan_contrast"), 7.5, 10)
-        p <- Heatmap(
-            m,
-            col = circlize::colorRamp2(color_breaks_log, c("white", "#FCE61F", "#1E908C", "#443A84")),
-            cluster_rows = TRUE, cluster_columns = TRUE,
-            show_heatmap_legend = TRUE,
-            heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_log, break_dist = 1),
-            use_raster = TRUE,
-            cluster_row_slices = FALSE,
-            raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
-            row_split = splitby,
-            column_title = "DE L1s",
-            show_row_names = FALSE,
-            top_annotation = topAnn
-        )
-        mysaveandstore(sprintf("%s/%s/%s/heatmap/l1s_de_col_clust_break2.pdf", outputdir, counttype, "pan_contrast"), 7.5, 10)
-    }
-
-    for (rte_family_ in (resultsdf %$% rte_family %>% unique() %>% magrittr::extract(!is.na(.)))) {
-        if (rte_family_ == "Other") {
-            next()
-        }
-
-        mf <- resultsdf %>%
-            filter(rte_family == rte_family_) %>%
-            group_by(rte_subfamily) %>%
-            mutate(n_whole_group = n()) %>%
-            ungroup()
-
-        padj_columns <- select(mf, starts_with("padj"))
-        mf$broad_significance <- apply(padj_columns, 1, function(x) min(x, na.rm = TRUE))
-
-        mf <- mf %>%
-            filter(broad_significance < 0.05) %>%
-            group_by(rte_subfamily) %>%
-            mutate(n_de_group = n()) %>%
-            ungroup() %>%
-            filter(!grepl("X9_|MAR", rte_subfamily))
-
-        m <- mf %>%
-            dplyr::select(sample_table$sample_name) %>%
-            as.matrix()
-
-        condition_vec <- sample_table$condition
-        topAnn <- HeatmapAnnotation(Condition = condition_vec, col = list(Condition = unlist(condition_palette[condition_vec])))
-
-        rownames(m) <- mf %$% gene_id
-        ms <- t(scale(t(m))) %>% na.omit()
-        color_breaks_quantile <- m %>%
-            quantile(probs = c(0, .25, .50, .90)) %>%
-            round()
-        color_breaks_log <- c(0, 10, 100, 1000)
-
-        tryCatch(
-            {
-                p <- Heatmap(
-                    m,
-                    col = circlize::colorRamp2(color_breaks_quantile, c("white", "#0000ff", "#ff0000", "black")),
-                    cluster_rows = TRUE, cluster_columns = FALSE,
-                    show_heatmap_legend = TRUE,
-                    heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_quantile, break_dist = 1),
-                    use_raster = TRUE,
-                    cluster_row_slices = FALSE,
-                    raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
-                    column_title = sprintf("DE %s", rte_family_),
-                    show_row_names = FALSE,
-                    top_annotation = topAnn
-                )
-                tryCatch(
-                    {
-                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de.pdf", outputdir, counttype, "pan_contrast", rte_family_), 7.5, 10)
-                    },
-                    error = function(e) {
-                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de.pdf", outputdir, counttype, "pan_contrast", rte_family_), 10, 20)
-                    }
-                )
-                p <- Heatmap(
-                    m,
-                    col = circlize::colorRamp2(color_breaks_quantile, c("white", "#0000ff", "#ff0000", "black")),
-                    cluster_rows = TRUE, cluster_columns = TRUE,
-                    show_heatmap_legend = TRUE,
-                    heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_quantile, break_dist = 1),
-                    use_raster = TRUE,
-                    cluster_row_slices = FALSE,
-                    raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
-                    column_title = sprintf("DE %s", rte_family_),
-                    show_row_names = FALSE,
-                    top_annotation = topAnn
-                )
-                tryCatch(
-                    {
-                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_col_clust.pdf", outputdir, counttype, "pan_contrast", rte_family_), 7.5, 10)
-                    },
-                    error = function(e) {
-                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_col_clust.pdf", outputdir, counttype, "pan_contrast", rte_family_), 10, 20)
-                    }
-                )
-                p <- Heatmap(
-                    m,
-                    col = circlize::colorRamp2(color_breaks_log, c("white", "#0000ff", "#ff0000", "black")),
-                    cluster_rows = TRUE, cluster_columns = FALSE,
-                    show_heatmap_legend = TRUE,
-                    heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_log, break_dist = 1),
-                    use_raster = TRUE,
-                    cluster_row_slices = FALSE,
-                    raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
-                    column_title = sprintf("DE %s", rte_family_),
-                    show_row_names = FALSE,
-                    top_annotation = topAnn
-                )
-                tryCatch(
-                    {
-                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_breaks2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 7.5, 10)
-                    },
-                    error = function(e) {
-                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_breaks2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 10, 20)
-                    }
-                )
-                p <- Heatmap(
-                    m,
-                    col = circlize::colorRamp2(color_breaks_log, c("white", "#0000ff", "#ff0000", "black")),
-                    cluster_rows = TRUE, cluster_columns = TRUE,
-                    show_heatmap_legend = TRUE,
-                    heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_log, break_dist = 1),
-                    use_raster = TRUE,
-                    cluster_row_slices = FALSE,
-                    raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
-                    column_title = sprintf("DE %s", rte_family_),
-                    show_row_names = FALSE,
-                    top_annotation = topAnn
-                )
-                tryCatch(
-                    {
-                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_col_clust_break2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 7.5, 10)
-                    },
-                    error = function(e) {
-                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_col_clust_break2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 10, 20)
-                    }
-                )
-            },
-            error = function(e) {
-
-            }
-        )
-    }
-
-    # now split by req_integrative
-    for (rte_family_ in (resultsdf %$% rte_family %>% unique() %>% magrittr::extract(!is.na(.)))) {
-        if (rte_family_ == "Other") {
-            next()
-        }
-        mf <- resultsdf %>%
-            filter(rte_family == rte_family_) %>%
-            group_by(req_integrative) %>%
-            mutate(n_whole_group = n()) %>%
-            ungroup()
-
-        padj_columns <- select(mf, starts_with("padj"))
-        mf$broad_significance <- apply(padj_columns, 1, function(x) min(x, na.rm = TRUE))
-
-        mf <- mf %>%
-            filter(broad_significance < 0.05) %>%
-            group_by(req_integrative) %>%
-            mutate(n_de_group = n()) %>%
-            ungroup()
-        splitbydf <- mf %>%
-            mutate(req_integrativen = paste0(req_integrative, "\nn=", n_de_group, "\nOf ", n_whole_group))
-
-
-        splitby <- splitbydf %$% req_integrativen
-        split_by_values <- splitby %>% unique()
-        splitby <- factor(splitby, levels = c(
-            grep("Yng Intact", split_by_values, value = TRUE),
-            grep("Yng FL", split_by_values, value = TRUE),
-            grep("Yng Trnc", split_by_values, value = TRUE),
-            grep("Old FL", split_by_values, value = TRUE),
-            grep("Old Trnc", split_by_values, value = TRUE)
-        ))
-        n <- splitby %>% table()
-        m <- mf %>%
-            dplyr::select(sample_table$sample_name) %>%
-            as.matrix()
-        condition_vec <- sample_table$condition
-        topAnn <- HeatmapAnnotation(Condition = condition_vec, col = list(Condition = unlist(condition_palette[condition_vec])))
-
-        rownames(m) <- mf %$% gene_id
-        color_breaks_quantile <- m %>%
-            quantile(probs = c(0, .25, .50, .90)) %>%
-            round()
-        color_breaks_log <- c(0, 10, 100, 1000)
-
-
-        tryCatch(
-            {
-                p <- Heatmap(
-                    m,
-                    col = circlize::colorRamp2(color_breaks_quantile, c("white", "#0000ff", "#ff0000", "black")),
-                    cluster_rows = TRUE, cluster_columns = FALSE,
-                    show_heatmap_legend = TRUE,
-                    heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_quantile, break_dist = 1),
-                    use_raster = TRUE,
-                    cluster_row_slices = FALSE,
-                    raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
-                    row_split = splitby,
-                    column_title = sprintf("DE %s", rte_family_),
-                    show_row_names = FALSE,
-                    top_annotation = topAnn
-                )
-                tryCatch(
-                    {
-                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_split2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 7.5, 10)
-                    },
-                    error = function(e) {
-                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_split2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 10, 20)
-                    }
-                )
-                p <- Heatmap(
-                    m,
-                    col = circlize::colorRamp2(color_breaks_quantile, c("white", "#0000ff", "#ff0000", "black")),
-                    cluster_rows = TRUE, cluster_columns = TRUE,
-                    show_heatmap_legend = TRUE,
-                    heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_quantile, break_dist = 1),
-                    use_raster = TRUE,
-                    cluster_row_slices = FALSE,
-                    raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
-                    row_split = splitby,
-                    column_title = sprintf("DE %s", rte_family_),
-                    show_row_names = FALSE,
-                    top_annotation = topAnn
-                )
-                tryCatch(
-                    {
-                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_col_clust_split2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 7.5, 10)
-                    },
-                    error = function(e) {
-                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_col_clust_split2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 10, 20)
-                    }
-                )
-                p <- Heatmap(
-                    m,
-                    col = circlize::colorRamp2(color_breaks_log, c("white", "#0000ff", "#ff0000", "black")),
-                    cluster_rows = TRUE, cluster_columns = FALSE,
-                    show_heatmap_legend = TRUE,
-                    heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_log, break_dist = 1),
-                    use_raster = TRUE,
-                    cluster_row_slices = FALSE,
-                    raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
-                    row_split = splitby,
-                    column_title = sprintf("DE %s", rte_family_),
-                    show_row_names = FALSE,
-                    top_annotation = topAnn
-                )
-                tryCatch(
-                    {
-                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_breaks2_split2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 7.5, 10)
-                    },
-                    error = function(e) {
-                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_breaks2_split2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 10, 20)
-                    }
-                )
-                p <- Heatmap(
-                    m,
-                    col = circlize::colorRamp2(color_breaks_log, c("white", "#0000ff", "#ff0000", "black")),
-                    cluster_rows = TRUE, cluster_columns = TRUE,
-                    show_heatmap_legend = TRUE,
-                    heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_log, break_dist = 1),
-                    use_raster = TRUE,
-                    cluster_row_slices = FALSE,
-                    raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
-                    row_split = splitby,
-                    column_title = sprintf("DE %s", rte_family_),
-                    show_row_names = FALSE,
-                    top_annotation = topAnn
-                )
-                tryCatch(
-                    {
-                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_col_clust_break2_split2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 7.5, 10)
-                    },
-                    error = function(e) {
-                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_col_clust_break2_split2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 10, 20)
-                    }
-                )
-            },
-            error = function(e) {
-
-            }
-        )
-    }
-}
-
-# subset <- resultsdf %>% filter(grepl("*tact*", intactness_req))
-for (ontology in c("rte_subfamily_limited", "l1_subfamily_limited", "rte_family")) {
-    print(ontology)
-    subset <- resultsdfwithgenes %>%
-        filter(!!sym(ontology) != "Other") %>%
-        filter(!is.na(!!sym(ontology)))
-
-    te_gene_matrix_list <- list()
-    for (contrast in contrasts) {
-        contrast_of_interest <- contrast
-        contrast_level_2 <- contrast_of_interest %>%
-            gsub("condition_", "", .) %>%
-            gsub("_vs_.*", "", .)
-        contrast_level_1 <- contrast_of_interest %>%
-            gsub(".*_vs_", "", .)
-        contrast_stat <- paste0("stat_", contrast_of_interest)
-        contrast_padj <- paste0("padj_", contrast_of_interest)
-        contrast_log2FoldChange <- paste0("log2FoldChange_", contrast_of_interest)
-        contrast_samples <- sample_table %>%
-            filter(condition %in% c(contrast_level_1, contrast_level_2)) %>%
-            pull(sample_name)
-        te_gene_matrix <- subset %>%
-            dplyr::rename(TE = !!sym(contrast_log2FoldChange))
-        te_gene_matrix$GENE <- resultsdfwithgenes[match(te_gene_matrix$nearest_tx, resultsdfwithgenes$gene_id), ] %>% pull(!!sym(contrast_log2FoldChange))
-        te_gene_matrix$cor_contrast <- contrast
-        te_gene_matrix_list[[contrast]] <- te_gene_matrix
-        tryCatch(
-            {
-                cor_df <<- te_gene_matrix %>%
-                    mutate(req_integrative = gsub(".*Intact.*", "Yng FL", req_integrative)) %>%
-                    group_by(!!sym(ontology), req_integrative, loc_integrative) %>%
-                    mutate(groupN = n()) %>%
-                    filter(groupN > 4) %>%
-                    summarise(cor = cor.test(TE, GENE, method = "spearman")$estimate, pval = cor.test(TE, GENE, method = "spearman")$p.value)
-                cor_df %$% req_integrative %>% unique()
-                pf <- cor_df %>%
-                    ungroup() %>%
-                    filter(loc_integrative != "Centromeric") %>%
-                    complete(!!sym(ontology), req_integrative, loc_integrative)
-                p <- pf %>%
-                    ggplot() +
-                    geom_tile(aes(x = !!sym(ontology), y = loc_integrative, fill = cor)) +
-                    facet_grid(~req_integrative, space = "free", scales = "free") +
-                    scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.8, 0, 0.8), na.value = "dark grey") +
-                    mtclosed +
-                    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-                    labs(x = "", y = "")
-                mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_%s.pdf", outputdir, counttype, contrast, ontology), 6, 4)
-                p <- pf %>%
-                    ggplot(aes(x = !!sym(ontology), y = loc_integrative)) +
-                    geom_tile(aes(fill = cor)) +
-                    facet_grid(~req_integrative, space = "free", scales = "free") +
-                    geom_text(aes(label = ifelse(pval < 0.05, "*", "")), size = 3) +
-                    scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.8, 0, 0.8), na.value = "dark grey") +
-                    mtclosed +
-                    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-                    labs(x = "", y = "")
-                mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_pval_%s.pdf", outputdir, counttype, contrast, ontology), 10, 6)
-            },
-            error = function(e) {
-
-            }
-        )
-    }
-    base_level <- conf$levels[[1]]
-    # keep only contrasts vs base level to not artificially inflate number of independent comparisons
-    te_gene_matrix_all <- Reduce(
-        bind_rows,
-        te_gene_matrix_list[grepl(sprintf("_vs_%s", base_level), names(te_gene_matrix_list))]
-    )
-
-    cor_df <- te_gene_matrix_all %>%
-        group_by(!!sym(ontology), req_integrative, loc_integrative, rte_length_req) %>%
-        mutate(groupN = n()) %>%
-        filter(groupN > 4) %>%
-        summarise(cor = cor.test(TE, GENE, method = "spearman")$estimate, pval = cor.test(TE, GENE, method = "spearman")$p.value) %>%
-        mutate(padj = p.adjust(pval, method = "fdr"))
-    cor_df %$% req_integrative %>% unique()
-    pf <- cor_df %>%
-        ungroup() %>%
-        complete(!!sym(ontology), req_integrative, loc_integrative)
-
-    p <- pf %>%
-        ggplot() +
-        geom_tile(aes(x = !!sym(ontology), y = loc_integrative, fill = cor)) +
-        facet_grid(~req_integrative, space = "free", scales = "free") +
-        scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.8, 0, 0.8), na.value = "dark grey") +
-        mtclosed +
-        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-        labs(x = "", y = "")
-    mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_%s.pdf", outputdir, counttype, "pan_contrast", ontology), 10, 6)
-
-
-    p <- pf %>%
-        ggplot(aes(x = !!sym(ontology), y = loc_integrative)) +
-        geom_tile(aes(fill = cor)) +
-        facet_grid(~req_integrative, space = "free", scales = "free") +
-        geom_text(aes(label = ifelse(padj < 0.05, "*", "")), size = 3) +
-        scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.8, 0, 0.8), na.value = "dark grey") +
-        mtclosed +
-        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-        labs(x = "", y = "")
-    mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_pval_%s.pdf", outputdir, counttype, "pan_contrast", ontology), 10, 6)
-
-    cor_df <- te_gene_matrix_all %>%
-        group_by(!!sym(ontology), loc_integrative, rte_length_req) %>%
-        mutate(groupN = n()) %>%
-        filter(groupN > 4) %>%
-        summarise(cor = cor.test(TE, GENE, method = "spearman")$estimate, pval = cor.test(TE, GENE, method = "spearman")$p.value) %>%
-        mutate(padj = p.adjust(pval, method = "fdr"))
-
-    pf <- cor_df %>%
-        ungroup() %>%
-        complete(!!sym(ontology), loc_integrative, rte_length_req)
-    p <- pf %>%
-        ggplot(aes(x = !!sym(ontology), y = loc_integrative)) +
-        geom_tile(aes(fill = cor)) +
-        facet_grid(~rte_length_req, space = "free", scales = "free") +
-        geom_text(aes(label = ifelse(padj < 0.05, "*", "")), size = 3) +
-        scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.5, 0, 0.5), na.value = "dark grey") +
-        mtclosed +
-        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-        labs(x = "", y = "")
-    mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_length_req_pval1_%s.pdf", outputdir, counttype, "pan_contrast", ontology), 5, 4)
-
-    cor_df <- te_gene_matrix_all %>%
-        group_by(!!sym(ontology), loc_highres_integrative_stranded, rte_length_req) %>%
-        mutate(groupN = n()) %>%
-        filter(groupN > 4) %>%
-        summarise(cor = cor.test(TE, GENE, method = "spearman")$estimate, pval = cor.test(TE, GENE, method = "spearman")$p.value) %>%
-        mutate(padj = p.adjust(pval, method = "fdr"))
-    pf <- cor_df %>%
-        ungroup() %>%
-        complete(!!sym(ontology), loc_highres_integrative_stranded, rte_length_req)
-    p <- pf %>%
-        ggplot(aes(x = !!sym(ontology), y = loc_highres_integrative_stranded)) +
-        geom_tile(aes(fill = cor)) +
-        facet_grid(~rte_length_req, space = "free", scales = "free") +
-        geom_text(aes(label = ifelse(padj < 0.05, "*", "")), size = 3) +
-        scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.5, 0, 0.5), na.value = "dark grey") +
-        mtclosed +
-        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-        labs(x = "", y = "")
-    mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_length_req_pval_highres_stranded_%s.pdf", outputdir, counttype, "pan_contrast", ontology), 6, 5)
-
-    cor_df <- te_gene_matrix_all %>%
-        group_by(!!sym(ontology), loc_lowres_integrative_stranded, rte_length_req) %>%
-        mutate(groupN = n()) %>%
-        filter(groupN > 4) %>%
-        summarise(cor = cor.test(TE, GENE, method = "spearman")$estimate, pval = cor.test(TE, GENE, method = "spearman")$p.value) %>%
-        mutate(padj = p.adjust(pval, method = "fdr"))
-
-    pf <- cor_df %>%
-        ungroup() %>%
-        complete(!!sym(ontology), loc_lowres_integrative_stranded, rte_length_req)
-    p <- pf %>%
-        ggplot(aes(x = !!sym(ontology), y = loc_lowres_integrative_stranded)) +
-        geom_tile(aes(fill = cor)) +
-        facet_grid(~rte_length_req, space = "free", scales = "free") +
-        geom_text(aes(label = ifelse(padj < 0.05, "*", "")), size = 3) +
-        scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.5, 0, 0.5), na.value = "dark grey") +
-        mtclosed +
-        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-        labs(x = "", y = "")
-    mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_length_req_pval_lowres_stranded_%s.pdf", outputdir, counttype, "pan_contrast", ontology), 6, 5)
-
-
-    if (grepl("subfamily", ontology)) {
-        cross_frame <- te_gene_matrix_all %>%
-            select(rte_subfamily, loc_lowres_integrative_stranded, rte_length_req) %>%
-            crossing()
-        for (i in seq(1:length(rownames(cross_frame)))) {
-            row <- cross_frame[i, ]
-            a <- row$rte_subfamily
-            b <- row$rte_length_req
-            c <- row$loc_lowres_integrative_stranded
-            p <- te_gene_matrix_all %>%
-                filter(rte_subfamily == a) %>%
-                filter(rte_length_req == b) %>%
-                filter(loc_lowres_integrative_stranded == c) %>%
-                dplyr::select(TE, GENE, cor_contrast) %>%
-                ggplot(aes(x = TE, y = GENE, color = cor_contrast)) +
-                theme(aspect.ratio = 1) +
-                geom_point(alpha = 0.3) +
-                labs(x = "TE L2FC", y = "GENE L2FC") +
-                ggtitle(sprintf("%s %s\n%s", a, c, b)) +
-                scale_contrasts +
-                mtclosed
-            mysaveandstore(pl = p, fn = sprintf("%s/%s/%s/rte_gene_cor/scatter_gene_te_corr/%s_%s_%s.pdf", outputdir, counttype, "pan_contrast", a, b, c), 6, 4)
-        }
-    }
-}
-
 
 #### PLOTTING FUNCTIONS
 
@@ -799,7 +229,7 @@ pvp <- function(df, facet_var = "ALL", filter_var = "ALL", labels = "no", scale_
             {
                 ggplot(data = ., mapping = aes(x = !!sym(contrast_level_1), y = !!sym(contrast_level_2))) +
                     geom_abline(intercept = 0, slope = 1, alpha = 0.5) +
-                    geom_point(aes(color = loc_lowres_integrative_stranded, shape = ifelse(is.na(padj), FALSE, ifelse(padj < 0.05, TRUE, FALSE)))) +
+                    geom_point(aes(color = loc_superlowres_integrative_stranded, shape = ifelse(is.na(padj), FALSE, ifelse(padj < 0.05, TRUE, FALSE)))) +
                     scale_shape_manual(values = c(1, 19, 3)) +
                     scale_size_manual(values = c(1, 2, 1)) +
                     labs(
@@ -824,7 +254,7 @@ pvp <- function(df, facet_var = "ALL", filter_var = "ALL", labels = "no", scale_
             {
                 ggplot(data = ., mapping = aes(x = !!sym(contrast_level_1), y = !!sym(contrast_level_2))) +
                     geom_abline(intercept = 0, slope = 1, alpha = 0.5) +
-                    geom_point(aes(color = loc_lowres_integrative_stranded, shape = ifelse(is.na(padj), FALSE, ifelse(padj < 0.05, TRUE, FALSE)))) +
+                    geom_point(aes(color = loc_superlowres_integrative_stranded, shape = ifelse(is.na(padj), FALSE, ifelse(padj < 0.05, TRUE, FALSE)))) +
                     scale_shape_manual(values = c(1, 19, 3)) +
                     scale_size_manual(values = c(1, 2, 1)) +
                     labs(
@@ -939,9 +369,12 @@ stripp <- function(df, stats = "no", extraGGoptions = NULL, facet_var = "ALL", f
                             color = "black",
                             width = 0.9
                         ) +
-                        geom_beeswarm(
-                            method = "swarm",
-                            dodge.width = 0.9
+                        geom_jitter(
+                            position = position_jitterdodge(
+                                dodge.width = 0.9,
+                                jitter.width = 0.2,
+                                jitter.height = 0
+                            )
                         ) +
                         facet_grid(cols = vars(!!sym(facet_var))) +
                         labs(x = "", y = "Sum Normalized Counts", subtitle = counttype_label) +
@@ -1485,8 +918,8 @@ for (rte_subfam in rte_subfams) {
     pancontrastbarplots(ontology_column = "rte_subfamily", ontology_column_value = rte_subfam, facetvars = c("req_integrative", "genic_loc"), refstatus_to_include = c("Ref", "NonRef"), element_subttypes_to_remove = c("genic_loc" = "Genic"))
     pancontrastbarplots(ontology_column = "rte_subfamily", ontology_column_value = rte_subfam, facetvars = c("req_integrative", "genic_loc"), refstatus_to_include = c("NonRef"))
     pancontrastbarplots(ontology_column = "rte_subfamily", ontology_column_value = rte_subfam, facetvars = c("req_integrative", "loc_highres_integrative_stranded"), refstatus_to_include = c("Ref", "NonRef"))
-    pancontrastbarplots(ontology_column = "rte_subfamily", ontology_column_value = rte_subfam, facetvars = c("req_integrative", "loc_lowres_integrative_stranded"), refstatus_to_include = c("Ref", "NonRef"))
-    pancontrastbarplots(ontology_column = "rte_subfamily", ontology_column_value = rte_subfam, facetvars = c("req_integrative", "loc_lowres_integrative_stranded"), refstatus_to_include = c("Ref", "NonRef"), element_subttypes_to_remove = c("loc_lowres_integrative_stranded" = "Genic_Sense"))
+    pancontrastbarplots(ontology_column = "rte_subfamily", ontology_column_value = rte_subfam, facetvars = c("req_integrative", "loc_superlowres_integrative_stranded"), refstatus_to_include = c("Ref", "NonRef"))
+    pancontrastbarplots(ontology_column = "rte_subfamily", ontology_column_value = rte_subfam, facetvars = c("req_integrative", "loc_superlowres_integrative_stranded"), refstatus_to_include = c("Ref", "NonRef"), element_subttypes_to_remove = c("loc_superlowres_integrative_stranded" = "Genic_Sense"))
     if (tidydf %>% filter(rte_subfamily == rte_subfam) %$% rte_superfamily %>% unique() == "LTR") {
         pancontrastbarplots(ontology_column = "rte_subfamily", ontology_column_value = rte_subfam, facetvars = c("ltr_viral_status", "genic_loc"), refstatus_to_include = c("Ref", "NonRef"))
     }
@@ -1500,7 +933,7 @@ for (rte_fam in rte_fams) {
     pancontrastbarplots(ontology_column = "rte_family", ontology_column_value = rte_fam, facetvars = c("req_integrative", "genic_loc"), refstatus_to_include = c("Ref", "NonRef"))
     pancontrastbarplots(ontology_column = "rte_family", ontology_column_value = rte_fam, facetvars = c("req_integrative", "genic_loc"), refstatus_to_include = c("NonRef"))
     pancontrastbarplots(ontology_column = "rte_family", ontology_column_value = rte_fam, facetvars = c("req_integrative", "loc_highres_integrative_stranded"), refstatus_to_include = c("Ref", "NonRef"))
-    pancontrastbarplots(ontology_column = "rte_family", ontology_column_value = rte_fam, facetvars = c("req_integrative", "loc_lowres_integrative_stranded"), refstatus_to_include = c("Ref", "NonRef"))
+    pancontrastbarplots(ontology_column = "rte_family", ontology_column_value = rte_fam, facetvars = c("req_integrative", "loc_superlowres_integrative_stranded"), refstatus_to_include = c("Ref", "NonRef"))
     if (tidydf %>% filter(rte_family == rte_fam) %$% rte_superfamily %>% unique() == "LTR") {
         pancontrastbarplots(ontology_column = "rte_family", ontology_column_value = rte_fam, facetvars = c("ltr_viral_status", "genic_loc"), refstatus_to_include = c("Ref", "NonRef"))
     }
@@ -1508,38 +941,40 @@ for (rte_fam in rte_fams) {
 
 tryCatch(
     {
-        tidy_ASP <- tidydf %>%
-            filter(grepl("__AS$", gene_id)) %>%
-            dplyr::select(sample, counts, gene_id) %>%
-            dplyr::rename(ASP_counts = counts) %>%
-            mutate(gene_id = case_when(
-                TRUE ~ gsub("__AS$", "", gene_id)
-            )) %>%
-            left_join(tidydf)
+        if (confALL$aref$species == "human") {
+            tidy_ASP <- tidydf %>%
+                filter(grepl("__AS$", gene_id)) %>%
+                dplyr::select(sample, counts, gene_id) %>%
+                dplyr::rename(ASP_counts = counts) %>%
+                mutate(gene_id = case_when(
+                    TRUE ~ gsub("__AS$", "", gene_id)
+                )) %>%
+                left_join(tidydf)
 
 
-        p <- tidy_ASP %>%
-            filter(rte_subfamily == "L1HS") %>%
-            ggplot(aes(x = counts, y = ASP_counts)) +
-            geom_point() +
-            facet_wrap(~loc_lowres_integrative_stranded) +
-            mtclosed
-        mysaveandstore(str_glue("{outputdir}/L1HS_SP_ASP_cor.pdf"), w = 10, h = 6)
+            p <- tidy_ASP %>%
+                filter(rte_subfamily == "L1HS") %>%
+                ggplot(aes(x = counts, y = ASP_counts)) +
+                geom_point() +
+                facet_wrap(~loc_lowres_integrative_stranded) +
+                mtclosed
+            mysaveandstore(str_glue("{outputdir}/L1HS_SP_ASP_cor.pdf"), w = 10, h = 6)
 
-        p <- tidy_ASP %>%
-            filter(rte_subfamily == "L1HS") %>%
-            ggplot(aes(x = log(counts + 1), y = log(ASP_counts + 1))) +
-            geom_point() +
-            facet_wrap(~loc_lowres_integrative_stranded) +
-            mtclosed
-        mysaveandstore(str_glue("{outputdir}/L1HS_SP_ASP_log_cor.pdf"), w = 10, h = 6)
+            p <- tidy_ASP %>%
+                filter(rte_subfamily == "L1HS") %>%
+                ggplot(aes(x = log(counts + 1), y = log(ASP_counts + 1))) +
+                geom_point() +
+                facet_wrap(~loc_lowres_integrative_stranded) +
+                mtclosed
+            mysaveandstore(str_glue("{outputdir}/L1HS_SP_ASP_log_cor.pdf"), w = 10, h = 6)
 
 
-        tASP <- tidy_ASP %>%
-            dplyr::select(-counts) %>%
-            dplyr::rename(counts = ASP_counts) %>%
-            left_join(sample_table %>% dplyr::rename(sample = sample_name))
-        pancontrastbarplots(tdf = tASP, ontology_column = "rte_subfamily", ontology_column_value = "L1HS", ontology_column_value_modifier = "_ASP", facetvars = c("req_integrative", "loc_lowres_integrative_stranded"), refstatus_to_include = c("Ref", "NonRef"))
+            tASP <- tidy_ASP %>%
+                dplyr::select(-counts) %>%
+                dplyr::rename(counts = ASP_counts) %>%
+                left_join(sample_table %>% dplyr::rename(sample = sample_name))
+            pancontrastbarplots(tdf = tASP, ontology_column = "rte_subfamily", ontology_column_value = "L1HS", ontology_column_value_modifier = "_ASP", facetvars = c("req_integrative", "loc_lowres_integrative_stranded"), refstatus_to_include = c("Ref", "NonRef"))
+        }
     },
     error = function(e) {
 
@@ -1825,6 +1260,589 @@ for (contrast in contrasts) {
 }
 
 
+
+{ # new heatmaps
+    if ("L1HS" %in% (resultsdf %$% rte_subfamily %>% unique() %>% magrittr::extract(!is.na(.)))) { # asking whether the species is human
+        mf <- resultsdf %>%
+            filter(rte_family == "L1") %>%
+            mutate(cfam = substr(gene_id, 1, 3)) %>%
+            group_by(cfam) %>%
+            mutate(n_whole_group = n()) %>%
+            ungroup()
+
+        padj_columns <- select(mf, starts_with("padj"))
+        mf$broad_significance <- apply(padj_columns, 1, function(x) min(x, na.rm = TRUE))
+
+        mf <- mf %>%
+            filter(broad_significance < 0.05) %>%
+            group_by(cfam) %>%
+            mutate(n_de_group = n()) %>%
+            ungroup() %>%
+            filter(!grepl("X9_|MAR", cfam))
+
+
+        splitby <- mf %>%
+            mutate(cfamn = paste0(cfam, "\nn=", n_de_group, "\nOf ", n_whole_group)) %$% cfamn
+        splitby <- factor(splitby, levels = c(
+            grep("L1H", splitby %>% unique(), value = TRUE),
+            grep("L1P", splitby %>% unique(), value = TRUE),
+            grep("L1M", splitby %>% unique(), value = TRUE),
+            grep("HAL", splitby %>% unique(), value = TRUE)
+        ))
+        n <- splitby %>% table()
+        m <- mf %>%
+            dplyr::select(sample_table$sample_name) %>%
+            as.matrix()
+        rownames(m) <- mf %$% gene_id
+        ms <- t(scale(t(m))) %>% na.omit()
+        color_breaks_quantile <- m %>%
+            quantile(probs = c(0, .25, .50, .90)) %>%
+            round()
+        color_breaks_log <- c(0, 10, 100, 1000)
+        condition_vec <- sample_table$condition
+        topAnn <- HeatmapAnnotation(Condition = condition_vec, col = list(Condition = unlist(condition_palette[condition_vec])))
+
+        p <- Heatmap(
+            m,
+            col = circlize::colorRamp2(color_breaks_quantile, c("white", "#FCE61F", "#1E908C", "#443A84")),
+            cluster_rows = TRUE, cluster_columns = FALSE,
+            show_heatmap_legend = TRUE,
+            heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_quantile, break_dist = 1),
+            use_raster = TRUE,
+            cluster_row_slices = FALSE,
+            raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
+            row_split = splitby,
+            column_title = "DE L1s",
+            show_row_names = FALSE,
+            top_annotation = topAnn
+        )
+        mysaveandstore(sprintf("%s/%s/%s/heatmap/l1s_de.pdf", outputdir, counttype, "pan_contrast"), 7.5, 10)
+
+        p <- Heatmap(
+            m,
+            col = circlize::colorRamp2(color_breaks_quantile, c("white", "#FCE61F", "#1E908C", "#443A84")),
+            cluster_rows = TRUE, cluster_columns = TRUE,
+            show_heatmap_legend = TRUE,
+            heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_quantile, break_dist = 1),
+            use_raster = TRUE,
+            cluster_row_slices = FALSE,
+            raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
+            row_split = splitby,
+            column_title = "DE L1s",
+            show_row_names = FALSE,
+            top_annotation = topAnn
+        )
+        mysaveandstore(sprintf("%s/%s/%s/heatmap/l1s_de_col_clust.pdf", outputdir, counttype, "pan_contrast"), 7.5, 10)
+
+        p <- Heatmap(
+            m,
+            col = circlize::colorRamp2(color_breaks_log, c("white", "#FCE61F", "#1E908C", "#443A84")),
+            cluster_rows = TRUE, cluster_columns = FALSE,
+            show_heatmap_legend = TRUE,
+            heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_log, break_dist = 1),
+            use_raster = TRUE,
+            cluster_row_slices = FALSE,
+            raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
+            row_split = splitby,
+            column_title = "DE L1s",
+            show_row_names = FALSE,
+            top_annotation = topAnn
+        )
+        mysaveandstore(sprintf("%s/%s/%s/heatmap/l1s_de_breaks2.pdf", outputdir, counttype, "pan_contrast"), 7.5, 10)
+        p <- Heatmap(
+            m,
+            col = circlize::colorRamp2(color_breaks_log, c("white", "#FCE61F", "#1E908C", "#443A84")),
+            cluster_rows = TRUE, cluster_columns = TRUE,
+            show_heatmap_legend = TRUE,
+            heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_log, break_dist = 1),
+            use_raster = TRUE,
+            cluster_row_slices = FALSE,
+            raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
+            row_split = splitby,
+            column_title = "DE L1s",
+            show_row_names = FALSE,
+            top_annotation = topAnn
+        )
+        mysaveandstore(sprintf("%s/%s/%s/heatmap/l1s_de_col_clust_break2.pdf", outputdir, counttype, "pan_contrast"), 7.5, 10)
+    }
+
+    for (rte_family_ in (resultsdf %$% rte_family %>% unique() %>% magrittr::extract(!is.na(.)))) {
+        if (rte_family_ == "Other") {
+            next()
+        }
+
+        mf <- resultsdf %>%
+            filter(rte_family == rte_family_) %>%
+            group_by(rte_subfamily) %>%
+            mutate(n_whole_group = n()) %>%
+            ungroup()
+
+        padj_columns <- select(mf, starts_with("padj"))
+        mf$broad_significance <- apply(padj_columns, 1, function(x) min(x, na.rm = TRUE))
+
+        mf <- mf %>%
+            filter(broad_significance < 0.05) %>%
+            group_by(rte_subfamily) %>%
+            mutate(n_de_group = n()) %>%
+            ungroup() %>%
+            filter(!grepl("X9_|MAR", rte_subfamily))
+
+        m <- mf %>%
+            dplyr::select(sample_table$sample_name) %>%
+            as.matrix()
+
+        condition_vec <- sample_table$condition
+        topAnn <- HeatmapAnnotation(Condition = condition_vec, col = list(Condition = unlist(condition_palette[condition_vec])))
+
+        rownames(m) <- mf %$% gene_id
+        ms <- t(scale(t(m))) %>% na.omit()
+        color_breaks_quantile <- m %>%
+            quantile(probs = c(0, .25, .50, .90)) %>%
+            round()
+        color_breaks_log <- c(0, 10, 100, 1000)
+
+        tryCatch(
+            {
+                p <- Heatmap(
+                    m,
+                    col = circlize::colorRamp2(color_breaks_quantile, c("white", "#0000ff", "#ff0000", "black")),
+                    cluster_rows = TRUE, cluster_columns = FALSE,
+                    show_heatmap_legend = TRUE,
+                    heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_quantile, break_dist = 1),
+                    use_raster = TRUE,
+                    cluster_row_slices = FALSE,
+                    raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
+                    column_title = sprintf("DE %s", rte_family_),
+                    show_row_names = FALSE,
+                    top_annotation = topAnn
+                )
+                tryCatch(
+                    {
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de.pdf", outputdir, counttype, "pan_contrast", rte_family_), 7.5, 10)
+                    },
+                    error = function(e) {
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de.pdf", outputdir, counttype, "pan_contrast", rte_family_), 10, 20)
+                    }
+                )
+                p <- Heatmap(
+                    m,
+                    col = circlize::colorRamp2(color_breaks_quantile, c("white", "#0000ff", "#ff0000", "black")),
+                    cluster_rows = TRUE, cluster_columns = TRUE,
+                    show_heatmap_legend = TRUE,
+                    heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_quantile, break_dist = 1),
+                    use_raster = TRUE,
+                    cluster_row_slices = FALSE,
+                    raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
+                    column_title = sprintf("DE %s", rte_family_),
+                    show_row_names = FALSE,
+                    top_annotation = topAnn
+                )
+                tryCatch(
+                    {
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_col_clust.pdf", outputdir, counttype, "pan_contrast", rte_family_), 7.5, 10)
+                    },
+                    error = function(e) {
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_col_clust.pdf", outputdir, counttype, "pan_contrast", rte_family_), 10, 20)
+                    }
+                )
+                p <- Heatmap(
+                    m,
+                    col = circlize::colorRamp2(color_breaks_log, c("white", "#0000ff", "#ff0000", "black")),
+                    cluster_rows = TRUE, cluster_columns = FALSE,
+                    show_heatmap_legend = TRUE,
+                    heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_log, break_dist = 1),
+                    use_raster = TRUE,
+                    cluster_row_slices = FALSE,
+                    raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
+                    column_title = sprintf("DE %s", rte_family_),
+                    show_row_names = FALSE,
+                    top_annotation = topAnn
+                )
+                tryCatch(
+                    {
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_breaks2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 7.5, 10)
+                    },
+                    error = function(e) {
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_breaks2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 10, 20)
+                    }
+                )
+                p <- Heatmap(
+                    m,
+                    col = circlize::colorRamp2(color_breaks_log, c("white", "#0000ff", "#ff0000", "black")),
+                    cluster_rows = TRUE, cluster_columns = TRUE,
+                    show_heatmap_legend = TRUE,
+                    heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_log, break_dist = 1),
+                    use_raster = TRUE,
+                    cluster_row_slices = FALSE,
+                    raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
+                    column_title = sprintf("DE %s", rte_family_),
+                    show_row_names = FALSE,
+                    top_annotation = topAnn
+                )
+                tryCatch(
+                    {
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_col_clust_break2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 7.5, 10)
+                    },
+                    error = function(e) {
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_col_clust_break2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 10, 20)
+                    }
+                )
+            },
+            error = function(e) {
+
+            }
+        )
+    }
+
+    # now split by req_integrative
+    for (rte_family_ in (resultsdf %$% rte_family %>% unique() %>% magrittr::extract(!is.na(.)))) {
+        if (rte_family_ == "Other") {
+            next()
+        }
+        mf <- resultsdf %>%
+            filter(rte_family == rte_family_) %>%
+            group_by(req_integrative) %>%
+            mutate(n_whole_group = n()) %>%
+            ungroup()
+
+        padj_columns <- select(mf, starts_with("padj"))
+        mf$broad_significance <- apply(padj_columns, 1, function(x) min(x, na.rm = TRUE))
+
+        mf <- mf %>%
+            filter(broad_significance < 0.05) %>%
+            group_by(req_integrative) %>%
+            mutate(n_de_group = n()) %>%
+            ungroup()
+        splitbydf <- mf %>%
+            mutate(req_integrativen = paste0(req_integrative, "\nn=", n_de_group, "\nOf ", n_whole_group))
+
+
+        splitby <- splitbydf %$% req_integrativen
+        split_by_values <- splitby %>% unique()
+        splitby <- factor(splitby, levels = c(
+            grep("Yng Intact", split_by_values, value = TRUE),
+            grep("Yng FL", split_by_values, value = TRUE),
+            grep("Yng Trnc", split_by_values, value = TRUE),
+            grep("Old FL", split_by_values, value = TRUE),
+            grep("Old Trnc", split_by_values, value = TRUE)
+        ))
+        n <- splitby %>% table()
+        m <- mf %>%
+            dplyr::select(sample_table$sample_name) %>%
+            as.matrix()
+        condition_vec <- sample_table$condition
+        topAnn <- HeatmapAnnotation(Condition = condition_vec, col = list(Condition = unlist(condition_palette[condition_vec])))
+
+        rownames(m) <- mf %$% gene_id
+        color_breaks_quantile <- m %>%
+            quantile(probs = c(0, .25, .50, .90)) %>%
+            round()
+        color_breaks_log <- c(0, 10, 100, 1000)
+
+
+        tryCatch(
+            {
+                p <- Heatmap(
+                    m,
+                    col = circlize::colorRamp2(color_breaks_quantile, c("white", "#0000ff", "#ff0000", "black")),
+                    cluster_rows = TRUE, cluster_columns = FALSE,
+                    show_heatmap_legend = TRUE,
+                    heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_quantile, break_dist = 1),
+                    use_raster = TRUE,
+                    cluster_row_slices = FALSE,
+                    raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
+                    row_split = splitby,
+                    column_title = sprintf("DE %s", rte_family_),
+                    show_row_names = FALSE,
+                    top_annotation = topAnn
+                )
+                tryCatch(
+                    {
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_split2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 7.5, 10)
+                    },
+                    error = function(e) {
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_split2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 10, 20)
+                    }
+                )
+                p <- Heatmap(
+                    m,
+                    col = circlize::colorRamp2(color_breaks_quantile, c("white", "#0000ff", "#ff0000", "black")),
+                    cluster_rows = TRUE, cluster_columns = TRUE,
+                    show_heatmap_legend = TRUE,
+                    heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_quantile, break_dist = 1),
+                    use_raster = TRUE,
+                    cluster_row_slices = FALSE,
+                    raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
+                    row_split = splitby,
+                    column_title = sprintf("DE %s", rte_family_),
+                    show_row_names = FALSE,
+                    top_annotation = topAnn
+                )
+                tryCatch(
+                    {
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_col_clust_split2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 7.5, 10)
+                    },
+                    error = function(e) {
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_col_clust_split2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 10, 20)
+                    }
+                )
+                p <- Heatmap(
+                    m,
+                    col = circlize::colorRamp2(color_breaks_log, c("white", "#0000ff", "#ff0000", "black")),
+                    cluster_rows = TRUE, cluster_columns = FALSE,
+                    show_heatmap_legend = TRUE,
+                    heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_log, break_dist = 1),
+                    use_raster = TRUE,
+                    cluster_row_slices = FALSE,
+                    raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
+                    row_split = splitby,
+                    column_title = sprintf("DE %s", rte_family_),
+                    show_row_names = FALSE,
+                    top_annotation = topAnn
+                )
+                tryCatch(
+                    {
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_breaks2_split2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 7.5, 10)
+                    },
+                    error = function(e) {
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_breaks2_split2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 10, 20)
+                    }
+                )
+                p <- Heatmap(
+                    m,
+                    col = circlize::colorRamp2(color_breaks_log, c("white", "#0000ff", "#ff0000", "black")),
+                    cluster_rows = TRUE, cluster_columns = TRUE,
+                    show_heatmap_legend = TRUE,
+                    heatmap_legend_param = list(title = "Normalized Counts", at = color_breaks_log, break_dist = 1),
+                    use_raster = TRUE,
+                    cluster_row_slices = FALSE,
+                    raster_resize = TRUE, raster_device = "png", raster_quality = 2.5,
+                    row_split = splitby,
+                    column_title = sprintf("DE %s", rte_family_),
+                    show_row_names = FALSE,
+                    top_annotation = topAnn
+                )
+                tryCatch(
+                    {
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_col_clust_break2_split2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 7.5, 10)
+                    },
+                    error = function(e) {
+                        mysaveandstore(sprintf("%s/%s/%s/heatmap/%s_de_col_clust_break2_split2.pdf", outputdir, counttype, "pan_contrast", rte_family_), 10, 20)
+                    }
+                )
+            },
+            error = function(e) {
+
+            }
+        )
+    }
+}
+
+### RTE GENE CORRELATION
+
+
+# subset <- resultsdf %>% filter(grepl("*tact*", intactness_req))
+for (ontology in c("rte_subfamily_limited", "l1_subfamily_limited", "rte_family")) {
+    print(ontology)
+    subset <- resultsdfwithgenes %>%
+        filter(!!sym(ontology) != "Other") %>%
+        filter(!is.na(!!sym(ontology)))
+
+    te_gene_matrix_list <- list()
+    for (contrast in contrasts) {
+        contrast_of_interest <- contrast
+        contrast_level_2 <- contrast_of_interest %>%
+            gsub("condition_", "", .) %>%
+            gsub("_vs_.*", "", .)
+        contrast_level_1 <- contrast_of_interest %>%
+            gsub(".*_vs_", "", .)
+        contrast_stat <- paste0("stat_", contrast_of_interest)
+        contrast_padj <- paste0("padj_", contrast_of_interest)
+        contrast_log2FoldChange <- paste0("log2FoldChange_", contrast_of_interest)
+        contrast_samples <- sample_table %>%
+            filter(condition %in% c(contrast_level_1, contrast_level_2)) %>%
+            pull(sample_name)
+        te_gene_matrix <- subset %>%
+            dplyr::rename(TE = !!sym(contrast_log2FoldChange))
+        te_gene_matrix$GENE <- resultsdfwithgenes[match(te_gene_matrix$nearest_tx, resultsdfwithgenes$gene_id), ] %>% pull(!!sym(contrast_log2FoldChange))
+        te_gene_matrix$cor_contrast <- contrast
+        te_gene_matrix_list[[contrast]] <- te_gene_matrix
+        tryCatch(
+            {
+                cor_df <<- te_gene_matrix %>%
+                    mutate(req_integrative = gsub(".*Intact.*", "Yng FL", req_integrative)) %>%
+                    group_by(!!sym(ontology), req_integrative, loc_integrative) %>%
+                    mutate(groupN = n()) %>%
+                    filter(groupN > 4) %>%
+                    summarise(cor = cor.test(TE, GENE, method = "spearman")$estimate, pval = cor.test(TE, GENE, method = "spearman")$p.value)
+                cor_df %$% req_integrative %>% unique()
+                pf <- cor_df %>%
+                    ungroup() %>%
+                    filter(loc_integrative != "Centromeric") %>%
+                    complete(!!sym(ontology), req_integrative, loc_integrative)
+                p <- pf %>%
+                    ggplot() +
+                    geom_tile(aes(x = !!sym(ontology), y = loc_integrative, fill = cor)) +
+                    facet_grid(~req_integrative, space = "free", scales = "free") +
+                    scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.8, 0, 0.8), na.value = "dark grey") +
+                    mtclosed +
+                    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+                    labs(x = "", y = "")
+                mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_%s.pdf", outputdir, counttype, contrast, ontology), 6, 4)
+                p <- pf %>%
+                    ggplot(aes(x = !!sym(ontology), y = loc_integrative)) +
+                    geom_tile(aes(fill = cor)) +
+                    facet_grid(~req_integrative, space = "free", scales = "free") +
+                    geom_text(aes(label = ifelse(pval < 0.05, "*", "")), size = 3) +
+                    scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.8, 0, 0.8), na.value = "dark grey") +
+                    mtclosed +
+                    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+                    labs(x = "", y = "")
+                mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_pval_%s.pdf", outputdir, counttype, contrast, ontology), 10, 6)
+            },
+            error = function(e) {
+
+            }
+        )
+    }
+
+    tryCatch(
+        {
+            base_level <- conf$levels[[1]]
+            # keep only contrasts vs base level to not artificially inflate number of independent comparisons
+            te_gene_matrix_all <- Reduce(
+                bind_rows,
+                te_gene_matrix_list[grepl(sprintf("_vs_%s", base_level), names(te_gene_matrix_list))]
+            )
+
+            cor_df <- te_gene_matrix_all %>%
+                group_by(!!sym(ontology), req_integrative, loc_integrative, rte_length_req) %>%
+                mutate(groupN = n()) %>%
+                filter(groupN > 4) %>%
+                summarise(cor = cor.test(TE, GENE, method = "spearman")$estimate, pval = cor.test(TE, GENE, method = "spearman")$p.value) %>%
+                mutate(padj = p.adjust(pval, method = "fdr"))
+            cor_df %$% req_integrative %>% unique()
+            pf <- cor_df %>%
+                ungroup() %>%
+                complete(!!sym(ontology), req_integrative, loc_integrative)
+
+            p <- pf %>%
+                ggplot() +
+                geom_tile(aes(x = !!sym(ontology), y = loc_integrative, fill = cor)) +
+                facet_grid(~req_integrative, space = "free", scales = "free") +
+                scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.8, 0, 0.8), na.value = "dark grey") +
+                mtclosed +
+                theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+                labs(x = "", y = "")
+            mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_%s.pdf", outputdir, counttype, "pan_contrast", ontology), 10, 6)
+
+
+            p <- pf %>%
+                ggplot(aes(x = !!sym(ontology), y = loc_integrative)) +
+                geom_tile(aes(fill = cor)) +
+                facet_grid(~req_integrative, space = "free", scales = "free") +
+                geom_text(aes(label = ifelse(padj < 0.05, "*", "")), size = 3) +
+                scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.8, 0, 0.8), na.value = "dark grey") +
+                mtclosed +
+                theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+                labs(x = "", y = "")
+            mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_pval_%s.pdf", outputdir, counttype, "pan_contrast", ontology), 10, 6)
+
+            cor_df <- te_gene_matrix_all %>%
+                group_by(!!sym(ontology), loc_integrative, rte_length_req) %>%
+                mutate(groupN = n()) %>%
+                filter(groupN > 4) %>%
+                summarise(cor = cor.test(TE, GENE, method = "spearman")$estimate, pval = cor.test(TE, GENE, method = "spearman")$p.value) %>%
+                mutate(padj = p.adjust(pval, method = "fdr"))
+
+            pf <- cor_df %>%
+                ungroup() %>%
+                complete(!!sym(ontology), loc_integrative, rte_length_req)
+            p <- pf %>%
+                ggplot(aes(x = !!sym(ontology), y = loc_integrative)) +
+                geom_tile(aes(fill = cor)) +
+                facet_grid(~rte_length_req, space = "free", scales = "free") +
+                geom_text(aes(label = ifelse(padj < 0.05, "*", "")), size = 3) +
+                scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.5, 0, 0.5), na.value = "dark grey") +
+                mtclosed +
+                theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+                labs(x = "", y = "")
+            mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_length_req_pval1_%s.pdf", outputdir, counttype, "pan_contrast", ontology), 5, 4)
+
+            cor_df <- te_gene_matrix_all %>%
+                group_by(!!sym(ontology), loc_highres_integrative_stranded, rte_length_req) %>%
+                mutate(groupN = n()) %>%
+                filter(groupN > 4) %>%
+                summarise(cor = cor.test(TE, GENE, method = "spearman")$estimate, pval = cor.test(TE, GENE, method = "spearman")$p.value) %>%
+                mutate(padj = p.adjust(pval, method = "fdr"))
+            pf <- cor_df %>%
+                ungroup() %>%
+                complete(!!sym(ontology), loc_highres_integrative_stranded, rte_length_req)
+            p <- pf %>%
+                ggplot(aes(x = !!sym(ontology), y = loc_highres_integrative_stranded)) +
+                geom_tile(aes(fill = cor)) +
+                facet_grid(~rte_length_req, space = "free", scales = "free") +
+                geom_text(aes(label = ifelse(padj < 0.05, "*", "")), size = 3) +
+                scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.5, 0, 0.5), na.value = "dark grey") +
+                mtclosed +
+                theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+                labs(x = "", y = "")
+            mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_length_req_pval_highres_stranded_%s.pdf", outputdir, counttype, "pan_contrast", ontology), 6, 5)
+
+            cor_df <- te_gene_matrix_all %>%
+                group_by(!!sym(ontology), loc_lowres_integrative_stranded, rte_length_req) %>%
+                mutate(groupN = n()) %>%
+                filter(groupN > 4) %>%
+                summarise(cor = cor.test(TE, GENE, method = "spearman")$estimate, pval = cor.test(TE, GENE, method = "spearman")$p.value) %>%
+                mutate(padj = p.adjust(pval, method = "fdr"))
+
+            pf <- cor_df %>%
+                ungroup() %>%
+                complete(!!sym(ontology), loc_lowres_integrative_stranded, rte_length_req)
+            p <- pf %>%
+                ggplot(aes(x = !!sym(ontology), y = loc_lowres_integrative_stranded)) +
+                geom_tile(aes(fill = cor)) +
+                facet_grid(~rte_length_req, space = "free", scales = "free") +
+                geom_text(aes(label = ifelse(padj < 0.05, "*", "")), size = 3) +
+                scale_fill_gradient2(low = "blue", mid = "white", high = "red", breaks = c(-0.5, 0, 0.5), na.value = "dark grey") +
+                mtclosed +
+                theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+                labs(x = "", y = "")
+            mysaveandstore(sprintf("%s/%s/%s/rte_gene_cor/rte_genic_cor_length_req_pval_lowres_stranded_%s.pdf", outputdir, counttype, "pan_contrast", ontology), 6, 5)
+
+
+            if (grepl("subfamily", ontology)) {
+                cross_frame <- te_gene_matrix_all %>%
+                    select(rte_subfamily, loc_lowres_integrative_stranded, rte_length_req) %>%
+                    crossing()
+                for (i in seq(1:length(rownames(cross_frame)))) {
+                    row <- cross_frame[i, ]
+                    a <- row$rte_subfamily
+                    b <- row$rte_length_req
+                    c <- row$loc_lowres_integrative_stranded
+                    p <- te_gene_matrix_all %>%
+                        filter(rte_subfamily == a) %>%
+                        filter(rte_length_req == b) %>%
+                        filter(loc_lowres_integrative_stranded == c) %>%
+                        dplyr::select(TE, GENE, cor_contrast) %>%
+                        ggplot(aes(x = TE, y = GENE, color = cor_contrast)) +
+                        theme(aspect.ratio = 1) +
+                        geom_point(alpha = 0.3) +
+                        labs(x = "TE L2FC", y = "GENE L2FC") +
+                        ggtitle(sprintf("%s %s\n%s", a, c, b)) +
+                        scale_contrasts +
+                        mtclosed
+                    mysaveandstore(pl = p, fn = sprintf("%s/%s/%s/rte_gene_cor/scatter_gene_te_corr/%s_%s_%s.pdf", outputdir, counttype, "pan_contrast", a, b, c), 6, 4)
+                }
+            }
+        },
+        error = function(e) {
+            print("problem in")
+            print(ontology)
+            print(e)
+        }
+    )
+}
 
 
 ### VENN DIAGRAMS
