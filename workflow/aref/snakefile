@@ -791,25 +791,25 @@ samtools faidx {output.filtered_ref}
         """
 
 #Variant calling for ref patching
-# rule sniffles:
-#     input:
-#         sortedbam = expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
-#         sortedbamindex = expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"])
-#     output:
-#         vcf = "aref/intermediates/{sample_or_ref}/sniffles/sniffles.vcf"
-#     params:
-#         ref = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"]
-#     resources:
-#         runtime = 1000,
-#         mem_mb = 128000,
-#         cpus_per_task = 32
-#     conda: "sniffles"
-#     container: None
-#     shell:
-#         """
-# mkdir -p $(dirname {output})
-# sniffles -i {input.sortedbam} -v {output.vcf} --threads 28 --mosaic --reference {params.ref}
-#         """
+rule sniffles:
+    input:
+        mapq60bam = expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
+        mapq60bamindex = expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
+        sniffles_container = ancient(sniffles_container)
+    output:
+        vcf = "aref/intermediates/{sample_or_ref}/sniffles/sniffles.vcf"
+    params:
+        ref = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"]
+    resources:
+        runtime = 1000,
+        mem_mb = 128000,
+        cpus_per_task = 32
+    container: sniffles_container
+    shell:
+        """
+mkdir -p $(dirname {output})
+sniffles -i {input.mapq60bam} -v {output.vcf} --threads 28 --mosaic --reference {params.ref}
+        """
 
 rule determine_tes_to_mask:
     input:
