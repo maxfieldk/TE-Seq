@@ -59,7 +59,13 @@ rm3 <- rm2 %>%
     mutate(pctdiv = as.numeric(pctdiv)) %>%
     mutate(pctdel = as.numeric(pctdel)) %>%
     mutate(element_start = as.numeric(element_start)) %>%
-    mutate(element_end = as.numeric(element_end))
+    mutate(element_end = as.numeric(element_end)) %>%
+    group_by(gene_id) %>%
+    mutate(nfrags = n()) %>%
+    ungroup() %>%
+    group_by(gene_id) %>%
+    mutate(gene_id = if_else(nfrags > 5, paste0(gene_id, "_", row_number()), gene_id)) %>%
+    ungroup()
 
 
 rmfragments <- rm3 %>%
