@@ -44,8 +44,17 @@ rm <- rmgr %>%
     as.data.frame() %>%
     tibble()
 
-# filter out mitochondrial repeats
-rm <- rm %>% filter(seqnames != "chrM")
+# filter out mitochondrial repeats and prevent aggregation of repeats with > 5 frags into a single gene_id
+rm <- rm %>%
+    filter(seqnames != "chrM") %>%
+    group_by(gene_id) %>%
+    mutate(nfrags = n()) %>%
+    ungroup() %>%
+    group_by(gene_id) %>%
+    mutate(gene_id = if_else(nfrags > 5, paste0(gene_id, "_", row_number()), gene_id)) %>%
+    ungroup() %>%
+    dplyr::select(-nfrags)
+
 rm1 <- rm %>% tidyr::separate(Target, into = c("family", "element_start", "element_end", "element_bp_remaining"), sep = " ")
 rm2 <- rm1 %>%
     dplyr::select(-transcript_id) %>%
@@ -59,13 +68,7 @@ rm3 <- rm2 %>%
     mutate(pctdiv = as.numeric(pctdiv)) %>%
     mutate(pctdel = as.numeric(pctdel)) %>%
     mutate(element_start = as.numeric(element_start)) %>%
-    mutate(element_end = as.numeric(element_end)) %>%
-    group_by(gene_id) %>%
-    mutate(nfrags = n()) %>%
-    ungroup() %>%
-    group_by(gene_id) %>%
-    mutate(gene_id = if_else(nfrags > 5, paste0(gene_id, "_", row_number()), gene_id)) %>%
-    ungroup()
+    mutate(element_end = as.numeric(element_end))
 
 
 rmfragments <- rm3 %>%
