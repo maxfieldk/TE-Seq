@@ -1215,7 +1215,7 @@ rule filter_wasp_pass:
         """
 samtools view -h -@8 {input.bam} | \
     awk '$0 ~ /^@/ || $0 ~ /vW:i:1/' | \
-    samtools addreplacerg -r 'ID:{wildcards.sample}\tSM:{wildcards.sample}\tPL:ILLUMINA\tLB:{wildcards.sample}' -@4 - | \
+    samtools addreplacerg -w -r 'ID:{wildcards.sample}\tSM:{wildcards.sample}\tPL:ILLUMINA\tLB:{wildcards.sample}' -@4 - | \
     samtools view -b -F 0x800 -F 0x100 -F 0x400 -@8 > {output.bam}
 samtools index -@10 {output.bam}
         """
