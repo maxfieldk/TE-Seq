@@ -32,6 +32,7 @@ tryCatch(
     }
 )
 outputdir <- dirname(outputs$rmann)
+dir.create(paste0(outputdir, "/intactness_annotation_workdir"), recursive = TRUE)
 rmfragments <- read_csv(inputs$r_annotation_fragmentsjoined, col_names = TRUE)
 
 ########################################################## SETUP GROUPING COLUMNS
@@ -1108,7 +1109,7 @@ if (confALL$aref$patch_ref == "yes") {
         dplyr::select(gene_id, fraction_deleted, sniffles_gtInsPresence) %>%
         group_by(gene_id) %>%
         summarise(
-            gt = case_when(
+            sniffles_gtInsPresence = case_when(
                 n() > 1 ~ paste(sniffles_gtInsPresence, collapse = ","),
                 TRUE ~ dplyr::first(sniffles_gtInsPresence)
             ),

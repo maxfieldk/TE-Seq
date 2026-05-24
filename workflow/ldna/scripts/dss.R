@@ -45,7 +45,7 @@ tryCatch(
             dmrs_hyper_bed = "ldna/results/tables/dmrs_hyper.CG_m.bed"
         ), env = globalenv())
         assign("params", list(
-            chromosome = "chr10"
+            chromosome = "chr19"
         ), env = globalenv())
     }
 )
@@ -70,59 +70,34 @@ condition2samples <- sample_table[sample_table$condition == conditions[2], ]$sam
 design <- data.frame(sample_table)
 X <- model.matrix(~condition, design)
 
-if (length(condition1samples) < 3) {
-    tryCatch(
-        {
-            dmlFit <- DMLtest(BSobj, group1 = condition2samples, group2 = condition1samples, smoothing = TRUE)
-            head(dmlFit)
-            dmls <- callDML(dmlFit)
-            dmls <- dmls %>%
-                dplyr::rename(pvals = pval, fdrs = fdr) %>%
-                dplyr::select(chr, pos, stat, pvals, fdrs)
 
-            dmrs_f1 <- callDMR(dmlFit, p.threshold = 0.05)
-            dmrs_f1$dmr_type <- "t05"
-            dmrs_f1 <- dmrs_f1 %>%
-                dplyr::rename() %>%
-                dplyr::select(chr, start, end, length, nCG, areaStat, dmr_type)
+tryCatch(
+    {
+        dmlFit <- DMLtest(BSobj, group1 = condition2samples, group2 = condition1samples, smoothing = TRUE)
+        head(dmlFit)
+        dmls <- callDML(dmlFit)
+        dmls <- dmls %>%
+            dplyr::rename(pvals = pval, fdrs = fdr) %>%
+            dplyr::select(chr, pos, stat, pvals, fdrs)
 
-            dmrs_f2 <- callDMR(dmlFit, p.threshold = 0.05, minCG = 10)
-            dmrs_f2$dmr_type <- "t05CG10"
-            dmrs_f2 <- dmrs_f2 %>%
-                dplyr::rename() %>%
-                dplyr::select(chr, start, end, length, nCG, areaStat, dmr_type)
+        dmrs_f1 <- callDMR(dmlFit, p.threshold = 0.001)
+        dmrs_f1$dmr_type <- "t001"
 
-            dmrs_f3 <- callDMR(dmlFit, p.threshold = 0.01)
-            dmrs_f3$dmr_type <- "t01"
-            dmrs_f3 <- dmrs_f3 %>%
-                dplyr::rename() %>%
-                dplyr::select(chr, start, end, length, nCG, areaStat, dmr_type)
+        dmrs_f2 <- callDMR(dmlFit, p.threshold = 0.001, delta = 0.1)
+        dmrs_f2$dmr_type <- "t001d1"
 
-            dmrs_f4 <- callDMR(dmlFit, p.threshold = 0.001)
-            dmrs_f4$dmr_type <- "t001"
-            dmrs_f4 <- dmrs_f4 %>%
-                dplyr::rename() %>%
-                dplyr::select(chr, start, end, length, nCG, areaStat, dmr_type)
-        },
-        error = function(e) {
-            print("no DMLs")
-            dmls <- data.frame()
-        }
-    )
-} else {
-    sampleNames(BSobj)
-    DMLfit <- DMLfit.multiFactor(BSobj, design = design, smoothing = TRUE, formula = ~condition)
-    colnames(DMLfit$X)
-    dmls <- DMLtest.multiFactor(DMLfit, term = "condition")
-    dmrs_f1 <- callDMR(dmls, p.threshold = 0.05)
-    dmrs_f1$dmr_type <- "t05"
-    dmrs_f2 <- callDMR(dmls, p.threshold = 0.05, minCG = 10)
-    dmrs_f2$dmr_type <- "t05CG10"
-    dmrs_f3 <- callDMR(dmls, p.threshold = 0.01)
-    dmrs_f3$dmr_type <- "t01"
-    dmrs_f4 <- callDMR(dmls, p.threshold = 0.001)
-    dmrs_f4$dmr_type <- "t001"
-}
+        dmrs_f3 <- callDMR(dmlFit, p.threshold = 0.001, delta = 0.2)
+        dmrs_f3$dmr_type <- "t001d2"
+
+        dmrs_f4 <- callDMR(dmlFit, p.threshold = 0.001, delta = 0.4)
+        dmrs_f4$dmr_type <- "t001d4"
+    },
+    error = function(e) {
+        print("no DMLs")
+        dmls <- data.frame()
+    }
+)
+
 
 
 dmrs <- bind_rows(dmrs_f1, dmrs_f2, dmrs_f3, dmrs_f4)

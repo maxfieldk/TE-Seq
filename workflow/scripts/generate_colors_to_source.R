@@ -5,7 +5,7 @@ sample_table <- read_csv(conf[["sample_table"]])
 sample_table <- sample_table[match(conf$samples, sample_table$sample_name), ]
 
 # these are optionally used depending on values set in config.yaml
-custom_descriptive <- c("#4b9b7a", "#ca6728", "#716dab", "#d43f88", "#0068f9", "#ffe100", "#7B3A96FF", "#CB2027FF", "#808180FF", "#1B1919FF")
+custom_descriptive <- c("#4b9c7a", "#ca6628", "#6d68b5", "#d43f88", "#0068f9", "#ffe100", "#7B3A96FF", "#CB2027FF", "#808180FF", "#1B1919FF")
 custom_condition <- c("#3B4992FF", "#EE0000FF", "#008B45FF", "#631879FF", "#008280FF", "#BB0021FF", "#5F559BFF", "#A20056FF", "#808180FF", "#1B1919FF")
 
 tryCatch(
@@ -46,7 +46,7 @@ if (length(conf$levels) == 1) {
     sample_unique_palette <- setNames(color_table$sample_unique_color, color_table$sample_name)
     direction_palette <- setNames(c("red", "blue", "grey"), c("UP", "DOWN", "NS"))
     methylation_palette <- setNames(c("#ede6d1", "#2b2a24", "grey"), c("Hypo", "Hyper", "NS"))
-    methylation_palette_thresholds <- setNames(c("#ede6d1", "#4a493f", "#e8d18c", "#2b2a24", "grey"), c("Hypo_05", "Hyper_05", "Hypo_01", "Hyper_01", "NS"))
+    methylation_palette_thresholds <- setNames(c("#ede6d1", "#4a493f", "#e8d18c", "#2b2a24", "grey"), c("Hypo_001", "Hyper_001", "Hypo_001d2", "Hyper_001d2", "NS"))
 
     contrasts <- conf$contrasts
     contrast_base <- gsub(".*_vs_", "", contrasts)
@@ -135,7 +135,7 @@ if (length(conf$levels) == 1) {
     sample_unique_palette <- setNames(color_table$sample_unique_color, color_table$sample_name)
     direction_palette <- setNames(c("red", "blue", "grey"), c("UP", "DOWN", "NS"))
     methylation_palette <- setNames(c("#ede6d1", "#2b2a24", "grey"), c("Hypo", "Hyper", "NS"))
-    methylation_palette_thresholds <- setNames(c("#ede6d1", "#4a493f", "#e8d18c", "#2b2a24", "grey"), c("Hypo_05", "Hyper_05", "Hypo_01", "Hyper_01", "NS"))
+    methylation_palette_thresholds <- setNames(c("#ede6d1", "#4a493f", "#e8d18c", "#2b2a24", "grey"), c("Hypo_001", "Hyper_001", "Hypo_001d2", "Hyper_001d2", "NS"))
 
     contrasts <- conf$contrasts
     contrast_base <- gsub(".*_vs_", "", contrasts)
@@ -225,7 +225,7 @@ if (length(conf$levels) == 1) {
     sample_unique_palette <- setNames(color_table$sample_unique_color, color_table$sample_name)
     direction_palette <- setNames(c("red", "blue", "grey"), c("UP", "DOWN", "NS"))
     methylation_palette <- setNames(c("#ede6d1", "#2b2a24", "grey"), c("Hypo", "Hyper", "NS"))
-    methylation_palette_thresholds <- setNames(c("#ede6d1", "#4a493f", "#e8d18c", "#2b2a24", "grey"), c("Hypo_05", "Hyper_05", "Hypo_01", "Hyper_01", "NS"))
+    methylation_palette_thresholds <- setNames(c("#ede6d1", "#4a493f", "#e8d18c", "#2b2a24", "grey"), c("Hypo_001", "Hyper_001", "Hypo_001d2", "Hyper_001d2", "NS"))
 
     contrasts <- conf$contrasts
     contrast_base <- gsub(".*_vs_", "", contrasts)

@@ -35,6 +35,11 @@ tetranscripts_container = (
     if config["containers"]["tetranscripts"]["use_preexisting_response"] == "yes"
     else "containers/tetranscripts:2.2.3.sif"
 )
+clair3_container = (
+    config["containers"]["clair3"]["path"]
+    if config["containers"]["clair3"]["use_preexisting_response"] == "yes"
+    else "containers/clair3:v2.0.1_gpu.sif"
+)
 
 container: teseq_container
 
@@ -76,6 +81,7 @@ def aref_complete_input(wildcards):
         "aref/default/A.REF_annotations/refseq_select.complete.gff3.gz.tbi",
         "aref/default/A.REF_annotations/refseq_select.complete.gtf.gz.tbi",
         "aref/default/A.REF_annotations/refseq_select.complete.bed.gz.tbi",
+        expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker.gtf.rformatted.fragmentsjoined.csv",default_or_extended = d_or_e),
         expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker.complete.gff3.gz.tbi",default_or_extended = d_or_e),
         expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker.complete.gtf.gz.tbi",default_or_extended = d_or_e),
         # expand("aref/{default_or_extended}/A.REF_annotations/A.REF_repeatmasker_refseq.complete.gtf",default_or_extended = d_or_e),
@@ -208,7 +214,7 @@ rule dorado:
         slurm_partition="gpu-he",
         mem_mb = 128000,
         runtime = 5760,
-        slurm_extra="'--gres=gpu:2'"
+        slurm_extra="'--gres=gpu:a6000:2'"
     shell:
         """
 mkdir -p $(dirname {output.calls})
@@ -380,6 +386,7 @@ mkdir -p $(dirname {output.subsampled})
 
 samtools view -b {input.bam} chr10 > {output.subsampled}
         """
+        
 if config["aref"]["symlink_aref"]["response"] == "no":
     if config["aref"]["update_ref_with_tldr"]["response"] == "yes":
         if config["aref"]["update_ref_with_tldr"]["per_sample"] == "no":
@@ -454,7 +461,7 @@ rule filterbam:
     resources:
         cpus_per_task =6,
         mem_mb = 40000,
-        runtime = 300
+        runtime = 1000
     conda:
         "omics"
     shell: 
@@ -471,32 +478,33 @@ rule IndexBam:
     benchmark:
         "aref/benchmarks/IndexBam/{bampath}.tsv"
     resources:
-        cpus_per_task =10,
-        mem_mb = 64000
+        cpus_per_task =24,
+        mem_mb = 200000,
+        runtime = 1000
     conda:
         "omics"
     shell:
         """
-samtools index  -@6 {input.bam}
+samtools index  -@20 {input.bam}
         """
         
 species = config["aref"]["species"]
 rule tldr_aggregate_multiple_samples:
     input:
-        bams = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam", sample = config["aref"]["samples"], rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
-        bais = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam.bai", sample = config["aref"]["samples"], rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
+        bams = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam", sample = config["aref"]["samples"], rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
+        bais = expand("aref/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.filtered.bam.bai", sample = config["aref"]["samples"], rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
     params:
         tldr_input_bam_ref = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"],
         tldr_te_ref = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_te_ref"][species],
         known_nonref = lambda w: [config["aref"]["update_ref_with_tldr"]["known_nonref"]["path"] if config["aref"]["update_ref_with_tldr"]["known_nonref"]["response"] == "yes" else "not_provided"][0]
     benchmark:
-        "aref/benchmarks/tldr_aggregate_multiple_samples/tldr_aggregate_multiple_samples.tsv"
+        "aref/benchmarks/tldr_aggregate_multiple_samples/tldr_aggregate_multiple_samples_{chromosome}.tsv"
     output:
-        tldr = "aref/A.REF_tldr/A.REF.table.txt"
+        tldr = "aref/A.REF_tldr/{chromosome}.table.txt"
     resources:
         cpus_per_task = 24,
         mem_mb = 100000,
-        runtime = 300
+        runtime = 1000
     conda:
         "tldr"
     shell:
@@ -510,25 +518,33 @@ echo $nonrefavailible
 if [[ $nonrefavailible = "not_provided" ]]
 then
 
+echo "usingknown"
+echo {wildcards.chromosome} > {wildcards.chromosome}.txt
+
 tldr -b $commabams \
 -e {params.tldr_te_ref} \
 -r {params.tldr_input_bam_ref} \
 -p 20 \
+-c {wildcards.chromosome}.txt \
 --minreads 1 \
---outbase A.REF \
+--outbase {wildcards.chromosome} \
 --detail_output \
 --extend_consensus 4000 \
 --trdcol
 
 else
 
+echo "noknown"
+echo {wildcards.chromosome} > {wildcards.chromosome}.txt
+
 tldr -b $commabams \
 -e {params.tldr_te_ref} \
 -r {params.tldr_input_bam_ref} \
 -p 20 \
+-c {wildcards.chromosome}.txt \
 --nonref {params.known_nonref} \
 --minreads 1 \
---outbase A.REF \
+--outbase {wildcards.chromosome} \
 --detail_output \
 --extend_consensus 4000 \
 --trdcol
@@ -536,9 +552,33 @@ tldr -b $commabams \
 fi
 
 mkdir -p $(dirname {output.tldr})
-mv A.REF.table.txt {output.tldr}
-mv A.REF $(dirname {output.tldr})/
+mv {wildcards.chromosome}.table.txt {output.tldr}
+mv {wildcards.chromosome} $(dirname {output.tldr})/
         """
+
+def merge_tldr_agg(wildcards):
+    checkpoint_output = checkpoints.index_dorado_ref
+    if os.path.exists(config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"] + ".fai"):
+        return expand("aref/A.REF_tldr/{chromosome}.table.txt", chromosome = [e for e in pd.read_table(config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"] + ".fai", header = None).iloc[:,0] if e != "chrM"])
+    else:
+        return []
+rule merge_agg_tldr:
+    input:
+        tldr = merge_tldr_agg
+    output:
+        df = "aref/A.REF_tldr/A.REF.table.txt"
+    conda:
+        "ds"
+    resources:
+        cpus_per_task = 4,
+        runtime = 1000
+    script:
+        "scripts/merge_tldr_agg.R"
+
+
+
+
+
 
 rule call_tldr_per_sample:
     input:
@@ -709,15 +749,11 @@ rule cleanup_updated_sample_ref:
 seqkit grep --by-name -f {input.contigs_to_keep} {input.updated_reference} > {output.filtered_ref}
 samtools faidx {output.filtered_ref}
         """
-
 rule cleanup_updated_ref_and_patch:
     input:
         updated_reference = "aref/{default_or_extended}/A.REF-pre-ins-filtering.fa",
         contigs_to_keep = "aref/{default_or_extended}/A.REF_contigs_to_keep.txt",
-        hq_snps = "aref/intermediates/A.REF/pepper/hq_snps.vcf.gz"
-    params:
-        spike_in_indicator = config["aref"]["spike_in_contigs"]["response"],
-        spike_in_path = config["aref"]["spike_in_contigs"]["path_to_fasta"],
+        hq_snps = "aref/intermediates/A.REF/pepper/hq_snps.vcf.gz",
         absent_tes_to_mask =  "aref/intermediates/A.REF/sniffles/tes_to_mask.bed"
     output:
         filtered_ref = "aref/{default_or_extended}/A.REF.snp_patched.fa"
@@ -779,7 +815,7 @@ rule sniffles:
     shell:
         """
 mkdir -p $(dirname {output})
-sniffles -i {input.mapq60bam} -v {output.vcf} --threads 28 --reference {params.ref}
+sniffles -i {input.mapq60bam} -v {output.vcf} --threads 28 --mosaic --reference {params.ref}
         """
 
 rule determine_tes_to_mask:
@@ -849,6 +885,7 @@ rule pepper_getmarginoutput:
         pepper_deepvariant_container
     shell:	
         """
+mkdir -p $(dirname {output.bam})
 margin phase \
 {input.sortedbam} \
 {params.ref} \
@@ -2181,6 +2218,132 @@ outfile={output.insert_maf}
 rule call_te_rex:
     input:
         expand("aref/terex/{sample}/{sample}-out-insert.maf", sample = config["aref"]["samples"])
+
+
+#tag LOI_PREP - Clair3 variant calling, WhatsHap phasing, and per-sample haplotagging for LOI/XCI analysis
+# Clair3 handles variant calling + phasing (via its internal WhatsHap).
+# Haplotagging is done separately with whatshap_haplotag so that per-sample BAMs are always
+# produced, even when variant calling uses the merged A.REF BAM (per_sample == "no").
+rule clair3:
+    input:
+        clair3_container = ancient(clair3_container),
+        sortedbam = "aref/intermediates/{sample_or_ref}/alignments/{rate}/{sample_or_ref}.{type}.{modifications_string}.sorted.bam",
+        sortedbamindex = "aref/intermediates/{sample_or_ref}/alignments/{rate}/{sample_or_ref}.{type}.{modifications_string}.sorted.bam.bai"
+    params:
+        ref = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"],
+        model = "/opt/models/r1041_e82_400bps_sup_v500"
+    output:
+        vcf = "aref/intermediates/{sample_or_ref}/clair3/{rate}/{type}.{modifications_string}/merge_output.vcf.gz",
+        phased_vcf = "aref/intermediates/{sample_or_ref}/clair3/{rate}/{type}.{modifications_string}/phased_merge_output.vcf.gz"
+    resources:
+        cpus_per_task = 12,
+        slurm_partition = "gpu-he",
+        mem_mb = 128000,
+        runtime = 1440,
+        slurm_extra = "'--gres=gpu:1'"
+    container:
+        clair3_container
+    shell:
+        """
+mkdir -p $(dirname {output.vcf})
+/opt/bin/run_clair3.sh \
+    --bam_fn={input.sortedbam} \
+    --ref_fn={params.ref} \
+    --threads={resources.cpus_per_task} \
+    --platform=ont \
+    --model_path={params.model} \
+    --output=$(dirname {output.vcf}) \
+    --use_gpu \
+    --use_whatshap_for_final_output_phasing
+        """
+
+# kept separately: hets.filtered.vcf.gz is a clean per-sample het SNP set used downstream
+# for phASER / ASE counting; can also replace pepper/hq_snps.vcf.gz for ref patching in future
+rule filter_clair3_hets:
+    input:
+        vcf = "aref/intermediates/{sample_or_ref}/clair3/{rate}/{type}.{modifications_string}/merge_output.vcf.gz"
+    output:
+        hets_vcf = "aref/intermediates/{sample_or_ref}/clair3/{rate}/{type}.{modifications_string}/hets.filtered.vcf.gz"
+    conda:
+        "omics"
+    shell:
+        """
+bcftools view -i 'TYPE="snp" && GT="het" && QUAL>20 && GQ>15 && DP>30 && FILTER="PASS"' \
+    {input.vcf} -Oz -o {output.hets_vcf}
+tabix {output.hets_vcf}
+        """
+
+rule filter_phased_hets:
+    input:
+        vcf = "aref/intermediates/{sample_or_ref}/clair3/{rate}/{type}.{modifications_string}/phased_merge_output.vcf.gz"
+    output:
+        hets_vcf = "aref/intermediates/{sample_or_ref}/clair3/{rate}/{type}.{modifications_string}/phased_hets.filtered.vcf.gz"
+    conda:
+        "omics"
+    shell:
+        """
+bcftools norm -d exact {input.vcf} | \
+    bcftools view -i 'TYPE="snp" && GT="het" && QUAL>20 && GQ>15 && DP>30' -m2 -M2 -Oz -o {output.hets_vcf}
+tabix {output.hets_vcf}
+        """
+
+rule whatshap_stats:
+    input:
+        phased_vcf = "aref/intermediates/{sample_or_ref}/clair3/{rate}/{type}.{modifications_string}/phased_merge_output.vcf.gz"
+    output:
+        stats = "aref/intermediates/{sample_or_ref}/clair3/{rate}/{type}.{modifications_string}/phase_stats.tsv",
+        block_list = "aref/intermediates/{sample_or_ref}/clair3/{rate}/{type}.{modifications_string}/phase_blocks.gtf"
+    conda:
+        "whatshap26"
+    shell:
+        """
+whatshap stats \
+    --tsv={output.stats} \
+    --block-list={output.block_list} \
+    {input.phased_vcf}
+        """
+
+rule whatshap_haplotag:
+    input:
+        phased_vcf = lambda w: expand("aref/intermediates/{sor}/clair3/{rate}/{type}.{modifications_string}/phased_merge_output.vcf.gz",
+            sor = w.sample if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "A.REF",
+            rate = config["aref"]["rate"], type = config["aref"]["type"], modifications_string = config["aref"]["modification_string"]),
+        bam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modifications_string}.sorted.bam",
+            rate = config["aref"]["rate"], type = config["aref"]["type"], modifications_string = config["aref"]["modification_string"]),
+        bamindex = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modifications_string}.sorted.bam.bai",
+            rate = config["aref"]["rate"], type = config["aref"]["type"], modifications_string = config["aref"]["modification_string"])
+    params:
+        ref = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"]
+    output:
+        haplotagged_bam = "aref/intermediates/{sample}/whatshap/{sample}.haplotagged.bam"
+    resources:
+        cpus_per_task = 12,
+        mem_mb = 128000,
+        runtime = 1440
+    conda:
+        "whatshap26"
+    shell:
+        """
+mkdir -p $(dirname {output.haplotagged_bam})
+whatshap haplotag \
+    --output {output.haplotagged_bam} \
+    --reference {params.ref} \
+    --ignore-read-groups \
+    {input.phased_vcf} \
+    {input.bam}
+samtools index -@10 {output.haplotagged_bam}
+        """
+
+rule call_loi_prep:
+    input:
+        phased_vcf = expand("aref/intermediates/{sample_or_ref}/clair3/{rate}/{type}.{modifications_string}/phased_merge_output.vcf.gz",
+            sample_or_ref = config["aref"]["samples"] if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else ["A.REF"],
+            rate = config["aref"]["rate"], type = config["aref"]["type"], modifications_string = config["aref"]["modification_string"]),
+        phase_stats = expand("aref/intermediates/{sample_or_ref}/clair3/{rate}/{type}.{modifications_string}/phase_stats.tsv",
+            sample_or_ref = config["aref"]["samples"] if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else ["A.REF"],
+            rate = config["aref"]["rate"], type = config["aref"]["type"], modifications_string = config["aref"]["modification_string"]),
+        haplotagged_bams = expand("aref/intermediates/{sample}/whatshap/{sample}.haplotagged.bam",
+            sample = config["aref"]["samples"])
 
 
 #RULE OVERRIDES
