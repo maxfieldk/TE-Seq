@@ -468,6 +468,50 @@ mtclosedgridv <- theme_cowplot(font_family = "helvetica") +
     theme(panel.spacing = unit(4, "mm")) + background_grid(major = "x", minor = "none")
 
 
+standardize_axis_labels_num <- function(digits_before = 3, digits_after = 3) {
+    function(x) {
+        # Construct a format string like "%06.3f"
+        # Width = digits_before + digits_after + 1 (for decimal point)
+        total_width <- digits_before + digits_after + 1
+        fmt <- paste0("%0", total_width, ".", digits_after, "f")
+        sprintf(fmt, x)
+    }
+}
+standardize_axis_labels_chr <- function(width = NULL, side = c("left", "right"), pad = " ") {
+    side <- match.arg(side)
+
+    function(x) {
+        x <- as.character(x)
+        # If width not specified, use the longest string
+        if (is.null(width)) width <- max(nchar(x), na.rm = TRUE)
+
+        if (side == "left") {
+            stringr::str_pad(x, width = width, side = "left", pad = pad)
+        } else {
+            stringr::str_pad(x, width = width, side = "right", pad = pad)
+        }
+    }
+}
+
+snN <- function(f, s = 0) {
+    list(
+        scale_y_continuous(labels = standardize_axis_labels_num(digits_before = f, digits_after = s)),
+        theme(text = element_text(family = "mono"))
+    )
+}
+snNab <- function(f, s = 0) {
+    list(
+        scale_y_continuous(labels = standardize_axis_labels_num(digits_before = f, digits_after = s), expand = expansion(mult = c(0, .075))),
+        theme(text = element_text(family = "mono"))
+    )
+}
+
+scN <- function(f) {
+    list(
+        scale_y_continuous(labels = standardize_axis_labels_chr(width = f, side = "left", pad = " ")),
+        theme(text = element_text(family = "mono"))
+    )
+}
 
 anchorbar <- list(
     scale_y_continuous(expand = expansion(mult = c(0, .075)))
