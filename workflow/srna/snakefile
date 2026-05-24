@@ -259,6 +259,28 @@ rule inferLibraryType:
 infer_experiment.py -r {params.gtf} -i {input.bam} > {output.librarytype}
         """
 
+rule inferALLLibraryType:
+    input:
+        bam = "srna/outs/{sample}/star_output/{sample}.sorted.primary.bam"
+    output:
+        librarytype = "srna/qc/library_type_{sample}.txt"
+    benchmark:
+        "srna/benchmarks/inferLibraryType/inferLibraryType{sample}.tsv"
+    params:
+        gtf = config["srna"]['annotation_genes_bed12'],
+    resources:
+        mem_mb  = 30000
+    conda:
+        "rseqc"
+    shell:
+        """
+infer_experiment.py -r {params.gtf} -i {input.bam} > {output.librarytype}
+        """
+
+rule getinferALLLibraryType:
+    input:
+        expand("srna/qc/library_type_{sample}.txt", sample = samples)
+
 rule multiqc:
     input:
         bams = expand("srna/outs/{sample}/star_output/{sample}.sorted.bam.stats.txt", sample = samples),
@@ -1091,6 +1113,161 @@ rule stringtie_merge:
         """
 stringtie --merge {params.strand_param} -o {output.gtf} -G {params.refseq} {input.gtfs}
         """
+
+
+#tag LOI_ANALYSIS - Allele-specific expression for loss of imprinting / XCI analysis
+def get_hets_vcf(wildcards):
+    sample_or_ref = wildcards.sample if config["srna"]["per_sample_ref"] == "yes" else "A.REF"
+    return expand("aref/intermediates/{sor}/clair3/{rate}/{type}.{modifications_string}/hets.filtered.vcf.gz",
+        sor = sample_or_ref, rate = config["aref"]["rate"], type = config["aref"]["type"],
+        modifications_string = config["aref"]["modification_string"])
+
+def get_phased_vcf(wildcards):
+    sample_or_ref = wildcards.sample if config["srna"]["per_sample_ref"] == "yes" else "A.REF"
+    return expand("aref/intermediates/{sor}/clair3/{rate}/{type}.{modifications_string}/phased_hets.filtered.vcf.gz",
+        sor = sample_or_ref, rate = config["aref"]["rate"], type = config["aref"]["type"],
+        modifications_string = config["aref"]["modification_string"])
+
+def get_unpatched_starindex(wildcards):
+    # WASP requires the standard (non-SNP-patched) reference; patching corrupts WASP's
+    # allele-remapping logic since it assumes the reference carries only ref alleles
+    if config["srna"]["per_sample_ref"] == "yes":
+        return "aref/default/%s_indeces/star_index" % (wildcards.sample)
+    else:
+        return "aref/default/A.REF_indeces/star_index"
+
+rule alignSTAR_WASP_PE:
+    input:
+        r1 = "srna/outs/{sample}/trimmedReads/{sample}_1.trimmed.fastq.gz",
+        r2 = "srna/outs/{sample}/trimmedReads/{sample}_2.trimmed.fastq.gz",
+        aref = "aref.done.outfile",
+        hets_vcf = get_hets_vcf
+    retries: 3
+    params:
+        index = get_unpatched_starindex
+    output:
+        bam = temp("srna/outs/{sample}/star_wasp_output/Aligned.out.bam")
+    benchmark:
+        "srna/benchmarks/alignSTAR_WASP_PE/{sample}.tsv"
+    resources:
+        cpus_per_task = 12,
+        mem_mb = 60000
+    conda:
+        "star"
+    shell:
+        """
+mkdir -p $(dirname {output.bam})
+zcat {input.hets_vcf} > $(dirname {output.bam})/hets.vcf
+STAR \
+--genomeDir {params.index} \
+--readFilesCommand zcat \
+--readFilesIn {input.r1} {input.r2} \
+--outFileNamePrefix $(dirname {output.bam})/ \
+--runThreadN {resources.cpus_per_task} \
+--winAnchorMultimapNmax 1000 \
+--outFilterMultimapNmax 1000 \
+--limitOutSAMoneReadBytes 1000000 \
+--outSAMstrandField intronMotif \
+--outSAMtype BAM Unsorted \
+--outSAMattrRGline ID:{wildcards.sample} SM:{wildcards.sample} PL:ILLUMINA LB:{wildcards.sample} \
+--waspOutputMode SAMtag \
+--varVCFfile $(dirname {output.bam})/hets.vcf
+rm $(dirname {output.bam})/hets.vcf
+        """
+
+rule sortindex_wasp_bam:
+    input:
+        bam = "srna/outs/{sample}/star_wasp_output/Aligned.out.bam"
+    output:
+        sortedbam = "srna/outs/{sample}/star_wasp_output/{sample}.sorted.bam",
+        index = "srna/outs/{sample}/star_wasp_output/{sample}.sorted.bam.bai"
+    resources:
+        cpus_per_task = 12,
+        mem_mb = 64000
+    conda:
+        "omics"
+    shell:
+        """
+samtools sort -@8 -m4g {input.bam} > {output.sortedbam}
+samtools index -@10 {output.sortedbam}
+        """
+
+rule filter_wasp_pass:
+    input:
+        bam = "srna/outs/{sample}/star_wasp_output/{sample}.sorted.bam"
+    output:
+        bam = "srna/outs/{sample}/star_wasp_output/{sample}.sorted.wasp_pass.bam",
+        bamindex = "srna/outs/{sample}/star_wasp_output/{sample}.sorted.wasp_pass.bam.bai"
+    resources:
+        cpus_per_task = 12,
+        mem_mb = 64000
+    conda:
+        "omics"
+    shell:
+        """
+samtools view -h -@8 {input.bam} | \
+    awk '$0 ~ /^@/ || $0 ~ /vW:i:1/' | \
+    samtools addreplacerg -r 'ID:{wildcards.sample}\tSM:{wildcards.sample}\tPL:ILLUMINA\tLB:{wildcards.sample}' -@4 - | \
+    samtools view -b -F 0x800 -F 0x100 -F 0x400 -@8 > {output.bam}
+samtools index -@10 {output.bam}
+        """
+
+rule gatk_ase_readcounter:
+    input:
+        gatk_container = ancient(gatk_container),
+        bam = "srna/outs/{sample}/star_wasp_output/{sample}.sorted.wasp_pass.bam",
+        bamindex = "srna/outs/{sample}/star_wasp_output/{sample}.sorted.wasp_pass.bam.bai",
+        phased_vcf = get_phased_vcf
+    params:
+        ref = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"]
+    output:
+        counts = "srna/outs/{sample}/ase/ase_counts.table"
+    resources:
+        cpus_per_task = 12,
+        mem_mb = 64000,
+        runtime = 600
+    container:
+        gatk_container
+    shell:
+        """
+mkdir -p $(dirname {output.counts})
+gatk ASEReadCounter \
+    -R {params.ref} \
+    -I {input.bam} \
+    -V {input.phased_vcf} \
+    -O {output.counts} \
+    --min-mapping-quality 20 \
+    --min-base-quality 20 \
+    --min-depth-of-non-filtered-base 10
+        """
+
+rule loi_analysis:
+    input:
+        ase_counts = expand("srna/outs/{sample}/ase/ase_counts.table", sample = samples),
+        phased_vcf = expand("aref/intermediates/{sor}/clair3/{rate}/{type}.{modifications_string}/phased_hets.filtered.vcf.gz",
+            sor = "A.REF" if config["srna"]["per_sample_ref"] != "yes" else samples,
+            rate = config["aref"]["rate"], type = config["aref"]["type"],
+            modifications_string = config["aref"]["modification_string"])
+    params:
+        module_name = "srna",
+        outputdir = "srna/results/agg/loi_analysis",
+        imprinted_genes = "resources/imprinted_genes.csv",
+        annotation_genes = config["srna"]["annotation_genes"]
+    output:
+        plots = "srna/results/agg/loi_analysis/loi_plots.RData"
+    resources:
+        cpus_per_task = 4,
+        mem_mb = 32000,
+        runtime = 120
+    conda:
+        "omics"
+    script:
+        "scripts/loi_analysis.R"
+
+rule call_loi_srna:
+    input:
+        ase_counts = expand("srna/outs/{sample}/ase/ase_counts.table", sample = samples),
+        loi_plots = "srna/results/agg/loi_analysis/loi_plots.RData"
 
 
 #RULE OVERRIDES

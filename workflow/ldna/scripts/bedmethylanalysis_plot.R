@@ -1,3 +1,4 @@
+modcode <- "h"
 module_name <- "ldna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
 confALL <- configr::read.config(file = "conf/config.yaml")
@@ -108,18 +109,18 @@ tryCatch(
         assign("inputs", list(
             bedmethlpaths = sprintf("ldna/intermediates/%s/methylation/%s_CG_bedMethyl.bed", sample_table$sample_name, sample_table$sample_name),
             data = sprintf("ldna/intermediates/%s/methylation/%s_CG_m_dss.tsv", sample_table$sample_name, sample_table$sample_name),
-            dmrs = "ldna/results/m/tables/dmrs.tsv",
-            dmls = "ldna/results/m/tables/dmls.tsv"
+            dmrs = sprintf("ldna/results/%s/tables/dmrs.tsv", modcode),
+            dmls = sprintf("ldna/results/%s/tables/dmls.tsv", modcode)
         ), env = globalenv())
         assign("params", list(
-            dmrs = "ldna/results/m/tables/dmrs.tsv",
-            dmls = "ldna/results/m/tables/dmls.tsv",
-            mod_code = "m"
+            dmrs = sprintf("ldna/results/%s/tables/dmrs.tsv", modcode),
+            dmls = sprintf("ldna/results/%s/tables/dmls.tsv", modcode),
+            mod_code = modcode
         ), env = globalenv())
         assign("outputs", list(
-            promoters_bed = "ldna/Rintermediates/m/promoters_t05.bed",
-            dmrpromoterhyper_bed = "ldna/Rintermediates/m/promoters_dmhyperregions_t05.bed",
-            dmrpromoterhypo_bed = "ldna/Rintermediates/m/promoters_dmhyporegions_t05.bed"
+            promoters_bed = sprintf("ldna/Rintermediates/%s/promoters_t05.bed", modcode),
+            dmrpromoterhyper_bed = sprintf("ldna/Rintermediates/%s/promoters_dmhyperregions_t05.bed", modcode),
+            dmrpromoterhypo_bed = sprintf("ldna/Rintermediates/%s/promoters_dmhyporegions_t05.bed", modcode)
         ), env = globalenv())
     }
 )
@@ -149,6 +150,7 @@ rmann <- get_repeat_annotations(
 
 flRTEpromoter <- read_delim(sprintf("ldna/Rintermediates/%s/flRTEpromoter.tsv", params$mod_code), col_names = TRUE)
 RMdf <- read_delim(sprintf("ldna/Rintermediates/%s/RMdf.tsv", params$mod_code), col_names = TRUE)
+RMdf %>% filter(gene_id == "L1PA3_22p13_1")
 
 rtedf <- read_delim(sprintf("ldna/Rintermediates/%s/rtedf.tsv", params$mod_code), col_names = TRUE)
 rtedf$sample <- factor(rtedf$sample, levels = conf$samples)
@@ -199,7 +201,7 @@ readscg %>% filter(read_id == "3fc09898-d4bb-4d8a-a7c5-82cfdaa8613c") %>% pl()
 readscg %>% filter(grepl("3fc09898", read_id))
 readscg %>% filter(gene_id == "L1HS_9q22.2_1") %>% dplyr::mutate(mod_indicator = ifelse(mod_qual > 0.5, 1, 0)) %>% group_by(read_id) %>%
 summarise(mm = mean(mod_indicator), n = n()) %>% arrange(mm)
-readscg  %>% filter(read_id == "04b34f09-ee3f-4fa1-b14d-c112f90d2637") %>% filter(mod_code == "m") %>% pl()
+readscg  %>% filter(read_id == "04b34f09-ee3f-4fa1-b14d-c112f90d2637") %>% filter(mod_code == modcode) %>% pl()
 filtered_df %>% pl()
 
 
@@ -230,6 +232,8 @@ readscg_endfilt <- readscg %>%
     }
   })
 
+
+
 { #Get readIDs to filter out from bam for visualization purpose. 
 #Will only remove reads that lose CpGs to filtering in the promoter
 
@@ -240,8 +244,8 @@ flyngl1 <- rmann %>%
 flyngl1grs <- GRanges(flyngl1)
 flyngl1grspromoter <- promoters(flyngl1grs, upstream = 0, downstream = 909)
 
-unfilt_l1_reads <- readscg %>% filter(mod_code == "m") %>% GRanges() %>% subsetByOverlaps(flyngl1grspromoter, ignore.strand = TRUE) %>% as.data.frame() %>% tibble()
-filt_l1_reads <- readscg_endfilt %>% filter(mod_code == "m") %>% GRanges() %>% subsetByOverlaps(flyngl1grspromoter, ignore.strand = TRUE) %>% as.data.frame() %>% tibble()
+unfilt_l1_reads <- readscg %>% filter(mod_code == modcode) %>% GRanges() %>% subsetByOverlaps(flyngl1grspromoter, ignore.strand = TRUE) %>% as.data.frame() %>% tibble()
+filt_l1_reads <- readscg_endfilt %>% filter(mod_code == modcode) %>% GRanges() %>% subsetByOverlaps(flyngl1grspromoter, ignore.strand = TRUE) %>% as.data.frame() %>% tibble()
 nrow(filt_l1_reads)/nrow(unfilt_l1_reads)
 l1_reads_ncpgs <- full_join(unfilt_l1_reads %>% group_by(read_id) %>% summarise(n_unfilt = n()), filt_l1_reads %>% group_by(read_id) %>% summarise(n_filt = n())) %>%
     mutate(dif = n_unfilt - n_filt)
@@ -296,7 +300,7 @@ if ((conf$single_condition == "no")) {
     dmrsgr_split <- split(dmrsannot, dmrsannot$direction_threshold)
 }
 
-outputdir_meth_clustering <- "ldna/results/m/plots/l1_alignment_meth"
+outputdir_meth_clustering <- sprintf("ldna/results/%s/plots/l1_alignment_meth", modcode)
 subfam <- "L1HS"
 consensus_index_long <- read_csv(sprintf("%s/%s_fl_mapping_to_consensus_table.csv", outputdir_meth_clustering, subfam))
 
@@ -2156,7 +2160,7 @@ mysaveandstore(sprintf("ldna/results/%s/plots/l1intactheatmap_5utr_fullrange.pdf
 
 
 ########### READ ANALYSES
-outputdir_meth_clustering <- "ldna/results/m/plots/l1_alignment_meth"
+outputdir_meth_clustering <- sprintf("ldna/results/%s/plots/l1_alignment_meth", modcode)
 subfam <- "L1HS"
 consensus_path <- sprintf("%s/alignments/%s_fl_consensus.fa", outputdir_meth_clustering, subfam)
 consensus_ss <- readDNAStringSet(consensus_path)
@@ -2169,7 +2173,7 @@ cg_indices <- consensus_ss %>%
 read_analysis1 <- function(
     df,
     cg_indices,
-    mod_code_var = "m",
+    mod_code_var = modcode,
     regions_of_interest = list(c(0, 328), c(0, 500), c(0, 909), c(400, 600)),
     required_fraction_of_total_cg = 0.75,
     meth_thresholds = c(0.1, 0.25, 0.5),
@@ -3112,7 +3116,7 @@ read_analysis1(readscg_endfilt, cg_indices)
 read_analysis2 <- function(
     inputreaddf,
     cg_indices,
-    mod_code_var = "m",
+    mod_code_var = modcode,
     regions_of_interest = list(c(0, 328), c(0, 500), c(0, 909), c(400, 600)),
     required_fraction_of_total_cg = 0.75,
     meth_bins = c(0.5, 0.7, 0.9),
@@ -4072,7 +4076,7 @@ read_analysis2 <- function(
     }
 
 
-read_analysis2(readscg_endfilt %>% filter(mod_code == "m"), cg_indices)
+read_analysis2(readscg_endfilt %>% filter(mod_code == modcode), cg_indices)
 
 
 read_analysis3 <- function(
@@ -4106,7 +4110,7 @@ read_analysis3 <- function(
             dplyr::rename(element_strand = strand, element_start = start, element_end = end)) %>%
         filter(rte_length_req == "FL")
 
-    # tempm <- readsdf1 %>% filter(mod_code == "m") %>% mutate(mod_m_prob = mod_qual)
+    # tempm <- readsdf1 %>% filter(mod_code == modcode) %>% mutate(mod_m_prob = mod_qual)
     # readsdf1 %>% pw()
     # temph <- readsdf1 %>% filter(mod_code == "h") %>% mutate(mod_h_prob = mod_qual)
 
@@ -5507,7 +5511,7 @@ if ((conf$single_condition == "no") & enough_samples_per_condition_for_stats) {
             )
         }
 
-        make_enrich_plots("ldna/results/m/tables/great_prom_enh")
+        make_enrich_plots(sprintf("ldna/results/%s/tables/great_prom_enh", modcode))
 
 
 
@@ -6819,7 +6823,7 @@ mysaveandstore(sprintf("ldna/results/%s/plots/centromere/censatTypes_boxplot.pdf
 ##############
 # METHYLATION CLUSTERING
 
-outputdir_meth_clustering <- "ldna/results/m/plots/l1_alignment_meth"
+outputdir_meth_clustering <- sprintf("ldna/results/%s/plots/l1_alignment_meth", modcode)
 subfam <- "L1HS"
 consensus_index_long <- read_csv(sprintf("%s/%s_fl_mapping_to_consensus_table.csv", outputdir_meth_clustering, subfam))
 
@@ -6886,7 +6890,7 @@ dat %$% gene_id %>%
     length()
 # write_csv(dat, "meth_for_bayes.csv")
 
-
+library(tidyHeatmap)
 # methylation heatmaps
 hms <- list()
 for (sample in conf$samples) {
@@ -6896,9 +6900,9 @@ for (sample in conf$samples) {
         mutate(cpgs_detected_per_element = n()) %>%
         ungroup() %>%
         filter(cpgs_detected_per_element > 50) %>%
-        heatmap(gene_id, consensus_pos, pctM, cluster_rows = TRUE, cluster_columns = FALSE) %>%
-        add_tile(intactness_req) %>%
-        add_tile(loc_superlowres_integrative_stranded) %>%
+        tidyHeatmap::heatmap(gene_id, consensus_pos, pctM, cluster_rows = TRUE, cluster_columns = FALSE) %>%
+        tidyHeatmap::annotation_tile(intactness_req) %>%
+        tidyHeatmap::annotation_tile(loc_superlowres_integrative_stranded) %>%
         as_ComplexHeatmap()
     hms[[sample]] <- p
     dir.create(outputdir_meth_clustering, recursive = TRUE)
@@ -6918,10 +6922,10 @@ for (sample in conf$samples) {
         ungroup() %>%
         filter(cpgs_detected_per_element > 50) %>%
         heatmap(gene_id, consensus_pos, pctM, cluster_rows = TRUE, cluster_columns = FALSE) %>%
-        add_tile(genic_loc) %>%
-        add_tile(intactness_req) %>%
-        add_tile(loc_superlowres_integrative_stranded) %>%
-        add_tile(refstatus) %>%
+        annotation_tile(genic_loc) %>%
+        annotation_tile(intactness_req) %>%
+        annotation_tile(loc_superlowres_integrative_stranded) %>%
+        annotation_tile(refstatus) %>%
         as_ComplexHeatmap()
     hms[[sample]] <- p
     dir.create(outputdir_meth_clustering, recursive = TRUE)
@@ -6963,7 +6967,7 @@ merged_nr <- do.call(rbind, merged_nr_list) %>%
         tibble()
 
 
-    outputdir_meth_clustering <- "ldna/results/m/plots/l1_alignment_meth"
+    outputdir_meth_clustering <- sprintf("ldna/results/%s/plots/l1_alignment_meth", modcode)
     subfam <- "L1HS"
     consensus_index_long <- read_csv(sprintf("%s/%s_fl_mapping_to_consensus_table.csv", outputdir_meth_clustering, subfam))
 
@@ -7410,7 +7414,7 @@ merged_nr <- do.call(rbind, merged_nr_list) %>%
     boringgrs <- merge_with_grs(grs, boring_islands_to_extract_reads_from)
     boringgrsHMids <- boringgrs %>% as.data.frame() %>% tibble() %>% group_by(gene_id) %>% summarise(pctM = mean(pctM)) %>% filter(pctM > 85) %$% gene_id
     boringgrsHM %>% print(n = 50)
-    as.data.frame(boring_islands_to_extract_reads_from[mcols(boring_islands_to_extract_reads_from)$gene_id %in% boringgrsHMids]) %>% tibble() %>% write_delim("ldna/Rintermediates/m/boringcpgi_highmeth.tsv", delim = "\t")
+    as.data.frame(boring_islands_to_extract_reads_from[mcols(boring_islands_to_extract_reads_from)$gene_id %in% boringgrsHMids]) %>% tibble() %>% write_delim(sprintf("ldna/Rintermediates/%s/boringcpgi_highmeth.tsv", modcode), delim = "\t")
 
     set.seed(73)
     genes_to_extract_reads_from <- c(
@@ -7438,7 +7442,7 @@ merged_nr <- do.call(rbind, merged_nr_list) %>%
     regions_to_extract_reads_from_with_mcols <- c(boring_islands_to_extract_reads_from, genes_to_extract_reads_from_grs, rtes_to_extract_reads_from_grs)
     strand(regions_to_extract_reads_from_with_mcols) <- "*"
     mcols(regions_to_extract_reads_from_with_mcols)$name <- mcols(regions_to_extract_reads_from_with_mcols)$gene_id
-    rtracklayer::export.bed(regions_to_extract_reads_from_with_mcols, "ldna/Rintermediates/m/regions_to_extract_reads_from.bed")
+    rtracklayer::export.bed(regions_to_extract_reads_from_with_mcols, sprintf("ldna/Rintermediates/%s/regions_to_extract_reads_from.bed", modcode))
 
 
     ###
@@ -7500,7 +7504,7 @@ merged_nr <- do.call(rbind, merged_nr_list) %>%
         slice_sample(n = downsample_to_n, replace = FALSE) %>%
         mutate(fraction_meth = mean(mod_indicator)) %>%
         ungroup()
-    by_cpg_rois_ds %>% write_csv("ldna/Rintermediates/m/by_cpg_rois_ds")
+    by_cpg_rois_ds %>% write_csv(sprintf("ldna/Rintermediates/%s/by_cpg_rois_ds", modcode))
 
     by_read_rois_ds <- by_cpg_rois_ds %>%
         group_by(read_id, gene_id, sample_name) %>%
@@ -7692,7 +7696,7 @@ mutate(fraction_meth_lt10 = case_when(
 
 read_analysis_alt_regions <- function(
     readscg,
-    mod_code_var = "m",
+    mod_code_var = modcode,
     required_number_cg = 0.75,
     meth_thresholds = meth_thresholds,
     context = "CpG"
@@ -8755,7 +8759,7 @@ p <- df %>% ggplot() +
     ylim(c(0,90)) +
     mtclosedgridh +
     theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
-mysaveandstore(fn = str_glue("RTE/ldna/results/m/plots/{sample}_coverage.pdf"), w = 12, h = 12, raster = TRUE)
+mysaveandstore(fn = str_glue("RTE/ldna/results/{modcode}/plots/{sample}_coverage.pdf"), w = 12, h = 12, raster = TRUE)
 
 p <- df %>% ggplot() +
     geom_point(aes(x = start, y = mean_coverage, alpha = 0.2)) +
@@ -8763,7 +8767,7 @@ p <- df %>% ggplot() +
     ylim(c(0,200)) +
     mtclosedgridh +
     theme(axis.text.x = element_blank())
-mysaveandstore(fn = str_glue("RTE/ldna/results/m/plots/{sample}_coverage_notext.pdf"), w = 12, h = 12, raster = TRUE)
+mysaveandstore(fn = str_glue("RTE/ldna/results/{modcode}/plots/{sample}_coverage_notext.pdf"), w = 12, h = 12, raster = TRUE)
 
 
 perchrom_mean <- df %>% group_by(seqnames) %>% summarise(mean_coverage = mean(mean_coverage))
@@ -8775,7 +8779,7 @@ p <- df %>% ggplot() +
     ylim(c(0,90)) +
     mtclosedgridh +
     theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
-mysaveandstore(fn = str_glue("RTE/ldna/results/m/plots/{sample}_coverage_individualmeans.pdf"), w = 12, h = 12, raster = TRUE)
+mysaveandstore(fn = str_glue("RTE/ldna/results/{modcode}/plots/{sample}_coverage_individualmeans.pdf"), w = 12, h = 12, raster = TRUE)
 
 p <- df %>% ggplot() +
     geom_point(aes(x = start, y = mean_coverage, alpha = 0.2)) +
@@ -8785,7 +8789,7 @@ p <- df %>% ggplot() +
     ylim(c(0,90)) +
     mtclosedgridh +
     theme(axis.text.x = element_blank())
-mysaveandstore(fn = str_glue("RTE/ldna/results/m/plots/{sample}_coverage_individualmeans_notext.pdf"), w = 12, h = 12, raster = TRUE)
+mysaveandstore(fn = str_glue("RTE/ldna/results/{modcode}/plots/{sample}_coverage_individualmeans_notext.pdf"), w = 12, h = 12, raster = TRUE)
 
 ####
 
