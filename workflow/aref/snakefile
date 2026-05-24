@@ -214,7 +214,7 @@ rule dorado:
         slurm_partition="gpu-he",
         mem_mb = 128000,
         runtime = 5760,
-        slurm_extra="'--gres=gpu:2'"
+        slurm_extra="'--gres=gpu:a6000:2'"
     shell:
         """
 mkdir -p $(dirname {output.calls})
@@ -815,7 +815,7 @@ rule sniffles:
     shell:
         """
 mkdir -p $(dirname {output})
-sniffles -i {input.mapq60bam} -v {output.vcf} --threads 28 --reference {params.ref}
+sniffles -i {input.mapq60bam} -v {output.vcf} --threads 28 --mosaic --reference {params.ref}
         """
 
 rule determine_tes_to_mask:
@@ -885,6 +885,7 @@ rule pepper_getmarginoutput:
         pepper_deepvariant_container
     shell:	
         """
+mkdir -p $(dirname {output.bam})
 margin phase \
 {input.sortedbam} \
 {params.ref} \
