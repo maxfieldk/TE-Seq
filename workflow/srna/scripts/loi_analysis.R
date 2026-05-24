@@ -72,7 +72,7 @@ names(exons_gr) <- NULL
 
 
 # load imprinted gene list
-imprinted <- read_csv("custom/resources/akbarisup7_imprintedgenes.csv")
+imprinted <- read_csv("/users/mkelsey/data/LF1_newnanoporeset/TE-Seq/custom/resources/akbarisup7_imprintedgenes.csv")
 # expect at minimum a column called "gene" with gene symbols
 imprinted_genes <- unique(imprinted$gene_id)
 
@@ -426,7 +426,7 @@ xci_condition_summary <- gene_ase %>%
     filter(pooled_total > 399) %>%
     group_by(gene_id) %>%
     mutate(n = n()) %>%
-    filter(n == 2)
+    filter(n == length(unique(sample_table$condition)))
 
 xci_passing_genes <- unique(xci_condition_summary$gene_id)
 write_tsv(xci_condition_summary, file.path(xci_outputdir, "xci_condition_summary.tsv"))
