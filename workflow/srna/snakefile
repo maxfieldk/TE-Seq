@@ -1267,8 +1267,9 @@ rule loi_analysis:
         cpus_per_task = 4,
         mem_mb = 32000,
         runtime = 120
+    container: None
     conda:
-        "omics"
+        "ds"
     script:
         "scripts/loi_analysis.R"
 
