@@ -161,7 +161,8 @@ gene_ase <- ase %>%
     group_by(sample_name, condition, gene_id) %>%
     slice_max(n_snps, n = 1, with_ties = FALSE) %>%
     ungroup() %>%
-    mutate(hap1_ratio = hap1Count / totalCount)
+    mutate(hap1_ratio = hap1Count / totalCount) %>%
+    filter(!(condition %in% c("AP", "AE", "AL")))
 
 gene_ase %>% filter(gene_id == "H19")
 # determine which haplotype is the minor one ONCE per gene, using pooled counts across all samples
@@ -219,10 +220,10 @@ gene_condition_summary <- gene_ase %>%
         .groups = "drop"
     ) %>%
     filter(n_samples == (sample_table %>% group_by(condition) %>% mutate(n = n()) %$% n %>% max())) %>%
-    filter(pooled_total > 399) %>%
-    group_by(gene_id, imprinted) %>%
+    filter(pooled_total > 200) %>%
+    group_by(gene_id) %>%
     mutate(n = n()) %>%
-    filter(n == 2)
+    filter(n == length(unique(sample_table$condition)))
 
 
 
@@ -382,24 +383,27 @@ gw_summary <- gene_ase_plot %>%
     summarise(mean_ratio = mean(minor_allele_ratio), .groups = "drop") %>%
     pivot_wider(names_from = condition, values_from = mean_ratio)
 
-if (all(conf$levels %in% colnames(gw_summary))) {
-    p <- ggplot(gw_summary, aes(x = !!sym(conf$levels[1]), y = !!sym(conf$levels[2]))) +
-        geom_abline(intercept = 0, slope = 1, alpha = 0.4) +
-        geom_point(aes(color = imprinted), size = 1.5, alpha = 0.6) +
-        geom_text_repel(
-            data = gw_summary %>% filter(imprinted),
-            aes(label = gene_id), size = 3, max.overlaps = 20
-        ) +
-        labs(
-            title = "Genome-wide Allelic Ratios",
-            x = sprintf("%s Mean Minor Allele Ratio", conf$levels[1]),
-            y = sprintf("%s Mean Minor Allele Ratio", conf$levels[2]),
-            color = "Imprinted"
-        ) +
-        scale_color_manual(values = c("TRUE" = "red", "FALSE" = "grey70")) +
-        mtclosed +
-        theme(aspect.ratio = 1)
-    mysaveandstore(file.path(outputdir, "genomewide_allelic_ratio_scatter1111.pdf"), w = 7, h = 7, pl = p)
+level_pairs <- combn(conf$levels, 2, simplify = FALSE)
+for (pair in level_pairs) {
+    if (all(pair %in% colnames(gw_summary))) {
+        p <- ggplot(gw_summary, aes(x = !!sym(pair[1]), y = !!sym(pair[2]))) +
+            geom_abline(intercept = 0, slope = 1, alpha = 0.4) +
+            geom_point(aes(color = imprinted), size = 1.5, alpha = 0.6) +
+            geom_text_repel(
+                data = gw_summary %>% filter(imprinted),
+                aes(label = gene_id), size = 3, max.overlaps = 20
+            ) +
+            labs(
+                title = "Genome-wide Allelic Ratios",
+                x = sprintf("%s Mean Minor Allele Ratio", pair[1]),
+                y = sprintf("%s Mean Minor Allele Ratio", pair[2]),
+                color = "Imprinted"
+            ) +
+            scale_color_manual(values = c("TRUE" = "red", "FALSE" = "grey70")) +
+            mtclosed +
+            theme(aspect.ratio = 1)
+        mysaveandstore(file.path(outputdir, sprintf("genomewide_allelic_ratio_scatter_%s_vs_%s.pdf", pair[1], pair[2])), w = 7, h = 7, pl = p)
+    }
 }
 
 ######################
@@ -423,10 +427,11 @@ xci_condition_summary <- gene_ase %>%
         .groups = "drop"
     ) %>%
     filter(n_samples == (sample_table %>% group_by(condition) %>% mutate(n = n()) %$% n %>% max())) %>%
-    filter(pooled_total > 399) %>%
+    filter(pooled_total > 200) %>%
     group_by(gene_id) %>%
     mutate(n = n()) %>%
     filter(n == length(unique(sample_table$condition)))
+
 
 xci_passing_genes <- unique(xci_condition_summary$gene_id)
 write_tsv(xci_condition_summary, file.path(xci_outputdir, "xci_condition_summary.tsv"))
@@ -631,7 +636,7 @@ if (nrow(xci_ase) > 0) {
                 mtclosed +
                 scale_fill_manual(values = c("hap1" = "#4393C3", "hap2" = "#D6604D")) +
                 theme(axis.text.x = element_text(angle = 45, hjust = 1))
-            mysaveandstore(file.path(xci_outputdir, "xist_phaseblock_haplotype_barplot.pdf"),
+            mysaveandstore(file.path(xci_outputdir, "xist_phaseblock_haplotype_barplot1.pdf"),
                 w = max(8, length(xist_block_genes) * 2),
                 h = max(6, ceiling(length(xist_block_genes) / 4) * 3),
                 pl = p
