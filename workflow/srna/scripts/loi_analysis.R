@@ -594,6 +594,50 @@ if (nrow(xci_ase) > 0) {
             w = max(8, length(top_xci) * 2), h = max(6, ceiling(length(top_xci) / 4) * 3), pl = p
         )
     }
+
+    # 7. Genes in the same phase set as XIST — hap1/hap2 coloring to check inversion
+    # XIST is expressed from Xi; other X genes from Xa — expect opposite haplotype dominance
+    xist_ps <- gene_ase %>%
+        filter(gene_id == "XIST", chrX) %>%
+        pull(PS) %>%
+        unique()
+
+    if (length(xist_ps) > 0) {
+        xist_block_genes <- gene_ase %>%
+            filter(chrX, PS %in% xist_ps, gene_id %in% xci_passing_genes) %>%
+            pull(gene_id) %>%
+            unique()
+
+        if (length(xist_block_genes) > 1) {
+            plot_df <- gene_ase %>%
+                filter(gene_id %in% xist_block_genes) %>%
+                dplyr::select(sample_name, condition, gene_id, hap1Count, hap2Count) %>%
+                pivot_longer(cols = c(hap1Count, hap2Count), names_to = "haplotype", values_to = "count") %>%
+                mutate(
+                    haplotype = gsub("Count", "", haplotype),
+                    gene_id = factor(gene_id, levels = c("XIST", setdiff(xist_block_genes, "XIST")))
+                )
+
+            p <- ggplot(plot_df, aes(x = sample_name, y = count, fill = haplotype)) +
+                geom_bar(stat = "identity", position = "stack") +
+                facet_wrap(~gene_id, scales = "free_y") +
+                labs(
+                    title = "X Genes in XIST Phase Block: Haplotype Counts",
+                    subtitle = "XIST (from Xi) should show opposite haplotype dominance vs other genes (from Xa)",
+                    y = "Read Count",
+                    x = NULL,
+                    fill = "Haplotype"
+                ) +
+                mtclosed +
+                scale_fill_manual(values = c("hap1" = "#4393C3", "hap2" = "#D6604D")) +
+                theme(axis.text.x = element_text(angle = 45, hjust = 1))
+            mysaveandstore(file.path(xci_outputdir, "xist_phaseblock_haplotype_barplot.pdf"),
+                w = max(8, length(xist_block_genes) * 2),
+                h = max(6, ceiling(length(xist_block_genes) / 4) * 3),
+                pl = p
+            )
+        }
+    }
 }
 
 # save all plots
