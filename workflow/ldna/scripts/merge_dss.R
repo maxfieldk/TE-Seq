@@ -26,17 +26,17 @@ tryCatch(
     error = function(e) {
         print("not sourced snake variables")
         assign("inputs", list(
-            dmrs = sprintf("ldna/results/tables/dmrs.%s.CG_m.tsv", chr = chrom_to_keep),
-            dmls = sprintf("ldna/results/tables/dmls.%s.CG_m.tsv", chr = chrom_to_keep)
+            dmrs = sprintf("ldna/results/m/tables/dmrs.%s.tsv", chr = chrom_to_keep),
+            dmls = sprintf("ldna/results/m/tables/dmls.%s.tsv", chr = chrom_to_keep)
         ), env = globalenv())
         assign("outputs", list(
-            dmls_unfiltered = "ldna/results/tables/dmls.CG_m.unfiltered.tsv",
-            dmrs_unfiltered = "ldna/results/tables/dmrs.CG_m.unfiltered.tsv",
-            dmls = "ldna/results/tables/dmls.CG_m.tsv",
-            dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
-            dmrs_bed = "ldna/results/tables/dmrs.CG_m.bed",
-            dmrs_hypo_bed = "ldna/results/tables/dmrs_hypo.CG_m.bed",
-            dmrs_hyper_bed = "ldna/results/tables/dmrs_hyper.CG_m.bed"
+            dmls_unfiltered = "ldna/results/m/tables/dmls.unfiltered.tsv",
+            dmrs_unfiltered = "ldna/results/m/tables/dmrs.unfiltered.tsv",
+            dmls = "ldna/results/m/tables/dmls.tsv",
+            dmrs = "ldna/results/m/tables/dmrs.tsv",
+            dmrs_bed = "ldna/results/m/tables/dmrs.bed",
+            dmrs_hypo_bed = "ldna/results/m/tables/dmrs_hypo.bed",
+            dmrs_hyper_bed = "ldna/results/m/tables/dmrs_hyper.bed"
         ), env = globalenv())
     }
 )
@@ -45,12 +45,30 @@ tryCatch(
 
 chr_dmrs <- list()
 for (filepath in inputs$dmrs) {
-    chr_dmrs[[filepath]] <- read_delim(filepath, col_names = TRUE)
+    chr_dmrs[[filepath]] <- read_delim(filepath, col_names = TRUE, col_types = cols(
+        chr = col_character(),
+        start = col_double(),
+        end = col_double(),
+        length = col_double(),
+        nCG = col_double(),
+        meanMethy1 = col_double(),
+        meanMethy2 = col_double(),
+        diff.Methy = col_double(),
+        areaStat = col_double(),
+        dmr_type = col_character()
+    ))
 }
 
 chr_dmls <- list()
 for (filepath in inputs$dmls) {
-    chr_dmls[[filepath]] <- read_delim(filepath, col_names = TRUE)
+    chr_dmls[[filepath]] <- read_delim(filepath, col_names = TRUE, col_types = cols(
+        chr = col_character(),
+        pos = col_double(),
+        stat = col_double(),
+        pvals = col_double(),
+        fdrs = col_double(),
+        direction = col_character()
+    ))
 }
 dmrs <- Reduce(bind_rows, chr_dmrs)
 dmls <- Reduce(bind_rows, chr_dmls)

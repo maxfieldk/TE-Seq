@@ -1,4 +1,5 @@
 modcode <- "m"
+modcode <- "m"
 module_name <- "ldna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
 confALL <- configr::read.config(file = "conf/config.yaml")
@@ -79,7 +80,7 @@ if (confALL$aref$update_ref_with_tldr$response == "yes") {
     rmann <- read_csv(sprintf("aref/extended/%s_annotations/%s_rmann.csv", "A.REF", "A.REF")) %>% filter(refstatus != "NonCentral")
 }
 ##############################
-# outputdir_already_computed <- sprintf("/users/mkelsey/data/LF1/RTE/ldna/results/%s/plots/l1_alignment_meth", modcode)
+outputdir_already_computed <- sprintf("/users/mkelsey/data/LF1/RTE/ldna/results/%s/plots/l1_alignment_meth", modcode)
 outputdir <- sprintf("ldna/results/%s/plots/l1_alignment_meth", modcode)
 
 subfams <- c("L1HS", "L1PA2", "L1PA3", "L1PA4", "L1PA5", "L1PA6")

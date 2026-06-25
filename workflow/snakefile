@@ -274,6 +274,20 @@ mkdir -p $(dirname {output})
 singularity pull {output} docker://mhammelllab/tetranscripts:2.2.3
         """
 
+rule pull_clair3_container:
+    output:
+        "containers/clair3:v2.0.1_gpu.sif"
+    resources:
+        cpus_per_task =4,
+        runtime = 200,
+        mem_mb = 100000
+    container: None
+    shell:
+        """
+mkdir -p $(dirname {output})
+singularity pull {output} docker://hkubal/clair3:v2.0.1_gpu
+        """
+
 rule get_containers:
     input:
         ["containers/tetools_1.88.5.sif",

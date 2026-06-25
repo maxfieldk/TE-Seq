@@ -79,7 +79,10 @@ aref:
       L1PA2: #specify subfamily names to examine (must be a value in the rte_subfamily column).
         - 1017 #specify the ORF lengths (in nucleotides) to search for (ORFs of length +/- 10% the specified value will be considered). Multiple lengths can be provided.
         - 3828 #specify the ORF lengths (in nucleotides) to search for (ORFs of length +/- 10% the specified value will be considered). Multiple lengths can be provided.
-
+      L1PA3: #specify subfamily names to examine (must be a value in the rte_subfamily column).
+        - 1017 #specify the ORF lengths (in nucleotides) to search for (ORFs of length +/- 10% the specified value will be considered). Multiple lengths can be provided.
+        - 3828 #specif
+        
   #USER PROVIDED ANNOTATIONS - CHANGE PATHS AS NEEDED
   #Be sure to follow ucsc naming conventions, e.g. chr1, chr2, ...
   starting_ref: ../genome_files/reference.ucsc.fa

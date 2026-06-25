@@ -6,7 +6,11 @@
   "description": "resources/sequences/L1.2_EN_domain_aa.fa",
   "number-of-letters": 239,
   "number-of-sequences": 1,
+<<<<<<< HEAD
   "last-updated": "2026-02-12T11:28:00",
+=======
+  "last-updated": "2026-04-09T15:51:00",
+>>>>>>> 12f3b9ef5405bebc7eea4ed5425d744d62f2f8c8
   "number-of-volumes": 1,
   "bytes-total": 37347,
   "bytes-to-cache": 385,

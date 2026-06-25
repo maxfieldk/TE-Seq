@@ -204,7 +204,6 @@ l1hs_promoterregion_meth_by_sample_tidy_strictly_intergenic_sense <- l1hs_promot
 
 
 l1hs_promoterregion_hdmr_by_gene_tidy <- read_csv(sprintf("ldna/Rintermediates/%s/%s/cut_highly_demethylated_reads_by_gene_id.csv", params$mod_code, "L1HS_FL")) %>%
-    dplyr::rename(sample_name = sample) %>%
     mutate(gene_id = case_when(
         grepl("NI_", gene_id) ~ paste0(sample_name, "_", gene_id),
         TRUE ~ gene_id
@@ -568,6 +567,15 @@ for (tecounttype in c("telescope_unique")) {
 
     mysaveandstore(pl = p, str_glue("{outputdir}/L1HS/meth_by_sample_strictly_intergenic_all_rsq.pdf"), w = 4, h = 4, sf = mf)
 
+    p <- mf %>%
+        filter(region != "ASP") %>%
+        ggplot() +
+        geom_col(aes(x = region, y = r.squared, fill = p.value), color = "black") +
+        ggtitle("title") +
+        mtclosed +
+        scale_y_continuous(expand = expansion(mult = c(0, .075)), limits = c(0, 1))
+    mysaveandstore(pl = p, str_glue("{outputdir}/L1HS/meth_by_sample_strictly_intergenic_all_rsq41.pdf"), w = 3.5, h = 4, sf = mf)
+    mfmeth_to_store <- mf %>% filter(region != "ASP")
     # now strictly intergenic ASP
     model_stats_list <- list()
     for (sthresh in mrg_l1hs_by_sample_meth_strictly_intergenic_ASP$region %>% unique()) {
@@ -744,6 +752,8 @@ for (tecounttype in c("telescope_unique")) {
         mysaveandstore(str_glue("{outputdir}/L1HS/hdr_by_sample_strictly_intergenic_{sthresh}.pdf"), w = 4, h = 4, sf = stats, sfm = model_stats)
         p <- p + theme(axis.text.x = element_text(angle = 0, hjust = 1))
         mysaveandstore(str_glue("{outputdir}/L1HS/hdr_by_sample_strictly_intergenic_{sthresh}_norot.pdf"), w = 4, h = 4, sf = stats, sfm = model_stats)
+        p <- p + ggtitle("title") + theme(axis.text.x = element_text(angle = 0, hjust = 1))
+        mysaveandstore(str_glue("{outputdir}/L1HS/hdr_by_sample_strictly_intergenic_{sthresh}_norot_wide1.pdf"), w = 5, h = 4, sf = stats, sfm = model_stats)
 
         model_stats_list[[sthresh]] <- model_stats
     }
@@ -761,6 +771,16 @@ for (tecounttype in c("telescope_unique")) {
 
     mysaveandstore(pl = p, str_glue("{outputdir}/L1HS/hdr_by_sample_strictly_intergenic_all_rsq.pdf"), w = 6, h = 4, sf = mf)
 
+    p <- mf %>%
+        filter(threshold == "[0, 0.5)") %>%
+        filter(region != "400to600") %>%
+        ggplot() +
+        geom_col(aes(x = region, y = r.squared, fill = p.value), color = "black") +
+        ggtitle("title") +
+        mtclosed +
+        scale_y_continuous(expand = expansion(mult = c(0, .075)), limits = c(0, 1))
+    mysaveandstore(pl = p, str_glue("{outputdir}/L1HS/hdr_by_sample_strictly_intergenic_all_rsq4.pdf"), w = 3.5, h = 4, sf = mf)
+    mf_hdr_to_store <- mf %>% filter(threshold == "[0, 0.5)")
 
     p <- mf %>%
         filter(region != "400to600") %>%
@@ -1186,3 +1206,22 @@ for (direc in directions) {
 
     concordant <- meth_ids[meth_ids %in% rna_ids]
 }
+
+
+
+jdf <- bind_rows(mfmeth_to_store %>% mutate(type = "meth"), mf_hdr_to_store %>% mutate(type = "hdr"))
+
+p <- jdf %>%
+    filter(region != "400to600") %>%
+    mutate(region = case_when(
+        grepl("328", region) ~ "328",
+        grepl("500", region) ~ "500",
+        grepl("909", region) ~ "909"
+    )) %>%
+    ggplot() +
+    geom_col(aes(x = region, y = r.squared, fill = p.value), color = "black") +
+    ggtitle("title") +
+    facet_wrap(~type) +
+    mtclosed +
+    scale_y_continuous(expand = expansion(mult = c(0, .075)), limits = c(0, 1))
+mysaveandstore(pl = p, str_glue("{outputdir}/L1HS/methandhdr_by_sample_strictly_intergenic_all_rsq.pdf"), w = 5, h = 4, sf = mf)

@@ -46,7 +46,7 @@ if (length(conf$levels) == 1) {
     sample_unique_palette <- setNames(color_table$sample_unique_color, color_table$sample_name)
     direction_palette <- setNames(c("red", "blue", "grey"), c("UP", "DOWN", "NS"))
     methylation_palette <- setNames(c("#ede6d1", "#2b2a24", "grey"), c("Hypo", "Hyper", "NS"))
-    methylation_palette_thresholds <- setNames(c("#ede6d1", "#4a493f", "#e8d18c", "#2b2a24", "grey"), c("Hypo_05", "Hyper_05", "Hypo_01", "Hyper_01", "NS"))
+    methylation_palette_thresholds <- setNames(c("#ede6d1", "#4a493f", "#e8d18c", "#2b2a24", "grey"), c("Hypo_001", "Hyper_001", "Hypo_001d2", "Hyper_001d2", "NS"))
 
     contrasts <- conf$contrasts
     contrast_base <- gsub(".*_vs_", "", contrasts)
@@ -135,7 +135,7 @@ if (length(conf$levels) == 1) {
     sample_unique_palette <- setNames(color_table$sample_unique_color, color_table$sample_name)
     direction_palette <- setNames(c("red", "blue", "grey"), c("UP", "DOWN", "NS"))
     methylation_palette <- setNames(c("#ede6d1", "#2b2a24", "grey"), c("Hypo", "Hyper", "NS"))
-    methylation_palette_thresholds <- setNames(c("#ede6d1", "#4a493f", "#e8d18c", "#2b2a24", "grey"), c("Hypo_05", "Hyper_05", "Hypo_01", "Hyper_01", "NS"))
+    methylation_palette_thresholds <- setNames(c("#ede6d1", "#4a493f", "#e8d18c", "#2b2a24", "grey"), c("Hypo_001", "Hyper_001", "Hypo_001d2", "Hyper_001d2", "NS"))
 
     contrasts <- conf$contrasts
     contrast_base <- gsub(".*_vs_", "", contrasts)
@@ -225,7 +225,7 @@ if (length(conf$levels) == 1) {
     sample_unique_palette <- setNames(color_table$sample_unique_color, color_table$sample_name)
     direction_palette <- setNames(c("red", "blue", "grey"), c("UP", "DOWN", "NS"))
     methylation_palette <- setNames(c("#ede6d1", "#2b2a24", "grey"), c("Hypo", "Hyper", "NS"))
-    methylation_palette_thresholds <- setNames(c("#ede6d1", "#4a493f", "#e8d18c", "#2b2a24", "grey"), c("Hypo_05", "Hyper_05", "Hypo_01", "Hyper_01", "NS"))
+    methylation_palette_thresholds <- setNames(c("#ede6d1", "#4a493f", "#e8d18c", "#2b2a24", "grey"), c("Hypo_001", "Hyper_001", "Hypo_001d2", "Hyper_001d2", "NS"))
 
     contrasts <- conf$contrasts
     contrast_base <- gsub(".*_vs_", "", contrasts)
