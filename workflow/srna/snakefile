@@ -241,13 +241,13 @@ samtools stats {output.bam} > {output.bam}.stats.txt
         """
 
 
-rule inferLibraryType:
+rule inferLibraryTypeSample:
     input:
-        bam = expand("srna/outs/{sample}/star_output/{sample}.sorted.primary.bam", sample = samples[0])
+        bam = "srna/outs/{sample}/star_output/{sample}.sorted.primary.bam"
     output:
-        librarytype = "srna/qc/library_type.txt"
+        librarytype = "srna/qc/{sample}/library_type.txt"
     benchmark:
-        "srna/benchmarks/inferLibraryType/inferLibraryType.tsv"
+        "srna/benchmarks/inferLibraryType/{sample}.tsv"
     params:
         gtf = config["srna"]['annotation_genes_bed12'],
     resources:
@@ -258,6 +258,45 @@ rule inferLibraryType:
         """
 infer_experiment.py -r {params.gtf} -i {input.bam} > {output.librarytype}
         """
+
+rule inferLibraryType:
+    input:
+        per_sample = expand("srna/qc/{sample}/library_type.txt", sample = samples)
+    output:
+        librarytype = "srna/qc/library_type.txt"
+    run:
+        import re
+        results = {}
+        for f in input.per_sample:
+            sample = f.split("/")[2]
+            data = open(f).read()
+            lines = re.findall('Fraction.*', data)
+            pctMapped = [float(line.split(": ")[1]) for line in lines]
+            if pctMapped[1] > 0.75:
+                results[sample] = "forward"
+            elif pctMapped[2] > 0.75:
+                results[sample] = "reverse"
+            else:
+                results[sample] = "unstranded"
+
+        types = set(results.values())
+        if len(types) > 1:
+            print("WARNING: library type disagrees across samples!")
+            for sample, lib_type in results.items():
+                print(f"  {sample}: {lib_type}")
+
+        # Use majority vote for the consensus
+        from collections import Counter
+        consensus = Counter(results.values()).most_common(1)[0][0]
+
+        with open(output.librarytype, "w") as out:
+            # Write per-sample results
+            for sample, lib_type in results.items():
+                out.write(f"{sample}\t{lib_type}\n")
+            out.write(f"\nConsensus: {consensus}\n")
+            # Write the first sample's raw output so inferLibraryType() parser still works
+            out.write("\n")
+            out.write(open(input.per_sample[0]).read())
 
 rule multiqc:
     input:
