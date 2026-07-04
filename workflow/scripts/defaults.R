@@ -19,23 +19,30 @@ library("paletteer")
 get_repeat_annotations <- function(
     default_or_extended = "default",
     keep_non_central = TRUE) {
-    rmannShared <- read_csv(confALL$aref$rmann_shared)
+    if (default_or_extended == "default") {
+        rmannShared <- read_csv("aref/default/A.REF_annotations/A.REF_rmann.csv")
+    } else if (default_or_extended == "extended") {
+        rmannShared <- read_csv("aref/extended/A.REF_annotations/A.REF_rmann.csv")
+    } else {
+        print("FAIL LOAD RMANN")
+    }
     if (confALL$aref$update_ref_with_tldr$response == "yes") {
         if (confALL$aref$update_ref_with_tldr$per_sample == "yes") {
             rmannSamples <- list()
             for (sample in confALL$aref$samples) {
                 df <- read_csv(sprintf("aref/%s/%s_annotations/%s_rmann_nonref.csv", default_or_extended, sample, sample))
+                df$nonref_insert_sample_name <- sample
                 rmannSamples[[sample]] <- df
             }
             rmannnonref <- do.call(rbind, rmannSamples) %>% tibble()
             rmann <- bind_rows(rmannShared, rmannnonref)
             if (!keep_non_central) {
-                rmann <<- rmann %>% filter(refstatus != "NonCentral")
+                rmann <- rmann %>% filter(refstatus != "NonCentral")
             }
         } else if (confALL$aref$update_ref_with_tldr$per_sample == "no") {
             rmann <- rmannShared
             if (!keep_non_central) {
-                rmann <<- rmann %>% filter(refstatus != "NonCentral")
+                rmann <- rmann %>% filter(refstatus != "NonCentral")
             }
         }
     } else {
@@ -315,9 +322,124 @@ mysaveandstore <- function(fn = "ztmp.pdf", w = 5, h = 5, res = 600, pl = p, sto
 }
 
 
-mss <- function(fn = "ztmp.pdf", w = 5, h = 5, wv = 4, hv = 4, res = 600, pl = p, store = store_var, raster = FALSE, sf = NULL, plus_void = FALSE) {
+make_void_plot <- function(pl, target_inches = 3, axis_text_size = 12) {
+    # Calculate number of mono characters needed to fill target_inches
+    # Mono char width at a given pt size: ~0.6 * pt_size in points, convert to inches (/72)
+    char_width_in <- 0.6 * axis_text_size / 72
+    pad_width <- ceiling(target_inches / char_width_in)
+
+    pad_fn <- function(x) {
+        formatted <- as.character(x)
+        stringr::str_pad(formatted, width = pad_width, side = "right", pad = "$")
+    }
+
+    # Strip all non-data elements, set mono font, rotate x labels 90 degrees
+    pl <- pl + theme(
+        plot.title = element_blank(),
+        plot.subtitle = element_blank(),
+        plot.caption = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        legend.position = "none",
+        strip.background = element_blank(),
+        strip.text = element_text(size = 14, family = "mono", margin = margin(0, 0, 1, 0, "mm")),
+        plot.margin = margin(0, 0, 0, 0),
+        axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, family = "mono", size = axis_text_size),
+        axis.text.y = element_text(family = "mono", size = axis_text_size)
+    )
+
+    # Modify existing scale label functions in-place to preserve breaks/limits/transforms
+    x_modified <- FALSE
+    y_modified <- FALSE
+    for (sc in pl$scales$scales) {
+        if ("x" %in% sc$aesthetics) {
+            sc$labels <- pad_fn
+            x_modified <- TRUE
+        }
+        if ("y" %in% sc$aesthetics) {
+            sc$labels <- pad_fn
+            y_modified <- TRUE
+        }
+    }
+
+    # If no explicit scale exists, detect type and add one with padding
+    if (!x_modified || !y_modified) {
+        built <- ggplot_build(pl)
+        if (!x_modified) {
+            if (inherits(built$layout$panel_scales_x[[1]], "ScaleDiscretePosition")) {
+                pl <- pl + scale_x_discrete(labels = pad_fn)
+            } else {
+                pl <- pl + scale_x_continuous(labels = pad_fn)
+            }
+        }
+        if (!y_modified) {
+            if (inherits(built$layout$panel_scales_y[[1]], "ScaleDiscretePosition")) {
+                pl <- pl + scale_y_discrete(labels = pad_fn)
+            } else {
+                pl <- pl + scale_y_continuous(labels = pad_fn)
+            }
+        }
+    }
+
+    pl
+}
+
+mss <- function(fn = "ztmp.pdf", w = 5, h = 5, fw = NULL, fh = NULL, res = 600, pl = p, store = store_var, raster = FALSE, sf = NULL, plus_void = FALSE, void_target_inches = 4, axis_text_size = 12) {
+    # fw/fh = per-panel data area (inches). mss detects facet layout
+    # from the ggplot object and scales total width/height accordingly.
+    # Void plots account for $-padded axis labels per panel (free scales)
+    # or once (shared scales).
+
+    # Detect facet layout if fw or fh provided and pl is a ggplot
+    ncol_facet <- 1L
+    nrow_facet <- 1L
+    free_x <- FALSE
+    free_y <- FALSE
+    if ((!is.null(fw) || !is.null(fh)) && inherits(pl, "gg")) {
+        built <- ggplot_build(pl)
+        layout <- built$layout$layout
+        ncol_facet <- max(layout$COL, 1L)
+        nrow_facet <- max(layout$ROW, 1L)
+        free_x <- isTRUE(pl$facet$params$free$x)
+        free_y <- isTRUE(pl$facet$params$free$y)
+    }
+
+    if (!is.null(fw)) {
+        panel_w <- fw * 1.5
+        w <- ncol_facet * panel_w + 3
+        if (free_y) {
+            # Each column gets its own y-axis with $ padding
+            wv <- ncol_facet * (panel_w + void_target_inches)
+        } else {
+            # Single y-axis padding + all panel columns
+            wv <- void_target_inches + ncol_facet * panel_w
+        }
+    } else {
+        wv <- w
+    }
+    if (!is.null(fh)) {
+        panel_h <- fh * 1.5
+        h <- nrow_facet * panel_h + 3
+        if (free_x) {
+            # Each row gets its own x-axis with $ padding
+            hv <- nrow_facet * (panel_h + void_target_inches)
+        } else {
+            # Single x-axis padding + all panel rows
+            hv <- void_target_inches + nrow_facet * panel_h
+        }
+    } else {
+        hv <- h
+    }
     dn <- dirname(fn)
     dir.create(dn, showWarnings = FALSE, recursive = TRUE)
+
+    # Enforce consistent axis text size on both axes
+    if (!is.null(axis_text_size) && inherits(pl, "gg")) {
+        pl <- pl + theme(
+            axis.text.x = element_text(size = axis_text_size),
+            axis.text.y = element_text(size = axis_text_size)
+        )
+    }
 
     if (raster == TRUE) {
         tryCatch(
@@ -343,12 +465,12 @@ mss <- function(fn = "ztmp.pdf", w = 5, h = 5, wv = 4, hv = 4, res = 600, pl = p
         if (plus_void == TRUE) {
             tryCatch(
                 {
-                    pl_no_title_or_legend <- pl + theme(plot.title = element_blank(), plot.subtitle = element_blank(), legend.position = "none")
-                    fn_no_title_or_legend <- gsub(".pdf", "_void.pdf", fn)
-                    png(gsub(".pdf", ".png", fn_no_title_or_legend), width = wv, height = hv, units = "in", res = res)
-                    print(pl_no_title_or_legend)
+                    pl_void <- make_void_plot(pl, target_inches = void_target_inches, axis_text_size = axis_text_size)
+                    fn_void <- gsub(".pdf", "_void.pdf", fn)
+                    png(gsub(".pdf", ".png", fn_void), width = wv, height = hv, units = "in", res = res)
+                    print(pl_void)
                     dev.off()
-                    print(paste(getwd(), gsub(".pdf", ".png", fn_no_title_or_legend), sep = "/"))
+                    print(paste(getwd(), gsub(".pdf", ".png", fn_void), sep = "/"))
                 },
                 error = function(e) {
                     print("plot not saved")
@@ -388,12 +510,12 @@ mss <- function(fn = "ztmp.pdf", w = 5, h = 5, wv = 4, hv = 4, res = 600, pl = p
         if (plus_void == TRUE) {
             tryCatch(
                 {
-                    pl_no_title_or_legend <- pl + theme(plot.title = element_blank(), plot.subtitle = element_blank(), legend.position = "none")
-                    fn_no_title_or_legend <- gsub(".pdf", "_void.pdf", fn)
-                    cairo_pdf(fn_no_title_or_legend, width = wv, height = hv, family = "Helvetica")
-                    print(pl_no_title_or_legend)
+                    pl_void <- make_void_plot(pl, target_inches = void_target_inches, axis_text_size = axis_text_size)
+                    fn_void <- gsub(".pdf", "_void.pdf", fn)
+                    cairo_pdf(fn_void, width = wv, height = hv, family = "Helvetica")
+                    print(pl_void)
                     dev.off()
-                    print(paste(getwd(), fn_no_title_or_legend, sep = "/"))
+                    print(paste(getwd(), fn_void, sep = "/"))
                 },
                 error = function(e) {
                     print("plot not saved")
@@ -468,6 +590,50 @@ mtclosedgridv <- theme_cowplot(font_family = "helvetica") +
     theme(panel.spacing = unit(4, "mm")) + background_grid(major = "x", minor = "none")
 
 
+standardize_axis_labels_num <- function(digits_before = 3, digits_after = 3) {
+    function(x) {
+        # Construct a format string like "%06.3f"
+        # Width = digits_before + digits_after + 1 (for decimal point)
+        total_width <- digits_before + digits_after + 1
+        fmt <- paste0("%0", total_width, ".", digits_after, "f")
+        sprintf(fmt, x)
+    }
+}
+standardize_axis_labels_chr <- function(width = NULL, side = c("left", "right"), pad = " ") {
+    side <- match.arg(side)
+
+    function(x) {
+        x <- as.character(x)
+        # If width not specified, use the longest string
+        if (is.null(width)) width <- max(nchar(x), na.rm = TRUE)
+
+        if (side == "left") {
+            stringr::str_pad(x, width = width, side = "left", pad = pad)
+        } else {
+            stringr::str_pad(x, width = width, side = "right", pad = pad)
+        }
+    }
+}
+
+snN <- function(f, s = 0) {
+    list(
+        scale_y_continuous(labels = standardize_axis_labels_num(digits_before = f, digits_after = s)),
+        theme(text = element_text(family = "mono"))
+    )
+}
+snNab <- function(f, s = 0) {
+    list(
+        scale_y_continuous(labels = standardize_axis_labels_num(digits_before = f, digits_after = s), expand = expansion(mult = c(0, .075))),
+        theme(text = element_text(family = "mono"))
+    )
+}
+
+scN <- function(f) {
+    list(
+        scale_y_continuous(labels = standardize_axis_labels_chr(width = f, side = "left", pad = " ")),
+        theme(text = element_text(family = "mono"))
+    )
+}
 
 anchorbar <- list(
     scale_y_continuous(expand = expansion(mult = c(0, .075)))

@@ -42,10 +42,20 @@ library(glmmTMB)
 samples <- conf$samples
 sample_table <- sample_table[match(samples, sample_table$sample_name), ]
 conditions <- conf$levels
-condition1 <- conditions[1]
-condition2 <- conditions[2]
-condition1samples <- sample_table[sample_table$condition == conditions[1], ]$sample_name
-condition2samples <- sample_table[sample_table$condition == conditions[2], ]$sample_name
+contrasts <- conf$contrasts
+
+# Helper to parse a contrast string into condition1 (reference) and condition2 (test)
+parse_contrast <- function(contrast_string) {
+    parts <- str_match(contrast_string, "^condition_(.+)_vs_(.+)$")
+    list(condition2 = parts[1, 2], condition1 = parts[1, 3])
+}
+
+# For backwards compatibility, set condition1/condition2 from first contrast
+first_contrast <- parse_contrast(contrasts[[1]])
+condition1 <- first_contrast$condition1
+condition2 <- first_contrast$condition2
+condition1samples <- sample_table[sample_table$condition == condition1, ]$sample_name
+condition2samples <- sample_table[sample_table$condition == condition2, ]$sample_name
 enough_samples_per_condition_for_stats <- ifelse(length(condition1samples) < 3 | length(condition2samples) < 3, FALSE, TRUE)
 
 adjustment_set <- c(conf$linear_model_adjustment_set)
@@ -112,8 +122,7 @@ tryCatch(
             dmls = "ldna/results/m/tables/dmls.tsv"
         ), env = globalenv())
         assign("params", list(
-            dmrs = "ldna/results/m/tables/dmrs.tsv",
-            dmls = "ldna/results/m/tables/dmls.tsv",
+            contrasts = conf$contrasts,
             mod_code = "m"
         ), env = globalenv())
         assign("outputs", list(
@@ -403,22 +412,40 @@ write_delim(tibble(as.data.frame(promoters)) %>% mutate(score = 1000) %>% dplyr:
 
 
 if ((conf$single_condition == "no")) {
-    dmrs <- read_delim(params$dmrs, delim = "\t", col_names = TRUE) %>% filter(dmr_type %in% c("t01", "t05"))
-    dmls <- read_delim(params$dmls, delim = "\t", col_names = TRUE) %>% filter(fdrs <= 0.2)
+    # Read per-contrast DMR/DML data
+    dmrs_per_contrast <- list()
+    dmls_per_contrast <- list()
+    dmrsgr_per_contrast <- list()
+    dmlsgr_per_contrast <- list()
+    dmrsannot_per_contrast <- list()
+    dmrsgr_split_per_contrast <- list()
+    for (contrast in contrasts) {
+        dmr_path <- sprintf("ldna/results/%s/tables/%s/dmrs.tsv", params$mod_code, contrast)
+        dml_path <- sprintf("ldna/results/%s/tables/%s/dmls.tsv", params$mod_code, contrast)
+        dmrs_per_contrast[[contrast]] <- read_delim(dmr_path, delim = "\t", col_names = TRUE) %>% filter(dmr_type %in% c("t01", "t05"))
+        dmls_per_contrast[[contrast]] <- read_delim(dml_path, delim = "\t", col_names = TRUE) %>% filter(fdrs <= 0.2)
 
-    dmrsgr <- GRanges(dmrs)
-    dmlsgr <- GRanges(
-        seqnames = dmls$chr,
-        ranges = IRanges(start = dmls$pos, end = dmls$pos),
-        stat = dmls$stat,
-        pval = dmls$pvals,
-        fdr = dmls$fdrs,
-        direction = dmls$direction
-    )
-    dmrsannot <- dmrs %>%
-        mutate(direction_threshold = paste(direction, gsub("t", "", dmr_type), sep = "_")) %>%
-        GRanges()
-    dmrsgr_split <- split(dmrsannot, dmrsannot$direction_threshold)
+        dmrsgr_per_contrast[[contrast]] <- GRanges(dmrs_per_contrast[[contrast]])
+        dmlsgr_per_contrast[[contrast]] <- GRanges(
+            seqnames = dmls_per_contrast[[contrast]]$chr,
+            ranges = IRanges(start = dmls_per_contrast[[contrast]]$pos, end = dmls_per_contrast[[contrast]]$pos),
+            stat = dmls_per_contrast[[contrast]]$stat,
+            pval = dmls_per_contrast[[contrast]]$pvals,
+            fdr = dmls_per_contrast[[contrast]]$fdrs,
+            direction = dmls_per_contrast[[contrast]]$direction
+        )
+        dmrsannot_per_contrast[[contrast]] <- dmrs_per_contrast[[contrast]] %>%
+            mutate(direction_threshold = paste(direction, gsub("t", "", dmr_type), sep = "_")) %>%
+            GRanges()
+        dmrsgr_split_per_contrast[[contrast]] <- split(dmrsannot_per_contrast[[contrast]], dmrsannot_per_contrast[[contrast]]$direction_threshold)
+    }
+    # For backwards compatibility with single-contrast code, set defaults from first contrast
+    dmrs <- dmrs_per_contrast[[contrasts[[1]]]]
+    dmls <- dmls_per_contrast[[contrasts[[1]]]]
+    dmrsgr <- dmrsgr_per_contrast[[contrasts[[1]]]]
+    dmlsgr <- dmlsgr_per_contrast[[contrasts[[1]]]]
+    dmrsannot <- dmrsannot_per_contrast[[contrasts[[1]]]]
+    dmrsgr_split <- dmrsgr_split_per_contrast[[contrasts[[1]]]]
 }
 
 outputdir_meth_clustering <- "ldna/results/m/plots/l1_alignment_meth"
@@ -437,6 +464,17 @@ cg_positions_df <- consensus_index_long %>% filter(consensus_pos %in% cg_indices
 
 ##################################### DML / DMR analysis
 if ((conf$single_condition == "no")) {
+  for (contrast in contrasts) {
+    cp <- parse_contrast(contrast)
+    condition1 <- cp$condition1
+    condition2 <- cp$condition2
+    condition1samples <- sample_table[sample_table$condition == condition1, ]$sample_name
+    condition2samples <- sample_table[sample_table$condition == condition2, ]$sample_name
+    dmrs <- dmrs_per_contrast[[contrast]]
+    dmls <- dmls_per_contrast[[contrast]]
+    dmrsgr <- dmrsgr_per_contrast[[contrast]]
+    dmlsgr <- dmlsgr_per_contrast[[contrast]]
+
     dmrtypes <- dmrs$dmr_type %>% unique()
     dmr_grs_cpg_islands <- dmrsgr %>% subsetByOverlaps(cpg_islands)
     dmr_grs_cpg_islands$islandStatus <- "island"
@@ -460,32 +498,29 @@ if ((conf$single_condition == "no")) {
             geom_bar(aes(x = direction, fill = direction), show.legend = FALSE, color = "black") +
             labs(x = "") +
             scale_y_continuous(expand = expansion(mult = c(0, .1))) +
-            ggtitle("DMR Counts") +
+            ggtitle(sprintf("DMR Counts (%s)", contrast)) +
             mtopen +
             scale_methylation
-        mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/%s/dmr_number.pdf", params$mod_code, dmrtype), 4, 4)
+        mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/%s/%s/dmr_number.pdf", params$mod_code, contrast, dmrtype), 4, 4)
 
-        # what is their average length
         p <- ggplot(data = dmrs_temp) +
             geom_histogram(aes(length), fill = mycolor, color = "black") +
-            ggtitle("DMR Lengths") +
+            ggtitle(sprintf("DMR Lengths (%s)", contrast)) +
             labs(x = "length (bp)") +
             xlim(0, 3000) +
             mtopen +
             anchorbar
-        mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/%s/dmr_length.pdf", params$mod_code, dmrtype), w = 4, h = 4)
+        mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/%s/%s/dmr_length.pdf", params$mod_code, contrast, dmrtype), w = 4, h = 4)
 
         p <- ggplot(data = dmrs_temp) +
             geom_histogram(aes(length, fill = direction), alpha = 0.7, color = "black") +
-            ggtitle("DMR Lengths") +
+            ggtitle(sprintf("DMR Lengths (%s)", contrast)) +
             labs(x = "length (bp)") +
             xlim(0, 3000) +
             mtopen +
             scale_methylation +
             anchorbar
-        mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/%s/dmr_length_stratified.pdf", params$mod_code, dmrtype), w = 4, h = 4)
-
-        ## where are they?
+        mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/%s/%s/dmr_length_stratified.pdf", params$mod_code, contrast, dmrtype), w = 4, h = 4)
 
         p <- dmrsgrislandStatusdf %>%
             group_by(islandStatus, direction) %>%
@@ -496,9 +531,9 @@ if ((conf$single_condition == "no")) {
             scale_methylation +
             anchorbar +
             labs(x = "", y = "Count") +
-            ggtitle("DMR") +
+            ggtitle(sprintf("DMR (%s)", contrast)) +
             theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
-        mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/%s/dmr_count_islandstatus.pdf", params$mod_code, dmrtype), 5, 4)
+        mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/%s/%s/dmr_count_islandstatus.pdf", params$mod_code, contrast, dmrtype), 5, 4)
 
 
         dmrlocdf <- dmrs_temp %>%
@@ -509,23 +544,10 @@ if ((conf$single_condition == "no")) {
             geom_col(aes(y = seqnames, x = n, fill = direction), position = "dodge", color = "black") +
             theme(axis.text.x = element_text(angle = 0, vjust = 1, hjust = 1)) +
             labs(x = "count", y = "") +
-            ggtitle("DMR Location") +
+            ggtitle(sprintf("DMR Location (%s)", contrast)) +
             mtopen +
             scale_methylation
-        mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/%s/dmr_count.pdf", params$mod_code, dmrtype), 5, 5)
-
-        # p <- dmrs %>%
-        #     ggplot(aes(x = meanMethy_c1, y = meanMethy_c2)) +
-        #     stat_density_2d(aes(fill = ..density..), geom = "raster", contour = FALSE) +
-        #     geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "black") +
-        #     scale_x_continuous(expand = c(0, 0)) +
-        #     scale_y_continuous(expand = c(0, 0)) +
-        #     scale_fill_distiller(palette = "Spectral", direction = 1) +
-        #     xlab(sprintf("CpG Methylation %s", condition1)) +
-        #     ylab(sprintf("CpG Methylation %s", condition2)) +
-        #     ggtitle("DMR Density") +
-        #     mtclosed
-        # mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/dmrdensity.pdf", params$mod_code), 5, 5)
+        mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/%s/%s/dmr_count.pdf", params$mod_code, contrast, dmrtype), 5, 5)
     }
 
     p <- dmrsgrislandStatusdf %>%
@@ -545,9 +567,9 @@ if ((conf$single_condition == "no")) {
             labels = scales::trans_format("log10", math_format(10^.x))
         ) +
         labs(x = "", y = "Count") +
-        ggtitle("DMR") +
+        ggtitle(sprintf("DMR (%s)", contrast)) +
         theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
-    mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/%s/dmr_count.pdf", params$mod_code, "both"), 5, 4)
+    mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/%s/%s/dmr_count.pdf", params$mod_code, contrast, "both"), 5, 4)
 
     p <- dmrsgrislandStatusdf %>%
         filter(dmr_type != "t05CG10", dmr_type != "t001") %>%
@@ -565,7 +587,6 @@ if ((conf$single_condition == "no")) {
             aes(x = direction, y = n, group = direction, fill = direction_threshold),
             position = position_dodge(), color = "black"
         ) +
-        # Add text labels on top of bars
         geom_text(
             data = . %>% filter(dmr_type %in% c("t01", "t05")),
             aes(x = direction, y = n, label = n, group = direction),
@@ -580,8 +601,8 @@ if ((conf$single_condition == "no")) {
             labels = scales::trans_format("log10", math_format(10^.x))
         ) +
         labs(x = "", y = "Count") +
-        ggtitle("DMR")
-    mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/%s/dmr_count_numannot.pdf", params$mod_code, "both"), 3.75, 4)
+        ggtitle(sprintf("DMR (%s)", contrast))
+    mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/%s/%s/dmr_count_numannot.pdf", params$mod_code, contrast, "both"), 3.75, 4)
 
     p <- dmrsgrislandStatusdf %>%
         filter(dmr_type != "t05CG10") %>%
@@ -600,53 +621,24 @@ if ((conf$single_condition == "no")) {
             labels = scales::trans_format("log10", math_format(10^.x))
         ) +
         labs(x = "", y = "Count") +
-        ggtitle("DMR") +
+        ggtitle(sprintf("DMR (%s)", contrast)) +
         theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
-    mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/%s/dmr_count_islandstatus.pdf", params$mod_code, "both"), 5, 4)
+    mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/%s/%s/dmr_count_islandstatus.pdf", params$mod_code, contrast, "both"), 5, 4)
 
     p <- dmls %>%
         ggplot() +
         geom_bar(aes(x = direction, fill = direction), show.legend = FALSE, color = "black") +
-        ggtitle("DML Counts") +
+        ggtitle(sprintf("DML Counts (%s)", contrast)) +
         labs(x = "", y = "Count") +
         anchorbar +
         mtclosed +
         scale_methylation
-    mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/dml_count.pdf", params$mod_code), 4, 4)
-    # dmls
-    # p <- ggplot() +
-    #     geom_density(data = dmls, aes(x = diff_c2_minus_c1), fill = mycolor) +
-    #     geom_vline(xintercept = 0, linetype = "dashed") +
-    #     labs(x = sprintf("DML Methylation (%s-%s)", condition2, condition1), y = "Density") +
-    #     ggtitle("DML Methylation Density") +
-    #     annotate("label", x = -Inf, y = Inf, label = "Hypo", hjust = 0, vjust = 1) +
-    #     annotate("label", x = Inf, y = Inf, label = "Hyper", hjust = 1, vjust = 1) +
-    #     mtopen +
-    #     scale_contrasts +
-    #     anchorbar
-
-    # mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/dml_delta.pdf", params$mod_code), 4, 4)
+    mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/%s/dml_count.pdf", params$mod_code, contrast), 4, 4)
 
     dmllocdf <- dmls %>%
         group_by(chr, direction) %>%
         summarize(n = n())
     dmllocdf$chr <- factor(dmllocdf$chr, levels = chromosomes)
-
-    # p <- dmls %>%
-    #     filter(chr %in% chromosomes) %>%
-    #     ggplot(aes(x = mu_c1, y = mu_c2)) +
-    #     stat_density_2d(aes(fill = ..density..), geom = "raster", contour = FALSE) +
-    #     scale_x_continuous(expand = c(0, 0)) +
-    #     scale_y_continuous(expand = c(0, 0)) +
-    #     geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "black") +
-    #     scale_fill_distiller(palette = "Spectral", direction = 1) +
-    #     xlab(sprintf("CpG Methylation %s", condition1)) +
-    #     ylab(sprintf("CpG Methylation %s", condition2)) +
-    #     ggtitle("DML Density") +
-    #     mtclosed
-    # mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/dmldensity.pdf", params$mod_code), w = 5, h = 5)
-
-
 
     dml_grs_cpg_islands <- dmlsgr %>% subsetByOverlaps(cpg_islands)
     dml_grs_cpg_islands$islandStatus <- "island"
@@ -672,18 +664,29 @@ if ((conf$single_condition == "no")) {
         anchorbar +
         theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
         labs(x = "", y = "Count") +
-        ggtitle("DML Island Status")
-    mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/dml_count_islandstatus.pdf", params$mod_code), 4, 4)
-}
+        ggtitle(sprintf("DML Island Status (%s)", contrast))
+    mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/%s/dml_count_islandstatus.pdf", params$mod_code, contrast), 4, 4)
 
+    # RTE promoter DM analysis for this contrast
+    dir.create(sprintf("ldna/results/%s/plots/figs/%s", params$mod_code, contrast), recursive = TRUE, showWarnings = FALSE)
 
+    # Get the contrast-specific DMR columns from flRTEpromoter
+    contrast_dmrtype_cols <- grep(paste0("_", contrast, "$"), colnames(flRTEpromoter), value = TRUE)
+    # Create a temp version with simple column names for this contrast
+    dmrtypes_simple <- gsub(paste0("_", contrast), "", contrast_dmrtype_cols)
+    flRTEpromoter_c <- flRTEpromoter
+    for (i in seq_along(contrast_dmrtype_cols)) {
+        flRTEpromoter_c <- flRTEpromoter_c %>% dplyr::rename(!!sym(dmrtypes_simple[i]) := !!sym(contrast_dmrtype_cols[i]))
+    }
+    # Drop other contrast columns
+    other_contrast_cols <- grep("^t0[0-9]", colnames(flRTEpromoter_c), value = TRUE)
+    other_contrast_cols <- other_contrast_cols[!(other_contrast_cols %in% dmrtypes_simple)]
+    if (length(other_contrast_cols) > 0) {
+        flRTEpromoter_c <- flRTEpromoter_c %>% dplyr::select(-all_of(other_contrast_cols))
+    }
 
-if ((conf$single_condition == "no")) {
-    dir.create(sprintf("ldna/results/%s/plots/figs", params$mod_code))
-    dmrtypes <- dmrs$dmr_type %>% unique()
-
-
-    flRTEpromoterlong <- pivot_longer(data = flRTEpromoter %>% dplyr::select(-t001, -t05CG10), cols = dmrtypes, names_to = "dmr_type", values_to = "direction")
+    dmrtypes <- dmrtypes_simple[dmrtypes_simple %in% c("t05", "t01")]
+    flRTEpromoterlong <- pivot_longer(data = flRTEpromoter_c %>% dplyr::select(-any_of(c("t001", "t05CG10"))), cols = any_of(dmrtypes), names_to = "dmr_type", values_to = "direction")
 
     pff <- flRTEpromoterlong %>%
         group_by(rte_subfamily, dmr_type) %>%
@@ -715,7 +718,7 @@ if ((conf$single_condition == "no")) {
         ggtitle(sprintf("Full Length %s Promoter Differential Methylation", "RTE")) +
         mtclosed +
         scale_methylation_thresholds
-    mysaveandstore(sprintf("ldna/results/%s/plots/rte/dm_%s_fl%s_promoter.pdf", params$mod_code, "all", "all"), 12, 4)
+    mysaveandstore(sprintf("ldna/results/%s/plots/rte/%s/dm_%s_fl%s_promoter.pdf", params$mod_code, contrast, "all", "all"), 12, 4)
 
     p <- pff %>%
         left_join(numdf) %>%
@@ -725,10 +728,10 @@ if ((conf$single_condition == "no")) {
         geom_col(data = . %>% filter(dmr_type == "t05"), aes(x = ann_axis, y = frac_dm, group = direction, fill = direction_threshold), position = "dodge", color = "black") +
         geom_col(data = . %>% filter(dmr_type == "t01"), aes(x = ann_axis, y = frac_dm, group = direction, fill = direction_threshold), position = "dodge", color = "black") +
         labs(x = "", y = "Fraction Differentially Methylated") +
-        ggtitle(sprintf("Full Length %s Promoter Differential Methylation", "RTE")) +
+        ggtitle(sprintf("Full Length %s Promoter Differential Methylation (%s)", "RTE", contrast)) +
         mtclosed +
         scale_methylation_thresholds
-    mysaveandstore(sprintf("ldna/results/%s/plots/rte/dm_%s_fl%s_promoter_noOther.pdf", params$mod_code, "all", "all"), 12, 4)
+    mysaveandstore(sprintf("ldna/results/%s/plots/rte/%s/dm_%s_fl%s_promoter_noOther.pdf", params$mod_code, contrast, "all", "all"), 12, 4)
 
     p <- pff %>%
         left_join(numdf) %>%
@@ -738,14 +741,14 @@ if ((conf$single_condition == "no")) {
         geom_col(data = . %>% filter(dmr_type == "t05"), aes(x = ann_axis, y = frac_dm, group = direction, fill = direction_threshold), position = "dodge", color = "black") +
         geom_col(data = . %>% filter(dmr_type == "t01"), aes(x = ann_axis, y = frac_dm, group = direction, fill = direction_threshold), position = "dodge", color = "black") +
         labs(x = "", y = "Fraction Differentially Methylated") +
-        ggtitle(sprintf("Full Length %s Promoter Differential Methylation", "RTE")) +
+        ggtitle(sprintf("Full Length %s Promoter Differential Methylation (%s)", "RTE", contrast)) +
         mtclosed +
         scale_methylation_thresholds
-    mysaveandstore(sprintf("ldna/results/%s/plots/rte/dm_%s_fl%s_promoter_l1s.pdf", params$mod_code, "all", "all"), 10, 4)
+    mysaveandstore(sprintf("ldna/results/%s/plots/rte/%s/dm_%s_fl%s_promoter_l1s.pdf", params$mod_code, contrast, "all", "all"), 10, 4)
 
 
     for (dmrtype in dmrtypes) {
-        pff <- flRTEpromoter %>%
+        pff <- flRTEpromoter_c %>%
             group_by(rte_subfamily, genic_loc) %>%
             mutate(group_n = n()) %>%
             group_by(rte_subfamily, !!sym(dmrtype), genic_loc) %>%
@@ -756,7 +759,7 @@ if ((conf$single_condition == "no")) {
             filter(!!sym(dmrtype) != "discordant") %>%
             ungroup() %>%
             complete(rte_subfamily, !!sym(dmrtype), genic_loc, fill = list(n = 0, group_n = 0, frac_dm = 0))
-        numdf <- flRTEpromoter %>%
+        numdf <- flRTEpromoter_c %>%
             group_by(rte_subfamily, genic_loc) %>%
             summarise(group_n_accurate = n())
         p <- pff %>%
@@ -766,12 +769,12 @@ if ((conf$single_condition == "no")) {
             geom_col(aes(x = ann_axis, y = frac_dm, fill = !!sym(dmrtype)), position = "dodge", color = "black") +
             facet_wrap(~genic_loc, scales = "free_x", nrow = 2) +
             labs(x = "", y = "Fraction Differentially Methylated") +
-            ggtitle(sprintf("Full Length %s Promoter Differential Methylation", "RTE")) +
+            ggtitle(sprintf("Full Length %s Promoter Differential Methylation (%s)", "RTE", contrast)) +
             mtclosed +
             scale_methylation
-        mysaveandstore(sprintf("ldna/results/%s/plots/rte/dm_%s_fl%s_promoter_regionstrat.pdf", params$mod_code, dmrtype, "all"), 12, 7)
+        mysaveandstore(sprintf("ldna/results/%s/plots/rte/%s/dm_%s_fl%s_promoter_regionstrat.pdf", params$mod_code, contrast, dmrtype, "all"), 12, 7)
 
-        pff <- flRTEpromoter %>%
+        pff <- flRTEpromoter_c %>%
             group_by(rte_subfamily) %>%
             mutate(group_n = n()) %>%
             group_by(rte_subfamily, !!sym(dmrtype)) %>%
@@ -782,7 +785,7 @@ if ((conf$single_condition == "no")) {
             filter(!!sym(dmrtype) != "discordant") %>%
             ungroup() %>%
             complete(rte_subfamily, !!sym(dmrtype), fill = list(n = 0, group_n = 0, frac_dm = 0))
-        numdf <- flRTEpromoter %>%
+        numdf <- flRTEpromoter_c %>%
             group_by(rte_subfamily) %>%
             summarise(group_n_accurate = n())
         p <- pff %>%
@@ -791,10 +794,10 @@ if ((conf$single_condition == "no")) {
             ggplot() +
             geom_col(aes(x = ann_axis, y = frac_dm, fill = !!sym(dmrtype)), position = "dodge", color = "black") +
             labs(x = "", y = "Fraction Differentially Methylated") +
-            ggtitle(sprintf("Full Length %s Promoter Differential Methylation", "RTE")) +
+            ggtitle(sprintf("Full Length %s Promoter Differential Methylation (%s)", "RTE", contrast)) +
             mtclosed +
             scale_methylation
-        mysaveandstore(sprintf("ldna/results/%s/plots/rte/dm_%s_fl%s_promoter.pdf", params$mod_code, dmrtype, "all"), 12, 4)
+        mysaveandstore(sprintf("ldna/results/%s/plots/rte/%s/dm_%s_fl%s_promoter.pdf", params$mod_code, contrast, dmrtype, "all"), 12, 4)
 
         p <- pff %>%
             left_join(numdf) %>%
@@ -803,10 +806,10 @@ if ((conf$single_condition == "no")) {
             ggplot() +
             geom_col(aes(x = ann_axis, y = frac_dm, fill = !!sym(dmrtype)), position = "dodge", color = "black") +
             labs(x = "", y = "Fraction Differentially Methylated") +
-            ggtitle(sprintf("Full Length %s Promoter Differential Methylation", "RTE")) +
+            ggtitle(sprintf("Full Length %s Promoter Differential Methylation (%s)", "RTE", contrast)) +
             mtclosed +
             scale_methylation
-        mysaveandstore(sprintf("ldna/results/%s/plots/rte/dm_%s_fl%s_promoter1.pdf", params$mod_code, dmrtype, "all"), 10, 4)
+        mysaveandstore(sprintf("ldna/results/%s/plots/rte/%s/dm_%s_fl%s_promoter1.pdf", params$mod_code, contrast, dmrtype, "all"), 10, 4)
 
         p <- pff %>%
             left_join(numdf) %>%
@@ -815,12 +818,13 @@ if ((conf$single_condition == "no")) {
             ggplot() +
             geom_col(aes(x = ann_axis, y = frac_dm, fill = !!sym(dmrtype)), position = "dodge", color = "black") +
             labs(x = "", y = "Fraction Differentially Methylated") +
-            ggtitle(sprintf("Full Length %s Promoter Differential Methylation", "RTE")) +
+            ggtitle(sprintf("Full Length %s Promoter Differential Methylation (%s)", "RTE", contrast)) +
             mtclosed +
             scale_methylation
-        mysaveandstore(sprintf("ldna/results/%s/plots/rte/dm_%s_fl%s_promoter2.pdf", params$mod_code, dmrtype, "all"), 8, 4)
+        mysaveandstore(sprintf("ldna/results/%s/plots/rte/%s/dm_%s_fl%s_promoter2.pdf", params$mod_code, contrast, dmrtype, "all"), 8, 4)
     }
-}
+  } # end contrast loop
+} # end single_condition check
 
 
 ### CUSTOM
@@ -1123,9 +1127,34 @@ if ((conf$single_condition == "no") & enough_samples_per_condition_for_stats) {
 }
 
 if ((conf$single_condition == "no")) {
-    pfl1 <- perelementdf_promoters %>%
+  for (contrast in contrasts) {
+    cp <- parse_contrast(contrast)
+    condition1 <- cp$condition1
+    condition2 <- cp$condition2
+    condition1samples <- sample_table[sample_table$condition == condition1, ]$sample_name
+    condition2samples <- sample_table[sample_table$condition == condition2, ]$sample_name
+    dmrs <- dmrs_per_contrast[[contrast]]
+
+    # Get contrast-specific DMR columns and rename to simple names
+    contrast_dmrtype_cols <- grep(paste0("_", contrast, "$"), colnames(perelementdf_promoters), value = TRUE)
+    dmrtypes_simple <- gsub(paste0("_", contrast), "", contrast_dmrtype_cols)
+    perelementdf_promoters_c <- perelementdf_promoters %>%
+        filter(condition %in% c(condition1, condition2))
+    for (i in seq_along(contrast_dmrtype_cols)) {
+        if (contrast_dmrtype_cols[i] %in% colnames(perelementdf_promoters_c)) {
+            perelementdf_promoters_c <- perelementdf_promoters_c %>% dplyr::rename(!!sym(dmrtypes_simple[i]) := !!sym(contrast_dmrtype_cols[i]))
+        }
+    }
+    other_contrast_cols <- grep("^t0[0-9].*_condition_", colnames(perelementdf_promoters_c), value = TRUE)
+    if (length(other_contrast_cols) > 0) {
+        perelementdf_promoters_c <- perelementdf_promoters_c %>% dplyr::select(-all_of(other_contrast_cols))
+    }
+
+    dmrtypes <- dmrtypes_simple[dmrtypes_simple %in% c("t05", "t01")]
+
+    pfl1 <- perelementdf_promoters_c %>%
         filter(grepl("^L1", rte_subfamily)) %>%
-        dplyr::select(-t05CG10, -t001)
+        dplyr::select(-any_of(c("t05CG10", "t001")))
     p <- pfl1 %>%
         group_by(gene_id, rte_subfamily, condition) %>%
         summarize(mean_meth = mean(mean_meth)) %>%
@@ -1143,17 +1172,16 @@ if ((conf$single_condition == "no")) {
         scale_alpha_manual(values = c(1, 0.5)) +
         scale_color_manual(values = c("Top" = "red", "NotTop" = "grey")) +
         mtclosedgridh
-    mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/repmasker_paired_promoters_L1s.pdf", params$mod_code), 14, 6, raster = TRUE)
+    mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/%s/repmasker_paired_promoters_L1s.pdf", params$mod_code, contrast), 14, 6, raster = TRUE)
 
     pfl1hs <- pfl1 %>%
         filter(rte_subfamily == "L1HS")
     pfl1hs %>% arrange(mean_meth)
     l1hs_paired_dif_frame <- pfl1 %>%
         filter(rte_subfamily == "L1HS") %>%
-        pivot_longer(cols = dmrtypes, names_to = "dmr_type", values_to = "direction") %>%
+        pivot_longer(cols = any_of(dmrtypes), names_to = "dmr_type", values_to = "direction") %>%
         mutate(direction_threshold = ifelse(is.na(direction), "NS", paste0(direction, "_", gsub("t", "", dmr_type)))) %>%
         filter(!(dmr_type == "t01" & is.na(direction))) %>%
-        # filter(!(dmr_type == "t05" & is.na(direction))) %>%
         group_by(gene_id, rte_subfamily, condition, dmr_type, direction_threshold) %>%
         summarize(mean_meth = mean(mean_meth)) %>%
         pivot_wider(names_from = condition, values_from = mean_meth) %>%
@@ -1201,9 +1229,10 @@ if ((conf$single_condition == "no")) {
         labs(y = "L1HS 5UTR Methylation", x = "Condition") +
         scale_color_manual(values = c("Hypo_01" = "#ffa200", "Hyper_01" = "49fdfa", "Hypo_05" = "red", "Hyper_05" = "blue", "NS" = "grey")) +
         mtclosedgridh
-    mysaveandstore(pl = p, fn = sprintf("ldna/results/%s/plots/rte/repmasker_paired_promoters_l1hs_%s.pdf", params$mod_code, "all"), 5, 4)
+    mysaveandstore(pl = p, fn = sprintf("ldna/results/%s/plots/rte/%s/repmasker_paired_promoters_l1hs_%s.pdf", params$mod_code, contrast, "all"), 5, 4)
 
     for (dmrtype in dmrs$dmr_type %>% unique()) {
+        if (!(dmrtype %in% dmrtypes)) next
         p <- pfl1 %>%
             mutate(!!sym(dmrtype) := ifelse(is.na(!!sym(dmrtype)), "NS", !!sym(dmrtype))) %>%
             group_by(gene_id, rte_subfamily, condition, !!sym(dmrtype)) %>%
@@ -1220,7 +1249,7 @@ if ((conf$single_condition == "no")) {
             scale_color_manual(values = c("Hypo" = "red", "Hyper" = "blue", "NS" = "grey")) +
             scale_alpha_manual(values = c(1, 0.1)) +
             mtclosedgridh
-        mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/repmasker_paired_promoters_L1s2_%s.pdf", params$mod_code, dmrtype), 14, 6, raster = TRUE)
+        mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/%s/repmasker_paired_promoters_L1s2_%s.pdf", params$mod_code, contrast, dmrtype), 14, 6, raster = TRUE)
 
         p <- pfl1 %>%
             filter(rte_subfamily == "L1HS") %>%
@@ -1238,7 +1267,7 @@ if ((conf$single_condition == "no")) {
             ggpaired(cond1 = condition1, cond2 = condition2, line.color = dmrtype, alpha = 0.85, ylab = "L1HS 5UTR Methylation") +
             scale_color_manual(values = c("Hypo" = "red", "Hyper" = "blue", "NS" = "grey")) +
             mtclosedgridh
-        mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/repmasker_paired_promoters_l1hs_%s.pdf", params$mod_code, dmrtype), 4, 4, raster = FALSE)
+        mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/%s/repmasker_paired_promoters_l1hs_%s.pdf", params$mod_code, contrast, dmrtype), 4, 4, raster = FALSE)
     }
 
     top_l1hs_movers <- pfl1 %>%
@@ -1273,7 +1302,7 @@ if ((conf$single_condition == "no")) {
         head(n = 10)
 
 
-    pf <- perelementdf_promoters %>%
+    pf <- perelementdf_promoters_c %>%
         filter(rte_subfamily == "L1HS")
     p <- pf %>%
         ggplot() +
@@ -1281,7 +1310,7 @@ if ((conf$single_condition == "no")) {
         geom_boxplot(aes(x = intactness_req, y = mean_meth, color = condition), alpha = 0.5, outlier.shape = NA) +
         xlab("") +
         ylab("Average CpG Methylation Per Element") +
-        ggtitle("RTE CpG Methylation") +
+        ggtitle(sprintf("RTE CpG Methylation (%s)", contrast)) +
         geom_pwc(
             data = pf %>% group_by(sample, condition, intactness_req) %>% summarize(mean_meth = mean(mean_meth)), aes(x = intactness_req, y = mean_meth, group = condition), tip.length = 0,
             method = "t.test", label = "{p.adj.format}",
@@ -1296,7 +1325,7 @@ if ((conf$single_condition == "no")) {
         geom_boxplot(alpha = 0.5, outlier.shape = NA) +
         xlab("") +
         ylab("Average CpG Methylation Per Element") +
-        ggtitle("RTE CpG Methylation") +
+        ggtitle(sprintf("RTE CpG Methylation (%s)", contrast)) +
         geom_pwc(aes(group = condition),
             tip.length = 0,
             method = "t.test", label = "{p.adj.format}",
@@ -1309,12 +1338,26 @@ if ((conf$single_condition == "no")) {
         {
             stats <- pf %>%
                 compare_means(mean_meth ~ condition, group.by = "intactness_req", data = ., method = "t.test", p.adjust.method = "fdr")
-            mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/l1hs_boxplot_promoters.pdf", params$mod_code), 5, 4, sf = stats)
+            mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/%s/l1hs_boxplot_promoters.pdf", params$mod_code, contrast), 5, 4, sf = stats)
         },
         error = function(e) {
-            mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/l1hs_boxplot_promoters.pdf", params$mod_code), 5, 4)
+            mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/%s/l1hs_boxplot_promoters.pdf", params$mod_code, contrast), 5, 4)
         }
     )
+  } # end contrast loop
+
+  # Reset condition1/condition2 to first contrast for remaining code
+  cp <- parse_contrast(contrasts[[1]])
+  condition1 <- cp$condition1
+  condition2 <- cp$condition2
+  condition1samples <- sample_table[sample_table$condition == condition1, ]$sample_name
+  condition2samples <- sample_table[sample_table$condition == condition2, ]$sample_name
+  dmrs <- dmrs_per_contrast[[contrasts[[1]]]]
+  dmls <- dmls_per_contrast[[contrasts[[1]]]]
+  dmrsgr <- dmrsgr_per_contrast[[contrasts[[1]]]]
+  dmlsgr <- dmlsgr_per_contrast[[contrasts[[1]]]]
+  dmrsannot <- dmrsannot_per_contrast[[contrasts[[1]]]]
+  dmrsgr_split <- dmrsgr_split_per_contrast[[contrasts[[1]]]]
 }
 
 
@@ -1518,10 +1561,10 @@ tryCatch(
                     est <- summary(model)$coefficients$cond
                     data.frame(
                         gene_id = unique(df$gene_id),
-                        condition_effect = est["conditionAD", "Estimate"],
-                        std_error = est["conditionAD", "Std. Error"],
-                        z_value = est["conditionAD", "z value"],
-                        p_value = est["conditionAD", "Pr(>|z|)"]
+                        condition_effect = est[paste0("condition", condition2), "Estimate"],
+                        std_error = est[paste0("condition", condition2), "Std. Error"],
+                        z_value = est[paste0("condition", condition2), "z value"],
+                        p_value = est[paste0("condition", condition2), "Pr(>|z|)"]
                     )
                 } else {
                     NULL
@@ -2623,7 +2666,7 @@ read_analysis1 <- function(
         }
         stats <- purrr::reduce(stats_list, bind_rows)
         stats_padj <- stats %>%
-            filter(term == "conditionAD") %>%
+            filter(term == paste0("condition", condition2)) %>%
             filter(subset != "400to600") %>%
             mutate(padj = p.adjust(p.value, method = "fdr"))
         statswpadj <- stats %>% left_join(stats_padj)
@@ -2755,14 +2798,14 @@ read_analysis1 <- function(
         mutate(condition = factor(condition, levels = c(condition2, condition1))) %>%
         ggplot() +
         geom_histogram(
-            data = . %>% filter(condition == "AD"),
+            data = . %>% filter(condition == condition2),
             aes(x = fraction_meth, fill = condition, y = after_stat(count / sum(count))),
             alpha = 0.7,
             bins = 30,
             position = "identity"
         ) +
         geom_histogram(
-            data = . %>% filter(condition == "CTRL"),
+            data = . %>% filter(condition == condition1),
             aes(x = fraction_meth, fill = condition, y = after_stat(count / sum(count))),
             alpha = 0.7,
             bins = 30,
@@ -3091,7 +3134,7 @@ read_analysis1 <- function(
         write_csv(stats, sprintf("ldna/results/%s/tables/reads_new/%s_%s/by_gene_new.csv", params$mod_code, region, required_fraction_of_total_cg))
 
         gene_condition_stats <- stats %>%
-            filter(term == "conditionAD") %>%
+            filter(term == paste0("condition", condition2)) %>%
             mutate(p.value = case_when(
                 is.nan(p.value) ~ 1,
                 TRUE ~ p.value
@@ -3480,7 +3523,7 @@ read_analysis2 <- function(
         }
         stats <- purrr::reduce(stats_list, bind_rows)
         stats_padj <- stats %>%
-            filter(term == "conditionAD") %>%
+            filter(term == paste0("condition", condition2)) %>%
             filter(subset != "400to600") %>%
             mutate(padj = p.adjust(p.value, method = "fdr"))
         statswpadj <- stats %>% left_join(stats_padj)
@@ -3768,14 +3811,14 @@ read_analysis2 <- function(
         mutate(condition = factor(condition, levels = c(condition2, condition1))) %>%
         ggplot() +
         geom_histogram(
-            data = . %>% filter(condition == "AD"),
+            data = . %>% filter(condition == condition2),
             aes(x = fraction_meth, fill = condition, y = after_stat(count / sum(count))),
             alpha = 0.7,
             bins = 30,
             position = "identity"
         ) +
         geom_histogram(
-            data = . %>% filter(condition == "CTRL"),
+            data = . %>% filter(condition == condition1),
             aes(x = fraction_meth, fill = condition, y = after_stat(count / sum(count))),
             alpha = 0.7,
             bins = 30,
@@ -3818,14 +3861,14 @@ read_analysis2 <- function(
         mutate(condition = factor(condition, levels = c(condition2, condition1))) %>%
         ggplot() +
         geom_histogram(
-            data = . %>% filter(condition == "AD"),
+            data = . %>% filter(condition == condition2),
             aes(x = fraction_meth, fill = condition, y = after_stat(count / sum(count))),
             alpha = 0.7,
             bins = 30,
             position = "identity"
         ) +
         geom_histogram(
-            data = . %>% filter(condition == "CTRL"),
+            data = . %>% filter(condition == condition1),
             aes(x = fraction_meth, fill = condition, y = after_stat(count / sum(count))),
             alpha = 0.7,
             bins = 30,
@@ -4163,7 +4206,7 @@ read_analysis2 <- function(
         write_csv(stats, sprintf("ldna/results/%s/tables/reads_new_withendfilter/%s_%s/by_gene_new.csv", mod_code_var, region, required_fraction_of_total_cg))
 
         gene_condition_stats <- stats %>%
-            filter(term == "conditionAD") %>%
+            filter(term == paste0("condition", condition2)) %>%
             mutate(p.value = case_when(
                 is.nan(p.value) ~ 1,
                 TRUE ~ p.value
@@ -4522,7 +4565,7 @@ read_analysis3 <- function(
         }
         stats <- purrr::reduce(stats_list, bind_rows)
         stats_padj <- stats %>%
-            filter(term == "conditionAD") %>%
+            filter(term == paste0("condition", condition2)) %>%
             filter(subset != "400to600") %>%
             mutate(padj = p.adjust(p.value, method = "fdr"))
         statswpadj <- stats %>% left_join(stats_padj)
@@ -4799,14 +4842,14 @@ read_analysis3 <- function(
         mutate(condition = factor(condition, levels = c(condition2, condition1))) %>%
         ggplot() +
         geom_histogram(
-            data = . %>% filter(condition == "AD"),
+            data = . %>% filter(condition == condition2),
             aes(x = fraction_meth, fill = condition, y = after_stat(count / sum(count))),
             alpha = 0.7,
             bins = 30,
             position = "identity"
         ) +
         geom_histogram(
-            data = . %>% filter(condition == "CTRL"),
+            data = . %>% filter(condition == condition1),
             aes(x = fraction_meth, fill = condition, y = after_stat(count / sum(count))),
             alpha = 0.7,
             bins = 30,
@@ -5145,7 +5188,7 @@ read_analysis3 <- function(
         write_csv(stats, sprintf("ldna/results/%s/tables/reads_new_withendfilter/%s_%s/by_gene_new.csv", mod_code_var, region, required_fraction_of_total_cg))
 
         gene_condition_stats <- stats %>%
-            filter(term == "conditionAD") %>%
+            filter(term == paste0("condition", condition2)) %>%
             mutate(p.value = case_when(
                 is.nan(p.value) ~ 1,
                 TRUE ~ p.value
@@ -5989,7 +6032,7 @@ if ((conf$single_condition == "no") & enough_samples_per_condition_for_stats) {
                 tidied = map(model, broom::tidy)
             ) %>%
             unnest(tidied) %>%
-            filter(term == "conditionCTRL") %>%
+            filter(term == paste0("condition", condition1)) %>%
             dplyr::select(gene_id, estimate, p.value) %>%
             mutate(
                 padj = p.adjust(p.value, method = "fdr") # Adjust p-values for multiple testing
@@ -6109,7 +6152,7 @@ if ((conf$single_condition == "no") & enough_samples_per_condition_for_stats) {
         #         tidied = map(model, broom::tidy)
         #     ) %>%
         #     unnest(tidied) %>%
-        #     filter(term == "conditionCTRL") %>%
+        #     filter(term == paste0("condition", condition1)) %>%
         #     dplyr::select(gene_id, estimate, p.value) %>%
         #     mutate(
         #         log2FC = log2(exp(estimate)), # Convert from natural log to log2 fold-change
@@ -8270,7 +8313,7 @@ read_analysis_alt_regions <- function(
         }
         stats <- purrr::reduce(stats_list, bind_rows)
         stats_padj <- stats %>%
-            filter(term == "conditionAD") %>%
+            filter(term == paste0("condition", condition2)) %>%
             filter(subset != "400to600") %>%
             mutate(padj = p.adjust(p.value, method = "fdr"))
         statswpadj <- stats %>% left_join(stats_padj)
@@ -8354,14 +8397,14 @@ read_analysis_alt_regions <- function(
         mutate(condition = factor(condition, levels = c(condition2, condition1))) %>%
         ggplot() +
         geom_histogram(
-            data = . %>% filter(condition == "AD"),
+            data = . %>% filter(condition == condition2),
             aes(x = fraction_meth, fill = condition, y = after_stat(count / sum(count))),
             alpha = 0.7,
             bins = 30,
             position = "identity"
         ) +
         geom_histogram(
-            data = . %>% filter(condition == "CTRL"),
+            data = . %>% filter(condition == condition1),
             aes(x = fraction_meth, fill = condition, y = after_stat(count / sum(count))),
             alpha = 0.7,
             bins = 30,
@@ -8403,14 +8446,14 @@ read_analysis_alt_regions <- function(
         mutate(condition = factor(condition, levels = c(condition2, condition1))) %>%
         ggplot() +
         geom_histogram(
-            data = . %>% filter(condition == "AD"),
+            data = . %>% filter(condition == condition2),
             aes(x = fraction_meth, fill = condition, y = after_stat(count / sum(count))),
             alpha = 0.7,
             bins = 30,
             position = "identity"
         ) +
         geom_histogram(
-            data = . %>% filter(condition == "CTRL"),
+            data = . %>% filter(condition == condition1),
             aes(x = fraction_meth, fill = condition, y = after_stat(count / sum(count))),
             alpha = 0.7,
             bins = 30,
@@ -8740,7 +8783,7 @@ read_analysis_alt_regions <- function(
     write_csv(stats, sprintf("ldna/results/%s/tables/reads_new/%s_%s/by_gene_new.csv", params$mod_code, region, required_fraction_of_total_cg))
 
     gene_condition_stats <- stats %>%
-        filter(term == "conditionAD") %>%
+        filter(term == paste0("condition", condition2)) %>%
         mutate(p.value = case_when(
             is.nan(p.value) ~ 1,
             TRUE ~ p.value
@@ -9268,21 +9311,21 @@ for (subset in c("t05", "hyper_t05", "hypo_t05", "t01", "hyper_t01", "hypo_t01")
     p <- pfregions %>% group_by(region_name, sample_name, condition) %>% summarise(me = mean(me)) %>%
     ggplot(aes(y = sample_name, x  = me, fill = sample_name)) +
     geom_density_ridges2(quantile_lines = TRUE, quantiles = c(0.5)) +
-    # geom_vline(data = pfmeans %>% filter(condition == "AD"), mapping = aes(xintercept = me)) +
-    # geom_vline(data = pfmeans %>% filter(condition == "CTRL"), mapping = aes(xintercept = me)) +
+    # geom_vline(data = pfmeans %>% filter(condition == condition2), mapping = aes(xintercept = me)) +
+    # geom_vline(data = pfmeans %>% filter(condition == condition1), mapping = aes(xintercept = me)) +
         scale_samples_unique +
-        ggtitle("DMR Entropy AD - CTRL") +
+        ggtitle(sprintf("DMR Entropy %s - %s", condition2, condition1)) +
         mtclosed
     mysaveandstore(str_glue("ldna/results/m/plots/entropy_{subset}/entropy_dif_density_by_sample_unique111.pdf"), 5, 5, pl = p)
 
     
     p <- pfregions %>% group_by(region_name, condition) %>% summarise(me = mean(me)) %>% 
         pivot_wider(names_from = condition, values_from = me) %>%
-        mutate(dif = AD - CTRL) %>% 
+        mutate(dif = !!sym(condition2) - !!sym(condition1)) %>%
         ggplot() +
         geom_histogram(aes(x = dif)) +
         geom_vline(xintercept = 0) +
-        ggtitle("DMR Entropy AD - CTRL") +
+        ggtitle(sprintf("DMR Entropy %s - %s", condition2, condition1)) +
         mtclosed
     mysaveandstore(str_glue("ldna/results/m/plots/entropy_{subset}/entropy_dif_hist.pdf"), 5, 3.5, pl = p)
 
@@ -9330,11 +9373,11 @@ pfregions <- tempdf %>% group_by(type, region_name) %>%
 
 p <- pfregions %>% group_by(type, region_name, condition) %>% summarise(me = mean(me)) %>% 
     pivot_wider(names_from = condition, values_from = me) %>%
-    mutate(dif = AD - CTRL) %>% 
+    mutate(dif = !!sym(condition2) - !!sym(condition1)) %>%
     ggplot() +
     geom_histogram(aes(x = dif)) +
     geom_vline(xintercept = 0) +
     facet_wrap(~type, scales = "free_y") +
-    ggtitle("DMR Entropy AD - CTRL") +
+    ggtitle(sprintf("DMR Entropy %s - %s", condition2, condition1)) +
     mtclosed
 mysaveandstore(str_glue("ldna/results/m/plots/entropy_t05/entropy_dif_hist1.pdf"), 5, 5, pl = p)

@@ -2,20 +2,6 @@ import os
 import pandas as pd
 from pathlib import Path
 samples = config["ldna"]["samples"]
-ldna_contrasts = config["ldna"].get("contrasts", [])
-
-# Cache NI_ insert names per sample to avoid repeated file reads during DAG resolution
-_per_sample = config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes"
-_ni_inserts_cache = {}
-def get_ni_inserts(sample_or_aref):
-    key = sample_or_aref if _per_sample else "A.REF"
-    if key not in _ni_inserts_cache:
-        contigs_file = "aref/extended/" + key + "_contigs_to_keep.txt"
-        if os.path.exists(contigs_file):
-            _ni_inserts_cache[key] = [e for e in pd.read_table(contigs_file, header=None).iloc[:,0] if e.startswith("NI_")]
-        else:
-            _ni_inserts_cache[key] = []
-    return _ni_inserts_cache[key]
 
 # #tag BASECALLING
 # rule dorado:
@@ -143,7 +129,7 @@ ruleorder: get_non_ref_alignments > sortBam
 
 rule get_non_ref_alignments:
     input:
-        sample_bams = lambda w: expand("ldna/intermediates/{{sample_or_aref}}/alignments/nonref/{insert_name}_sorted.bam", insert_name = get_ni_inserts(w.sample_or_aref)),
+        sample_bams = lambda w: expand("ldna/intermediates/{{sample_or_aref}}/alignments/nonref/{insert_name}_sorted.bam", insert_name = [e for e in pd.read_table("aref/extended/" +  [w.sample_or_aref if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "A.REF"][0] + "_contigs_to_keep.txt", header = None).iloc[:,0] if e.startswith("NI_")]),
         ldna_bam = lambda w: expand("ldna/intermediates/{{sample_or_aref}}/alignments/{{rate}}/analysis_default/{{sample_or_aref}}.{{type}}.{{modification_string}}.realigned.sorted.bam")
     output:
         catbam = "ldna/intermediates/{sample_or_aref}/alignments/{rate}/analysis_default/{sample_or_aref}.{type}.{modification_string}.sorted.bam",
@@ -1191,13 +1177,12 @@ rule dss:
     input:
         data = expand("ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_{{mod_code}}_dss.tsv", sample = samples, ref_genome = "analysis_default"),
     params:
-        chromosome = lambda w: w.chr,
-        contrast = lambda w: w.contrast
+        chromosome = lambda w: w.chr
     output:
-        dmls_unfiltered = "ldna/results/{mod_code}/tables/{contrast}/dmls.{chr}.unfiltered.tsv",
-        dmrs_unfiltered = "ldna/results/{mod_code}/tables/{contrast}/dmrs.{chr}.unfiltered.tsv",
-        dmls = "ldna/results/{mod_code}/tables/{contrast}/dmls.{chr}.tsv",
-        dmrs = "ldna/results/{mod_code}/tables/{contrast}/dmrs.{chr}.tsv"
+        dmls_unfiltered = "ldna/results/{mod_code}/tables/dmls.{chr}.unfiltered.tsv",
+        dmrs_unfiltered = "ldna/results/{mod_code}/tables/dmrs.{chr}.unfiltered.tsv",
+        dmls = "ldna/results/{mod_code}/tables/dmls.{chr}.tsv",
+        dmrs = "ldna/results/{mod_code}/tables/dmrs.{chr}.tsv"
     container: None
     conda:
         "dss2"
@@ -1206,24 +1191,24 @@ rule dss:
         mem_mb = lambda w, attempt: 120000 * attempt
     retries: 3
     script:
-        "scripts/dss_multicond.R"
+        "scripts/dss.R"
 
 
 rule merge_dss:
     input:
-        dmrs = expand("ldna/results/{{mod_code}}/tables/{{contrast}}/dmrs.{chr}.tsv", chr = [chrid for chrid in ["chr%s"%e for e in list(range(1, 23)) + ["X", "Y"]] if chrid not in config["ldna"]["SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS"]]),
-        dmls = expand("ldna/results/{{mod_code}}/tables/{{contrast}}/dmls.{chr}.tsv", chr = [chrid for chrid in ["chr%s"%e for e in list(range(1, 23)) + ["X", "Y"]] if chrid not in config["ldna"]["SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS"]])
+        dmrs = expand("ldna/results/{{mod_code}}/tables/dmrs.{chr}.tsv", chr = [chrid for chrid in ["chr%s"%e for e in list(range(1, 23)) + ["X", "Y"]] if chrid not in config["ldna"]["SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS"]]),
+        dmls = expand("ldna/results/{{mod_code}}/tables/dmls.{chr}.tsv", chr = [chrid for chrid in ["chr%s"%e for e in list(range(1, 23)) + ["X", "Y"]] if chrid not in config["ldna"]["SEX_CHROMOSOMES_NOT_INCLUDED_IN_ANALYSIS"]])
     output:
-        dmrs = "ldna/results/{mod_code}/tables/{contrast}/dmrs.tsv",
-        dmls = "ldna/results/{mod_code}/tables/{contrast}/dmls.tsv",
-        dmrs_bed = "ldna/results/{mod_code}/tables/{contrast}/dmrs.bed",
-        dmrs_hypo_bed = "ldna/results/{mod_code}/tables/{contrast}/dmrs_hypo.bed",
-        dmrs_hyper_bed = "ldna/results/{mod_code}/tables/{contrast}/dmrs_hyper.bed"
+        dmrs = "ldna/results/{mod_code}/tables/dmrs.tsv",
+        dmls = "ldna/results/{mod_code}/tables/dmls.tsv",
+        dmrs_bed = "ldna/results/{mod_code}/tables/dmrs.bed",
+        dmrs_hypo_bed = "ldna/results/{mod_code}/tables/dmrs_hypo.bed",
+        dmrs_hyper_bed = "ldna/results/{mod_code}/tables/dmrs_hyper.bed"
     priority: 100
     conda:
         "repeatanalysis"
     script:
-        "scripts/merge_dss_multicond.R"
+        "scripts/merge_dss.R"
 
 
 rule extractmods:
@@ -1462,8 +1447,8 @@ else:
     ruleorder:  bedmethylanalysis_process > bedmethylanalysis_process_single_condition
 rule bedmethylanalysis_process:
     input:
-        dmrs = expand("ldna/results/{{mod_code}}/tables/{contrast}/dmrs.tsv", contrast = ldna_contrasts),
-        dmls = expand("ldna/results/{{mod_code}}/tables/{contrast}/dmls.tsv", contrast = ldna_contrasts),
+        dmrs = "ldna/results/{mod_code}/tables/dmrs.tsv",
+        dmls = "ldna/results/{mod_code}/tables/dmls.tsv",
         bedmethylpaths = expand("ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_bedMethyl.bed", sample = samples, ref_genome = "analysis_default"),
         read_mods = expand('ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_readmods_{context}_{region}.tsv', sample = samples, ref_genome = "analysis_default", region = config["ldna"]["rte_subfamily_read_level_analysis"], context = ["CpG", "NoContext"]),
         consensus_map = "ldna/results/m/plots/l1_alignment_meth/L1HS_fl_mapping_to_consensus_table.csv"
@@ -1478,7 +1463,7 @@ rule bedmethylanalysis_process:
     conda:
         "ds"
     script:
-        "scripts/bedmethylanalysis_process_multicond.R"
+        "scripts/bedmethylanalysis_process.R"
 
 rule getdss:
     input:
@@ -1516,7 +1501,8 @@ rule bedmethylanalysis_plot:
         # read_mods = expand('ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_readmods_{context}_{region}.tsv', sample = samples, region = config["ldna"]["rte_subfamily_read_level_analysis"], context = ["CpG", "NoContext"])
     params:
         mod_code = lambda wildcards: wildcards.mod_code,
-        contrasts = ldna_contrasts
+        dmrs = lambda wildcards: "ldna/results/%s/tables/dmrs.tsv"%wildcards.mod_code,
+        dmls = lambda wildcards: "ldna/results/%s/tables/dmls.tsv"%wildcards.mod_code
     output:
         plots = "ldna/results/{mod_code}/plots/bedmethylanalysis.rds",
         promoters_bed = "ldna/Rintermediates/{mod_code}/promoters.bed",
@@ -1529,7 +1515,7 @@ rule bedmethylanalysis_plot:
     conda:
         "ds"
     script:
-        "scripts/bedmethylanalysis_plot_multicond.R"
+        "scripts/bedmethylanalysis_plot.R"
 
 
 rule insertion_analysis:
