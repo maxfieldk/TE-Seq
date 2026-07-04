@@ -348,6 +348,7 @@ rule align_to_hg38:
         cpus_per_task =20,
         runtime = 1200,
         mem_mb = 128000
+    container: None
     conda: "minimap2"
     shell:
         """
@@ -385,6 +386,7 @@ rule telometer_align:
         cpus_per_task =32,
         runtime = 1200,
         mem_mb = 128000
+    container: None
     conda: "minimap2"
     shell:
         """
@@ -392,6 +394,22 @@ mkdir -p $(dirname {output.sam})
 minimap2 -a -x map-ont -t 30 -y {input.ref_telometer} {input.fastq} > {output.sam}
         """
 
+rule samToBamTelometer:
+    input:
+        sam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sam",ref_genome = "telometer", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+    output:
+        bam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.bam",ref_genome = "telometer", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+    conda:
+        "omics"
+    resources:
+        cpus_per_task =10,
+        runtime = 100,
+        mem_mb = 64000
+    shell:
+        """
+samtools view -@8 -bS {input.sam} > {output.bam}
+        """
+ruleorder: telometer_split_bam > sortBam
 rule telometer_split_bam:
     input:
         sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.bam",ref_genome = "telometer", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
@@ -421,6 +439,7 @@ rule telometer:
         cpus_per_task =10,
         runtime = 1200,
         mem_mb = 200000
+    container: None
     conda: "telometer3"
     shell:
         """
@@ -430,7 +449,7 @@ telometer -b {input.sortedbam} -o {output.out} -m {wildcards.minimum_read_length
 
 rule call_telometer:
     input:
-        telometer_outs = expand("ldna/results/tables/telometer/{sample}_telometer_{minimum_read_length}.tsv", sample = samples, minimum_read_length = [1000, 4000, 10000])
+        telometer_outs = expand("ldna/results/tables/telometer/{sample}_{split_num}_telometer_{minimum_read_length}.tsv", sample = samples, split_num = [1,2,3], minimum_read_length = [4000, 10000])
     output:
         "telometer.done"
     shell:
@@ -555,6 +574,7 @@ rule aln_to_l1hs_consensus:
         cpus_per_task =20,
         runtime = 900,
         mem_mb = 80000
+    container: None
     conda:
         "minimap2"
     shell:
@@ -759,6 +779,22 @@ rule filterbamnosup:
 samtools view -b -F 2304 -q {params.min_mapq} -e '[qs] >= {params.min_qscore}' {input.bam} > {output.bam}
         """
 
+rule filterbamnosup:
+    input:
+        bam = "ldna/{path}.sorted.bam"
+    output:
+        bam = "ldna/{path}.sorted.nosup.bam"
+    resources:
+        cpus_per_task =6,
+        mem_mb = 40000,
+        runtime = 600
+    conda:
+        "omics"
+    shell: 
+        """
+samtools view -b -F 2304 {input.bam} > {output.bam}
+        """
+
 rule endmethfilteredbam:
     input:
         bam = "ldna/{path}.sorted.filterednosup.bam",
@@ -948,11 +984,10 @@ awk -v s=1 '$4=="h" {{OFS = "\t"; print $1, $2+s, $10, $12}}' {output.bed} >> {o
 
 rule modbamtobed_unfiltered_hardtomapregions:
     input:
-        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.nosup.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.nosup.bam.bai", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
     params:
         ref = lambda wildcards: "/oscar/data/jsedivy/mkelsey/ref/genomes/hg38/hg38.p13.sorted.fa" if wildcards.ref_genome == "hg38" else "aref/extended/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF.fa",
-        regions = "/users/mkelsey/data/Nanopore/alz/RTE/hgUnique.hg38.bed6"
     resources:
         cpus_per_task = 36,
         mem_mb = 128000
@@ -973,7 +1008,6 @@ mkdir -p $(dirname {output})
 --combine-strands \
 --edge-filter 20 \
 --cpg \
---include-bed {params.regions} \
 -t {resources.cpus_per_task}
 
 echo -e "chr\tpos\tN\tX" > {output.dssInput_m}
@@ -1643,9 +1677,9 @@ touch {output.outfile}
 rule wgbs_bam2pat:
     input:
         outfile = "aref/extended/A.REF.{ref_genome}.wgbs.init.out",
-        bam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.endmethfilteredyngl1.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        bam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
     output:
-        pat = expand("ldna/results/{{mod_code}}/wgbs/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.endmethfilteredyngl1.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        pat = expand("ldna/results/{{mod_code}}/wgbs/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
     resources:
         runtime = 1000,
         mem_mb = 128000,
@@ -1701,7 +1735,7 @@ uxm deconv --include Neuron Oligodend --atlas {params.atlas} --output ${{outputc
 
 rule get_merged_pat:
     input:
-        pat = expand("ldna/results/{{mod_code}}/wgbs/analysis_default/{sample}.{type}.{modification_string}.sorted.filterednosup.endmethfilteredyngl1.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
+        pat = expand("ldna/results/{{mod_code}}/wgbs/analysis_default/{sample}.{type}.{modification_string}.sorted.filterednosup.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
     params:
         inputdir = lambda wildcards: "ldna/results/%s/wgbs/analysis_default"%wildcards.mod_code,
         level1 = config["ldna"]["levels"][0],
@@ -1811,10 +1845,11 @@ rule pat_fig_rtes_by_sample:
         """
 coords_array=()
 rte_name_array=()
+strand_array=()
 
 while read -r line; do
     coords_array+=("$(awk '{{print $1":"$2"-"$3}}' <<< "$line")")
-    rte_name_array+=("$(awk '{{print $6}}' <<< "$line")")
+    rte_name_array+=("$(awk '{{print $6"_"$5}}' <<< "$line")")
 done < <(grep "L1HS" {params.fl_rte})
 
 echo "read lines"

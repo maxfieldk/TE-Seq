@@ -103,7 +103,7 @@ for (sample_name in samples) {
 grsunfiltered <- Reduce(c, sample_grs)
 rm(sample_grs)
 # filter out low coverage and ensure that all samples have the same cpgs
-grs <- grsunfiltered[grsunfiltered$cov > MINIMUMCOVERAGE]
+grs <- grsunfiltered[grsunfiltered$cov > 2]
 grsdf <- tibble(as.data.frame(grs))
 grsdf %$% seqnames %>% unique()
 dir.create("ldna/Rintermediates", recursive = TRUE)
@@ -122,6 +122,43 @@ grsdfuntidy <- grsdf %>%
 
 grsinboth <- grsdfuntidy %>% pull(pos)
 rm(grsdfuntidy)
+
+
+# rmann %>% filter(rte_subfamily == "L1HS") %>% filter(refstatus == "NonRef") %>% filter(rte_length_req == "FL") %$% gene_id
+# rmann %>% filter(seqnames == "NI_L1HS_chr1_151607957_151607968")
+# rmann %>% filter(gene_id == "L1HS_NI_A.REF_1q21.3_1") %>% pwl()
+# ttgrs <- rmann %>% filter(gene_id == "L1HS_NI_A.REF_1q21.3_1") %>% GRanges()
+# perelementdf %>% filter(gene_id == "L1HS_NI_A.REF_1q21.3_1")
+# grsunfilt1 <- grsunfiltered %>% subsetByOverlaps(ttgrs)
+# grsunfilt1[grsunfilt1$sample == "PRO3"]
+# grs %>% subsetByOverlaps(ttgrs)
+
+# grsunfilt1df <- tibble(as.data.frame(grsunfilt1))
+# grs1 <- grsunfilt1[grsunfilt1$cov > 2]
+# grsdf1 <- tibble(as.data.frame(grs1))
+# grsdf1 %$% seqnames %>% unique()
+# grsdf1
+
+# grsdf1$seqnames <- factor(grsdf1$seqnames, levels = chromosomesAll)
+# seqnames <- grsdf1$seqnames
+# start <- grsdf1$start
+# end <- grsdf1$end
+# pos <- paste0(seqnames, "_", start, "_", end)
+# grsdf1$pos <- pos
+# grsdf1 %>% filter(start == 5628)
+# grsunfilt1df %>% filter(start == 5628)
+# grsdfuntidy1 <- grsdf1 %>%
+#     filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS) %>%
+#     pivot_wider(id_cols = c("pos", "seqnames"), names_from = "sample", values_from = "pctM", names_prefix = "pctM") %>%
+#     drop_na()
+
+# grsinboth1 <- grsdfuntidy1 %>% pull(pos)
+# rm(grsdfuntidy1)
+# grsdf1 %$% sample
+
+
+
+
 
 # TODO pivot wider introduces sample names as variables, this needs to be addressed
 grsdffiltered <- grsdf %>%
@@ -159,10 +196,11 @@ grsdfs <- grsdf %>%
     group_by(sample, seqnames, islandStatus) %>%
     slice_sample(n = 1000)
 grss <- GRanges(grsdfs)
+dir.create(sprintf("ldna/Rintermediates/%s", params$mod_code))
 write_delim(grsdfs, sprintf("ldna/Rintermediates/%s/grsdfsmall.tsv", params$mod_code), col_names = TRUE)
 rm(grsdf)
 
-if (conf$single_condition == "no") {
+if ((conf$single_condition == "no") & (nrow(dmrs) > 0)) {
     dmrs <- read_delim(inputs$dmrs, delim = "\t", col_names = TRUE)
     dmls <- read_delim(inputs$dmls, delim = "\t", col_names = TRUE) %>% filter(fdrs <= 0.05)
     dmrsgr <- GRanges(dmrs)
@@ -219,7 +257,7 @@ RM <- GRanges(rmann)
 # FULL ELEMENTS
 # annotate whether repeats overlap DMRs
 
-if (conf$single_condition == "no") {
+if ((conf$single_condition == "no") & (nrow(dmrs) > 0)) {
     dmrtypes <- dmrs$dmr_type %>% unique()
     threshold_dfs <- list()
     for (dmrtype in dmrtypes) {
@@ -265,7 +303,6 @@ if (conf$single_condition == "no") {
 }
 write_delim(RMdf, sprintf("ldna/Rintermediates/%s/RMdf.tsv", params$mod_code), col_names = TRUE)
 # RMdf <- read_delim(sprintf("ldna/Rintermediates/%s/RMdf.tsv", params$mod_code), col_names = TRUE)
-
 
 merge_with_grs <- function(grs, rte_frame) {
     mbo <- mergeByOverlaps(grs, rte_frame)
@@ -443,7 +480,7 @@ mcols(flL1HSASP)$region <- "ASP"
 l1hs_intra_utr_grs <- c(c(c(flL1HS328, flL1HS500), flL1HS5UTR), flL1HSASP)
 
 
-if (conf$single_condition == "no") {
+if ((conf$single_condition == "no") & (nrow(dmrs) > 0)) {
     dmrtypes <- dmrs$dmr_type %>% unique()
     threshold_dfs <- list()
     for (dmrtype in dmrtypes) {
@@ -514,8 +551,11 @@ perelementdf_promoters <- rtedf_promoters %>%
     summarize(mean_meth = mean(pctM)) %>%
     left_join(flRTEpromoter %>% dplyr::rename(rte_seqnames = seqnames, rte_start = start, rte_end = end, rte_strand = strand))
 write_delim(perelementdf_promoters, sprintf("ldna/Rintermediates/%s/perelementdf_promoters.tsv", params$mod_code), col_names = TRUE)
-rm(perelementdf_promoters)
+# rm(perelementdf_promoters)
 # perelementdf_promoters <- read_delim(sprintf("ldna/Rintermediates/%s/perelementdf_promoters.tsv", params$mod_code), col_names = TRUE)
+
+l1hs_intrautr %>% filter(is.na(loc_lowres_integrative_stranded))
+l1hs_intrautr %$% loc_lowres_integrative_stranded %>% table()
 
 perl1hs_5utr_region <- l1hs_intrautr %>%
     filter(cov > MINIMUMCOVERAGE) %>%
@@ -548,8 +588,8 @@ write_delim(promoter_methdf, sprintf("ldna/Rintermediates/%s/refseq_gene_promote
 
 ############## Read density
 ## NOTE GOT UP TO HERE IN MAKING THIS WORK FOR SINGLE SAMPLE
-rm(grsdf)
-rm(grs)
+# rm(grsdf)
+# rm(grs)
 mem_used()
 
 dir.create("ldna/results/plots/reads")

@@ -45,12 +45,30 @@ tryCatch(
 
 chr_dmrs <- list()
 for (filepath in inputs$dmrs) {
-    chr_dmrs[[filepath]] <- read_delim(filepath, col_names = TRUE)
+    chr_dmrs[[filepath]] <- read_delim(filepath, col_names = TRUE, col_types = cols(
+        chr = col_character(),
+        start = col_double(),
+        end = col_double(),
+        length = col_double(),
+        nCG = col_double(),
+        meanMethy1 = col_double(),
+        meanMethy2 = col_double(),
+        diff.Methy = col_double(),
+        areaStat = col_double(),
+        dmr_type = col_character()
+    ))
 }
 
 chr_dmls <- list()
 for (filepath in inputs$dmls) {
-    chr_dmls[[filepath]] <- read_delim(filepath, col_names = TRUE)
+    chr_dmls[[filepath]] <- read_delim(filepath, col_names = TRUE, col_types = cols(
+        chr = col_character(),
+        pos = col_double(),
+        stat = col_double(),
+        pvals = col_double(),
+        fdrs = col_double(),
+        direction = col_character()
+    ))
 }
 dmrs <- Reduce(bind_rows, chr_dmrs)
 dmls <- Reduce(bind_rows, chr_dmls)

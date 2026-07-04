@@ -23,7 +23,7 @@ gatk_container = (
 dorado_container = (
     config["containers"]["dorado"]["path"]
     if config["containers"]["dorado"]["use_preexisting_response"] == "yes"
-    else "containers/dorado:sha268dcb4cd02093e75cdc58821f8b93719c4255ed.sif"
+    else "containers/dorado:shac8f356489fa8b44b31beba841b84d2879de2088e.sif"
 )
 tetranscripts_container = (
     config["containers"]["tetranscripts"]["path"]
@@ -95,16 +95,11 @@ def getFeatureCountsStrandParam():
 
 def getTelescopeStrandParam():
     libraryType = inferLibraryType()
+    # Long reads are always single-end
     if libraryType == "forward":
-        if config["lrna"]["READ_TYPE"] == "PE":
-            strandParam = "FR"
-        elif config["lrna"]["READ_TYPE"] == "SE":
-            strandParam = "F"
+        strandParam = "F"
     elif libraryType == "reverse":
-        if config["lrna"]["READ_TYPE"] == "PE":
-            strandParam = "RF"
-        elif config["lrna"]["READ_TYPE"] == "SE":
-            strandParam = "R"
+        strandParam = "R"
     elif libraryType == "unstranded":
         strandParam = "None"
     else:
@@ -276,9 +271,9 @@ mv {wildcards.sample}_temp_fq.txt.gz {output.fq}
 
 rule dorado:
     input:
-        aref = "aref.done.outfile"
+        aref = "aref.done.outfile",
+        cont= dorado_container
     params:
-        dorado = config["lrna"]["dorado"],
         input_dir = lambda wildcards: sample_table.loc[sample_table["sample_name"] == wildcards.sample, "nanopore_rawdata_dir"].iloc[0],
         reference = lambda wildcards: "aref/default/%s.fa"%(wildcards.sample) if config["lrna"]["per_sample_ref"] == "yes" else "aref/default/A.REF.fa"
     output:
@@ -288,20 +283,21 @@ rule dorado:
     wildcard_constraints:
         sample="[0-9A-Za-z_]+",
         type = "[0-9A-Za-z]+",
-        rate = "[0-9A-Za-z]+",
+        rate = "nanopore",
         modification_string = "[0-9A-Za-z_-]+"
+    container:
+        dorado_container
     resources:
-        cpus_per_task =12,
-        threads = 12,
+        cpus_per_task =10,
         slurm_partition="gpu-he",
-        mem_mb = 128000,
-        slurm_extra="--time=48:00:00 --constraint=a6000 --gres=gpu:2"
-    conda: "minimap2"
+        mem_mb = 220000,
+        runtime = 5560,
+        slurm_extra="'--gres=gpu:nvidia_rtx_a6000:2'"
     shell:
         """
 mkdir -p $(dirname {output}) 
 if [[ {wildcards.modification_string} == "unmod" ]]; then
-    {params.dorado} \
+    dorado \
     basecaller \
     {wildcards.type} \
     {params.input_dir} \
@@ -312,7 +308,7 @@ if [[ {wildcards.modification_string} == "unmod" ]]; then
     --mm2-opts "-x splice -k 14" > {output}
 else
     mod_string=$(echo {wildcards.modification_string} | tr "-" ",")
-    {params.dorado} \
+    dorado \
     basecaller \
     {wildcards.type},$mod_string \
     {params.input_dir} \
@@ -324,9 +320,29 @@ else
 fi
         """
 
+rule get_dorado_alignments:
+    input:
+        [
+            "lrna/intermediates/%s/alignments/%s/%s.%s.%s.sorted.bam" % (
+                s,
+                sample_table.loc[sample_table.sample_name == s, "rate"].iloc[0],
+                s,
+                sample_table.loc[sample_table.sample_name == s, "type"].iloc[0],
+                sample_table.loc[sample_table.sample_name == s, "modification_string"].iloc[0]
+            )
+            for s in sample_table.loc[sample_table.platform == "nanopore", "sample_name"].tolist()
+        ]
+
+
 rule getunmapped_reads:
     input:
-        sortedbam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["lrna"]["rate"], type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"])
+        sortedbam = lambda w: "lrna/intermediates/%s/alignments/%s/%s.%s.%s.sorted.bam" % (
+            w.sample,
+            sample_table.loc[sample_table.sample_name == w.sample, "rate"].iloc[0],
+            w.sample,
+            sample_table.loc[sample_table.sample_name == w.sample, "type"].iloc[0],
+            sample_table.loc[sample_table.sample_name == w.sample, "modification_string"].iloc[0]
+        )
     output: 
         reads = expand("lrna/intermediates/{{sample}}/fastqs/{rate}/{{sample}}.unmapped.fq.gz", rate = config["lrna"]["rate"])
     wildcard_constraints:
@@ -344,46 +360,52 @@ rule getunmapped_reads:
 samtools view -f 4 -b {input.sortedbam} | samtools fastq -@ 8 - | gzip > {output.reads}
         """
 
-rule dorado_fastq:
-    input:
-        dir = "lrna/rawdata/{rate}/{sample}",
-        aref = "aref.done.outfile"
-    params:
-        dorado = config["lrna"]["dorado"],
-        reference = lambda wildcards: "aref/default/%s.fa"%(wildcards.sample) if config["lrna"]["per_sample_ref"] == "yes" else "aref/default/A.REF.fa"
-    output:
-        "lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.doradofastqderived.bam"
-    benchmark:
-        "lrna/benchmarks/dorado_fastq/{rate}.{sample}.{type}.{modification_string}.tsv"
-    wildcard_constraints:
-        sample="[0-9A-Za-z_]+",
-        type = "[0-9A-Za-z]+",
-        rate = "[0-9A-Za-z]+",
-        modification_string = "[0-9A-Za-z_-]+"
-    resources:
-        cpus_per_task =12,
-        threads = 12,
-        slurm_partition="gpu-he",
-        mem_mb = 128000,
-        slurm_extra="--time=48:00:00 --constraint=a6000 --gres=gpu:2"
-    conda: "minimap2"
-    shell:
-        """
-mkdir -p $(dirname {output})
-mod_string=$(echo {wildcards.modification_string} | tr "-" ",")
+# rule dorado_fastq:
+#     input:
+#         input_dir = lambda wildcards: sample_table.loc[sample_table["sample_name"] == wildcards.sample, "nanopore_rawdata_dir"].iloc[0],
+#         aref = "aref.done.outfile"
+#     params:
+#         reference = lambda wildcards: "aref/default/%s.fa"%(wildcards.sample) if config["lrna"]["per_sample_ref"] == "yes" else "aref/default/A.REF.fa"
+#     output:
+#         "lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.doradofastqderived.bam"
+#     benchmark:
+#         "lrna/benchmarks/dorado_fastq/{rate}.{sample}.{type}.{modification_string}.tsv"
+#     wildcard_constraints:
+#         sample="[0-9A-Za-z_]+",
+#         type = "[0-9A-Za-z]+",
+#         rate = "[0-9A-Za-z]+",
+#         modification_string = "[0-9A-Za-z_-]+"
+#     container:
+#         dorado_container
+#     resources:
+#         cpus_per_task =12,
+#         slurm_partition="gpu-he",
+#         mem_mb = 256000,
+#         runtime = 5760,
+#         slurm_extra="'--gres=gpu:nvidia_rtx_a6000:2'"
+#     shell:
+#         """
+# mkdir -p $(dirname {output}) 
+# if [[ {wildcards.modification_string} == "unmod" ]]; then
+#     dorado \
+#     basecaller \
+#     {wildcards.type} \
+#     {input.input_dir} \
+#     --recursive \
+#     --verbose \
+#     --estimate-poly-a > {output}
+# else
+#     mod_string=$(echo {wildcards.modification_string} | tr "-" ",")
+#     dorado \
+#     basecaller \
+#     {wildcards.type},$mod_string \
+#     {input.input_dir} \
+#     --recursive \
+#     --verbose \
+#     --estimate-poly-a > {output}
+# fi
+#         """
 
-{params.dorado} \
-basecaller \
-{wildcards.type},$mod_string \
-{input.dir} \
---recursive \
---verbose \
- > {output}
-        """
-
-rule call_dorado:
-    input:
-        expand("lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.bam", sample = samples, rate = config["lrna"]["rate"], type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"])
 
 # rule isoquant:
 #     input:
@@ -555,6 +577,7 @@ skera split {input.bam} {params.kinnexprimers} {output.segbam}
         """
 
 
+
 # lima produces all barcoded BAMs in one run, so we use a sentinel file
 # to ensure only one lima job per unique input BAM
 rule lima:
@@ -624,28 +647,52 @@ gzip {input.bam}.fq
 mv {input.bam}.fq.gz {output.fastq}
         """
 
-rule minimap2pacbio:
+
+
+rule mycoplasmaCheckPacbio:
     input:
         fq = "lrna/intermediates/{sample}/fastqs/pacbio/{sample}.fq.gz"
     params:
+        reference = config["lrna"]["mycoplasma"]
+    output:
+        bam = "lrna/qc/mycoplasma/pacbio/mycoplasma{sample}.bam"
+    benchmark:
+        "lrna/benchmarks/mycoplasmaCheckpacbio/{sample}.tsv"
+    resources:
+        cpus_per_task =20,
+        runtime = 900,
+        mem_mb = 80000
+    conda:
+        "minimap2"
+    container: None
+    shell:
+        """
+minimap2 -ax map-hifi -uf -t 12 {params.reference} {input.fq} | \
+samtools sort -@4 -T {wildcards.sample} -O bam -o {output.bam}
+samtools index -@8 {output.bam}
+samtools stats {output.bam} > {output.bam}.stats.txt        
+        """
+
+rule minimap2pacbio:
+    input:
+        fq = "lrna/intermediates/{sample}/fastqs/pacbio/{sample}.fq.gz",
+        aref = "aref.done.outfile"
+    params:
         junctionbed = config["lrna"]["junctionbed"],
         reference = lambda wildcards: (
-            # per-sample ref + patched
-            "aref/default/%s.snp_patched.fa" % wildcards.sample
-            if config["lrna"]["per_sample_ref"] == "yes" and config["aref"]["patch_ref"] == "yes"
-            # per-sample ref without patch
-            else "aref/default/%s.fa" % wildcards.sample
+            "aref/default/%s.fa" % wildcards.sample
             if config["lrna"]["per_sample_ref"] == "yes"
-            # global patched ref
-            else "aref/default/A.REF.snp_patched.fa"
-            if config["aref"]["patch_ref"] == "yes"
-            # global unpatched ref
             else "aref/default/A.REF.fa"
         )
     output:
-        bam = "lrna/intermediates/{sample}/alignments/{sample}.sorted.bam"
+        bam = "lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.bam"
+    wildcard_constraints:
+        sample="[IK]_[0-9A-Za-z_]+",
+        type="[0-9A-Za-z]+",
+        rate="pacbio",
+        modification_string="[0-9A-Za-z_-]+"
     resources:
-        cpus_per_task =46,
+        cpus_per_task = 46,
         runtime = 900,
         mem_mb = 120000
     container: None
@@ -653,15 +700,20 @@ rule minimap2pacbio:
         "minimap2"
     shell:
         """
+mkdir -p $(dirname {output.bam})
 minimap2 -ax splice:hq -uf -t 40 --junc-bed {params.junctionbed} {params.reference} {input.fq} | \
-samtools sort -@4 -T {wildcards.sample} -O bam -o {output.bam}
-samtools index -@8 {output.bam}
-samtools stats {output.bam} > {output.bam}.stats.txt        
+samtools view -bh -o {output.bam}
         """
 
 rule fc_relaxed:
     input:
-        sortedbam = "lrna/intermediates/{sample}/alignments/{sample}.sorted.bam",
+        sortedbam = lambda w: "lrna/intermediates/%s/alignments/%s/%s.%s.%s.sorted.bam" % (
+            w.sample,
+            sample_table.loc[sample_table.sample_name == w.sample, "rate"].iloc[0],
+            w.sample,
+            sample_table.loc[sample_table.sample_name == w.sample, "type"].iloc[0],
+            sample_table.loc[sample_table.sample_name == w.sample, "modification_string"].iloc[0]
+        ),
         libtype = "lrna/qc/library_type.txt"
     output:
         countsmessy = "lrna/intermediates/{sample}/counts/relaxed/{sample}rtesandgenes.counts_messy.txt",
@@ -687,7 +739,13 @@ cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
 
 rule fc_relaxed_unstranded:
     input:
-        sortedbam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["lrna"]["rate"], type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"]),
+        sortedbam = lambda w: "lrna/intermediates/%s/alignments/%s/%s.%s.%s.sorted.bam" % (
+            w.sample,
+            sample_table.loc[sample_table.sample_name == w.sample, "rate"].iloc[0],
+            w.sample,
+            sample_table.loc[sample_table.sample_name == w.sample, "type"].iloc[0],
+            sample_table.loc[sample_table.sample_name == w.sample, "modification_string"].iloc[0]
+        ),
         libtype = "lrna/qc/library_type.txt"
     output:
         countsmessy = "lrna/intermediates/{sample}/counts/relaxed_unstranded/{sample}rtesandgenes.counts_messy.txt",
@@ -737,7 +795,13 @@ cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
 
 rule fc_stringent:
     input:
-        sortedbam = "lrna/intermediates/{sample}/alignments/{sample}.sorted.bam",
+        sortedbam = lambda w: "lrna/intermediates/%s/alignments/%s/%s.%s.%s.sorted.bam" % (
+            w.sample,
+            sample_table.loc[sample_table.sample_name == w.sample, "rate"].iloc[0],
+            w.sample,
+            sample_table.loc[sample_table.sample_name == w.sample, "type"].iloc[0],
+            sample_table.loc[sample_table.sample_name == w.sample, "modification_string"].iloc[0]
+        ),
         libtype = "lrna/qc/library_type.txt"
     output:
         countsmessy = "lrna/intermediates/{sample}/counts/stringent/{sample}rtesandgenes.counts_messy.txt",
@@ -761,16 +825,220 @@ featureCounts -s {params.featureCountsstrandparam} -L -O -M --primary --ignoreDu
 cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
         """
 
+rule extract_fastq_for_telescope:
+    input:
+        sortedbam = lambda w: "lrna/intermediates/%s/alignments/%s/%s.%s.%s.sorted.bam" % (
+            w.sample,
+            sample_table.loc[sample_table.sample_name == w.sample, "rate"].iloc[0],
+            w.sample,
+            sample_table.loc[sample_table.sample_name == w.sample, "type"].iloc[0],
+            sample_table.loc[sample_table.sample_name == w.sample, "modification_string"].iloc[0]
+        )
+    output:
+        fastq = temp("lrna/intermediates/{sample}/fastqs/{sample}.telescope.fq.gz")
+    conda:
+        "omics"
+    benchmark:
+        "lrna/benchmarks/extract_fastq_for_telescope/{sample}.tsv"
+    resources:
+        cpus_per_task = 4,
+        mem_mb = 64000,
+        runtime = 120
+    shell:
+        """
+mkdir -p $(dirname {output.fastq})
+samtools fastq {input.sortedbam} | gzip > {output.fastq}
+        """
+
+rule minimap2_multimapping:
+    input:
+        fastq = "lrna/intermediates/{sample}/fastqs/{sample}.telescope.fq.gz"
+    params:
+        reference = lambda wildcards: "aref/default/%s.fa"%(wildcards.sample) if config["lrna"]["per_sample_ref"] == "yes" else "aref/default/A.REF.fa",
+        mm2_preset = lambda w: "splice" if sample_table.loc[sample_table.sample_name == w.sample, "platform"].iloc[0] == "nanopore" else "splice:hq"
+    output:
+        bam = "lrna/intermediates/{sample}/alignments/{sample}.multimapped.sorted.bam",
+        bai = "lrna/intermediates/{sample}/alignments/{sample}.multimapped.sorted.bam.bai"
+    container: None
+    conda:
+        "minimap2"
+    benchmark:
+        "lrna/benchmarks/minimap2_multimapping/{sample}.tsv"
+    resources:
+        cpus_per_task = 20,
+        runtime = 900,
+        mem_mb = 80000
+    shell:
+        """
+minimap2 -ax {params.mm2_preset} --secondary=yes -N 100 -t 16 {params.reference} {input.fastq} | \
+samtools sort -@4 -m2g -T {wildcards.sample} -O bam -o {output.bam}
+samtools index -@8 {output.bam}
+        """
+
+rule collateBam:
+    input:
+        bam = "lrna/intermediates/{sample}/alignments/{sample}.multimapped.sorted.bam"
+    output:
+        collatedbam = temp("lrna/intermediates/{sample}/alignments/{sample}.collated.bam")
+    conda:
+        "omics"
+    benchmark:
+        "lrna/benchmarks/collateBam/{sample}.tsv"
+    resources:
+        mem_mb = 128000,
+        runtime = 120
+    shell:
+        """
+samtools collate -o {output.collatedbam} {input.bam}
+        """
+
+rule telescope:
+    input:
+        collatedbam = "lrna/intermediates/{sample}/alignments/{sample}.collated.bam",
+        libtype = "lrna/qc/library_type.txt",
+    params:
+        strandparam = lambda wildcards: getTelescopeStrandParam(),
+        gff = lambda wildcards: "aref/default/%s_annotations/%s_repeatmasker.gff2"%(wildcards.sample, wildcards.sample) if config["lrna"]["per_sample_ref"] == "yes" else "aref/default/A.REF_annotations/A.REF_repeatmasker.gff2"
+    retries: 3
+    output:
+        counts = "lrna/outs/{sample}/telescope/telescope-run_stats.tsv",
+        bam = "lrna/outs/{sample}/telescope/telescope-updated.bam"
+    benchmark:
+        "lrna/benchmarks/telescope/{sample}.tsv"
+    threads: 4
+    conda:
+        "telescope3"
+    resources:
+        mem_mb = 128000,
+        runtime = 600
+    shell:
+        """
+echo {params.strandparam}
+mkdir -p $(dirname {output.counts})
+
+if [ "{params.strandparam}" = None ]; then
+echo "removing L1 antisense transcripts"
+awk -v FS='\t' -v OFS='\t' '$0 ~ /^#/ || $9 !~ /__AS"/' {params.gff} > {output.counts}.temp.gff2
+
+telescope assign \
+--attribute gene_id \
+--ncpu 1 \
+--updated_sam \
+--stranded_mode {params.strandparam} \
+--reassign_mode average \
+--outdir $(dirname {output.counts}) \
+{input.collatedbam} \
+{output.counts}.temp.gff2
+
+rm {output.counts}.temp.gff2
+
+else
+
+telescope assign \
+--attribute gene_id \
+--ncpu 1 \
+--updated_sam \
+--stranded_mode {params.strandparam} \
+--reassign_mode average \
+--outdir $(dirname {output.counts}) \
+{input.collatedbam} \
+{params.gff}
+
+fi
+        """
+
+rule sortIndexTelescopeBam:
+    input:
+        bam = "lrna/outs/{sample}/telescope/telescope-updated.bam"
+    output:
+        sortedbam = "lrna/outs/{sample}/telescope/telescope-updated.sorted.bam",
+        sortedbambai = "lrna/outs/{sample}/telescope/telescope-updated.sorted.bam.bai"
+    benchmark:
+        "lrna/benchmarks/sortIndexTelescopeBam/{sample}.tsv"
+    threads: 10
+    conda:
+        "omics"
+    resources:
+        mem_mb = 128000,
+        runtime = 600
+    shell:
+        """
+samtools sort -@8 -m4g {input.bam} > {output.sortedbam}
+samtools index -@6 {output.sortedbam}
+        """
+
+rule gettelescope:
+    input:
+        expand("lrna/outs/{sample}/telescope/telescope-updated.sorted.bam.bai", sample = samples)
+
+rule featurecounts_genes:
+    input:
+        sortedbams = [
+            "lrna/intermediates/%s/alignments/%s/%s.%s.%s.sorted.bam" % (
+                s,
+                sample_table.loc[sample_table.sample_name == s, "rate"].iloc[0],
+                s,
+                sample_table.loc[sample_table.sample_name == s, "type"].iloc[0],
+                sample_table.loc[sample_table.sample_name == s, "modification_string"].iloc[0]
+            )
+            for s in samples
+        ],
+        libtype = "lrna/qc/library_type.txt"
+    output:
+        countsmessy = "lrna/outs/agg/featurecounts_genes/counts_messy.txt",
+        counts = "lrna/outs/agg/featurecounts_genes/counts.txt",
+    params:
+        gtf = config["lrna"]["annotation_genes"],
+        featureCountsstrandparam = getFeatureCountsStrandParam()
+    benchmark:
+        "lrna/benchmarks/featurecounts_genes/featurecounts_genes.tsv"
+    conda:
+        "omics"
+    resources:
+        cpus_per_task = 4,
+        runtime = 3000,
+        mem_mb = 100000,
+    shell:
+        """
+echo {params.featureCountsstrandparam}
+mkdir -p $(dirname {output.counts})
+featureCounts -s {params.featureCountsstrandparam} -L -O -M --primary --ignoreDup --largestOverlap -t exon -a {params.gtf} -o {output.countsmessy} {input.sortedbams}
+cut -f1,7- {output.countsmessy} | awk 'NR > 1' > {output.counts}
+        """
+
 rule get_fc:
         input:
             stringent = expand("lrna/intermediates/{sample}/counts/stringent/{sample}rtesandgenes.counts.txt", sample = samples),
             relaxed = expand("lrna/intermediates/{sample}/counts/relaxed/{sample}rtesandgenes.counts.txt", sample = samples)
 
+rule tpm:
+    input:
+        counts = "lrna/outs/agg/featurecounts_genes/counts.txt",
+        rte_counts = expand("lrna/outs/{sample}/telescope/telescope-run_stats.tsv", sample = samples)
+    params:
+        sample_table = config["lrna"]["sample_table"],
+        contrasts = config["lrna"]["contrasts"],
+        levels = config["lrna"]["levels"],
+        annotation_genes = config["lrna"]["annotation_genes"],
+        r_annotation_fragmentsjoined = config["lrna"]["r_annotation_fragmentsjoined"],
+        r_repeatmasker_annotation = config["lrna"]["r_repeatmasker_annotation"],
+        counttype = lambda w: w.counttype
+    benchmark:
+        "lrna/benchmarks/tpm/{counttype}.tsv"
+    resources:
+        mem_mb = 100000
+    conda: "evo2"
+    wildcard_constraints:
+        counttype="[A-Za-z0-9_]+"
+    output:
+        tpm = "lrna/outs/agg/tpm/{counttype}/tpmdf.tsv"
+    script:
+        "scripts/tpm.R"
 
 rule deseq:
     input:
-        counts = expand("lrna/intermediates/{sample}/counts/{{counttype}}/{sample}rtesandgenes.counts.txt", sample = samples),
-        unstranded = expand("lrna/intermediates/{sample}/counts/relaxed_unstranded/{sample}rtesandgenes.counts.txt", sample = samples)
+        counts = "lrna/outs/agg/featurecounts_genes/counts.txt",
+        rte_counts = expand("lrna/outs/{sample}/telescope/telescope-run_stats.tsv", sample = samples)
     params:
         sample_table = config["lrna"]["sample_table"],
         contrasts = config["lrna"]["contrasts"],
@@ -784,13 +1052,13 @@ rule deseq:
         runtime = 1000
     conda: "deseq"
     wildcard_constraints:
-        counttype="[A-Za-z0-9]+"
+        counttype="[A-Za-z0-9_]+"
     output:
         results_genes = expand("lrna/results/agg/deseq/{{counttype}}/{contrast}/results_genes.csv", contrast = config["lrna"]["contrasts"]),
         results_rtes = expand("lrna/results/agg/deseq/{{counttype}}/{contrast}/results_rtes.csv", contrast = config["lrna"]["contrasts"]),
         counts_normed = "lrna/results/agg/deseq/{counttype}/counttablesizenormed.csv",
         sizefactors = "lrna/results/agg/deseq/{counttype}/sizefactors.csv",
-        environment = "srna/results/agg/deseq/{counttype}/deseq_environment.RData",
+        environment = "lrna/results/agg/deseq/{counttype}/deseq_environment.RData",
     benchmark:
         "lrna/benchmarks/deseq/{counttype}.tsv"
     script:
@@ -995,7 +1263,6 @@ rule sortbam:
     output:
         sortedbam = protected("lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam"),
         sortedbambai = "lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam.bai",
-        stats = "lrna/qc/{sample}/{rate}/{sample}.{type}.{modification_string}.sorted.bam.stats.txt"
     benchmark:
         "lrna/benchmarks/sortbam/{rate}.{sample}.{type}.{modification_string}.tsv"
     resources:
@@ -1007,8 +1274,36 @@ rule sortbam:
         """
 samtools sort -@8 -m4g {input.bam} > {output.sortedbam}
 samtools index  -@6 {output.sortedbam}
-samtools stats {output.sortedbam} > {output.stats}
         """
+
+
+rule get_stats:
+    input:
+        expand("lrna/qc/{sample}/{rate}/{sample}.{type}.{modification_string}.sorted.bam.stats.txt", sample = ["N_ORF1_1", "N_ORF1_2", "N_ORF1_3", "N_TOT_1", "N_TOT_2", "N_TOT_3"], rate = config["lrna"]["rate"], type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"])
+
+rule samtools_stats:
+    input:
+        bam = "lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam",
+    wildcard_constraints:
+        sample="[0-9A-Za-z_]+",
+        type = "[0-9A-Za-z]+",
+        rate = "[0-9A-Za-z]+",
+        modification_string = "[0-9A-Za-z_-]+"
+    output:
+        stats = "lrna/qc/{sample}/{rate}/{sample}.{type}.{modification_string}.sorted.bam.stats.txt"
+    benchmark:
+        "lrna/benchmarks/samtools_stats/{rate}.{sample}.{type}.{modification_string}.tsv"
+    resources:
+        cpus_per_task = 2,
+        mem_mb = 16000
+    conda:
+        "omics"
+    shell:
+        """
+samtools stats {input.bam} > {output.stats}
+        """
+
+
     
 rule filterbam:
     input:
@@ -1026,6 +1321,10 @@ rule filterbam:
         "omics"
     shell: "samtools view -b -F 0x100 -q 1 {input.bam} > {output.bam}; samtools index -@4 {output.bam}; samtools stats {output.bam} > {output.bam}.stats.txt"
 
+
+
+ruleorder: mod_bam_unalignedbam_to_fastq > mod_bam_to_fastq
+ruleorder: minimap2pacbio > dorado 
 rule mod_bam_unalignedbam_to_fastq:
     input:
         sortedbam = "lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.doradofastqderived.bam",
@@ -1086,6 +1385,9 @@ samtools sort -@4 -T {wildcards.sample} -O bam -o {output.bam}
 samtools index -@8 {output.bam}
 samtools stats {output.bam} > {output.bam}.stats.txt        
         """
+
+
+
 rule realign_only_mapped:
     input:
         fastq = expand("lrna/intermediates/{{sample}}/fastqs/{rate}/{{sample}}.{type}.{modification_string}.fq.gz", rate = config["lrna"]["rate"], type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"])
@@ -1116,15 +1418,16 @@ rule mycoplasmaCheck:
     params:
         reference = config["lrna"]["mycoplasma"]
     output:
-        bam = "lrna/qc/mycoplasma/mycoplasma{sample}.bam"
+        bam = "lrna/qc/mycoplasma/ont/mycoplasma{sample}.bam"
     benchmark:
-        "lrna/benchmarks/mycoplasmaCheck/{sample}.tsv"
+        "lrna/benchmarks/mycoplasmaCheckont/{sample}.tsv"
     resources:
         cpus_per_task =20,
         runtime = 900,
         mem_mb = 80000
     conda:
         "minimap2"
+    container: None
     shell:
         """
 minimap2 -a -x map-ont -t 12 {params.reference} {input.fastq} | \
@@ -1136,8 +1439,20 @@ samtools stats {output.bam} > {output.bam}.stats.txt
 
 rule dorado_seqsummary:
     input:
-        sortedbam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["lrna"]["rate"], type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"]),
-        sortedbambai = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam.bai", rate = config["lrna"]["rate"], type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"])
+        sortedbam = lambda w: "lrna/intermediates/%s/alignments/%s/%s.%s.%s.sorted.bam" % (
+            w.sample,
+            sample_table.loc[sample_table.sample_name == w.sample, "rate"].iloc[0],
+            w.sample,
+            sample_table.loc[sample_table.sample_name == w.sample, "type"].iloc[0],
+            sample_table.loc[sample_table.sample_name == w.sample, "modification_string"].iloc[0]
+        ),
+        sortedbambai = lambda w: "lrna/intermediates/%s/alignments/%s/%s.%s.%s.sorted.bam.bai" % (
+            w.sample,
+            sample_table.loc[sample_table.sample_name == w.sample, "rate"].iloc[0],
+            w.sample,
+            sample_table.loc[sample_table.sample_name == w.sample, "type"].iloc[0],
+            sample_table.loc[sample_table.sample_name == w.sample, "modification_string"].iloc[0]
+        )
     params:
         dorado = config["lrna"]["dorado"]
     output:
@@ -1153,8 +1468,20 @@ rule dorado_seqsummary:
 
 rule read_distribution_rseqc:
     input:
-        sortedbam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["lrna"]["rate"], type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"]),
-        sortedbambai = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam.bai", rate = config["lrna"]["rate"], type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"])
+        sortedbam = lambda w: "lrna/intermediates/%s/alignments/%s/%s.%s.%s.sorted.bam" % (
+            w.sample,
+            sample_table.loc[sample_table.sample_name == w.sample, "rate"].iloc[0],
+            w.sample,
+            sample_table.loc[sample_table.sample_name == w.sample, "type"].iloc[0],
+            sample_table.loc[sample_table.sample_name == w.sample, "modification_string"].iloc[0]
+        ),
+        sortedbambai = lambda w: "lrna/intermediates/%s/alignments/%s/%s.%s.%s.sorted.bam.bai" % (
+            w.sample,
+            sample_table.loc[sample_table.sample_name == w.sample, "rate"].iloc[0],
+            w.sample,
+            sample_table.loc[sample_table.sample_name == w.sample, "type"].iloc[0],
+            sample_table.loc[sample_table.sample_name == w.sample, "modification_string"].iloc[0]
+        )
     params:
         genemodel_bed = "/users/mkelsey/data/Nanopore/alz/gencodeV35hs1.bed"
     output:
@@ -1174,8 +1501,26 @@ touch {output.outfile}
 
 rule geneBody_coverage:
     input:
-        sortedbams = expand("lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam", sample = samples, rate = config["lrna"]["rate"], type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"]),
-        sortedbambais = expand("lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam.bai", sample = samples, rate = config["lrna"]["rate"], type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"])
+        sortedbams = [
+            "lrna/intermediates/%s/alignments/%s/%s.%s.%s.sorted.bam" % (
+                s,
+                sample_table.loc[sample_table.sample_name == s, "rate"].iloc[0],
+                s,
+                sample_table.loc[sample_table.sample_name == s, "type"].iloc[0],
+                sample_table.loc[sample_table.sample_name == s, "modification_string"].iloc[0]
+            )
+            for s in samples
+        ],
+        sortedbambais = [
+            "lrna/intermediates/%s/alignments/%s/%s.%s.%s.sorted.bam.bai" % (
+                s,
+                sample_table.loc[sample_table.sample_name == s, "rate"].iloc[0],
+                s,
+                sample_table.loc[sample_table.sample_name == s, "type"].iloc[0],
+                sample_table.loc[sample_table.sample_name == s, "modification_string"].iloc[0]
+            )
+            for s in samples
+        ]
     params:
         genemodel_bed = "/users/mkelsey/data/Nanopore/alz/gencodeV35hs1.bed"
     output:
@@ -1195,13 +1540,19 @@ touch {output.outfile}
         """
 
 
-
 rule pycoQC:
     input:
         seqsummary = "lrna/qc/{sample}/{sample}.doradosummary.txt",
-        sortedbam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["lrna"]["rate"], type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"])
+        sortedbam = lambda w: "lrna/intermediates/%s/alignments/%s/%s.%s.%s.sorted.bam" % (
+            w.sample,
+            sample_table.loc[sample_table.sample_name == w.sample, "rate"].iloc[0],
+            w.sample,
+            sample_table.loc[sample_table.sample_name == w.sample, "type"].iloc[0],
+            sample_table.loc[sample_table.sample_name == w.sample, "modification_string"].iloc[0]
+        )
     output:
-        "lrna/qc/{sample}/{sample}pycoQC.html"
+        html = "lrna/qc/{sample}/{sample}pycoQC.html",
+        json = "lrna/qc/{sample}/{sample}pycoQC.json"
     benchmark:
         "lrna/benchmarks/pycoQC/{sample}.tsv"
     conda:
@@ -1211,17 +1562,17 @@ rule pycoQC:
         mem_mb = 128000
     shell:
         """
-pycoQC --summary_file {input.seqsummary} --bam_file {input.sortedbam} --html_outfile {output} --min_pass_qual 10
+pycoQC --summary_file {input.seqsummary} --bam_file {input.sortedbam} --html_outfile {output.html} --json_outfile {output.json} --min_pass_qual 10
         """
 
 rule runpycoQC:
     input:
-        expand("lrna/qc/{sample}/{sample}pycoQC.html", sample = samples)
+        expand("lrna/qc/{sample}/{sample}pycoQC.json", sample = samples)
 
 
 rule inferLibraryType:
     input:
-        bam = expand("lrna/intermediates/{sample}/alignments/{sample}.sorted.bam", sample = samples[0])
+        bam = expand("lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.sorted.bam", sample = samples[0], rate = config["lrna"]["rate"], type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"])
     output:
         librarytype = "lrna/qc/library_type.txt"
     params:
@@ -1393,93 +1744,349 @@ rule analyzeNanosim:
 
 #modification analysis
 
-
+# Modification code mapping for splitting pileup/extract outputs
+# Dorado model: m5C_2OmeC-inosine_m6A_2OmeA-pseU_2OmeU
+MOD_CODE_TO_NAME = {
+    "a": "m6A",
+    "m": "m5C",
+    "17596": "Am",
+    "17802": "pseU",
+    "19227": "Um",
+    "19228": "Cm",
+    "69426": "inosine"
+}
+MOD_NAMES = list(MOD_CODE_TO_NAME.values())
 
 rule modbamtobed:
     input:
-        sortedbam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["lrna"]["rate"], type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"]),
-        sortedbamindex = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam.bai", rate = config["lrna"]["rate"], type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"]),
+        sortedbam = lambda w: "lrna/intermediates/%s/alignments/%s/%s.%s.%s.sorted.bam" % (
+            w.sample,
+            sample_table.loc[sample_table.sample_name == w.sample, "rate"].iloc[0],
+            w.sample,
+            sample_table.loc[sample_table.sample_name == w.sample, "type"].iloc[0],
+            sample_table.loc[sample_table.sample_name == w.sample, "modification_string"].iloc[0]
+        ),
+        sortedbamindex = lambda w: "lrna/intermediates/%s/alignments/%s/%s.%s.%s.sorted.bam.bai" % (
+            w.sample,
+            sample_table.loc[sample_table.sample_name == w.sample, "rate"].iloc[0],
+            w.sample,
+            sample_table.loc[sample_table.sample_name == w.sample, "type"].iloc[0],
+            sample_table.loc[sample_table.sample_name == w.sample, "modification_string"].iloc[0]
+        ),
     params:
         ref = lambda wildcards: "aref/default/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/default/A.REF.fa"
     resources:
         cpus_per_task = 36,
-        mem_mb = 128000
+        mem_mb = 200000,
+        runtime = 800
     output:
-        bed = "lrna/intermediates/{sample}/methylation/{sample}_m6a_bedMethyl.bed",
+        bed = "lrna/intermediates/{sample}/methylation/{sample}_bedMethyl.bed",
+    container: None
     conda:
-        "omics"
-    shell: 
+        "modkit"
+    shell:
         """
 mkdir -p $(dirname {output})
 /oscar/data/jsedivy/mkelsey/tools/modkit pileup {input.sortedbam} {output.bed} \
 --ref {params.ref} \
 --interval-size 30000 \
+--edge-filter 10 \
 -t {resources.cpus_per_task}
         """
 
+rule modbamtobed_region:
+    input:
+        sortedbam = lambda w: "lrna/intermediates/%s/alignments/%s/%s.%s.%s.sorted.bam" % (
+            w.sample,
+            sample_table.loc[sample_table.sample_name == w.sample, "rate"].iloc[0],
+            w.sample,
+            sample_table.loc[sample_table.sample_name == w.sample, "type"].iloc[0],
+            sample_table.loc[sample_table.sample_name == w.sample, "modification_string"].iloc[0]
+        ),
+        sortedbamindex = lambda w: "lrna/intermediates/%s/alignments/%s/%s.%s.%s.sorted.bam.bai" % (
+            w.sample,
+            sample_table.loc[sample_table.sample_name == w.sample, "rate"].iloc[0],
+            w.sample,
+            sample_table.loc[sample_table.sample_name == w.sample, "type"].iloc[0],
+            sample_table.loc[sample_table.sample_name == w.sample, "modification_string"].iloc[0]
+        ),
+    params:
+        ref = lambda wildcards: "aref/default/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/default/A.REF.fa",
+        rte_beds_dir = lambda wildcards: "aref/default/%s_annotations/%s_rte_beds"%(wildcards.sample, wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/default/A.REF_annotations/A.REF_rte_beds"
+    resources:
+        cpus_per_task = 36,
+        mem_mb = 300000,
+        runtime = 800
+    output:
+        bed = "lrna/intermediates/{sample}/methylation/{sample}_{element}_bedMethyl.bed",
+    container: None
+    conda:
+        "modkit"
+    shell:
+        """
+mkdir -p $(dirname {output})
+bedpath={params.rte_beds_dir}/{wildcards.element}.bed
+/oscar/data/jsedivy/mkelsey/tools/modkit pileup {input.sortedbam} {output.bed} \
+--ref {params.ref} \
+--interval-size 30000 \
+--include-bed $bedpath \
+--edge-filter 10 \
+-t {resources.cpus_per_task}
+        """
+
+rule split_bedmethyl_region_by_mod:
+    input:
+        bed = "lrna/intermediates/{sample}/methylation/{sample}_{element}_bedMethyl.bed"
+    output:
+        beds = expand("lrna/intermediates/{{sample}}/methylation/bymod/{{sample}}_{{element}}_{mod_name}_bedMethyl.bed", mod_name=MOD_NAMES)
+    resources:
+        cpus_per_task = 2,
+        mem_mb = 16000,
+        runtime = 120
+    run:
+        import os
+        outdir = os.path.dirname(output.beds[0])
+        shell("""
+mkdir -p {outdir}
+awk -F'\\t' -v outdir="{outdir}" -v sample="{wildcards.sample}" -v element="{wildcards.element}" '
+BEGIN {{
+    map["a"] = "m6A"
+    map["m"] = "m5C"
+    map["17596"] = "Am"
+    map["17802"] = "pseU"
+    map["19227"] = "Um"
+    map["19228"] = "Cm"
+    map["69426"] = "inosine"
+}}
+$4 in map {{
+    outfile = outdir "/" sample "_" element "_" map[$4] "_bedMethyl.bed"
+    print >> outfile
+}}
+' {input.bed}
+# touch any output files that may be empty (mod not present in data)
+for f in {output.beds}; do touch "$f"; done
+        """)
+
+rule call_split_bedmethyl_region:
+    input:
+        expand("lrna/intermediates/{sample}/methylation/bymod/{sample}_{element}_{mod_name}_bedMethyl.bed",
+            sample=samples,
+            element=config["lrna"]["rte_subfamily_read_level_analysis"],
+            mod_name=MOD_NAMES)
+
 rule extractmods:
     input:
-        sortedbam = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["lrna"]["rate"], type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"]),
-        sortedbamindex = expand("lrna/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam.bai", rate = config["lrna"]["rate"], type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"]),
+        sortedbam = lambda w: "lrna/intermediates/%s/alignments/%s/%s.%s.%s.sorted.bam" % (
+            w.sample,
+            sample_table.loc[sample_table.sample_name == w.sample, "rate"].iloc[0],
+            w.sample,
+            sample_table.loc[sample_table.sample_name == w.sample, "type"].iloc[0],
+            sample_table.loc[sample_table.sample_name == w.sample, "modification_string"].iloc[0]
+        ),
+        sortedbamindex = lambda w: "lrna/intermediates/%s/alignments/%s/%s.%s.%s.sorted.bam.bai" % (
+            w.sample,
+            sample_table.loc[sample_table.sample_name == w.sample, "rate"].iloc[0],
+            w.sample,
+            sample_table.loc[sample_table.sample_name == w.sample, "type"].iloc[0],
+            sample_table.loc[sample_table.sample_name == w.sample, "modification_string"].iloc[0]
+        ),
     output:
         read_mods = 'lrna/intermediates/{sample}/methylation/{sample}_readmods_NoContext_{region}.tsv'
     params:
         ref = config["lrna"]["reference"],
-        region = lambda wildcards: "aref/default/%s_annotations/%s_rte_beds/outfile.txt"%(wildcards.sample, wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/default/A.REF_annotations/A.REF_rte_beds/outfile.txt"
+        rte_beds_dir = lambda wildcards: "aref/default/%s_annotations/%s_rte_beds"%(wildcards.sample, wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/default/A.REF_annotations/A.REF_rte_beds"
     resources:
         cpus_per_task = 8,
-        mem_mb = 160000
+        mem_mb = 128000,
+        runtime = 800
+    container: None
     conda:
-        "omics"
-    shell: 
+        "modkit"
+    shell:
         """
 mkdir -p $(dirname {output})
+awk -F '\t' -v OFS='\t' '{{print $1, $2, $3, $4, $5, "."}}' {params.rte_beds_dir}/{wildcards.region}.bed > {output.read_mods}.temp_rtebed.bed
+
+# subset BAM to only reads overlapping target regions to avoid OOM
+samtools view -b -F 2304 -L {output.read_mods}.temp_rtebed.bed {input.sortedbam} > {output.read_mods}.temp_subset.bam
+samtools index {output.read_mods}.temp_subset.bam
+
 /oscar/data/jsedivy/mkelsey/tools/modkit extract \
 --mapped \
 --no-filtering \
---include-bed $(dirname {params.region})/{wildcards.region}.bed \
+--edge-filter 10 \
+--include-bed {output.read_mods}.temp_rtebed.bed \
 --ref {params.ref} \
 --threads {resources.cpus_per_task} \
-{input.sortedbam} \
+{output.read_mods}.temp_subset.bam \
 {output.read_mods}
+
+rm {output.read_mods}.temp_rtebed.bed {output.read_mods}.temp_subset.bam {output.read_mods}.temp_subset.bam.bai
         """
 
+rule call_extractmods:
+    input:
+        read_mods = expand('lrna/intermediates/{sample}/methylation/{sample}_readmods_NoContext_{region}.tsv', sample = samples, region = config["lrna"]["rte_subfamily_read_level_analysis"])
 
+rule split_bedmethyl_by_mod:
+    input:
+        bed = "lrna/intermediates/{sample}/methylation/{sample}_bedMethyl.bed"
+    output:
+        beds = expand("lrna/intermediates/{{sample}}/methylation/bymod/{{sample}}_{mod_name}_bedMethyl.bed", mod_name=MOD_NAMES)
+    resources:
+        cpus_per_task = 2,
+        mem_mb = 16000,
+        runtime = 120
+    run:
+        import os
+        outdir = os.path.dirname(output.beds[0])
+        shell("""
+mkdir -p {outdir}
+awk -F'\\t' -v outdir="{outdir}" -v sample="{wildcards.sample}" '
+BEGIN {{
+    map["a"] = "m6A"
+    map["m"] = "m5C"
+    map["17596"] = "Am"
+    map["17802"] = "pseU"
+    map["19227"] = "Um"
+    map["19228"] = "Cm"
+    map["69426"] = "inosine"
+}}
+$4 in map {{
+    outfile = outdir "/" sample "_" map[$4] "_bedMethyl.bed"
+    print >> outfile
+}}
+' {input.bed}
+# touch any output files that may be empty (mod not present in data)
+for f in {output.beds}; do touch "$f"; done
+        """)
+
+rule split_extractmods_by_mod:
+    input:
+        tsv = 'lrna/intermediates/{sample}/methylation/{sample}_readmods_NoContext_{region}.tsv'
+    output:
+        tsvs = expand('lrna/intermediates/{{sample}}/methylation/bymod/{{sample}}_readmods_NoContext_{{region}}_{mod_name}.tsv', mod_name=MOD_NAMES)
+    resources:
+        cpus_per_task = 2,
+        mem_mb = 16000,
+        runtime = 120
+    run:
+        import os
+        outdir = os.path.dirname(output.tsvs[0])
+        shell("""
+mkdir -p {outdir}
+# Extract header
+header=$(head -1 {input.tsv})
+
+# Write header to all output files
+for mod_name in m6A m5C Am pseU Um Cm inosine; do
+    outfile="{outdir}/{wildcards.sample}_readmods_NoContext_{wildcards.region}_${{mod_name}}.tsv"
+    echo "$header" > "$outfile"
+done
+
+# Split by mod_code column (column 12)
+awk -F'\\t' -v outdir="{outdir}" -v sample="{wildcards.sample}" -v region="{wildcards.region}" '
+BEGIN {{
+    map["a"] = "m6A"
+    map["m"] = "m5C"
+    map["17596"] = "Am"
+    map["17802"] = "pseU"
+    map["19227"] = "Um"
+    map["19228"] = "Cm"
+    map["69426"] = "inosine"
+}}
+NR > 1 && $12 in map {{
+    outfile = outdir "/" sample "_readmods_NoContext_" region "_" map[$12] ".tsv"
+    print >> outfile
+}}
+' {input.tsv}
+        """)
+
+rule call_split_bedmethyl:
+    input:
+        expand("lrna/intermediates/{sample}/methylation/bymod/{sample}_{mod_name}_bedMethyl.bed", sample=samples, mod_name=MOD_NAMES)
+
+rule call_split_extractmods:
+    input:
+        expand('lrna/intermediates/{sample}/methylation/bymod/{sample}_readmods_NoContext_{region}_{mod_name}.tsv', sample=samples, region=config["lrna"]["rte_subfamily_read_level_analysis"], mod_name=MOD_NAMES)
+
+rule extractmods_extra:
+    input:
+        sortedbam = lambda w: "lrna/intermediates/%s/alignments/%s/%s.%s.%s.sorted.bam" % (
+            w.sample,
+            sample_table.loc[sample_table.sample_name == w.sample, "rate"].iloc[0],
+            w.sample,
+            sample_table.loc[sample_table.sample_name == w.sample, "type"].iloc[0],
+            sample_table.loc[sample_table.sample_name == w.sample, "modification_string"].iloc[0]
+        ),
+        sortedbamindex = lambda w: "lrna/intermediates/%s/alignments/%s/%s.%s.%s.sorted.bam.bai" % (
+            w.sample,
+            sample_table.loc[sample_table.sample_name == w.sample, "rate"].iloc[0],
+            w.sample,
+            sample_table.loc[sample_table.sample_name == w.sample, "type"].iloc[0],
+            sample_table.loc[sample_table.sample_name == w.sample, "modification_string"].iloc[0]
+        ),
+    output:
+        read_mods = 'lrna/intermediates/{sample}/methylation/{sample}_readmods_NoContext_extra_{region}.tsv'
+    params:
+        ref = config["lrna"]["reference"],
+        rte_beds_dir = lambda wildcards: "aref/default/%s_annotations/%s_rte_beds"%(wildcards.sample, wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/default/A.REF_annotations/A.REF_rte_beds"
+    resources:
+        cpus_per_task = 8,
+        mem_mb = 128000,
+        runtime = 800
+    container: None
+    conda:
+        "modkit"
+    shell:
+        """
+mkdir -p $(dirname {output})
+awk -F '\t' -v OFS='\t' '{{print $1, $2, $3, $4, $5, "."}}' {params.rte_beds_dir}/{wildcards.region}.bed > {output.read_mods}.temp_rtebed.bed
+
+# subset BAM to only reads overlapping target regions to avoid OOM
+samtools view -b -F 2304 -L {output.read_mods}.temp_rtebed.bed {input.sortedbam} > {output.read_mods}.temp_subset.bam
+samtools index {output.read_mods}.temp_subset.bam
+
+/oscar/data/jsedivy/mkelsey/tools/modkit extract \
+--mapped \
+--no-filtering \
+--edge-filter 10 \
+--include-bed {output.read_mods}.temp_rtebed.bed \
+--ref {params.ref} \
+--threads {resources.cpus_per_task} \
+{output.read_mods}.temp_subset.bam \
+{output.read_mods}
+
+rm {output.read_mods}.temp_rtebed.bed {output.read_mods}.temp_subset.bam {output.read_mods}.temp_subset.bam.bai
+        """
+
+rule call_extractmods_extra:
+    input:
+        read_mods = expand('lrna/intermediates/{sample}/methylation/{sample}_readmods_NoContext_extra_{region}.tsv', sample = samples, region = config["lrna"]["rte_subfamily_extra_modification_analysis"])
 
 rule bedmethylanalysis:
     input:
-        bedmethylpaths = expand("lrna/intermediates/{sample}/methylation/{sample}_m6a_bedMethyl.bed", sample = samples),
-        read_mods = expand('lrna/intermediates/{sample}/methylation/{sample}_readmods_{context}_{region}.tsv', sample = samples, region = config["lrna"]["rte_subfamily_read_level_analysis"], context = ["NoContext"])
+        bedmethylpaths = expand("lrna/intermediates/{sample}/methylation/bymod/{sample}_{{mod_name}}_bedMethyl.bed", sample = samples),
+        read_mods = expand('lrna/intermediates/{sample}/methylation/bymod/{sample}_readmods_NoContext_{region}_{{mod_name}}.tsv', sample = samples, region = config["lrna"]["rte_subfamily_read_level_analysis"])
+        # region_bedmethylpaths = expand("lrna/intermediates/{sample}/methylation/bymod/{sample}_{element}_{{mod_name}}_bedMethyl.bed", sample = samples, element = list(set(config["lrna"]["rte_subfamily_read_level_analysis"] + config["lrna"]["rte_subfamily_extra_modification_analysis"])))
     output:
-        grsdf = "lrna/Rintermediates/grsdf.tsv"
+        grsdf = "lrna/Rintermediates/{mod_name}/grsdf.tsv"
+    params:
+        mod_name = lambda w: w.mod_name,
+        mod_code = lambda w: [k for k, v in MOD_CODE_TO_NAME.items() if v == w.mod_name][0],
+        regions = list(set(config["lrna"]["rte_subfamily_read_level_analysis"] + config["lrna"]["rte_subfamily_extra_modification_analysis"]))
     resources:
-        cpus_per_task =10,
-        mem_mb = 200000,
-        runtime = 400
+        cpus_per_task = 10,
+        mem_mb = 400000,
+        runtime = 500
     conda:
         "ds"
     script:
-        "scripts/bedmethylanalysis_process.R"
+        "scripts/bedmethylanalysis_process_new.R"
 
-rule bedmethylanalysis_plot:
+rule call_bedmethylanalysis:
     input:
-        dmrs = "ldna/results/tables/dmrs.CG_m.tsv",
-        dmls = "ldna/results/tables/dmls.CG_m.tsv",
-        grsdf = "ldna/Rintermediates/grsdf.tsv"
-        # read_mods = expand('ldna/intermediates/{sample}/methylation/{sample}_readmods_{context}_{region}.tsv', sample = samples, region = config["lrna"]["ldna"]["rte_subfamily_read_level_analysis"], context = ["CpG", "NoContext"])
-    output:
-        plots = "ldna/results/plots/bedmethylanalysis.rds",
-        promoters_bed = "ldna/Rintermediates/promoters.bed",
-        dmrpromoterhyper_bed = "ldna/Rintermediates/promoters_dmhyperregions.bed",
-        dmrpromoterhypo_bed = "ldna/Rintermediates/promoters_dmhyporegions.bed",
-    resources:
-        cpus_per_task =10,
-        mem_mb = 200000,
-        runtime = 400
-    conda:
-        "ds"
-    script:
-        "scripts/bedmethylanalysis_process.R"
+        expand("lrna/Rintermediates/{mod_name}/grsdf.tsv", mod_name = MOD_NAMES)
 
 #RULE OVERRIDES
 def maybe_include_rule_override(module_name):

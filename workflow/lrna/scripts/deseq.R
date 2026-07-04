@@ -39,7 +39,7 @@ tryCatch(
     error = function(e) {
         assign("params", list(
             "sample_table" = conf$sample_table,
-            "counttype" = "relaxed",
+            "counttype" = "telescope_multi",
             "contrasts" = conf$contrasts,
             "levels" = conf$levels,
             "outputdir" = "lrna/results/agg/deseq",
@@ -48,12 +48,13 @@ tryCatch(
             "paralellize_bioc" = 8
         ), env = globalenv())
         assign("outputs", list(
-            counts_normed = "lrna/results/agg/deseq/relaxed/counttablesizenormed.csv",
-            sizefactors = "lrna/results/agg/deseq/relaxed/sizefactors.csv",
-            environment = "lrna/results/agg/deseq/relaxed/deseq_environment.RData"
+            counts_normed = "lrna/results/agg/deseq/telescope_multi/counttablesizenormed.csv",
+            sizefactors = "lrna/results/agg/deseq/telescope_multi/sizefactors.csv",
+            environment = "lrna/results/agg/deseq/telescope_multi/deseq_environment.RData"
         ), env = globalenv())
         assign("inputs", list(
-            counts = sprintf("lrna/intermediates/%s/counts/relaxed/%srtesandgenes.counts.txt", conf$samples, conf$samples)
+            counts = "lrna/outs/agg/featurecounts_genes/counts.txt",
+            rte_counts = sprintf("lrna/outs/%s/telescope/telescope-run_stats.tsv", conf$samples)
         ), env = globalenv())
     }
 )
@@ -73,33 +74,57 @@ print(countspath)
 coldata <- read.csv(params[["sample_table"]])
 samples <- conf$samples
 coldata <- coldata[match(conf$samples, coldata$sample_name), ]
+continuous_cov <- colnames(coldata)[grepl("batchCon", colnames(coldata))]
+coldata <- coldata %>%
+    mutate(across(all_of(continuous_cov), ~ as.numeric(scale(.)))) # center and scale continuous covariates
 
 if (params$paralellize_bioc) {
     library(BiocParallel)
     register(MulticoreParam(8))
 }
 
-df <- read_delim(inputs[["counts"]][1], comment = "#", col_names = TRUE)
-bounddf <- tibble(df[, 1]) %>% rename(gene_id = Geneid)
-for (sample in conf$samples) {
-    tempdf <- read_delim(grep(sprintf("/%s/", sample), inputs$counts, value = TRUE), comment = "#", col_names = TRUE)
-    colnames(tempdf) <- c("gene_id", sample)
-    bounddf <- full_join(bounddf, tempdf, by = "gene_id")
+if (counttype == "telescope_multi") {
+    bounddf <- tibble(gene_id = as.character())
+    for (sample in conf$samples) {
+        path <- gsub("run_stats", "TE_counts", grep(paste0("outs/", sample, "/telescope"), inputs$rte_counts, value = TRUE))
+        tdf <- read_delim(path, comment = "#", col_names = TRUE) %>%
+            dplyr::rename(gene_id = transcript)
+        bounddf <- full_join(bounddf, tdf, by = "gene_id")
+    }
+    colnames(bounddf) <- c("gene_id", conf$samples)
 }
-cts <- as.data.frame(bounddf)
-gene_cts <- cts %>% filter(grepl("gene-", gene_id))
-gene_cts$gene_id <- gene_cts$gene_id %>% gsub("gene-", "", .)
 
-rownames(cts) <- cts$gene_id %>% gsub("gene-", "", .)
+if (counttype == "telescope_unique") {
+    bounddf <- tibble(gene_id = as.character())
+    for (sample in conf$samples) {
+        path <- grep(paste0("outs/", sample, "/telescope"), inputs$rte_counts, value = TRUE)
+        tdf <- read_delim(path, comment = "#", col_names = FALSE) %>%
+            dplyr::select(X1, X6) %>%
+            dplyr::rename(gene_id = X1)
+        bounddf <- full_join(bounddf, tdf, by = "gene_id")
+    }
+    colnames(bounddf) <- c("gene_id", conf$samples)
+}
+
+# Gene counts from featurecounts (relaxed), RTE counts from telescope
+bounddf1 <- bounddf[bounddf$gene_id != "__no_feature", ]
+
+gene_cts <- read.delim(inputs$counts)
+str(gene_cts)
+length(gene_cts$gene_id)
+colnames(gene_cts) <- colnames(gene_cts) %>%
+    gsub("Geneid", "gene_id", .) %>%
+    gsub("lrna.intermediates.", "", .) %>%
+    gsub(".alignments.*", "", .)
+gene_cts <- gene_cts %>% dplyr::select(gene_id, conf$samples)
+
+cts <- bind_rows(gene_cts, as.data.frame(bounddf1 %>% replace(is.na(.), 0)))
+rownames(cts) <- cts$gene_id
 cts <- dplyr::select(cts, -gene_id)
 cnames <- colnames(cts)
 
-# keep only genes with counts in at least one sample
-# cts <- cts[rowSums(cts > 0) != 0, ]
-# rounding since genes are not allowed fractional counts
-# remove rows with NA
+# remove rows with NA, round to integer
 cts <- cts %>% na.omit()
-
 cts <- cts %>% mutate(across(everything(), ~ as.integer(round(.))))
 if (any(grepl("batch", colnames(coldata)))) {
     dds <- DESeqDataSetFromMatrix(
@@ -174,7 +199,8 @@ if (any(grepl("batch", colnames(coldata)))) {
         batch2_vector <- coldata[[batches[2]]]
         counttablesizenormed <- removeBatchEffect(counttablesizenormedbatchnotremoved, batch = batch_vector, batch2 = batch2_vector, design = model.matrix(~ coldata$condition))
     } else {
-        counttablesizenormed <- removeBatchEffect(counttablesizenormedbatchnotremoved, batch = coldata$batch, design = model.matrix(~ coldata$condition))
+        batches <- grep("batch", colnames(coldata), value = TRUE)
+        counttablesizenormed <- removeBatchEffect(counttablesizenormedbatchnotremoved, batch = coldata[[batches[1]]], design = model.matrix(~ coldata$condition))
     }
     countsbatchnotremovedpath <- paste(outputdir, counttype, "counttablesizenormedbatchnotremoved.csv", sep = "/")
     dir.create(dirname(countsbatchnotremovedpath), recursive = TRUE, showWarnings = FALSE)
@@ -265,9 +291,9 @@ for (batchnormed in c("yes", "no")) {
                         batch2_vector <- coldata[[batches[2]]]
                         vst_assay <- removeBatchEffect(vst_assay, batch = batch_vector, batch2 = batch2_vector, design = model.matrix(~ colData(ddstemp)$condition))
                     } else {
-                        vst_assay <- removeBatchEffect(vst_assay, batch = colData(ddstemp)$batch, design = model.matrix(~ colData(ddstemp)$condition))
+                        batches <- grep("batch", colnames(coldata), value = TRUE)
+                        vst_assay <- removeBatchEffect(vst_assay, batch = coldata[[batches[1]]], design = model.matrix(~ colData(ddstemp)$condition))
                     }
-                    vst_assay <- removeBatchEffect(vst_assay, batch = colData(ddstemp)$batch, design = model.matrix(~ colData(ddstemp)$condition))
                 }
 
                 p <- vsn::meanSdPlot(vst_assay)
@@ -391,48 +417,28 @@ tryCatch(
     {
         library(patchwork)
         names(mysaveandstoreplots)
-        p1 <- mysaveandstoreplots[["lrna/results/agg/deseq/relaxed/genes/batchRemoved_no/pca.pdf"]]
-        p2 <- mysaveandstoreplots[["lrna/results/agg/deseq/relaxed/genes/batchRemoved_no/screeplot.pdf"]]
-        p3 <- mysaveandstoreplots[["lrna/results/agg/deseq/relaxed/genes/batchRemoved_no/sample_dist_heatmap.pdf"]]
+        p1 <- mysaveandstoreplots[[paste(outputdir, counttype, "genes/batchRemoved_no/pca.pdf", sep = "/")]]
+        p2 <- mysaveandstoreplots[[paste(outputdir, counttype, "genes/batchRemoved_no/screeplot.pdf", sep = "/")]]
+        p3 <- mysaveandstoreplots[[paste(outputdir, counttype, "genes/batchRemoved_no/sample_dist_heatmap.pdf", sep = "/")]]
         ptch <- ((p1 / p2) | p3) + plot_layout(guides = "collect")
-        mysaveandstore(pl = ptch, fn = "lrna/results/agg/deseq/relaxed/figs/f32.pdf", w = 8, h = 6)
+        mysaveandstore(pl = ptch, fn = paste(outputdir, counttype, "figs/f32.pdf", sep = "/"), w = 8, h = 6)
 
-        paste0("RTE/", names(mysaveandstoreplots))
-
-        p1 <- mysaveandstoreplots[["lrna/results/agg/deseq/relaxed/genes/batchRemoved_no/pca.pdf"]]
-        p2 <- mysaveandstoreplots[["lrna/results/agg/deseq/relaxed/genes/batchRemoved_no/screeplot.pdf"]]
-        p3 <- mysaveandstoreplots[["lrna/results/agg/deseq/relaxed/genes/batchRemoved_no/sample_dist_heatmap.pdf"]]
-        ptch <- ((p1 / p2) | p3) + plot_layout(guides = "collect")
-        mysaveandstore(pl = ptch, fn = "lrna/results/agg/deseq/relaxed/figs/f32.pdf", w = 8, h = 6)
-
-        p1 <- mysaveandstoreplots[["lrna/results/agg/deseq/relaxed/genes/batchRemoved_no/pca.pdf"]]
-        p2 <- mysaveandstoreplots[["lrna/results/agg/deseq/relaxed/genes/batchRemoved_no/screeplot.pdf"]]
+        p1 <- mysaveandstoreplots[[paste(outputdir, counttype, "genes/batchRemoved_no/pca.pdf", sep = "/")]]
+        p2 <- mysaveandstoreplots[[paste(outputdir, counttype, "genes/batchRemoved_no/screeplot.pdf", sep = "/")]]
         ptch <- (p1 | p2) + plot_layout(guides = "collect")
-        mysaveandstore(pl = ptch, fn = "lrna/results/agg/deseq/relaxed/figs/pca_scree.pdf", w = 9, h = 3.4)
+        mysaveandstore(pl = ptch, fn = paste(outputdir, counttype, "figs/pca_scree.pdf", sep = "/"), w = 9, h = 3.4)
 
         ptch <- wrap_plots(mysaveandstoreplots[names(mysaveandstoreplots) %>%
             grep("genes", ., value = TRUE) %>%
             grep("maplot", ., value = TRUE) %>%
             grep(paste(contrasts, collapse = "|"), ., value = TRUE)])
-        mysaveandstore(pl = ptch, fn = "lrna/results/agg/deseq/relaxed/figs/maplots_genes.pdf", raster = TRUE, w = 14, h = 6)
-
-        ptch <- wrap_plots(mysaveandstoreplots[names(mysaveandstoreplots) %>%
-            grep("genes", ., value = TRUE) %>%
-            grep("maplot", ., value = TRUE) %>%
-            grep(paste(contrasts, collapse = "|"), ., value = TRUE)])
-        mysaveandstore(pl = ptch, fn = "lrna/results/agg/deseq/relaxed/figs/maplots_genes.pdf", raster = TRUE, w = 14, h = 6)
-
-        # ptch <- wrap_plots(mysaveandstoreplots[names(mysaveandstoreplots) %>% grep("rtes", ., value = TRUE) %>% grep("maplot", ., value = TRUE) %>% grep(paste(contrasts, collapse = "|"), ., value = TRUE)])
-        # mysaveandstore(pl = ptch, fn = "lrna/results/agg/deseq/relaxed/figs/maplots_rtes.pdf", w = 14, h = 6)
+        mysaveandstore(pl = ptch, fn = paste(outputdir, counttype, "figs/maplots_genes.pdf", sep = "/"), raster = TRUE, w = 14, h = 6)
 
         ptch <- wrap_plots(mysaveandstoreplots[names(mysaveandstoreplots) %>%
             grep("genes", ., value = TRUE) %>%
             grep("deplot", ., value = TRUE) %>%
             grep(paste(contrasts, collapse = "|"), ., value = TRUE)])
-        mysaveandstore(pl = ptch, fn = "lrna/results/agg/deseq/relaxed/figs/volcano_genes.pdf", raster = TRUE, w = 14, h = 6)
-
-        # ptch <- wrap_plots(mysaveandstoreplots[names(mysaveandstoreplots) %>% grep("rtes", ., value = TRUE) %>% grep("deplot", ., value = TRUE) %>% grep(paste(contrasts, collapse = "|"), ., value = TRUE)])
-        # mysaveandstore(pl = ptch, fn = "lrna/results/agg/deseq/relaxed/figs/volcano_rtes.pdf", w = 14, h = 6)
+        mysaveandstore(pl = ptch, fn = paste(outputdir, counttype, "figs/volcano_genes.pdf", sep = "/"), raster = TRUE, w = 14, h = 6)
     },
     error = function(e) {
 

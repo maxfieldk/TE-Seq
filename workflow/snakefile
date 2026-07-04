@@ -107,8 +107,9 @@ for pipeline in config["pipelines_to_deploy"]:
             enrichment_analysis_repeats = expand("lrna/results/agg/enrichment_analysis_repeats/{counttype}/enrichment_analysis_repeats_environment.RData", alignmenttype = config["lrna"]["alignmenttypes"], counttype = config["lrna"]["counttypes"])
             repeatanalysisplots = expand("lrna/results/agg/repeatanalysis/{counttype}/repeatanalysisplots_environment.RData", alignmenttype = config["lrna"]["alignmenttypes"], counttype = config["lrna"]["counttypes"])
             # genomebrowserplots = expand("lrna/outfiles/genomebrowserplots{alignmenttype}.out", alignmenttype = config["lrna"]["alignmenttypes"])
-            qc = [expand("lrna/qc/mycoplasma/mycoplasma{sample}.bam", sample = config["lrna"]["samples"]), "lrna/qc/multiqc_report.html"]
-            bw = [expand("lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.F.bw", sample = config["lrna"]["samples"], rate = config["lrna"]["rate"],  type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"]), expand("lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.R.bw", sample = config["lrna"]["samples"], rate = config["lrna"]["rate"],  type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"])]
+            qc = ["lrna/qc/multiqc_report.html"]
+            myco = expand("lrna/qc/mycoplasma/{platform}/mycoplasma{sample}.bam", sample = config["lrna"]["samples"], platform = config["lrna"]["platform"])
+            # bw = [expand("lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.F.bw", sample = config["lrna"]["samples"], rate = config["lrna"]["rate"],  type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"]), expand("lrna/intermediates/{sample}/alignments/{rate}/{sample}.{type}.{modification_string}.R.bw", sample = config["lrna"]["samples"], rate = config["lrna"]["rate"],  type = config["lrna"]["type"], modification_string = config["lrna"]["modification_string"])]
             # bw, enrichment_analysis, enrichment_analysis_repeats
             return list(flatten([deseq, qc, enrichment_analysis, enrichment_analysis_repeats, repeatanalysisplots]))
 
@@ -238,11 +239,11 @@ singularity pull {output} docker://broadinstitute/gatk:4.6.1.0
 dorado_container = (
     config["containers"]["dorado"]["path"]
     if config["containers"]["dorado"]["use_preexisting_response"] == "yes"
-    else "containers/dorado:sha268dcb4cd02093e75cdc58821f8b93719c4255ed.sif"
+    else "containers/dorado:shac8f356489fa8b44b31beba841b84d2879de2088e.sif"
 )
 rule pull_dorado_container:
     output:
-        "containers/dorado:sha268dcb4cd02093e75cdc58821f8b93719c4255ed.sif"
+        "containers/dorado:shac8f356489fa8b44b31beba841b84d2879de2088e.sif"
     resources:
         cpus_per_task =4,
         runtime = 200,
@@ -251,7 +252,7 @@ rule pull_dorado_container:
     shell:
         """
 mkdir -p $(dirname {output})
-singularity pull {output} docker://nanoporetech/dorado:sha268dcb4cd02093e75cdc58821f8b93719c4255ed
+singularity pull {output} docker://nanoporetech/dorado:shac8f356489fa8b44b31beba841b84d2879de2088e
         """
 
 tetranscripts_container = (
@@ -273,12 +274,26 @@ mkdir -p $(dirname {output})
 singularity pull {output} docker://mhammelllab/tetranscripts:2.2.3
         """
 
+rule pull_clair3_container:
+    output:
+        "containers/clair3:v2.0.1_gpu.sif"
+    resources:
+        cpus_per_task =4,
+        runtime = 200,
+        mem_mb = 100000
+    container: None
+    shell:
+        """
+mkdir -p $(dirname {output})
+singularity pull {output} docker://hkubal/clair3:v2.0.1_gpu
+        """
+
 rule get_containers:
     input:
         ["containers/tetools_1.88.5.sif",
         "containers/pepper_deepvariant:r0.8.sif",
         "containers/gatk:4.6.1.0.sif", 
-        "containers/dorado:sha268dcb4cd02093e75cdc58821f8b93719c4255ed.sif", 
+        "containers/dorado:shac8f356489fa8b44b31beba841b84d2879de2088e.sif", 
         "containers/tetranscripts:2.2.3.sif"]
         
 rule all:
