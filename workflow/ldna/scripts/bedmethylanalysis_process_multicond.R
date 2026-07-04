@@ -147,7 +147,7 @@ rm(grs)
 grs <- c(grs_cpg_islands, grs_cpgi_shelves, grs_cpgi_shores, grs_cpg_opensea)
 grsdf <- tibble(as.data.frame(grs))
 
-dir.create("ldna/Rintermediates", showWarnings = FALSE)
+dir.create(sprintf("ldna/Rintermediates/%s", params$mod_code), showWarnings = FALSE)
 write_delim(grsdf, sprintf("ldna/Rintermediates/%s/grsdf.tsv", params$mod_code), col_names = TRUE)
 # grsdf <- read_delim(sprintf("ldna/Rintermediates/%s/grsdf.tsv", params$mod_code), col_names = TRUE)
 # grs <- GRanges(grsdf)

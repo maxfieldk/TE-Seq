@@ -8,6 +8,8 @@ sample_table <- sample_table %>%
     mutate(sample_name = factor(sample_name, levels = sample_table$sample_name)) %>%
     mutate(condition = factor(condition, levels = conf$levels)) %>%
     mutate(sample = sample_name)
+samples <- conf$samples
+sample_table <- sample_table[match(samples, sample_table$sample_name), ]
 
 set.seed(123)
 
@@ -39,8 +41,7 @@ library(scales)
 library(ggnewscale)
 library(glmmTMB)
 
-samples <- conf$samples
-sample_table <- sample_table[match(samples, sample_table$sample_name), ]
+
 conditions <- conf$levels
 contrasts <- conf$contrasts
 
