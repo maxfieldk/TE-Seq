@@ -28,6 +28,12 @@ tryCatch(
 )
 
 tldr_output_dir <- gsub(".table.txt", "", inputs$tldroutput)
+sqfs_path <- paste0(tldr_output_dir, ".sqfs")
+if (file.exists(sqfs_path)) {
+    dir.create(tldr_output_dir, recursive = TRUE, showWarnings = FALSE)
+    system2("squashfuse", c(sqfs_path, tldr_output_dir))
+    on.exit(system2("fusermount", c("-u", tldr_output_dir)), add = TRUE)
+}
 df <- read_delim(inputs$tldroutput)
 er <- df %$% EmptyReads %>% str_extract_all("\\|[0-9]+")
 

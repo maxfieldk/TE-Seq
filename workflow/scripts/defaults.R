@@ -34,7 +34,7 @@ get_repeat_annotations <- function(
                 df$nonref_insert_sample_name <- sample
                 rmannSamples[[sample]] <- df
             }
-            rmannnonref <- do.call(rbind, rmannSamples) %>% tibble()
+            rmannnonref <- bind_rows(rmannSamples) %>% tibble()
             rmann <- bind_rows(rmannShared, rmannnonref)
             if (!keep_non_central) {
                 rmann <- rmann %>% filter(refstatus != "NonCentral")

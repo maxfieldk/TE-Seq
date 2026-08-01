@@ -112,7 +112,7 @@ def aref_complete_input(wildcards):
             # paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.complete.gff3", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
             paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_indeces/make_star_index.out", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
             paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_tetranscripts.gtf", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
-
+            paths.append(expand("aref/intermediates/{sample_or_ref}/pepper/merged.bam", sample_or_ref = config["aref"]["samples"]))
             if config["aref"]["patch_ref"] == "yes":
                 paths.append(expand("aref/{default_or_extended}/{sample_or_ref}.snp_patched_indeces/make_star_index.out", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
         else:
@@ -211,12 +211,13 @@ rule dorado:
         input_dir = lambda wildcards: sample_table.loc[sample_table["sample_name"] == wildcards.sample, "nanopore_rawdata_dir"].iloc[0]
     container:
         dorado_container
+    priority: 1000
     resources:
         cpus_per_task =12,
         slurm_partition="gpu-he",
         mem_mb = 128000,
         runtime = 5760,
-        slurm_extra="'--gres=gpu:a6000:2'"
+        slurm_extra="'--gres=gpu:2 --constraint=a6000|h100|a100|l40s|b200'"
     shell:
         """
 mkdir -p $(dirname {output.calls})
@@ -504,7 +505,8 @@ rule tldr_aggregate_multiple_samples:
     benchmark:
         "aref/benchmarks/tldr_aggregate_multiple_samples/tldr_aggregate_multiple_samples_{chromosome}.tsv"
     output:
-        tldr = "aref/A.REF_tldr/{chromosome}.table.txt"
+        tldr = "aref/A.REF_tldr/{chromosome}.table.txt",
+        sqfs = "aref/A.REF_tldr/{chromosome}.sqfs"
     resources:
         cpus_per_task = 24,
         mem_mb = 100000,
@@ -558,6 +560,8 @@ fi
 mkdir -p $(dirname {output.tldr})
 mv {wildcards.chromosome}.table.txt {output.tldr}
 mv {wildcards.chromosome} $(dirname {output.tldr})/
+mksquashfs $(dirname {output.tldr})/{wildcards.chromosome} {output.sqfs} -comp lz4
+rm -rf $(dirname {output.tldr})/{wildcards.chromosome}
         """
 
 def merge_tldr_agg(wildcards):
@@ -598,11 +602,13 @@ rule tldr_per_sample:
         tldr_te_ref = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_te_ref"][species],
         known_nonref = lambda w: [config["aref"]["update_ref_with_tldr"]["known_nonref"]["path"] if config["aref"]["update_ref_with_tldr"]["known_nonref"]["response"] == "yes" else "not_provided"][0]
     output:
-        tldr = "aref/{sample}_tldr/{sample}.table.txt"
+        tldr = "aref/{sample}_tldr/{sample}.table.txt",
+        sqfs = "aref/{sample}_tldr/{sample}.sqfs"
     resources:
         cpus_per_task = 24,
         mem_mb = 300000,
         runtime = 3000
+    container: None
     conda:
         "tldr"
     shell:
@@ -641,6 +647,8 @@ fi
 mkdir -p $(dirname {output.tldr})
 mv {wildcards.sample}.table.txt {output.tldr}
 mv {wildcards.sample} $(dirname {output.tldr})/
+mksquashfs $(dirname {output.tldr})/{wildcards.sample} {output.sqfs} -comp lz4
+rm -rf $(dirname {output.tldr})/{wildcards.sample}
         """
 
 rule update_reference:
@@ -666,7 +674,8 @@ rule get_ref:
 rule update_reference_extended_nonref_flank:
     input:
         reference = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"],
-        tldroutput = "aref/{sample_or_ref}_tldr/{sample_or_ref}.table.txt"
+        tldroutput = "aref/{sample_or_ref}_tldr/{sample_or_ref}.table.txt",
+        sqfs = "aref/{sample_or_ref}_tldr/{sample_or_ref}.sqfs"
     params:
         sample_or_ref = lambda w: w.sample_or_ref
     output:
@@ -674,6 +683,7 @@ rule update_reference_extended_nonref_flank:
         non_ref_contigs_plusflank = "aref/extended/{sample_or_ref}-pre-ins-filtering_nonrefcontigs.fa"
     benchmark:
         "aref/benchmarks/update_reference/{sample_or_ref}.tsv"
+    container: None
     conda:
         "repeatanalysis"
     script:

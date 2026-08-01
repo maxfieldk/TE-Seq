@@ -11,6 +11,84 @@ sample_table <- sample_table %>%
 samples <- conf$samples
 sample_table <- sample_table[match(samples, sample_table$sample_name), ]
 
+loyfer_deconv <- read_csv("ldna/results/m/wgbs/hg38/tables/deconv.brainsubset.csv")
+
+cell_types_cols <- c("Astro", "Micro", "Endo", "Oligo", "OPC", "Inh", "Exc")
+
+cell_fractions_lee <- read_delim("ldna/results/m/tables/scMD_cell_type_fractions_Lee.csv")%>% mutate(Neuron = Inh + Exc) %>%
+    mutate(across(all_of(c(cell_types_cols, "Neuron")), ~ as.numeric(scale(.)), .names = "{.col}_z"))
+cell_fractions_tian <- read_delim("ldna/results/m/tables/scMD_cell_type_fractions_Tian.csv")%>% mutate(Neuron = Inh + Exc) %>%
+    mutate(across(all_of(c(cell_types_cols, "Neuron")), ~ as.numeric(scale(.)), .names = "{.col}_z"))
+
+# Lee vs Tian scatter
+lee_long <- cell_fractions_lee %>%
+    pivot_longer(cols = all_of(c(cell_types_cols, "Neuron")), names_to = "cell_type", values_to = "Lee")
+tian_long <- cell_fractions_tian %>%
+    pivot_longer(cols = all_of(c(cell_types_cols, "Neuron")), names_to = "cell_type", values_to = "Tian")
+lee_vs_tian <- lee_long %>%
+    dplyr::select(sample_name, condition, cell_type, Lee) %>%
+    left_join(tian_long %>% dplyr::select(sample_name, cell_type, Tian), by = c("sample_name", "cell_type"))
+p <- ggplot(lee_vs_tian, aes(x = Lee, y = Tian, color = condition)) +
+    geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "grey50") +
+    geom_point(size = 2, alpha = 0.8) +
+    facet_wrap(~cell_type, scales = "free") +
+    labs(x = "Lee Fraction", y = "Tian Fraction", title = "Lee vs Tian Cell Type Fractions") +
+    theme_minimal() +
+    theme(panel.border = element_rect(color = "black", fill = NA, size = 1))
+mysaveandstore("ldna/results/m/plots/scMD/lee_vs_tian_scatter.pdf", 10, 8, pl = p)
+
+cell_fractions <- read_delim("ldna/results/m/tables/scMD_cell_type_fractions.csv")
+cell_fractions_scaled <- cell_fractions %>% mutate(Neuron = Inh + Exc) %>%
+    mutate(across(all_of(c(cell_types_cols, "Neuron")), ~ as.numeric(scale(.)), .names = "{.col}_z"))
+
+# Loyfer (UXM) vs scMD comparison for Neuron and Oligo
+# loyfer_deconv is transposed: CellType as rows, samples as columns
+loyfer_for_compare <- loyfer_deconv %>%
+    pivot_longer(cols = -CellType, names_to = "sample_name", values_to = "fraction") %>%
+    mutate(sample_name = gsub("\\..*", "", sample_name)) %>%
+    pivot_wider(names_from = CellType, values_from = fraction) %>%
+    dplyr::rename(loyfer_Neuron = Neuron, loyfer_Oligo = Oligodend) %>%
+    mutate(loyfer_Neuron_z = as.numeric(scale(loyfer_Neuron)),
+           loyfer_Oligo_z = as.numeric(scale(loyfer_Oligo)))
+scmd_for_compare <- cell_fractions_scaled %>%
+    dplyr::select(sample_name, scMD_Neuron = Neuron, scMD_Oligo = Oligo,
+                  scMD_Neuron_z = Neuron_z, scMD_Oligo_z = Oligo_z)
+deconv_compare <- loyfer_for_compare %>% left_join(scmd_for_compare, by = "sample_name") %>%
+    left_join(sample_table %>% dplyr::select(sample_name, condition), by = "sample_name")
+
+# Raw fractions
+deconv_compare_long_raw <- deconv_compare %>%
+    pivot_longer(cols = c(scMD_Neuron, scMD_Oligo), names_to = "cell_type", values_to = "scMD") %>%
+    mutate(loyfer = ifelse(cell_type == "scMD_Neuron", loyfer_Neuron, loyfer_Oligo),
+           cell_type = gsub("scMD_", "", cell_type))
+p_raw <- ggplot(deconv_compare_long_raw, aes(x = loyfer, y = scMD, color = condition)) +
+    geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "grey50") +
+    geom_point(size = 2.5, alpha = 0.8) +
+    geom_smooth(method = "lm", se = FALSE, color = "black", linetype = "dotted") +
+    facet_wrap(~cell_type, scales = "free") +
+    labs(x = "Loyfer (UXM) Fraction", y = "scMD Fraction", title = "Loyfer vs scMD (raw fractions)") +
+    theme_minimal() +
+    theme(panel.border = element_rect(color = "black", fill = NA, size = 1))
+mysaveandstore("ldna/results/m/plots/scMD/loyfer_vs_scmd_raw.pdf", 10, 5, pl = p_raw)
+
+# Z-scored
+deconv_compare_long_z <- deconv_compare %>%
+    pivot_longer(cols = c(scMD_Neuron_z, scMD_Oligo_z), names_to = "cell_type", values_to = "scMD_z") %>%
+    mutate(loyfer_z = ifelse(cell_type == "scMD_Neuron_z", loyfer_Neuron_z, loyfer_Oligo_z),
+           cell_type = gsub("scMD_|_z", "", cell_type))
+p_z <- ggplot(deconv_compare_long_z, aes(x = loyfer_z, y = scMD_z, color = condition)) +
+    geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "grey50") +
+    geom_point(size = 2.5, alpha = 0.8) +
+    geom_smooth(method = "lm", se = FALSE, color = "black", linetype = "dotted") +
+    facet_wrap(~cell_type, scales = "free") +
+    labs(x = "Loyfer (UXM) Z-score", y = "scMD Z-score", title = "Loyfer vs scMD (Z-scored)") +
+    theme_minimal() +
+    theme(panel.border = element_rect(color = "black", fill = NA, size = 1))
+mysaveandstore("ldna/results/m/plots/scMD/loyfer_vs_scmd_zscore.pdf", 10, 5, pl = p_z)
+
+sample_table <- sample_table %>% left_join(cell_fractions_scaled) %>%
+    mutate(PC1_z = as.numeric(scale(PC1)), PC2_z = as.numeric(scale(PC2)))
+
 set.seed(123)
 
 library(rtracklayer)
@@ -40,7 +118,7 @@ library(betareg)
 library(scales)
 library(ggnewscale)
 library(glmmTMB)
-
+library(broom.mixed)
 
 conditions <- conf$levels
 contrasts <- conf$contrasts
@@ -151,14 +229,17 @@ merge_with_grs <- function(grs, rte_frame) {
 ref_annotation_dir <- conf$reference_annotation_dir
 rte_subfamily_read_level_analysis <- conf$rte_subfamily_read_level_analysis
 
-rmann <- get_repeat_annotations(
-    default_or_extended = "default",
-    keep_non_central = FALSE
-)
+# rmannextended <- get_repeat_annotations(
+#     default_or_extended = "default",
+#     keep_non_central = FALSE
+# )
+
+# rmannextended %>% filter(rte_subfamily == "L1HS") %>% filter(refstatus == "Ref") %>% filter(intactness_req == "Intact")
 rmannextended <- get_repeat_annotations(
     default_or_extended = "extended",
     keep_non_central = FALSE
 )
+rmannextended %>% filter(rte_subfamily == "L1HS") %>% filter(refstatus == "Ref") %>% filter(intactness_req == "Intact")
 
 flRTEpromoter <- read_delim(sprintf("ldna/Rintermediates/%s/flRTEpromoter.tsv", params$mod_code), col_names = TRUE)
 RMdf <- read_delim(sprintf("ldna/Rintermediates/%s/RMdf.tsv", params$mod_code), col_names = TRUE)
@@ -285,6 +366,11 @@ readscg_endfiltnew <- readscg %>%
     }
   })
 
+write_csv(readscg_endfiltnew, sprintf("ldna/Rintermediates/%s/reads_context_cpg_endfiltnew.tsv", params$mod_code))
+# readscg_endfiltnew <- read_csv(sprintf("ldna/Rintermediates/%s/reads_context_cpg_endfiltnew.tsv", params$mod_code))
+
+
+
 readscg_endfiltnew5 <- readscg %>% 
   group_by(read_id) %>%
   mutate(read_n_total_mod = n()) %>%
@@ -368,7 +454,7 @@ dfbnew %>% mutate(affected  = dif > 10) %>% group_by(sample) %>% summarise(ma = 
 { #Get readIDs to filter out from bam for visualization purpose. 
 #Will only remove reads that lose CpGs to filtering in the promoter
 
-flyngl1 <- rmann %>%
+flyngl1 <- rmannextended %>%
     filter(rte_length_req == "FL") %>%
     filter(rte_subfamily == "L1HS" | rte_subfamily == "L1PA2")
 
@@ -478,15 +564,15 @@ if ((conf$single_condition == "no")) {
 
     dmrtypes <- dmrs$dmr_type %>% unique()
     dmr_grs_cpg_islands <- dmrsgr %>% subsetByOverlaps(cpg_islands)
-    dmr_grs_cpg_islands$islandStatus <- "island"
+    mcols(dmr_grs_cpg_islands)$islandStatus <- rep("island", length(dmr_grs_cpg_islands))
     dmr_grs_cpgi_shores <- dmrsgr %>% subsetByOverlaps(cpgi_shores)
     dmr_grs_cpgi_shores_filtered <- dmr_grs_cpgi_shores %>% subsetByOverlaps(dmr_grs_cpg_islands, invert = TRUE)
-    dmr_grs_cpgi_shores_filtered$islandStatus <- "shore"
+    mcols(dmr_grs_cpgi_shores_filtered)$islandStatus <- rep("shore", length(dmr_grs_cpgi_shores_filtered))
     dmr_grs_cpgi_shelves <- dmrsgr %>% subsetByOverlaps(cpgi_shelves)
     dmr_grs_cpgi_shelves_filtered <- dmr_grs_cpgi_shelves %>% subsetByOverlaps(dmr_grs_cpgi_shores, invert = TRUE)
-    dmr_grs_cpgi_shelves_filtered$islandStatus <- "shelf"
+    mcols(dmr_grs_cpgi_shelves_filtered)$islandStatus <- rep("shelf", length(dmr_grs_cpgi_shelves_filtered))
     dmr_grs_cpg_opensea <- dmrsgr %>% subsetByOverlaps(cpgi_features, invert = TRUE)
-    dmr_grs_cpg_opensea$islandStatus <- "opensea"
+    mcols(dmr_grs_cpg_opensea)$islandStatus <- rep("opensea", length(dmr_grs_cpg_opensea))
     dmrsgrislandStatusdf <- c(dmr_grs_cpg_islands, dmr_grs_cpgi_shores_filtered, dmr_grs_cpgi_shelves_filtered, dmr_grs_cpg_opensea) %>%
         as.data.frame() %>%
         tibble()
@@ -642,15 +728,15 @@ if ((conf$single_condition == "no")) {
     dmllocdf$chr <- factor(dmllocdf$chr, levels = chromosomes)
 
     dml_grs_cpg_islands <- dmlsgr %>% subsetByOverlaps(cpg_islands)
-    dml_grs_cpg_islands$islandStatus <- "island"
+    mcols(dml_grs_cpg_islands)$islandStatus <- rep("island", length(dml_grs_cpg_islands))
     dml_grs_cpgi_shores <- dmlsgr %>% subsetByOverlaps(cpgi_shores)
     dml_grs_cpgi_shores_filtered <- dml_grs_cpgi_shores %>% subsetByOverlaps(dml_grs_cpg_islands, invert = TRUE)
-    dml_grs_cpgi_shores_filtered$islandStatus <- "shore"
+    mcols(dml_grs_cpgi_shores_filtered)$islandStatus <- rep("shore", length(dml_grs_cpgi_shores_filtered))
     dml_grs_cpgi_shelves <- dmlsgr %>% subsetByOverlaps(cpgi_shelves)
     dml_grs_cpgi_shelves_filtered <- dml_grs_cpgi_shelves %>% subsetByOverlaps(dml_grs_cpgi_shores, invert = TRUE)
-    dml_grs_cpgi_shelves_filtered$islandStatus <- "shelf"
+    mcols(dml_grs_cpgi_shelves_filtered)$islandStatus <- rep("shelf", length(dml_grs_cpgi_shelves_filtered))
     dml_grs_cpg_opensea <- dmlsgr %>% subsetByOverlaps(cpgi_features, invert = TRUE)
-    dml_grs_cpg_opensea$islandStatus <- "opensea"
+    mcols(dml_grs_cpg_opensea)$islandStatus <- rep("opensea", length(dml_grs_cpg_opensea))
     dmlsgrislandStatusdf <- c(dml_grs_cpg_islands, dml_grs_cpgi_shores_filtered, dml_grs_cpgi_shelves_filtered, dml_grs_cpg_opensea) %>%
         as.data.frame() %>%
         tibble()
@@ -708,7 +794,7 @@ if ((conf$single_condition == "no")) {
         summarise(group_n_accurate = n())
     flRTEpromoterlong %>%
         filter(rte_subfamily == "L1HS") %>%
-        pw()
+        pw() %$% direction
     p <- pff %>%
         left_join(numdf) %>%
         mutate(ann_axis = paste0(rte_subfamily, "\n", "n=", group_n_accurate)) %>%
@@ -828,6 +914,7 @@ if ((conf$single_condition == "no")) {
 } # end single_condition check
 
 
+{
 ### CUSTOM
 p <- perelementdf_promoters %>%
     filter(sample == conf$samples[[1]]) %>%
@@ -1055,6 +1142,7 @@ p <- perelementdf_promoters %>%
     ggtitle("Intact L1HS CpG Methylation") +
     mtopen +
     scale_conditions
+    # rmannextended %>%         filter(rte_subfamily == "L1HS") %>% filter(intactness_req == "Intact") %>% filter(refstatus == "Ref")
 if ((conf$single_condition == "no") & enough_samples_per_condition_for_stats) {
     stats <- perelementdf_promoters %>%
         filter(grepl("^L1HS", rte_subfamily)) %>%
@@ -1346,6 +1434,7 @@ if ((conf$single_condition == "no")) {
         }
     )
   } # end contrast loop
+}
 
   # Reset condition1/condition2 to first contrast for remaining code
   cp <- parse_contrast(contrasts[[1]])
@@ -1361,7 +1450,7 @@ if ((conf$single_condition == "no")) {
   dmrsgr_split <- dmrsgr_split_per_contrast[[contrasts[[1]]]]
 }
 
-
+{
 pf <- perl1hs_5utr_region
 
 p <- pf %>%
@@ -1500,7 +1589,7 @@ tryCatch(
 
         data_model <- dat %>%
             mutate(consensus_pos = as.character(consensus_pos)) %>%
-            filter(region == "909") %>%
+            filter(region == "500") %>%
             dplyr::rename(sample_name = sample) %>%
             left_join(sample_table) %>%
             mutate(
@@ -1508,21 +1597,47 @@ tryCatch(
                 methylated_sites = round(cov * pctM / 100)
             ) %>%
             mutate(age_z = as.numeric(scale(age))) %>%
-            mutate(condition = factor(condition, levels = conf$levels)) %>%
-            dplyr::select(sample_name, condition, sex, age_z, seqnames, start, gene_id, consensus_pos, total_sites, methylated_sites)
+            mutate(condition = factor(condition, levels = conf$levels)) 
+            # dplyr::select(sample_name, condition, braak, ancestry, cell_types_z_cols, sex, age_z, seqnames, start, gene_id, consensus_pos, total_sites, methylated_sites)
 
         library(glmmTMB)
         library(broom.mixed)
 
         global_model <- glmmTMB(
             cbind(methylated_sites, total_sites - methylated_sites) ~
-                condition + sex + age_z + (1 | sample_name) + (1 | gene_id) + (1 | consensus_pos),
+                condition + sex + ancestry + (1 | sample_name),
             data = data_model,
             family = binomial()
         )
 
+        global_model3 <- glmmTMB(
+            cbind(methylated_sites, total_sites - methylated_sites) ~
+                condition + sex + ancestry + Oligo_z + Astro_z + Micro_z + Inh_z + Exc_z + OPC_z + (1 | sample_name),
+            data = data_model,
+            family = binomial()
+        )
 
-        broom::tidy(global_model) %>% write_mycsv(sprintf("ldna/results/%s/tables/rte/fl_l1hs_global_hierarchical_model_909.csv", params$mod_code))
+        global_model4 <- glmmTMB(
+            cbind(methylated_sites, total_sites - methylated_sites) ~
+                condition + sex  + ancestry + Oligo_z + Astro_z + Micro_z + Inh_z + Exc_z + OPC_z + (1 | sample_name) + (1 | gene_id) + (1 | consensus_pos),
+            data = data_model,
+            family = binomial()
+        )
+        global_model5 <- glmmTMB(
+            cbind(methylated_sites, total_sites - methylated_sites) ~
+                condition + sex  + ancestry + Oligo_z + Astro_z + Micro_z + Inh_z + Exc_z + OPC_z + (1 | sample_name) + (1 | gene_id) + (1 | consensus_pos),
+            data = data_model,
+            family = betabinomial()
+        )
+
+        broom::tidy(global_model)
+        broom::tidy(global_model2) %>% write_mycsv(sprintf("ldna/results/%s/tables/rte/fl_l1hs_global_hierarchical_model_909.csv", params$mod_code))
+        broom::tidy(global_model3)
+        broom::tidy(global_model4)
+        broom::tidy(global_model5)
+        #//ANCHOR - global l1hs stats
+
+        
         # now data for bayes
         data_model %>% write_mycsv(sprintf("ldna/results/%s/tables/rte/fl_l1hs_global_hierarchical_model_909_data.csv", params$mod_code))
 
@@ -1674,7 +1789,7 @@ tryCatch(
 
 
 p <- pf %>%
-    left_join(rmann) %>%
+    left_join(rmannextended) %>%
     filter(region == "909") %>%
     ggplot(aes(x = loc_lowres_integrative_stranded, y = mean_meth, color = condition)) +
     ggbeeswarm::geom_quasirandom(dodge.width = 0.75) +
@@ -1687,7 +1802,7 @@ p <- pf %>%
 tryCatch(
     {
         res <- pf %>%
-            left_join(rmann) %>% # Join with rmann
+            left_join(rmannextended) %>% # Join with rmannextended
             filter(region == "909") %>% # Filter for region 909
             group_by(sample, loc_lowres_integrative_stranded) %>%
             summarise(pctM = mean(mean_meth), .groups = "drop") %>% # Summarize mean methylation
@@ -1709,7 +1824,7 @@ tryCatch(
         mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/l1hs_boxplot_5utr_gene_loc.pdf", params$mod_code), 5, 4)
     }
 )
-
+}
 
 ########## PCA
 if ((conf$single_condition == "no")) {
@@ -1723,6 +1838,8 @@ if ((conf$single_condition == "no")) {
         column_to_rownames(var = "sample") %>%
         as.matrix() %>%
         t()
+    pcaframe <- pcaframe[complete.cases(pcaframe), ]
+
     pcaObj <- pca(pcaframe, center = TRUE, scale = FALSE, metadata = sample_table %>% column_to_rownames(var = "sample_name"))
 
     p <- screeplot(pcaObj, title = "") + mtopen + anchorbar
@@ -1910,7 +2027,7 @@ if ((conf$single_condition == "no")) {
 # cat("P-value:", p_value, "\n")
 
 #################
-
+{
 l1hsintactmethgr <- rtedf %>%
     filter(intactness_req == "Intact")
 l1hsintactmethgr <- l1hsintactmethgr %>%
@@ -1986,19 +2103,6 @@ mysaveandstore(sprintf("ldna/results/%s/plots/rte/l1intact_Lines_neg_strand_prom
 if ((conf$single_condition == "no")) {
     element_anatomy <- read_delim("aref/default/A.REF_Analysis/intact_l1_anatomy_coordinates.tsv")
 
-    dm_intact_l1hs_elements <- flRTEpromoter %>%
-        filter(rte_subfamily == "L1HS") %>%
-        filter(intactness_req == "Intact") %>%
-        filter(t05 == "Hypo")
-    dm_fl_l1hs_elements <- flRTEpromoter %>%
-        filter(rte_subfamily == "L1HS") %>%
-        filter(t05 == "Hypo")
-    topmovers_l1hs_elements <- flRTEpromoter %>%
-        filter(gene_id %in% top_l1hs_movers)
-    allfl_l1hs_elements <- flRTEpromoter %>%
-        filter(rte_subfamily == "L1HS")
-    element_sets_of_interst <- list("dm_fl_l1hs" = dm_fl_l1hs_elements, "dm_intact_l1hs" = dm_intact_l1hs_elements, "Top_Movers" = topmovers_l1hs_elements, "all_elements" = allfl_l1hs_elements)
-
 
 
     l1hsflmethgr <- rtedf %>%
@@ -2029,13 +2133,46 @@ if ((conf$single_condition == "no")) {
         filter(!is.na(rM)) %>%
         ungroup()
 
+    for (contrast in contrasts) {
+        cp <- parse_contrast(contrast)
+        condition1 <- cp$condition1
+        condition2 <- cp$condition2
+
+        t05_col <- paste0("t05_", contrast)
+        dm_intact_l1hs_elements <- flRTEpromoter %>%
+            filter(rte_subfamily == "L1HS") %>%
+            filter(intactness_req == "Intact") %>%
+            filter(!!sym(t05_col) == "Hypo")
+        dm_fl_l1hs_elements <- flRTEpromoter %>%
+            filter(rte_subfamily == "L1HS") %>%
+            filter(!!sym(t05_col) == "Hypo")
+        # Recompute top_l1hs_movers for this contrast
+        top_l1hs_movers_contrast <- pfl1 %>%
+            filter(condition %in% c(condition1, condition2)) %>%
+            group_by(gene_id, rte_subfamily, condition) %>%
+            summarize(mean_meth = mean(mean_meth), .groups = "drop") %>%
+            pivot_wider(names_from = condition, values_from = mean_meth) %>%
+            mutate(dif = !!sym(condition1) - !!sym(condition2)) %>%
+            mutate(abs_dif = abs(dif)) %>%
+            arrange(-abs_dif) %>%
+            group_by(rte_subfamily) %>%
+            mutate(rank_change = row_number()) %>%
+            ungroup() %>%
+            filter(rte_subfamily == "L1HS") %$% gene_id %>%
+            head(n = 10)
+        topmovers_l1hs_elements <- flRTEpromoter %>%
+            filter(gene_id %in% top_l1hs_movers_contrast)
+        allfl_l1hs_elements <- flRTEpromoter %>%
+            filter(rte_subfamily == "L1HS")
+        element_sets_of_interst <- list("dm_fl_l1hs" = dm_fl_l1hs_elements, "dm_intact_l1hs" = dm_intact_l1hs_elements, "Top_Movers" = topmovers_l1hs_elements, "all_elements" = allfl_l1hs_elements)
+
     for (element_type in names(element_sets_of_interst)) {
         df <- element_sets_of_interst[[element_type]]
-        dir.create(sprintf("ldna/Rintermediates/%s/l1hs/", params$mod_code), recursive = TRUE)
-        write_delim(df %>% dplyr::select(gene_id), sprintf("ldna/Rintermediates/%s/l1hs/%s_gene_id.tsv", params$mod_code, element_type), col_names = FALSE)
-        write_delim(df %>% dplyr::select(seqnames, start, end, strand, gene_id), sprintf("ldna/Rintermediates/%s/l1hs/%s_promoters.bed", params$mod_code, element_type), col_names = FALSE, delim = "\t")
-        write_delim(RMdf[match(df %$% gene_id, RMdf$gene_id), ] %>% dplyr::select(seqnames, start, end, strand, gene_id), sprintf("ldna/Rintermediates/%s/l1hs/%s_full_elements.bed", params$mod_code, element_type), col_names = FALSE, delim = "\t")
-        write_delim(RMdf[match(df %$% gene_id, RMdf$gene_id), ], sprintf("ldna/Rintermediates/%s/l1hs/%s_full_elements.tsv", params$mod_code, element_type), col_names = TRUE, delim = "\t")
+        dir.create(sprintf("ldna/Rintermediates/%s/%s/l1hs/", params$mod_code, contrast), recursive = TRUE)
+        write_delim(df %>% dplyr::select(gene_id), sprintf("ldna/Rintermediates/%s/%s/l1hs/%s_gene_id.tsv", params$mod_code, contrast, element_type), col_names = FALSE)
+        write_delim(df %>% dplyr::select(seqnames, start, end, strand, gene_id), sprintf("ldna/Rintermediates/%s/%s/l1hs/%s_promoters.bed", params$mod_code, contrast, element_type), col_names = FALSE, delim = "\t")
+        write_delim(RMdf[match(df %$% gene_id, RMdf$gene_id), ] %>% dplyr::select(seqnames, start, end, strand, gene_id), sprintf("ldna/Rintermediates/%s/%s/l1hs/%s_full_elements.bed", params$mod_code, contrast, element_type), col_names = FALSE, delim = "\t")
+        write_delim(RMdf[match(df %$% gene_id, RMdf$gene_id), ], sprintf("ldna/Rintermediates/%s/%s/l1hs/%s_full_elements.tsv", params$mod_code, contrast, element_type), col_names = TRUE, delim = "\t")
 
         for (element in df$gene_id) {
             y_lim_lower <- 50
@@ -2043,8 +2180,8 @@ if ((conf$single_condition == "no")) {
             y_valmin <- y_lim_lower
             y_valmax <- y_lim_lower + ((y_lim_upper - y_lim_lower) / 10)
 
-            if (rmann %>% filter(gene_id == element) %$% strand == "+") {
-                modifier <- rmann %>% filter(gene_id == element) %$% start
+            if (rmannextended %>% filter(gene_id == element) %$% strand == "+") {
+                modifier <- rmannextended %>% filter(gene_id == element) %$% start
                 color_intervals <- element_anatomy %>%
                     filter(!(feature %in% c("EN", "RT"))) %>%
                     filter(gene_id == element) %>%
@@ -2078,10 +2215,10 @@ if ((conf$single_condition == "no")) {
                     labs(y = "Methylation Rolling Mean") +
                     mtclosed +
                     theme(axis.text.x = element_text(angle = 30, vjust = 1, hjust = 1))
-            mysaveandstore(pl = p1line, sprintf("ldna/results/%s/plots/rte/%s/%s_methylation_line.pdf", params$mod_code, element_type, element), 5, 5)
+            mysaveandstore(pl = p1line, sprintf("ldna/results/%s/plots/rte/%s/%s/%s_methylation_line.pdf", params$mod_code, contrast, element_type, element), 5, 5)
 
             } else {
-                modifier <- rmann %>% filter(gene_id == element) %$% end
+                modifier <- rmannextended %>% filter(gene_id == element) %$% end
                 color_intervals <- element_anatomy %>%
                     filter(!(feature %in% c("EN", "RT"))) %>%
                     filter(gene_id == element) %>%
@@ -2117,13 +2254,13 @@ if ((conf$single_condition == "no")) {
                     labs(y = "Methylation Rolling Mean") +
                     mtclosed +
                     theme(axis.text.x = element_text(angle = 30, vjust = 1, hjust = 1))
-            mysaveandstore(pl = p1line, sprintf("ldna/results/%s/plots/rte/%s/%s_methylation_line.pdf", params$mod_code, element_type, element), 5, 5)
+            mysaveandstore(pl = p1line, sprintf("ldna/results/%s/plots/rte/%s/%s/%s_methylation_line.pdf", params$mod_code, contrast, element_type, element), 5, 5)
             }
 
             p <- p1 + plot_layout(heights = c(1))
 
-            mysaveandstore(sprintf("ldna/results/%s/plots/rte/%s/%s_methylation.pdf", params$mod_code, element_type, element), 5, 5)
-            mysaveandstore(pl = p1 + ggtitle(element) + mtclosed, sprintf("ldna/results/%s/plots/rte/%s/%s_methylation_nc.pdf", params$mod_code, element_type, element), 5, 4)
+            mysaveandstore(sprintf("ldna/results/%s/plots/rte/%s/%s/%s_methylation.pdf", params$mod_code, contrast, element_type, element), 5, 5)
+            mysaveandstore(pl = p1 + ggtitle(element) + mtclosed, sprintf("ldna/results/%s/plots/rte/%s/%s/%s_methylation_nc.pdf", params$mod_code, contrast, element_type, element), 5, 4)
         }
 
         for (element in df$gene_id) {
@@ -2132,8 +2269,8 @@ if ((conf$single_condition == "no")) {
             y_valmin <- y_lim_lower
             y_valmax <- y_lim_lower + ((y_lim_upper - y_lim_lower) / 10)
 
-            if (rmann %>% filter(gene_id == element) %$% strand == "+") {
-                modifier <- rmann %>% filter(gene_id == element) %$% start
+            if (rmannextended %>% filter(gene_id == element) %$% strand == "+") {
+                modifier <- rmannextended %>% filter(gene_id == element) %$% start
                 color_intervals <- element_anatomy %>%
                     filter(!(feature %in% c("EN", "RT"))) %>%
                     filter(gene_id == element) %>%
@@ -2162,7 +2299,7 @@ if ((conf$single_condition == "no")) {
                     scale_y_continuous(expand = c(0, 0.4)) +
                     theme(legend.position = "none")
             } else {
-                modifier <- rmann %>% filter(gene_id == element) %$% end
+                modifier <- rmannextended %>% filter(gene_id == element) %$% end
                 color_intervals <- element_anatomy %>%
                     filter(!(feature %in% c("EN", "RT"))) %>%
                     filter(gene_id == element) %>%
@@ -2195,9 +2332,10 @@ if ((conf$single_condition == "no")) {
 
             p <- p2 / p1 + plot_layout(heights = c(0.2, 1))
 
-            mysaveandstore(sprintf("ldna/results/%s/plots/rte/%s/%s_methylation_conditionaveraged.pdf", params$mod_code, element_type, element), 5, 5)
+            mysaveandstore(sprintf("ldna/results/%s/plots/rte/%s/%s/%s_methylation_conditionaveraged.pdf", params$mod_code, contrast, element_type, element), 5, 5)
         }
     }
+    } # end contrast loop for element-level plots
 }
 
 
@@ -2233,8 +2371,9 @@ for (gene_id in l1hsintactmethdf %$% gene_id %>% unique()) {
     )
 }
 
+}
 
-
+{
 # heatmap 5UTR
 heatmapprep <- l1hsintactmethdf %>%
     filter(case_when(
@@ -2262,60 +2401,67 @@ col_fun <- colorRamp2(c(50, 75, 100), c("red", "white", "blue"))
 col_fun(seq(50, 100, by = 12.5))
 
 if ((conf$single_condition == "no") & enough_samples_per_condition_for_stats) {
-    l1hsintactdf <- l1hsintactmethdf %>%
-        group_by(gene_id) %>%
-        summarise(concordance = dplyr::first(concordance), genic_loc = dplyr::first(genic_loc))
-    pvals <- l1hsintactdf %>%
-        arrange(gene_id) %>%
-        filter(gene_id %in% rownames(m)) %$% concordance
-    length(pvals)
-    is_sig <- !is.na(pvals)
-    pch <- rep("*", length(pvals))
-    pch[!is_sig] <- NA
-    genic_locs <- l1hsintactdf %>%
-        arrange(gene_id) %>%
-        filter(gene_id %in% rownames(m)) %$% genic_loc
-    row_ha <- rowAnnotation(pvalue = anno_simple(pch, pch = pch), genic_loc = genic_locs, col = list(genic_loc = c("Genic" = "brown", "Intergenic" = "tan")))
-    conditions <- c(sample_table %>% filter(condition == condition1) %$% condition, sample_table %>% filter(condition == condition2) %$% condition)
-
     conditions <- sample_table[match(colnames(m), sample_table$sample_name), ]$condition
     topAnn <- ComplexHeatmap::HeatmapAnnotation(Condition = conditions, col = list(Condition = condition_palette))
 
+    for (contrast in contrasts) {
+        t05_col <- paste0("t05_", contrast)
 
-    heatmapL1UTR <<- m %>%
-        Heatmap(
-            name = "CpG Methylation",
-            cluster_rows = TRUE,
-            cluster_columns = FALSE,
-            show_row_names = TRUE,
-            show_column_names = TRUE,
-            column_names_rot = 45,
-            col = col_fun,
-            split = pvals,
-            top_annotation = topAnn,
-            right_annotation = row_ha,
-            row_title = "Intact L1HS"
-        )
+        l1hsintactdf <- l1hsintactmethdf %>%
+            group_by(gene_id) %>%
+            summarise(dm_direction = dplyr::first(!!sym(t05_col)), genic_loc = dplyr::first(genic_loc))
+        dm_status <- l1hsintactdf %>%
+            arrange(gene_id) %>%
+            filter(gene_id %in% rownames(m)) %$% dm_direction
+        is_sig <- !is.na(dm_status)
+        pch <- rep("*", length(dm_status))
+        pch[!is_sig] <- NA
+        genic_locs <- l1hsintactdf %>%
+            arrange(gene_id) %>%
+            filter(gene_id %in% rownames(m)) %$% genic_loc
+        row_ha <- rowAnnotation(pvalue = anno_simple(pch, pch = pch), genic_loc = genic_locs, col = list(genic_loc = c("Genic" = "brown", "Intergenic" = "tan")))
 
-    col_fun <- colorRamp2(c(0, 50, 100), c("red", "white", "blue"))
-    col_fun(seq(50, 100, by = 12.5))
+        col_fun <- colorRamp2(c(50, 75, 100), c("red", "white", "blue"))
+        heatmapL1UTR <- m %>%
+            Heatmap(
+                name = "CpG Methylation",
+                cluster_rows = TRUE,
+                cluster_columns = FALSE,
+                show_row_names = TRUE,
+                show_column_names = TRUE,
+                column_names_rot = 45,
+                col = col_fun,
+                split = dm_status,
+                top_annotation = topAnn,
+                right_annotation = row_ha,
+                row_title = "Intact L1HS"
+            )
 
-    heatmapL1UTR2 <- m %>%
-        Heatmap(
-            name = "CpG Methylation",
-            cluster_rows = TRUE,
-            cluster_columns = FALSE,
-            show_row_names = TRUE,
-            show_column_names = TRUE,
-            column_names_rot = 45,
-            split = pvals,
-            col = col_fun,
-            top_annotation = topAnn,
-            right_annotation = row_ha,
-            row_title = "Intact L1HS"
-        )
+        col_fun2 <- colorRamp2(c(0, 50, 100), c("red", "white", "blue"))
+        heatmapL1UTR2 <- m %>%
+            Heatmap(
+                name = "CpG Methylation",
+                cluster_rows = TRUE,
+                cluster_columns = FALSE,
+                show_row_names = TRUE,
+                show_column_names = TRUE,
+                column_names_rot = 45,
+                split = dm_status,
+                col = col_fun2,
+                top_annotation = topAnn,
+                right_annotation = row_ha,
+                row_title = "Intact L1HS"
+            )
+
+        p <- wrap_elements(grid.grabExpr(draw(heatmapL1UTR, heatmap_legend_side = "right", annotation_legend_side = "right")))
+        mysaveandstore(sprintf("ldna/results/%s/plots/%s/l1intactheatmap_5utr.pdf", params$mod_code, contrast), 7, 14)
+
+        p <- wrap_elements(grid.grabExpr(draw(heatmapL1UTR2, heatmap_legend_side = "right", annotation_legend_side = "right")))
+        mysaveandstore(sprintf("ldna/results/%s/plots/%s/l1intactheatmap_5utr_fullrange.pdf", params$mod_code, contrast), 7, 14)
+    }
 } else {
-    heatmapL1UTR <<- m %>%
+    col_fun <- colorRamp2(c(50, 75, 100), c("red", "white", "blue"))
+    heatmapL1UTR <- m %>%
         Heatmap(
             name = "CpG Methylation",
             cluster_rows = TRUE,
@@ -2327,9 +2473,7 @@ if ((conf$single_condition == "no") & enough_samples_per_condition_for_stats) {
             row_title = "Intact L1HS"
         )
 
-    col_fun <- colorRamp2(c(0, 50, 100), c("red", "white", "blue"))
-    col_fun(seq(50, 100, by = 12.5))
-
+    col_fun2 <- colorRamp2(c(0, 50, 100), c("red", "white", "blue"))
     heatmapL1UTR2 <- m %>%
         Heatmap(
             name = "CpG Methylation",
@@ -2338,21 +2482,17 @@ if ((conf$single_condition == "no") & enough_samples_per_condition_for_stats) {
             show_row_names = TRUE,
             show_column_names = TRUE,
             column_names_rot = 45,
-            col = col_fun,
+            col = col_fun2,
             row_title = "Intact L1HS"
         )
+
+    p <- wrap_elements(grid.grabExpr(draw(heatmapL1UTR, heatmap_legend_side = "right", annotation_legend_side = "right")))
+    mysaveandstore(sprintf("ldna/results/%s/plots/l1intactheatmap_5utr.pdf", params$mod_code), 7, 14)
+
+    p <- wrap_elements(grid.grabExpr(draw(heatmapL1UTR2, heatmap_legend_side = "right", annotation_legend_side = "right")))
+    mysaveandstore(sprintf("ldna/results/%s/plots/l1intactheatmap_5utr_fullrange.pdf", params$mod_code), 7, 14)
 }
-
-p <- wrap_elements(grid.grabExpr(draw(heatmapL1UTR, heatmap_legend_side = "right", annotation_legend_side = "right")))
-mysaveandstore(sprintf("ldna/results/%s/plots/l1intactheatmap_5utr.pdf", params$mod_code), 7, 14)
-
-
-p <- wrap_elements(grid.grabExpr(draw(heatmapL1UTR2, heatmap_legend_side = "right", annotation_legend_side = "right")))
-mysaveandstore(sprintf("ldna/results/%s/plots/l1intactheatmap_5utr_fullrange.pdf", params$mod_code), 7, 14)
-# plgrob <- grid.grabExpr(ComplexHeatmap::draw(heatmapL1UTR, heatmap_legend_side = "right"))
-# plots[["l1intactheatmap_5utr"]] <- plgrob
-
-
+}
 
 ########### READ ANALYSES
 outputdir_meth_clustering <- "ldna/results/m/plots/l1_alignment_meth"
@@ -2379,7 +2519,7 @@ read_analysis1 <- function(
 
     readsdf1 <- df %>%
         filter(mod_code == mod_code_var) %>%
-        left_join(rmann %>%
+        left_join(rmannextended %>%
             dplyr::select(gene_id, start, end, strand, rte_length_req, intactness_req) %>%
             dplyr::rename(element_strand = strand, element_start = start, element_end = end)) %>%
         filter(rte_length_req == "FL")
@@ -2901,7 +3041,7 @@ read_analysis1 <- function(
         filter(subset != "400to600") %>%
         group_by(gene_id, meth_threshold, condition, subset) %>%
         summarise(max_frac = max(propUnmeth)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_threshold, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -2918,7 +3058,7 @@ read_analysis1 <- function(
     p <- by_gene_id %>%
         group_by(gene_id, meth_threshold, condition, subset) %>%
         summarise(max_frac = max(propUnmeth)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_threshold, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -2936,7 +3076,7 @@ read_analysis1 <- function(
         filter(subset != "400to600") %>%
         group_by(gene_id, meth_threshold, condition, subset) %>%
         summarise(max_frac = max(propUnmeth)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_threshold, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -2954,7 +3094,7 @@ read_analysis1 <- function(
     p <- by_gene_id %>%
         group_by(gene_id, meth_threshold, condition, subset) %>%
         summarise(max_frac = max(propUnmeth)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_threshold, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -2972,7 +3112,7 @@ read_analysis1 <- function(
     p <- by_gene_id %>%
         group_by(gene_id, meth_threshold, condition, subset) %>%
         summarise(max_frac = mean(propUnmeth)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_threshold, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -2990,7 +3130,7 @@ read_analysis1 <- function(
         filter(subset != "400to600") %>%
         group_by(gene_id, meth_threshold, condition, subset) %>%
         summarise(max_frac = mean(propUnmeth)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_threshold, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -3007,7 +3147,7 @@ read_analysis1 <- function(
     p <- by_gene_id %>%
         group_by(gene_id, meth_threshold, condition, subset) %>%
         summarise(max_frac = mean(propUnmeth)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_threshold, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -3026,7 +3166,7 @@ read_analysis1 <- function(
         filter(subset != "400to600") %>%
         group_by(gene_id, meth_threshold, condition, subset) %>%
         summarise(max_frac = mean(propUnmeth)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_threshold, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -3350,6 +3490,17 @@ read_analysis1 <- function(
 read_analysis1(readscg_endfiltnew, cg_indices)
 
 
+
+# read_analysis2(readscg_endfiltnew %>% filter(mod_code == "m"), cg_indices)
+inputreaddf <- readscg_endfiltnew %>% filter(mod_code == "m")
+mod_code_var = "m"
+regions_of_interest = list(c(0, 328), c(0, 500), c(0, 909))
+required_fraction_of_total_cg = 0.75
+meth_bins = c(0.5, 0.75)
+context = "CpG"
+region <- "L1HS_FL"
+
+
 read_analysis2 <- function(
     inputreaddf,
     cg_indices,
@@ -3368,7 +3519,7 @@ read_analysis2 <- function(
 
 
     readsdf1 <- inputreaddf %>%
-        left_join(rmann %>%
+        left_join(rmannextended %>%
             dplyr::select(gene_id, start, end, strand, rte_length_req, intactness_req) %>%
             dplyr::rename(element_strand = strand, element_start = start, element_end = end)) %>%
         filter(rte_length_req == "FL")
@@ -3378,6 +3529,7 @@ read_analysis2 <- function(
     by_read_l <- list()
     by_sample_l <- list()
     by_gene_id_l <- list()
+
 
     for (region_of_interest in regions_of_interest) {
         roistart <- region_of_interest[1]
@@ -3562,6 +3714,176 @@ read_analysis2 <- function(
         scale_conditions +
         anchorbar
     mysaveandstore(sprintf("ldna/results/%s/plots/reads_new_withendfilter/%s_%s/barplot_first3bins.pdf", mod_code_var, region, required_fraction_of_total_cg, context), 9, 4, pl = p)
+
+    # p <- by_sample %>%
+    #     filter(subset == "400to600") %>%
+    #     mutate(meth_bin = as.character(meth_bin)) %>%
+    #     left_join(sample_table) %>%
+    #     ggplot(aes(x = Neuron, y = prop_in_bin, color = condition)) +
+    #     geom_point(size = 2.5, alpha = 0.8) +
+    #     # geom_smooth(method = "lm", se = TRUE, linetype = "dashed") +
+    #     facet_wrap(vars(meth_bin), scales = "free_y") +
+    #     labs(x = "Neuron Fraction (Exc + Inh)", y = "Proportion of Reads in Bin") +
+    #     ggtitle("Read Methylation vs Neuron Fraction") +
+    #     mtclosedgridh +
+    #     scale_conditions
+    # mysaveandstore(sprintf("ldna/results/%s/plots/reads_new_withendfilter/%s_%s/scatter_neuron_vs_propinbin1.pdf", mod_code_var, region, required_fraction_of_total_cg, context), 12, 8, pl = p)
+
+
+    p <- by_sample %>%
+        filter(subset != "400to600") %>%
+        mutate(meth_bin = as.character(meth_bin)) %>%
+        filter(meth_bin %in% labels[1:3]) %>%
+        left_join(sample_table) %>%
+        mutate(sample_label = sprintf("%s_%s_%.2f", sample_name, ancestry, Neuron)) %>%
+        ggplot(aes(x = meth_bin)) +
+        stat_summary(aes(y = prop_in_bin, group = condition, fill = condition), color = "black", fun = "mean", geom = "bar", position = position_dodge(width = 0.9)) +
+        geom_point(aes(y = prop_in_bin, group = condition), position = position_dodge(width = 0.9)) +
+        ggrepel::geom_text_repel(aes(y = prop_in_bin, group = condition, label = sample_label), position = position_dodge(width = 0.9), size = 1.8, max.overlaps = 20, segment.size = 0.3) +
+        facet_wrap(vars(subset), nrow = 1) +
+        labs(x = "Methylation bin", y = sprintf("Reads Fraction < # methylated")) +
+        ggtitle(sprintf("Read Methylation (labeled)")) +
+        mtclosedgridh +
+        scale_conditions +
+        anchorbar
+    mysaveandstore(sprintf("ldna/results/%s/plots/reads_new_withendfilter/%s_%s/barplot_first3bins_labeled.pdf", mod_code_var, region, required_fraction_of_total_cg, context), 12, 5, pl = p)
+
+
+stats_list <- list()
+i <- 1
+for (subset in unique(by_read$subset)) {
+    for (bin in unique(by_sample$meth_bin)) {
+        by_read_tmp <- by_read %>%
+            filter(subset == !!subset) %>%
+            mutate(meth_bin = cut(fraction_meth, breaks = breaks, labels = labels, include.lowest = TRUE, right = FALSE)) %>%
+            mutate(unmeth = as.integer(ifelse(meth_bin != bin, 0, 1))) %>%
+            dplyr::rename(sample_name = sample) %>%
+            group_by(sample_name, condition, gene_id) %>%
+            summarise(unmeth = sum(unmeth), total = n()) %>%
+            ungroup() %>%
+            left_join(sample_table) %>%
+            mutate(age_z = as.numeric(scale(age))) %>%
+            mutate(condition = factor(condition, levels = conf$levels))
+        model_tmp1 <- glmmTMB(
+            cbind(unmeth, total - unmeth) ~
+                condition + sex + ancestry + Oligo_z + Astro_z + Micro_z + Inh_z + Exc_z + OPC_z + (1 | sample_name) + (1 | gene_id),
+            data = by_read_tmp,
+            family = binomial()
+        )
+        library(broom.mixed)
+        res_tmp <- broom::tidy(model_tmp1) %>%
+            mutate(bin = !!bin) %>%
+            mutate(subset = !!subset)
+        stats_list[[i]] <- res_tmp
+        i <- i + 1
+    }
+}
+stats <- purrr::reduce(stats_list, bind_rows)
+stats %>% pl()
+
+#
+
+
+bins_use    <- labels[1:3]
+subsets_use <- setdiff(unique(by_read$subset), "400to600")
+
+specs <- list(
+  full    = ~ condition + sex + ancestry + Oligo_z + Astro_z + Micro_z + Inh_z + Exc_z + OPC_z,
+  minimal = ~ condition + sex + ancestry + Neuron_z
+)
+
+prep_dat <- function(subset_i, bin_i) {
+  by_read %>%
+    filter(subset == subset_i) %>%
+    mutate(meth_bin = as.character(cut(fraction_meth, breaks = breaks, labels = labels,
+                                       include.lowest = TRUE, right = FALSE)),
+           unmeth   = as.integer(meth_bin == bin_i)) %>%
+    dplyr::rename(sample_name = sample) %>%
+    group_by(sample_name, gene_id) %>%
+    summarise(unmeth = sum(unmeth), total = n(), .groups = "drop") %>%
+    left_join(sample_table, by = "sample_name") %>%     # explicit key
+    mutate(condition = factor(condition, levels = conf$levels))
+}
+
+fit_one <- function(subset_i, bin_i, spec_name) {
+  dat <- prep_dat(subset_i, bin_i)
+  f   <- update(specs[[spec_name]],
+                cbind(unmeth, total - unmeth) ~ . + (1 | sample_name) + (1 | gene_id))
+
+  m <- tryCatch(glmmTMB(f, data = dat, family = binomial()), error = function(e) NULL)
+  if (is.null(m) || !is.finite(logLik(m))) {
+    message("fit failed: ", subset_i, " / ", bin_i, " / ", spec_name); return(NULL)
+  }
+
+  lrt_p <- tryCatch(anova(update(m, . ~ . - condition), m)$`Pr(>Chisq)`[2],
+                    error = function(e) NA_real_)
+
+  tidy(m, effects = "fixed", conf.int = TRUE, conf.method = "wald") %>%
+    mutate(bin = bin_i, subset = subset_i, spec = spec_name, lrt_p_condition = lrt_p)
+}
+
+stats <- tidyr::expand_grid(subset_i = subsets_use, bin_i = bins_use,
+                            spec_name = names(specs)) %>%
+  purrr::pmap_dfr(function(subset_i, bin_i, spec_name) fit_one(subset_i, bin_i, spec_name))
+
+
+
+dat_raw <- by_sample %>%
+  filter(subset %in% subsets_use) %>%
+  mutate(meth_bin = as.character(meth_bin)) %>%
+  filter(meth_bin %in% bins_use) %>%
+  left_join(sample_table) %>%
+  mutate(condition = factor(condition, levels = conf$levels))
+
+p <- dat_raw %>%
+  ggplot(aes(x = meth_bin)) +
+  stat_summary(aes(y = prop_in_bin, group = condition, fill = condition),
+               color = "black", fun = "mean", geom = "bar",
+               position = position_dodge(width = 0.9)) +
+  geom_point(aes(y = prop_in_bin, group = condition),
+             position = position_dodge(width = 0.9), size = 1) +
+  facet_wrap(vars(subset), nrow = 1) +
+  labs(x = NULL, y = "Read fraction in bin (observed)") +
+  mtclosedgridh + scale_conditions + anchorbar
+    mysaveandstore(sprintf("ldna/results/%s/plots/reads_new_withendfilter/%s_%s/test.pdf", mod_code_var, region, required_fraction_of_total_cg, context), 12, 5, pl = p)
+
+#
+
+
+
+
+#//ANCHOR - reads stats
+stats_list_afrdrop <- list()
+for (subset in unique(by_read$subset)) {
+    for (bin in unique(by_sample$meth_bin)) {
+        by_read_tmp <- by_read %>%
+            filter(subset == !!subset) %>%
+            mutate(meth_bin = cut(fraction_meth, breaks = breaks, labels = labels, include.lowest = TRUE, right = FALSE)) %>%
+            mutate(unmeth = as.integer(ifelse(meth_bin != bin, 0, 1))) %>%
+            dplyr::rename(sample_name = sample) %>%
+            group_by(sample_name, condition, gene_id) %>%
+            summarise(unmeth = sum(unmeth), total = n()) %>%
+            ungroup() %>%
+            left_join(sample_table) %>%
+            mutate(age_z = as.numeric(scale(age))) %>%
+            mutate(condition = factor(condition, levels = conf$levels)) %>%
+            filter(ancestry != "AFR")
+        model_tmp1 <- glmmTMB(
+            cbind(unmeth, total - unmeth) ~
+                condition + sex + ancestry + Neuron_z + Oligo_z + (1 | sample_name) + (1 | gene_id),
+            data = by_read_tmp,
+            family = binomial()
+        )
+        library(broom.mixed)
+        res_tmp <- broom::tidy(model_tmp1) %>%
+            mutate(bin = !!bin) %>%
+            mutate(subset = !!subset)
+        stats_list_afrdrop[[i]] <- res_tmp
+        i <- i + 1
+    }
+}
+stats_afrdrop <- purrr::reduce(stats_list_afrdrop, bind_rows)
+
 
 
     p1 <- by_sample %>%
@@ -3963,7 +4285,7 @@ read_analysis2 <- function(
         filter(subset != "400to600") %>%
         group_by(gene_id, meth_bin, condition, subset) %>%
         summarise(max_frac = max(prop_in_bin)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_bin, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -3980,7 +4302,7 @@ read_analysis2 <- function(
     p <- by_gene_id %>%
         group_by(gene_id, meth_bin, condition, subset) %>%
         summarise(max_frac = max(prop_in_bin)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_bin, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -3998,7 +4320,7 @@ read_analysis2 <- function(
         filter(subset != "400to600") %>%
         group_by(gene_id, meth_bin, condition, subset) %>%
         summarise(max_frac = max(prop_in_bin)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_bin, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -4016,7 +4338,7 @@ read_analysis2 <- function(
     p <- by_gene_id %>%
         group_by(gene_id, meth_bin, condition, subset) %>%
         summarise(max_frac = max(prop_in_bin)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_bin, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -4034,7 +4356,7 @@ read_analysis2 <- function(
     p <- by_gene_id %>%
         group_by(gene_id, meth_bin, condition, subset) %>%
         summarise(max_frac = mean(prop_in_bin)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_bin, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -4052,7 +4374,7 @@ read_analysis2 <- function(
         filter(subset != "400to600") %>%
         group_by(gene_id, meth_bin, condition, subset) %>%
         summarise(max_frac = mean(prop_in_bin)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_bin, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -4069,7 +4391,7 @@ read_analysis2 <- function(
     p <- by_gene_id %>%
         group_by(gene_id, meth_bin, condition, subset) %>%
         summarise(max_frac = mean(prop_in_bin)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_bin, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -4088,7 +4410,7 @@ read_analysis2 <- function(
         filter(subset != "400to600") %>%
         group_by(gene_id, meth_bin, condition, subset) %>%
         summarise(max_frac = mean(prop_in_bin)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_bin, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -4408,7 +4730,7 @@ read_analysis3 <- function(
     inputreaddf_total %$% total_qual %>% table()
 
     readsdf1 <- inputreaddf_total %>%
-        left_join(rmann %>%
+        left_join(rmannextended %>%
             dplyr::select(gene_id, start, end, strand, rte_length_req, intactness_req) %>%
             dplyr::rename(element_strand = strand, element_start = start, element_end = end)) %>%
         filter(rte_length_req == "FL")
@@ -4945,7 +5267,7 @@ read_analysis3 <- function(
         filter(subset != "400to600") %>%
         group_by(gene_id, meth_bin, condition, subset) %>%
         summarise(max_frac = max(prop_in_bin)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_bin, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -4962,7 +5284,7 @@ read_analysis3 <- function(
     p <- by_gene_id %>%
         group_by(gene_id, meth_bin, condition, subset) %>%
         summarise(max_frac = max(prop_in_bin)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_bin, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -4980,7 +5302,7 @@ read_analysis3 <- function(
         filter(subset != "400to600") %>%
         group_by(gene_id, meth_bin, condition, subset) %>%
         summarise(max_frac = max(prop_in_bin)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_bin, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -4998,7 +5320,7 @@ read_analysis3 <- function(
     p <- by_gene_id %>%
         group_by(gene_id, meth_bin, condition, subset) %>%
         summarise(max_frac = max(prop_in_bin)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_bin, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -5016,7 +5338,7 @@ read_analysis3 <- function(
     p <- by_gene_id %>%
         group_by(gene_id, meth_bin, condition, subset) %>%
         summarise(max_frac = mean(prop_in_bin)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_bin, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -5034,7 +5356,7 @@ read_analysis3 <- function(
         filter(subset != "400to600") %>%
         group_by(gene_id, meth_bin, condition, subset) %>%
         summarise(max_frac = mean(prop_in_bin)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_bin, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -5051,7 +5373,7 @@ read_analysis3 <- function(
     p <- by_gene_id %>%
         group_by(gene_id, meth_bin, condition, subset) %>%
         summarise(max_frac = mean(prop_in_bin)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_bin, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -5070,7 +5392,7 @@ read_analysis3 <- function(
         filter(subset != "400to600") %>%
         group_by(gene_id, meth_bin, condition, subset) %>%
         summarise(max_frac = mean(prop_in_bin)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_bin, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -5534,12 +5856,14 @@ if ((conf$single_condition == "no") & enough_samples_per_condition_for_stats) {
     {
         library(clusterProfiler)
         library(msigdbr)
-        gs <- msigdbr("human")
+        gs <- msigdbr("hs")
         # gs %>% filter(grepl("GOBP_HISTONE_H3_K27_TRI", gs_name))
         get_gs_enrichments <- function(gs, gs_ontology_level, outputdir, regionsgrs, etparam, et_mode_string, directions = c("Hypo", "Hyper", "Dif"), background = NULL) {
             outputdirplots <- file.path(outputdir, gs_ontology_level, et_mode_string)
             outputdirtables <- file.path(gsub("plots/great", "tables/great", outputdir), gs_ontology_level, et_mode_string)
             print(outputdirplots)
+            dir.create(outputdirplots, recursive = TRUE)
+            dir.create(outputdirtables, recursive = TRUE)
             tablesMsigdb <- list()
             genecollections <- gs %>%
                 pluck(gs_ontology_level) %>%
@@ -5638,7 +5962,7 @@ if ((conf$single_condition == "no") & enough_samples_per_condition_for_stats) {
                     mutate(id = str_wrap(as.character(id) %>% gsub("_", " ", .), width = 40)) %>%
                     mutate(id = fct_reorder(id, -mean_padj)) %>%
                     ggplot(aes(x = id)) +
-                    geom_col(data = . %>% filter(type == "Binom"), aes(y = fold_enrichment, fill = p_adjust, group = type), color = "black", position_nudge(x = 0.45 / 2), width = 0.45) +
+                    geom_col(data = . %>% filter(type == "Binom"), aes(y = fold_enrichment, fill = p_adjust, group = type), color = "black", position = position_nudge(x = 0.45 / 2), width = 0.45) +
                     coord_flip() +
                     scale_fill_distiller(
                         name = "BinomP",
@@ -5648,7 +5972,7 @@ if ((conf$single_condition == "no") & enough_samples_per_condition_for_stats) {
                         oob = scales::squish
                     ) +
                     new_scale_fill() +
-                    geom_col(data = . %>% filter(type == "Hyper"), aes(y = fold_enrichment, fill = p_adjust, group = type), color = "black", position_nudge(x = -0.45 / 2), width = 0.45) +
+                    geom_col(data = . %>% filter(type == "Hyper"), aes(y = fold_enrichment, fill = p_adjust, group = type), color = "black", position = position_nudge(x = -0.45 / 2), width = 0.45) +
                     scale_fill_distiller(
                         name = "HyperP",
                         palette = "Greens",
@@ -5672,7 +5996,7 @@ if ((conf$single_condition == "no") & enough_samples_per_condition_for_stats) {
                     mutate(id = str_wrap(as.character(id) %>% gsub("_", " ", .), width = 40)) %>%
                     mutate(id = fct_reorder(id, -mean_padj)) %>%
                     ggplot(aes(x = id)) +
-                    geom_col(data = . %>% filter(type == "Binom"), aes(y = fold_enrichment, fill = p_adjust, group = type), color = "black", position_nudge(x = 0.45 / 2), width = 0.45) +
+                    geom_col(data = . %>% filter(type == "Binom"), aes(y = fold_enrichment, fill = p_adjust, group = type), color = "black", position = position_nudge(x = 0.45 / 2), width = 0.45) +
                     coord_flip() +
                     scale_fill_distiller(
                         name = "BinomP",
@@ -5682,7 +6006,7 @@ if ((conf$single_condition == "no") & enough_samples_per_condition_for_stats) {
                         oob = scales::squish
                     ) +
                     new_scale_fill() +
-                    geom_col(data = . %>% filter(type == "Hyper"), aes(y = fold_enrichment, fill = p_adjust, group = type), color = "black", position_nudge(x = -0.45 / 2), width = 0.45) +
+                    geom_col(data = . %>% filter(type == "Hyper"), aes(y = fold_enrichment, fill = p_adjust, group = type), color = "black", position = position_nudge(x = -0.45 / 2), width = 0.45) +
                     scale_fill_distiller(
                         name = "HyperP",
                         palette = "Greens",
@@ -5702,185 +6026,197 @@ if ((conf$single_condition == "no") & enough_samples_per_condition_for_stats) {
         }
 
         #####
-        # promoters but with background
-        mydir <- sprintf("ldna/results/%s/plots/great_promoters", params$mod_code)
-        mydirtables <- sprintf("ldna/results/%s/tables/great_promoters", params$mod_code)
-        for (dmrtype in dmrs$dmr_type %>% unique()) {
-            regions1 <- mergeByOverlaps(promoters, dmrsgr[mcols(dmrsgr)$dmr_type == dmrtype])
-            regions2 <- regions1$promoters
-            mcols(regions2)$direction <- as.data.frame(regions1)$direction
-            regions <- as.data.frame(regions2) %>%
-                tibble() %>%
-                distinct() %>%
-                GRanges()
+        for (contrast in contrasts) {
+            dmrs <- dmrs_per_contrast[[contrast]]
+            dmls <- dmls_per_contrast[[contrast]]
+            dmrsgr <- dmrsgr_per_contrast[[contrast]]
+            dmlsgr <- dmlsgr_per_contrast[[contrast]]
+            dmrsannot <- dmrsannot_per_contrast[[contrast]]
+            dmrsgr_split <- dmrsgr_split_per_contrast[[contrast]]
+
+        # # promoters but with background
+        #     mydir <- sprintf("ldna/results/%s/plots/great_promoters/%s", params$mod_code, contrast)
+        #     mydirtables <- sprintf("ldna/results/%s/tables/great_promoters/%s", params$mod_code, contrast)
+        #     for (dmrtype in dmrs$dmr_type %>% unique()) {
+        #         regions1 <- mergeByOverlaps(promoters, dmrsgr[mcols(dmrsgr)$dmr_type == dmrtype])
+        #         regions2 <- regions1$promoters
+        #         mcols(regions2)$direction <- as.data.frame(regions1)$direction
+        #         regions <- as.data.frame(regions2) %>%
+        #             tibble() %>%
+        #             distinct() %>%
+        #             GRanges()
 
 
-            tryCatch(
-                {
-                    get_gs_enrichments(
-                        gs = gs,
-                        gs_ontology_level = "gs_cat",
-                        outputdir = sprintf("%s/%s", mydir, dmrtype),
-                        regionsgrs = regions,
-                        etparam = et_noextension,
-                        et_mode_string = "et_noextension",
-                        directions = c("Hyper", "Hypo", "Dif"),
-                        background = promoters
-                    )
-                },
-                error = function(e) {}
-            )
-            tryCatch(
-                {
-                    get_gs_enrichments(
-                        gs = gs,
-                        gs_ontology_level = "gs_subcat",
-                        outputdir = sprintf("%s/%s", mydir, dmrtype),
-                        regionsgrs = regions,
-                        etparam = et_noextension,
-                        et_mode_string = "et_noextension",
-                        directions = c("Hyper", "Hypo", "Dif"),
-                        background = promoters
-                    )
-                },
-                error = function(e) {}
-            )
+        #         tryCatch(
+        #             {
+        #                 get_gs_enrichments(
+        #                     gs = gs,
+        #                     gs_ontology_level = "gs_collection",
+        #                     outputdir = sprintf("%s/%s", mydir, dmrtype),
+        #                     regionsgrs = regions,
+        #                     etparam = et_noextension,
+        #                     et_mode_string = "et_noextension",
+        #                     directions = c("Hyper", "Hypo", "Dif"),
+        #                     background = promoters
+        #                 )
+        #             },
+        #             error = function(e) {}
+        #         )
+        #         tryCatch(
+        #             {
+        #                 get_gs_enrichments(
+        #                     gs = gs,
+        #                     gs_ontology_level = "gs_subcollection",
+        #                     outputdir = sprintf("%s/%s", mydir, dmrtype),
+        #                     regionsgrs = regions,
+        #                     etparam = et_noextension,
+        #                     et_mode_string = "et_noextension",
+        #                     directions = c("Hyper", "Hypo", "Dif"),
+        #                     background = promoters
+        #                 )
+        #             },
+        #             error = function(e) {}
+        #         )
+        #     }
+
+        #     ##### cpg island background
+        #     mydir <- sprintf("ldna/results/%s/plots/great_cpgislands/%s", params$mod_code, contrast)
+        #     mydirtables <- sprintf("ldna/results/%s/tables/great_cpgislands/%s", params$mod_code, contrast)
+        #     for (dmrtype in dmrs$dmr_type %>% unique()) {
+        #         regions <- dmrsgr[mcols(dmrsgr)$dmr_type == dmrtype]
+        #         tryCatch(
+        #             {
+        #                 get_gs_enrichments(
+        #                     gs = gs,
+        #                     gs_ontology_level = "gs_collection",
+        #                     outputdir = sprintf("%s/%s", mydir, dmrtype),
+        #                     regionsgrs = regions,
+        #                     etparam = et,
+        #                     et_mode_string = "et_withextension",
+        #                     directions = c("Hyper", "Hypo", "Dif"),
+        #                     background = cpg_islands
+        #                 )
+        #             },
+        #             error = function(e) {}
+        #         )
+        #         tryCatch(
+        #             {
+        #                 get_gs_enrichments(
+        #                     gs = gs,
+        #                     gs_ontology_level = "gs_subcollection",
+        #                     outputdir = sprintf("%s/%s", mydir, dmrtype),
+        #                     regionsgrs = regions,
+        #                     etparam = et,
+        #                     et_mode_string = "et_withextension",
+        #                     directions = c("Hyper", "Hypo", "Dif"),
+        #                     background = cpg_islands
+        #                 )
+        #             },
+        #             error = function(e) {}
+        #         )
+        #     }
+
+            ####
+
+            ##### promoters and enhancers background
+            chromHMMgr <- import(conf$chromHMM)
+            chromHMM_enhancers_grs <- chromHMMgr[grepl("Enh*", mcols(chromHMMgr)$name)]
+            prom_no_mcols <- promoters
+            mcols(prom_no_mcols) <- NULL
+            enh_no_mcols <- chromHMM_enhancers_grs
+            mcols(enh_no_mcols) <- NULL
+            background <- c(enh_no_mcols, prom_no_mcols)
+
+            mydir <- sprintf("ldna/results/%s/plots/great_prom_enh/%s", params$mod_code, contrast)
+            mydirtables <- sprintf("ldna/results/%s/tables/great_prom_enh/%s", params$mod_code, contrast)
+
+            for (dmrtype in dmrs$dmr_type %>% unique()) {
+                regions <- dmrsgr[mcols(dmrsgr)$dmr_type == dmrtype]
+                tryCatch(
+                    {
+                        get_gs_enrichments(
+                            gs = gs,
+                            gs_ontology_level = "gs_collection",
+                            outputdir = sprintf("%s/%s", mydir, dmrtype),
+                            regionsgrs = regions,
+                            etparam = et,
+                            et_mode_string = "et_withextension",
+                            directions = c("Hyper", "Hypo", "Dif"),
+                            background = background
+                        )
+                    },
+                    error = function(e) {}
+                )
+                tryCatch(
+                    {
+                        get_gs_enrichments(
+                            gs = gs,
+                            gs_ontology_level = "gs_subcollection",
+                            outputdir = sprintf("%s/%s", mydir, dmrtype),
+                            regionsgrs = regions,
+                            etparam = et,
+                            et_mode_string = "et_withextension",
+                            directions = c("Hyper", "Hypo", "Dif"),
+                            background = background
+                        )
+                    },
+                    error = function(e) {}
+                )
+            }
+
+            make_enrich_plots(sprintf("ldna/results/m/tables/great_prom_enh/%s", contrast))
+
+
+
+            # ##### promoters and enhancers island background
+            # chromHMMgr <- import(conf$chromHMM)
+            # chromHMM_enhancers_grs <- chromHMMgr[grepl("Enh*", mcols(chromHMMgr)$name)]
+            # prom_no_mcols <- promoters
+            # mcols(prom_no_mcols) <- NULL
+            # enh_no_mcols <- chromHMM_enhancers_grs
+            # mcols(enh_no_mcols) <- NULL
+            # prom_enh <- c(enh_no_mcols, prom_no_mcols)
+
+            # background <- cpg_islands %>% subsetByOverlaps(prom_enh)
+            # mydir <- sprintf("ldna/results/%s/plots/great_prom_enh_intersect_cpgI/%s", params$mod_code, contrast)
+            # mydirtables <- sprintf("ldna/results/%s/tables/great_prom_enh_intersect_cpgI/%s", params$mod_code, contrast)
+            # for (dmrtype in dmrs$dmr_type %>% unique()) {
+            #     regions <- dmrsgr[mcols(dmrsgr)$dmr_type == dmrtype]
+            #     tryCatch(
+            #         {
+            #             get_gs_enrichments(
+            #                 gs = gs,
+            #                 gs_ontology_level = "gs_collection",
+            #                 outputdir = sprintf("%s/%s", mydir, dmrtype),
+            #                 regionsgrs = regions,
+            #                 etparam = et,
+            #                 et_mode_string = "et_withextension",
+            #                 directions = c("Hyper", "Hypo", "Dif"),
+            #                 background = background
+            #             )
+            #         },
+            #         error = function(e) {}
+            #     )
+            #     tryCatch(
+            #         {
+            #             get_gs_enrichments(
+            #                 gs = gs,
+            #                 gs_ontology_level = "gs_subcollection",
+            #                 outputdir = sprintf("%s/%s", mydir, dmrtype),
+            #                 regionsgrs = regions,
+            #                 etparam = et,
+            #                 et_mode_string = "et_withextension",
+            #                 directions = c("Hyper", "Hypo", "Dif"),
+            #                 background = background
+            #             )
+            #         },
+            #         error = function(e) {}
+            #     )
+            # }
         }
 
-        ##### cpg island background
-        mydir <- sprintf("ldna/results/%s/plots/great_cpgislands", params$mod_code)
-        mydirtables <- sprintf("ldna/results/%s/tables/great_cpgislands", params$mod_code)
-        for (dmrtype in dmrs$dmr_type %>% unique()) {
-            regions <- dmrsgr[mcols(dmrsgr)$dmr_type == dmrtype]
-            tryCatch(
-                {
-                    get_gs_enrichments(
-                        gs = gs,
-                        gs_ontology_level = "gs_cat",
-                        outputdir = sprintf("%s/%s", mydir, dmrtype),
-                        regionsgrs = regions,
-                        etparam = et,
-                        et_mode_string = "et_withextension",
-                        directions = c("Hyper", "Hypo", "Dif"),
-                        background = cpg_islands
-                    )
-                },
-                error = function(e) {}
-            )
-            tryCatch(
-                {
-                    get_gs_enrichments(
-                        gs = gs,
-                        gs_ontology_level = "gs_subcat",
-                        outputdir = sprintf("%s/%s", mydir, dmrtype),
-                        regionsgrs = regions,
-                        etparam = et,
-                        et_mode_string = "et_withextension",
-                        directions = c("Hyper", "Hypo", "Dif"),
-                        background = cpg_islands
-                    )
-                },
-                error = function(e) {}
-            )
         }
-
-        ####
-
-        ##### promoters and enhancers background
-        chromHMMgr <- import(conf$chromHMM)
-        chromHMM_enhancers_grs <- chromHMMgr[grepl("Enh*", mcols(chromHMMgr)$name)]
-        prom_no_mcols <- promoters
-        mcols(prom_no_mcols) <- NULL
-        enh_no_mcols <- chromHMM_enhancers_grs
-        mcols(enh_no_mcols) <- NULL
-        background <- c(enh_no_mcols, prom_no_mcols)
-        mydir <- sprintf("ldna/results/%s/plots/great_prom_enh", params$mod_code)
-        mydirtables <- sprintf("ldna/results/%s/tables/great_prom_enh", params$mod_code)
-
-        for (dmrtype in dmrs$dmr_type %>% unique()) {
-            regions <- dmrsgr[mcols(dmrsgr)$dmr_type == dmrtype]
-            tryCatch(
-                {
-                    get_gs_enrichments(
-                        gs = gs,
-                        gs_ontology_level = "gs_cat",
-                        outputdir = sprintf("%s/%s", mydir, dmrtype),
-                        regionsgrs = regions,
-                        etparam = et,
-                        et_mode_string = "et_withextension",
-                        directions = c("Hyper", "Hypo", "Dif"),
-                        background = background
-                    )
-                },
-                error = function(e) {}
-            )
-            tryCatch(
-                {
-                    get_gs_enrichments(
-                        gs = gs,
-                        gs_ontology_level = "gs_subcat",
-                        outputdir = sprintf("%s/%s", mydir, dmrtype),
-                        regionsgrs = regions,
-                        etparam = et,
-                        et_mode_string = "et_withextension",
-                        directions = c("Hyper", "Hypo", "Dif"),
-                        background = background
-                    )
-                },
-                error = function(e) {}
-            )
-        }
-
-        make_enrich_plots("ldna/results/m/tables/great_prom_enh")
-
-
-
-        ##### promoters and enhancers island background
-        chromHMMgr <- import(conf$chromHMM)
-        chromHMM_enhancers_grs <- chromHMMgr[grepl("Enh*", mcols(chromHMMgr)$name)]
-        prom_no_mcols <- promoters
-        mcols(prom_no_mcols) <- NULL
-        enh_no_mcols <- chromHMM_enhancers_grs
-        mcols(enh_no_mcols) <- NULL
-        prom_enh <- c(enh_no_mcols, prom_no_mcols)
-
-        background <- cpg_islands %>% subsetByOverlaps(prom_enh)
-        mydir <- sprintf("ldna/results/%s/plots/great_prom_enh_intersect_cpgI", params$mod_code)
-        mydirtables <- sprintf("ldna/results/%s/tables/great_prom_enh_intersect_cpgI", params$mod_code)
-        for (dmrtype in dmrs$dmr_type %>% unique()) {
-            regions <- dmrsgr[mcols(dmrsgr)$dmr_type == dmrtype]
-            tryCatch(
-                {
-                    get_gs_enrichments(
-                        gs = gs,
-                        gs_ontology_level = "gs_cat",
-                        outputdir = sprintf("%s/%s", mydir, dmrtype),
-                        regionsgrs = regions,
-                        etparam = et,
-                        et_mode_string = "et_withextension",
-                        directions = c("Hyper", "Hypo", "Dif"),
-                        background = background
-                    )
-                },
-                error = function(e) {}
-            )
-            tryCatch(
-                {
-                    get_gs_enrichments(
-                        gs = gs,
-                        gs_ontology_level = "gs_subcat",
-                        outputdir = sprintf("%s/%s", mydir, dmrtype),
-                        regionsgrs = regions,
-                        etparam = et,
-                        et_mode_string = "et_withextension",
-                        directions = c("Hyper", "Hypo", "Dif"),
-                        background = background
-                    )
-                },
-                error = function(e) {}
-            )
-        }
-    }
+ 
     ####
 
 
@@ -6055,11 +6391,11 @@ if ((conf$single_condition == "no") & enough_samples_per_condition_for_stats) {
         library(clusterProfiler)
         rm(gse_df)
 
-        for (category in gene_sets %$% gs_cat %>% unique()) {
+        for (category in gene_sets %$% gs_collection %>% unique()) {
             cat(category, "\n")
             tryCatch({
                 collection <- category
-                msigdbr_df <- gene_sets %>% filter(gs_cat == category)
+                msigdbr_df <- gene_sets %>% filter(gs_collection == category)
                 msigdbr_t2g <- msigdbr_df %>%
                     dplyr::distinct(gs_name, gene_symbol) %>%
                     as.data.frame()
@@ -6339,10 +6675,10 @@ if ((conf$single_condition == "no") & enough_samples_per_condition_for_stats) {
         #     tablesORA_subcollection <- list()
         #     results_ORA_hypo <- list()
         #     results_ORA_hyper <- list()
-        #     genesubcollections <- gs$gs_subcat %>% unique()
+        #     genesubcollections <- gs$gs_subcollection %>% unique()
         #     for (collection in genesubcollections) {
         #         term2gene <- gs %>%
-        #             filter(gs_subcat == collection) %>%
+        #             filter(gs_subcollection == collection) %>%
         #             dplyr::rename(term = gs_name, gene = gene_symbol) %>%
         #             select(term, gene)
         #         res_hypo <- enricher(hypo_genes, universe = background, TERM2GENE = term2gene, pAdjustMethod = "fdr")
@@ -7199,7 +7535,8 @@ merged <- left_join(cg_positions_df, mdf, by = c("gene_id", "sequence_pos"))
 cpg_order <- merged %$% consensus_pos %>%
     unique() %>%
     sort()
-merged <- merged %>% mutate(consensus_pos = factor(consensus_pos, levels = cpg_order))
+merged <- merged %>% mutate(consensus_pos = factor(consensus_pos, levels = cpg_order)) %>%
+    filter(!is.na(seqnames))
 library(tidyHeatmap)
 
 dat <- merged %>%
@@ -7220,8 +7557,8 @@ for (sample in conf$samples) {
         ungroup() %>%
         filter(cpgs_detected_per_element > 50) %>%
         heatmap(gene_id, consensus_pos, pctM, cluster_rows = TRUE, cluster_columns = FALSE) %>%
-        add_tile(intactness_req) %>%
-        add_tile(loc_superlowres_integrative_stranded) %>%
+        annotation_tile(intactness_req) %>%
+        annotation_tile(loc_superlowres_integrative_stranded) %>%
         as_ComplexHeatmap()
     hms[[sample]] <- p
     dir.create(outputdir_meth_clustering, recursive = TRUE)
@@ -7255,28 +7592,460 @@ p <- base::eval(base::parse(text = paste0("hms[['", conf$samples, "']]", collaps
 mysaveandstore(sprintf("%s/%s_methylation_%s1_refstatus.pdf", outputdir_meth_clustering, "all", subfam), w = 36, h = 6)
 rm(p)
 
+#//ANCHOR - Meth clustering heatmaps 
+{
+#get clusters
+mat <- merged %>%
+    group_by(gene_id, consensus_pos) %>%
+    summarise(pctM = mean(pctM)) %>%   # <-- collapse to 1 value!
+    pivot_wider(names_from = consensus_pos, values_from = pctM) %>%
+    column_to_rownames("gene_id") %>%
+    as.matrix()
+dim(mat)
+mat <- mat[, colSums(!is.na(mat)) > 0.5 * nrow(mat)]  # keep positions observed in >90% elements
+dim(mat)
+mat <- mat[rowSums(is.na(mat)) < (0.75 * ncol(mat)), ]
+dim(mat)
+mat <- mat %>% 
+  apply(1, function(x) ifelse(is.na(x), mean(x, na.rm = TRUE), x)) %>% 
+  t()
+
+library(mclust)
+mc <- Mclust(mat, G = 5)
+clusters <- mc$classification
+max(clusters)
+clustersdf <- tibble(gene_id = names(clusters), clusterNum = clusters)
+clustermap <- clustersdf %>% group_by(clusterNum) %>% summarise(cluster_n = n()) %>% arrange(-cluster_n) %>% mutate(rownum = row_number()) %>% mutate(cluster = LETTERS[rownum]) %>% dplyr::select(-rownum)
+clustersdf <- clustersdf %>% left_join(clustermap)
+merged <- merged %>% left_join(clustersdf)
+merged <- merged %>% mutate(pos_num = as.numeric(as.character(consensus_pos)))
+
+    # methylation heatmaps
+hms <- list()
+for (sample in conf$samples) {
+    p <- merged %>%
+        filter(sample == !!sample) %>%
+        group_by(gene_id) %>%
+        mutate(cpgs_detected_per_element = n()) %>%
+        ungroup() %>%
+        filter(cpgs_detected_per_element > 50) %>%
+        heatmap(gene_id, consensus_pos, pctM, cluster_rows = TRUE, cluster_columns = FALSE) %>%
+        annotation_tile(intactness_req) %>%
+        annotation_tile(loc_superlowres_integrative_stranded) %>%
+        as_ComplexHeatmap()
+    hms[[sample]] <- p
+    dir.create(outputdir_meth_clustering, recursive = TRUE)
+    mysaveandstore(sprintf("%s/%s_methylation_%s.pdf", outputdir_meth_clustering, sample, subfam), w = 6, h = 9)
+}
+# Generate the expression as a string and parse it
+p <- base::eval(base::parse(text = paste0("hms[['", conf$samples, "']]", collapse = " + ")))
+mysaveandstore(sprintf("%s/%s_methylation_%s.pdf", outputdir_meth_clustering, "all", subfam), w = 36, h = 9)
+rm(p)
+
+# methylation heatmaps
+hms <- list()
+for (sample in conf$samples) {
+    p <- merged %>%
+        filter(sample == !!sample) %>%
+        group_by(gene_id) %>%
+        mutate(cpgs_detected_per_element = n()) %>%
+        ungroup() %>%
+        filter(cpgs_detected_per_element > 50) %>%
+        heatmap(gene_id, consensus_pos, pctM, cluster_rows = TRUE, cluster_columns = FALSE) %>%
+        annotation_tile(intactness_req) %>%
+        annotation_group(loc_superlowres_integrative_stranded) %>%
+        as_ComplexHeatmap()
+    hms[[sample]] <- p
+    dir.create(outputdir_meth_clustering, recursive = TRUE)
+    mysaveandstore(sprintf("%s/%s_methylation_%s_split.pdf", outputdir_meth_clustering, sample, subfam), w = 6, h = 9)
+}
+# Generate the expression as a string and parse it
+p <- base::eval(base::parse(text = paste0("hms[['", conf$samples, "']]", collapse = " + ")))
+mysaveandstore(sprintf("%s/%s_methylation_%s_split.pdf", outputdir_meth_clustering, "all", subfam), w = 36, h = 9)
+rm(p)
+
+# methylation heatmaps
+hms <- list()
+for (sample in conf$samples) {
+    p <- merged %>%
+        filter(sample == !!sample) %>%
+        group_by(gene_id) %>%
+        mutate(cpgs_detected_per_element = n()) %>%
+        ungroup() %>%
+        filter(cpgs_detected_per_element > 50) %>%
+        heatmap(gene_id, consensus_pos, pctM, cluster_rows = TRUE, cluster_columns = FALSE) %>%
+        annotation_tile(intactness_req) %>%
+        annotation_group(cluster) %>%
+        as_ComplexHeatmap()
+    hms[[sample]] <- p
+    dir.create(outputdir_meth_clustering, recursive = TRUE)
+    mysaveandstore(sprintf("%s/%s_methylation_%s_split_bycluster.pdf", outputdir_meth_clustering, sample, subfam), w = 6, h = 9)
+}
+# Generate the expression as a string and parse it
+p <- base::eval(base::parse(text = paste0("hms[['", conf$samples, "']]", collapse = " + ")))
+mysaveandstore(sprintf("%s/%s_methylation_%s_split_bycluster.pdf", outputdir_meth_clustering, "all", subfam), w = 36, h = 9)
+rm(p)
+
+library(viridis)
+
+#not cluster split
+pf <- merged %>%
+    group_by(condition, consensus_pos) %>%
+    summarise(pctM = mean(pctM)) %>%
+    mutate(pos_num = as.numeric(as.character(consensus_pos)))
+pf909 <- merged %>%
+    group_by(condition, consensus_pos) %>%
+    summarise(pctM = mean(pctM)) %>%
+    mutate(pos_num = as.numeric(as.character(consensus_pos))) %>%
+    filter(pos_num < 1000)
+pabs <- ggplot(pf, aes(x = pos_num, y = pctM, color = condition)) +
+    geom_ribbon(
+        data = pf %>% group_by(pos_num) %>%
+            summarise(ymin = min(pctM), ymax = max(pctM)),
+        aes(x = pos_num, ymin = ymin, ymax = ymax),
+        inherit.aes = FALSE,
+        alpha = 0.3,
+        fill = "grey70"
+    ) +
+    geom_line(
+        aes(color = condition), linewidth = 0.75
+    ) +
+    scale_conditions +
+    mtclosed
+mysaveandstore(sprintf("%s/signal_wpoint_%s.pdf", outputdir_meth_clustering, subfam), pl = pabs, w = 5, h = 2)
+pabs909 <- ggplot(pf909, aes(x = pos_num, y = pctM, color = condition)) +
+    geom_ribbon(
+        data = pf909 %>% group_by(pos_num) %>%
+            summarise(ymin = min(pctM), ymax = max(pctM)),
+        aes(x = pos_num, ymin = ymin, ymax = ymax),
+        inherit.aes = FALSE,
+        alpha = 0.3,
+        fill = "grey70"
+    ) +
+    geom_line(
+        aes(color = condition), linewidth = 0.75
+    ) +
+    scale_conditions +
+    mtclosed
+mysaveandstore(sprintf("%s/signal_909wpoint_%s.pdf", outputdir_meth_clustering, subfam), pl = pabs909, w = 5, h = 2)
+
+pf_wide <- merged %>% group_by(condition, consensus_pos) %>% summarise(pctM = mean(pctM)) %>%
+    pivot_wider(names_from = condition, values_from = pctM) %>%
+    mutate(pos_num = as.numeric(as.character(consensus_pos)))
+for (contrast in contrasts) {
+    cp <- parse_contrast(contrast)
+    cond1 <- cp$condition1
+    cond2 <- cp$condition2
+    pfdif <- pf_wide %>% mutate(dif = !!sym(cond1) - !!sym(cond2))
+    pfdif909 <- pfdif %>% filter(pos_num < 1000)
+
+    pdif <- pfdif %>%
+        ggplot(aes(x = pos_num, y = dif)) +
+        geom_line(color = "grey") +
+        geom_point(
+            aes(fill = dif),
+            shape = 21, color = "black", size = 2, stroke = 0.4
+        ) +
+        scale_fill_viridis(option = "A") +
+        mtclosed
+    mysaveandstore(sprintf("%s/%s/signaldif_wpoint_%s.pdf", outputdir_meth_clustering, contrast, subfam), pl = pdif, w = 5, h = 2)
+    patch <- wrap_plots(list(pabs, pdif), ncol = 1, guides = "collect", axes = "collect")
+    mysaveandstore(sprintf("%s/%s/patch_full_%s.pdf", outputdir_meth_clustering, contrast, subfam), pl = patch, w = 5, h = 4)
+
+    pdif909 <- pfdif909 %>%
+        ggplot(aes(x = pos_num, y = dif)) +
+        geom_line(color = "grey") +
+        geom_point(
+            aes(fill = dif),
+            shape = 21, color = "black", size = 2, stroke = 0.4
+        ) +
+        scale_fill_viridis(option = "A") +
+        mtclosed
+    mysaveandstore(sprintf("%s/%s/signaldif_909wpoint_%s.pdf", outputdir_meth_clustering, contrast, subfam), pl = pdif909, w = 5, h = 2)
+    patch <- wrap_plots(list(pabs909, pdif909), ncol = 1, guides = "collect", axes = "collect")
+    mysaveandstore(sprintf("%s/%s/patch_909_%s.pdf", outputdir_meth_clustering, contrast, subfam), pl = patch, w = 5, h = 4)
+}
+
+
+#with clustering
+pf <- merged %>%
+    group_by(condition, consensus_pos, cluster) %>%
+    summarise(pctM = mean(pctM)) %>%
+    mutate(pos_num = as.numeric(as.character(consensus_pos)))
+pf909 <- merged %>%
+    group_by(condition, consensus_pos, cluster) %>%
+    summarise(pctM = mean(pctM)) %>%
+    mutate(pos_num = as.numeric(as.character(consensus_pos))) %>%
+    filter(pos_num < 1000)
+pabs_clust <- ggplot(pf, aes(x = pos_num, y = pctM, color = condition)) +
+    geom_ribbon(
+        data = pf %>% group_by(pos_num, cluster) %>%
+            summarise(ymin = min(pctM), ymax = max(pctM)),
+        aes(x = pos_num, ymin = ymin, ymax = ymax),
+        inherit.aes = FALSE,
+        alpha = 0.3,
+        fill = "grey70"
+    ) +
+    geom_line(
+        aes(color = condition), linewidth = 0.75
+    ) +
+    facet_wrap(~cluster, nrow = 1) +
+    scale_conditions +
+    mtclosed
+mysaveandstore(sprintf("%s/signal_wpoint_%s_clustered.pdf", outputdir_meth_clustering, subfam), pl = pabs_clust, w = 12, h = 2)
+pabs909_clust <- ggplot(pf909, aes(x = pos_num, y = pctM, color = condition)) +
+    geom_ribbon(
+        data = pf909 %>% group_by(pos_num, cluster) %>%
+            summarise(ymin = min(pctM), ymax = max(pctM)),
+        aes(x = pos_num, ymin = ymin, ymax = ymax),
+        inherit.aes = FALSE,
+        alpha = 0.2,
+        fill = "grey50"
+    ) +
+    geom_line(
+        aes(color = condition), linewidth = 0.75
+    ) +
+    facet_wrap(~cluster, nrow = 1) +
+    scale_conditions +
+    mtclosed
+mysaveandstore(sprintf("%s/signal_909wpoint_%s_clustered.pdf", outputdir_meth_clustering, subfam), pl = pabs909_clust, w = 20, h = 2)
+
+pf_wide_clust <- merged %>% group_by(condition, consensus_pos, cluster) %>% summarise(pctM = mean(pctM)) %>%
+    pivot_wider(names_from = condition, values_from = pctM) %>%
+    mutate(pos_num = as.numeric(as.character(consensus_pos)))
+for (contrast in contrasts) {
+    cp <- parse_contrast(contrast)
+    cond1 <- cp$condition1
+    cond2 <- cp$condition2
+    pfdif <- pf_wide_clust %>% mutate(dif = !!sym(cond1) - !!sym(cond2))
+    pfdif909 <- pfdif %>% filter(pos_num < 1000)
+
+    pdif <- pfdif %>%
+        ggplot(aes(x = pos_num, y = dif)) +
+        geom_hline(yintercept = 0, color = "darkgrey") +
+        geom_line(color = "grey") +
+        geom_point(
+            aes(fill = dif),
+            shape = 21, color = "black", size = 2, stroke = 0.4
+        ) +
+        facet_wrap(~cluster, nrow = 1) +
+        scale_fill_viridis(option = "A") +
+        mtclosed
+    mysaveandstore(sprintf("%s/%s/signaldif_wpoint_%s_clustered.pdf", outputdir_meth_clustering, contrast, subfam), pl = pdif, w = 12, h = 2)
+    patch <- wrap_plots(list(pabs_clust, pdif), ncol = 1, guides = "collect", axes = "collect")
+    mysaveandstore(sprintf("%s/%s/patch_full_%s_clustered.pdf", outputdir_meth_clustering, contrast, subfam), pl = patch, w = 12, h = 4)
+
+    pdif909 <- pfdif909 %>%
+        ggplot(aes(x = pos_num, y = dif)) +
+        geom_hline(yintercept = 0, color = "darkgrey") +
+        geom_line(color = "grey") +
+        geom_point(
+            aes(fill = dif),
+            shape = 21, color = "black", size = 2, stroke = 0.4
+        ) +
+        facet_wrap(~cluster, nrow = 1) +
+        scale_fill_viridis(option = "A") +
+        mtclosed
+    mysaveandstore(sprintf("%s/%s/signaldif_909wpoint_%s_clustered.pdf", outputdir_meth_clustering, contrast, subfam), pl = pdif909, w = 20, h = 2)
+    patch <- wrap_plots(list(pabs909_clust, pdif909), ncol = 1, guides = "collect", axes = "collect")
+    mysaveandstore(sprintf("%s/%s/patch_909_%s_clustered.pdf", outputdir_meth_clustering, contrast, subfam), pl = patch, w = 12, h = 4)
+}
+
+
+
+pfvar <- merged %>% 
+    group_by(condition, consensus_pos) %>% 
+    summarise(mv = var(pctM)) %>% 
+    group_by(consensus_pos) %>% 
+    summarise(mv = mean(mv)) %>% 
+    arrange(-mv) %>%
+    mutate(pos_num = as.numeric(as.character(consensus_pos))) %>%
+    mutate(mvZ = as.numeric(scale(mv)))
+p1 <- pfvar %>%
+    ggplot(aes(x = pos_num, y = mvZ)) +
+    geom_hline(yintercept = 0, color = "darkgrey") +
+    geom_line(color = "grey") +
+    geom_point(
+        aes(fill = mvZ), 
+        shape = 21,        # allows fill + color
+        color = "black",   # outline
+        size = 2,
+        stroke = 0.4       # outline thickness
+    ) +
+    scale_fill_viridis(option = "D") +
+    mtclosed
+mysaveandstore(sprintf("%s/cpg_within_cond_var_%s.pdf", outputdir_meth_clustering, subfam), pl = p1, w = 5, h = 2)
+pfvar <- merged %>%
+    group_by(condition, consensus_pos) %>%
+    summarise(mean_pctM = mean(pctM)) %>%
+    group_by(consensus_pos) %>%
+    summarise(mv = var(mean_pctM)) %>%
+    arrange(-mv) %>%
+    mutate(pos_num = as.numeric(as.character(consensus_pos))) %>%
+    mutate(mvZ = as.numeric(scale(mv)))
+p2 <- pfvar %>%
+    ggplot(aes(x = pos_num, y = mvZ)) +
+    geom_hline(yintercept = 0, color = "darkgrey") +
+    geom_line(color = "grey") +
+    geom_point(
+        aes(fill = mvZ), 
+        shape = 21,        # allows fill + color
+        color = "black",   # outline
+        size = 2,
+        stroke = 0.4       # outline thickness
+    ) +
+    scale_fill_viridis(option = "A") +
+    mtclosed
+mysaveandstore(sprintf("%s/cpg_between_cond_var_%s.pdf", outputdir_meth_clustering, subfam), pl = p2, w = 5, h = 2)
+
+patch <- wrap_plots(list(p1, p2), ncol = 1, guides = "collect", axes = "collect")
+mysaveandstore(sprintf("%s/cpg_var_%s.pdf", outputdir_meth_clustering, subfam), pl = patch, w = 5, h = 4)
+
+
+
+cdf <- merged %>% mutate(region = case_when(
+    pos_num <=329 ~ "HM",
+    (pos_num > 329) & (pos_num <= 600) ~ "ASP",
+    (pos_num <= 910) & (pos_num > 600) ~ "PostASP",
+    pos_num > 910 ~ "Body",
+    )) %>% group_by(sample, condition, gene_id, region) %>% 
+    summarise(pctM = mean(pctM)) %>% ungroup()
+
+cdf_wide <- cdf %>%
+  pivot_wider(names_from = region, values_from = pctM)
+
+cor(cdf_wide %>% dplyr::select(HM, ASP, PostASP, Body), use = "pairwise.complete.obs")
+for (cond in unique(cdf_wide$condition)) {
+    cat(sprintf("\nCorrelation matrix for %s:\n", cond))
+    cormat <- cor(cdf_wide %>% filter(condition == cond) %>% dplyr::select(HM, ASP, PostASP, Body), use = "pairwise.complete.obs")
+    print(cormat)
+}
+
+cor_pair <- function(df, x, y) {
+  ct <- cor.test(df[[x]], df[[y]], use = "pairwise.complete.obs", method = "spearman")
+  tibble(
+    region1 = x,
+    region2 = y,
+    cor = ct$estimate,
+    p.value = ct$p.value
+  )
+}
+region_cols <- c("HM", "ASP", "Body")
+region_pairs <- expand.grid(region1 = region_cols, region2 = region_cols, stringsAsFactors = FALSE)
+
+cor_df <- cdf_wide %>%
+  group_by(condition) %>%
+  group_modify(~ bind_rows(
+    lapply(1:nrow(region_pairs), function(i) {
+      cor_pair(.x, region_pairs$region1[i], region_pairs$region2[i])
+    })
+  )) %>%
+  ungroup()
+
+
+p <- cor_df %>% ggplot(aes(x = region1, y = region2, fill = cor)) +
+        geom_tile() +
+        geom_text(aes(label = round(cor, 2)), color = "black", size = 4) +  # overlay R²
+        facet_wrap(~condition) +
+        scale_fill_gradientn(
+            colours = RColorBrewer::brewer.pal(4, "Oranges")) +
+        scale_x_discrete(expand = c(0, 0)) +
+        scale_y_discrete(expand = c(0, 0)) + # No padding; bottom = high rank
+        theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()) +
+        labs(x = "sample", y = "genes (sorted by prop_in_bin per sample)") +
+        mtclosed +
+        theme(
+            axis.text.x = element_text(angle = 90, vjust = 1, hjust = 1),
+            axis.ticks.y = element_blank(),
+            axis.title.y = element_blank()
+        )
+mysaveandstore(sprintf("%s/region_cor_%s.pdf", outputdir_meth_clustering, subfam), w = 5, h = 4)
+cor_df_tri <- cor_df %>%
+  filter(as.numeric(factor(region1)) >= as.numeric(factor(region2)))
+p <- cor_df_tri %>% ggplot(aes(x = region1, y = region2, fill = cor)) +
+        geom_tile() +
+        geom_text(aes(label = round(cor, 2)), color = "black", size = 4) +  # overlay R²
+        facet_wrap(~condition) +
+        scale_fill_gradientn(
+            colours = RColorBrewer::brewer.pal(4, "Oranges")) +
+        scale_x_discrete(expand = c(0, 0)) +
+        scale_y_discrete(expand = c(0, 0)) + # No padding; bottom = high rank
+        theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()) +
+        labs(x = "sample", y = "genes (sorted by prop_in_bin per sample)") +
+        mtclosed +
+        theme(
+            axis.text.x = element_text(angle = 90, vjust = 1, hjust = 1),
+            axis.ticks.y = element_blank(),
+            axis.title.y = element_blank()
+        )
+mysaveandstore(sprintf("%s/region_cor_triangle_%s.pdf", outputdir_meth_clustering, subfam), w = 5, h = 4)
+
+# Correlation heatmap across CpG consensus positions (per condition)
+# Each CpG is one column/row, ordered by numeric position but spaced evenly
+cpg_levels <- cg_positions_df %>% arrange(consensus_pos) %>% pull(consensus_pos) %>% unique()
+pos_wide <- merged %>%
+    filter(consensus_pos %in% cpg_levels) %>%
+    group_by(gene_id, condition, consensus_pos) %>%
+    summarise(pctM = mean(pctM)) %>%
+    pivot_wider(names_from = consensus_pos, values_from = pctM, names_sort = TRUE)
+
+for (cond in unique(pos_wide$condition)) {
+    mat <- pos_wide %>%
+        filter(condition == cond) %>%
+        ungroup() %>%
+        dplyr::select(-gene_id, -condition) %>%
+        as.matrix()
+    # Reorder columns by numeric position
+    col_order <- order(as.numeric(colnames(mat)))
+    mat <- mat[, col_order]
+    pos_cor <- cor(mat, use = "pairwise.complete.obs")
+    cpg_factor <- factor(colnames(pos_cor), levels = colnames(pos_cor))
+
+    p <- as.data.frame(as.table(pos_cor)) %>%
+        mutate(Var1 = factor(Var1, levels = levels(cpg_factor)),
+               Var2 = factor(Var2, levels = levels(cpg_factor))) %>%
+        ggplot(aes(x = Var1, y = Var2, fill = Freq)) +
+        geom_raster() +
+        scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0,
+                             name = "r", limits = c(-1, 1)) +
+        labs(x = "CpG", y = "CpG",
+             title = sprintf("%s CpG-CpG Correlation (%s)", subfam, cond)) +
+        coord_fixed() +
+        mtclosed +
+        theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 4),
+              axis.text.y = element_text(size = 4))
+    mysaveandstore(sprintf("%s/position_cor_heatmap_%s_%s.pdf", outputdir_meth_clustering, cond, subfam), pl = p, w = 10, h = 9)
+}
+}
+
+
+
+
+
+
+
 
 # nonref analysis
 
 
-
-rmann_nr_list <- list()
+rmannextended %>% filter(rte_subfamily == "L1HS") %>% filter(refstatus == "Ref") %>% filter(intactness_req == "Intact") %>% pl()
+rmannextended_nr_list <- list()
 merged_nr_list <- list()
 for (sample in sample_table$sample_name) {
-    rmann_nr_temp <- read_csv(sprintf("aref/extended/%s_annotations/%s_rmann_nonref.csv", sample, sample))
-    rmann_nr_temp$sample_name <- sample
-    rmann_nr_list[[sample]] <- rmann_nr_temp
+    rmannextended_nr_temp <- read_csv(sprintf("aref/extended/%s_annotations/%s_rmannextended_nonref.csv", sample, sample))
+    rmannextended_nr_temp$sample_name <- sample
+    rmannextended_nr_list[[sample]] <- rmannextended_nr_temp
     grs_nr_temp <- grs_nr[mcols(grs_nr)$sample == sample]
-    merged_temp <- merge_with_grs(grs_nr_temp, GRanges(rmann_nr_temp))
+    merged_temp <- merge_with_grs(grs_nr_temp, GRanges(rmannextended_nr_temp))
     merged_nr_list[[sample]] <- merged_temp
 }
 
-rmann_nr <- do.call(rbind, rmann_nr_list) %>%
+rmannextended_nr <- bind_rows(rmannextended_nr_list) %>%
     tibble() %>%
     mutate(gene_id = paste0(sample_name, "___", gene_id)) %>%
     mutate(seqnames = paste0(sample_name, "___", seqnames))
 
-merged_nr <- do.call(rbind, merged_nr_list) %>%
+merged_nr <- bind_rows(merged_nr_list) %>%
     tibble() %>%
     mutate(gene_id = paste0(sample_name, "___", gene_id)) %>%
     mutate(seqnames = paste0(sample_name, "___", seqnames))
@@ -7473,7 +8242,7 @@ merged_nr <- do.call(rbind, merged_nr_list) %>%
         return(l1hs_resized)
     }
 
-    flL1HS5UTR <- filter_by_consensus_pos(fl_grs = rmann_nr %>% filter(rte_subfamily == "L1HS") %>% filter(rte_length_req == "FL") %>% GRanges(), pos_mapping = consensus_index_long, include_up_to_pos = 909)
+    flL1HS5UTR <- filter_by_consensus_pos(fl_grs = rmannextended_nr %>% filter(rte_subfamily == "L1HS") %>% filter(rte_length_req == "FL") %>% GRanges(), pos_mapping = consensus_index_long, include_up_to_pos = 909)
 
     nr_5utr <- GRanges(merged_nr %>% filter(rte_subfamily == "L1HS")) %>% subsetByOverlaps(flL1HS5UTR)
 
@@ -7510,7 +8279,7 @@ merged_nr <- do.call(rbind, merged_nr_list) %>%
 
 ## READ DISPERSION ANALYSIS
 {
-    flyngl1 <- rmann %>%
+    flyngl1 <- rmannextended %>%
         filter(rte_length_req == "FL") %>%
         filter(rte_subfamily == "L1HS" | rte_subfamily == "L1PA2")
 
@@ -7532,7 +8301,7 @@ merged_nr <- do.call(rbind, merged_nr_list) %>%
     merged[!(mcols(merged$flanked_promoters)$name == mcols(merged$l1cpggrs1)$name), ]
 
 
-    rmann %>%
+    rmannextended %>%
         filter(gene_id == "L1HS_4q28.3_9") %>%
         pw()
 
@@ -7554,7 +8323,7 @@ merged_nr <- do.call(rbind, merged_nr_list) %>%
     rm(readsdf)
     rm(mbo)
 
-    chr1rtes_grs <- rmann %>%
+    chr1rtes_grs <- rmannextended %>%
         filter(seqnames == "chr1") %>%
         filter(rte_subfamily != "Other") %>%
         GRanges()
@@ -7671,7 +8440,7 @@ merged_nr <- do.call(rbind, merged_nr_list) %>%
         ungroup() %>%
         group_by(gene_id) %>%
         mutate(mean_fm = mean(fraction_meth)) %>%
-        left_join(rmann %>% dplyr::select(gene_id, rte_subfamily, rte_length_req))
+        left_join(rmannextended %>% dplyr::select(gene_id, rte_subfamily, rte_length_req))
 
 
 
@@ -7719,7 +8488,7 @@ merged_nr <- do.call(rbind, merged_nr_list) %>%
         subsetByOverlaps(gencode, invert = TRUE) %>%
         subsetByOverlaps(promoters, invert = TRUE) %>%
         subsetByOverlaps(refseq_gr[mcols(refseq_gr)$type == "gene"], invert = TRUE) %>%
-        subsetByOverlaps(rmann %>% GRanges(), invert = TRUE) %>%
+        subsetByOverlaps(rmannextended %>% GRanges(), invert = TRUE) %>%
         subsetByOverlaps(ccresgr, invert = TRUE) %>%
         subsetByOverlaps(chromHMMgr[mcols(chromHMMgr)$name == "Quies"], invert = FALSE)
 
@@ -7745,7 +8514,7 @@ merged_nr <- do.call(rbind, merged_nr_list) %>%
     genes_to_extract_reads_from_grs <- promoters[mcols(promoters)$gene_id %in% genes_to_extract_reads_from]
 
     set.seed(74)
-    rtes_to_extract_reads_from_grs <- rmann %>%
+    rtes_to_extract_reads_from_grs <- rmannextended %>%
         filter(!(seqnames %in% c("chrX", "chrY"))) %>%
         filter(rte_subfamily %in% c("L1HS", "L1PA2", "L1PA3", "L1PA4", "L1PA5", "L1PA6")) %>%
         filter(rte_length_req == "FL") %>%
@@ -7850,7 +8619,7 @@ merged_nr <- do.call(rbind, merged_nr_list) %>%
         filter(mean_fm > .80)
     by_read_yngl1s <- by_read_rois_ds %>%
         filter(gene_id %in% mcols(rtes_to_extract_reads_from_grs)$gene_id) %>%
-        left_join(rmann) %>% 
+        left_join(rmannextended) %>% 
         mutate(roi = rte_subfamily) %>%
         filter(mean_fm > .80)
 
@@ -7861,7 +8630,7 @@ merged_nr <- do.call(rbind, merged_nr_list) %>%
         "boringcpgi" = by_read_boringcpgi
     )
 
-    dfsl1s <- split(by_read_yngl1s %>% ungroup() %>% dplyr::select(-colnames(rmann)[!colnames(rmann) %in% c("gene_id", "rte_subfamily")]), by_read_yngl1s$rte_subfamily)
+    dfsl1s <- split(by_read_yngl1s %>% ungroup() %>% dplyr::select(-colnames(rmannextended)[!colnames(rmannextended) %in% c("gene_id", "rte_subfamily")]), by_read_yngl1s$rte_subfamily)
 
     dfsall <- c(dfs, dfsl1s)
     dfsallbound <- bind_rows(dfsall)
@@ -8025,7 +8794,7 @@ read_analysis_alt_regions <- function(
     dir.create(outputdirtables, recursive = TRUE)
 
     readsdf1 <- readscg %>%
-        left_join(rmann %>%
+        left_join(rmannextended %>%
             dplyr::select(gene_id, start, end, strand, rte_length_req, intactness_req) %>%
             dplyr::rename(element_strand = strand, element_start = start, element_end = end)) %>%
         filter(rte_length_req == "FL")
@@ -8549,7 +9318,7 @@ read_analysis_alt_regions <- function(
         filter(subset != "400to600") %>%
         group_by(gene_id, meth_threshold, condition, subset) %>%
         summarise(max_frac = max(propUnmeth)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_threshold, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -8566,7 +9335,7 @@ read_analysis_alt_regions <- function(
     p <- by_gene_id %>%
         group_by(gene_id, meth_threshold, condition, subset) %>%
         summarise(max_frac = max(propUnmeth)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_threshold, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -8584,7 +9353,7 @@ read_analysis_alt_regions <- function(
         filter(subset != "400to600") %>%
         group_by(gene_id, meth_threshold, condition, subset) %>%
         summarise(max_frac = max(propUnmeth)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_threshold, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -8602,7 +9371,7 @@ read_analysis_alt_regions <- function(
     p <- by_gene_id %>%
         group_by(gene_id, meth_threshold, condition, subset) %>%
         summarise(max_frac = max(propUnmeth)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_threshold, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -8620,7 +9389,7 @@ read_analysis_alt_regions <- function(
     p <- by_gene_id %>%
         group_by(gene_id, meth_threshold, condition, subset) %>%
         summarise(max_frac = mean(propUnmeth)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_threshold, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -8638,7 +9407,7 @@ read_analysis_alt_regions <- function(
         filter(subset != "400to600") %>%
         group_by(gene_id, meth_threshold, condition, subset) %>%
         summarise(max_frac = mean(propUnmeth)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_threshold, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -8655,7 +9424,7 @@ read_analysis_alt_regions <- function(
     p <- by_gene_id %>%
         group_by(gene_id, meth_threshold, condition, subset) %>%
         summarise(max_frac = mean(propUnmeth)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_threshold, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -8674,7 +9443,7 @@ read_analysis_alt_regions <- function(
         filter(subset != "400to600") %>%
         group_by(gene_id, meth_threshold, condition, subset) %>%
         summarise(max_frac = mean(propUnmeth)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_threshold, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%

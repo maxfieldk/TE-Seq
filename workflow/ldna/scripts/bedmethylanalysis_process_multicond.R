@@ -105,7 +105,7 @@ rm(sample_grs)
 grs <- grsunfiltered[grsunfiltered$cov > MINIMUMCOVERAGE]
 grsdf <- tibble(as.data.frame(grs))
 grsdf %$% seqnames %>% unique()
-dir.create("ldna/Rintermediates", recursive = TRUE)
+dir.create(sprintf("ldna/Rintermediates/%s", params$mod_code), recursive = TRUE)
 write_delim(grsdf %>% filter(grepl("^NI_", seqnames)), sprintf("ldna/Rintermediates/%s/grsdf_nonref.tsv", params$mod_code), col_names = TRUE)
 grsdf$seqnames <- factor(grsdf$seqnames, levels = chromosomesAll)
 seqnames <- grsdf$seqnames
@@ -405,12 +405,21 @@ filter_by_consensus_pos <- function(fl_grs, pos_mapping, pos_vec) {
     }
     print("start loop done")
     elements_keep <- names(filter_pos_start_list) %>% intersect(names(filter_pos_end_list))
+    if (length(elements_keep) == 0) {
+        print("No overlapping gene_ids found between GRanges and consensus mapping")
+        return(GRanges())
+    }
     filter_pos_start <- filter_pos_start_list[elements_keep]
     filter_pos_end <- filter_pos_end_list[elements_keep]
-    mapping <- tibble(gene_id = elements_keep, filter_pos_start = unlist(filter_pos_start), filter_pos_end = unlist(filter_pos_end))
-    gene_ids_with_homology <- mapping %>%
+    mapping <- tibble(gene_id = elements_keep, filter_pos_start = unlist(filter_pos_start), filter_pos_end = unlist(filter_pos_end)) %>%
         filter(filter_pos_start != "NoRegionHomology") %>%
-        filter(filter_pos_end != "NoRegionHomology") %$% gene_id
+        filter(filter_pos_end != "NoRegionHomology") %>%
+        mutate(filter_pos_start = as.numeric(filter_pos_start), filter_pos_end = as.numeric(filter_pos_end))
+    gene_ids_with_homology <- mapping %$% gene_id
+    if (length(gene_ids_with_homology) == 0) {
+        print("No gene_ids with homology found")
+        return(GRanges())
+    }
     fl_grs_with_homology <- fl_grs[mcols(fl_grs)$gene_id %in% gene_ids_with_homology]
     grlist <- map(seq_along(fl_grs_with_homology), function(x) fl_grs_with_homology[x])
     grlistresized <- map(grlist, function(x) {
@@ -429,6 +438,7 @@ filter_by_consensus_pos <- function(fl_grs, pos_mapping, pos_vec) {
 flL1HS5UTR <- filter_by_consensus_pos(fl_grs = flLINE %>% filter(rte_subfamily == "L1HS") %>% filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS) %>% GRanges(), pos_mapping = fll1hs_consensus_index_long, pos_vec = c(0, 909))
 flL1HS500 <- filter_by_consensus_pos(flLINE %>% filter(rte_subfamily == "L1HS") %>% filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS) %>% GRanges(), fll1hs_consensus_index_long, c(0, 500))
 flL1HS328 <- filter_by_consensus_pos(flLINE %>% filter(rte_subfamily == "L1HS") %>% filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS) %>% GRanges(), fll1hs_consensus_index_long, c(0, 328))
+flL1HS110 <- filter_by_consensus_pos(flLINE %>% filter(rte_subfamily == "L1HS") %>% filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS) %>% GRanges(), fll1hs_consensus_index_long, c(0, 110))
 flL1HSASP <- filter_by_consensus_pos(flLINE %>% filter(rte_subfamily == "L1HS") %>% filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS) %>% GRanges(), fll1hs_consensus_index_long, c(400, 600))
 
 flLINENOTL1HS <- flLINE %>%
@@ -442,8 +452,9 @@ flRTEpromotergrs <- c(c(c(flSINEgrs, flLINENOTL1HS), flFl_Provirus_5LTRgrs), flL
 mcols(flL1HS5UTR)$region <- "909"
 mcols(flL1HS500)$region <- "500"
 mcols(flL1HS328)$region <- "328"
+mcols(flL1HS110)$region <- "110"
 mcols(flL1HSASP)$region <- "ASP"
-l1hs_intra_utr_grs <- c(c(c(flL1HS328, flL1HS500), flL1HS5UTR), flL1HSASP)
+l1hs_intra_utr_grs <- c(c(c(c(flL1HS110, flL1HS328), flL1HS500), flL1HS5UTR), flL1HSASP)
 
 
 if (conf$single_condition == "no") {
@@ -507,6 +518,16 @@ write_delim(rtedf_promoters, sprintf("ldna/Rintermediates/%s/rtedf_promoters.tsv
 l1hs_intrautr <- merge_with_grs(grs, l1hs_intra_utr_grs)
 write_delim(l1hs_intrautr, sprintf("ldna/Rintermediates/%s/l1hs_intrautr.tsv", params$mod_code), col_names = TRUE)
 
+# # grsdf
+# pf <- l1hs_intrautr %>%
+#     filter(region == "500") %>%
+#     group_by(sample, condition) %>%
+#     summarise(mm = mean(pctM))
+# pfmean <- pf %>% group_by(condition) %>% summarise(mm = mean(mm))
+# p <- ggplot(pf) +
+#     geom_point(aes(x = condition, y = mm), size = 1.5, shape = 16, alpha = 0.75) +
+#     mtopen
+# mysaveandstore(fn = "zz11111.pdf")
 # alll1hsflids <- flRTEpromoter %>%
 #     filter(rte_subfamily == "L1HS") %$% gene_id %>%
 #     unique()
@@ -636,11 +657,7 @@ write_delim(readscg, sprintf("ldna/Rintermediates/%s/reads_context_cpg.tsv", par
 
 # RTE PROMOTERS
 # annotate whether full length elements promoters overlap DMRs
-rmannextended <- get_repeat_annotations(
-    default_or_extended = "extended",
-    keep_non_central = FALSE
-)
-flelement <- rmannextended %>% filter(rte_length_req == "FL")
+flelement <- rmann %>% filter(rte_length_req == "FL")
 flSINE <- flelement %>% filter(rte_superfamily == "SINE")
 flLINE <- flelement %>% filter(rte_superfamily == "LINE")
 rmann %$% ltr_viral_status %>% unique()
@@ -733,12 +750,21 @@ filter_by_consensus_pos <- function(fl_grs, pos_mapping, pos_vec) {
     }
     print("start loop done")
     elements_keep <- names(filter_pos_start_list) %>% intersect(names(filter_pos_end_list))
+    if (length(elements_keep) == 0) {
+        print("No overlapping gene_ids found between GRanges and consensus mapping")
+        return(GRanges())
+    }
     filter_pos_start <- filter_pos_start_list[elements_keep]
     filter_pos_end <- filter_pos_end_list[elements_keep]
-    mapping <- tibble(gene_id = elements_keep, filter_pos_start = unlist(filter_pos_start), filter_pos_end = unlist(filter_pos_end))
-    gene_ids_with_homology <- mapping %>%
+    mapping <- tibble(gene_id = elements_keep, filter_pos_start = unlist(filter_pos_start), filter_pos_end = unlist(filter_pos_end)) %>%
         filter(filter_pos_start != "NoRegionHomology") %>%
-        filter(filter_pos_end != "NoRegionHomology") %$% gene_id
+        filter(filter_pos_end != "NoRegionHomology") %>%
+        mutate(filter_pos_start = as.numeric(filter_pos_start), filter_pos_end = as.numeric(filter_pos_end))
+    gene_ids_with_homology <- mapping %$% gene_id
+    if (length(gene_ids_with_homology) == 0) {
+        print("No gene_ids with homology found")
+        return(GRanges())
+    }
     fl_grs_with_homology <- fl_grs[mcols(fl_grs)$gene_id %in% gene_ids_with_homology]
     grlist <- map(seq_along(fl_grs_with_homology), function(x) fl_grs_with_homology[x])
     grlistresized <- map(grlist, function(x) {

@@ -197,6 +197,16 @@ grs_df <- as.data.frame(grs) %>% tibble()
 
 if (length(rownames(grs_df)) != 0) {
     gene_ids <- grs_df$gene_id
+    valid_idx <- sapply(seq_along(grs), function(i) {
+        tryCatch({
+            Rsamtools::getSeq(fa, grs[i])
+            TRUE
+        }, error = function(e) {
+            message(sprintf("Skipping record %d (%s): %s", i, grs$gene_id[i], e$message))
+            FALSE
+        })
+    })
+    grs <- grs[valid_idx]
     grs_ss <- Rsamtools::getSeq(fa, grs)
     mcols(grs_ss) <- mcols(grs)
     names(grs_ss) <- mcols(grs)$gene_id

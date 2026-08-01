@@ -1,4 +1,5 @@
-modcode <- "h"
+{
+modcode <- "m"
 module_name <- "ldna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
 confALL <- configr::read.config(file = "conf/config.yaml")
@@ -124,8 +125,9 @@ tryCatch(
         ), env = globalenv())
     }
 )
+}
 
-
+{
 merge_with_grs <- function(grs, rte_frame) {
     mbo <- mergeByOverlaps(grs, rte_frame)
     methdf <- mbo$grs %>%
@@ -189,6 +191,7 @@ readscg <- read_delim(sprintf("ldna/Rintermediates/%s/reads_context_cpg.tsv", pa
     mutate(sample = factor(sample, levels = sample_table$sample_name)) %>%
     mutate(condition = factor(condition, levels = conf$levels))
 
+}
 # readscg %>% filter(read_id == "410738d7-6696-4be0-8a7b-d3692b802703") %>% pl()
 # by_read %>% filter(sample == "AD1") %>% filter(gene_id == "L1HS_4q28.3_9") %>% arrange(fraction_meth) %>% pl()
 
@@ -206,7 +209,7 @@ readscg <- read_delim(sprintf("ldna/Rintermediates/%s/reads_context_cpg.tsv", pa
 # filtered_df %>% pl()
 # readscg %>% head(100000)
 
-
+{
 readscg_endfilt <- readscg %>% 
   group_by(read_id) %>%
   mutate(read_n_total_mod = n()) %>%
@@ -323,12 +326,12 @@ bbbnew <- readscg_endfiltnew5 %>% filter(mod_code == "m") %>% group_by(read_id) 
 dfanew <- aaanew %>% mutate(dif = (read_n_total_mod - filtread_n_total_mod)) 
 dfbnew <- bbbnew %>% mutate(dif = (read_n_total_mod - filtread_n_total_mod)) 
 
-p <- ggplot() +
-    geom_histogram(data = dfa, aes(x = dif), fill = "blue", alpha = 0.5) +
-    geom_histogram(data = dfb, aes(x = dif), fill = "green", alpha = 0.5) +
-    lims(x = c(0,10)) +
-    mtclosed
-mysaveandstore("zztmp1.pdf")
+# p <- ggplot() +
+#     geom_histogram(data = dfa, aes(x = dif), fill = "blue", alpha = 0.5) +
+#     geom_histogram(data = dfb, aes(x = dif), fill = "green", alpha = 0.5) +
+#     lims(x = c(0,10)) +
+#     mtclosed
+# mysaveandstore("zztmp1.pdf")
 
 p <- ggplot() +
     geom_histogram(data = dfanew, aes(x = dif), fill = "red", alpha = 0.5) +
@@ -338,21 +341,21 @@ p <- ggplot() +
 mysaveandstore("zztmp12.pdf")
 
 
-c(c(dfa %$% dif) > 5) %>% mean()
-c(c(dfb %$% dif) > 5) %>% mean()
+# c(c(dfa %$% dif) > 5) %>% mean()
+# c(c(dfb %$% dif) > 5) %>% mean()
 c(c(dfanew %$% dif) > 5) %>% mean()
 c(c(dfbnew %$% dif) > 5) %>% mean()
 
-c(c(dfa %$% dif) > 5) %>% mean()
-c(c(dfb %$% dif) > 5) %>% mean()
+# c(c(dfa %$% dif) > 5) %>% mean()
+# c(c(dfb %$% dif) > 5) %>% mean()
 c(c(dfanew %$% dif) > 3) %>% mean()
 c(c(dfbnew %$% dif) > 3) %>% mean()
 
 dfanew %>% filter(dif > 3) %$% dif %>% mean()
 
 
-dfa %>% mutate(affected  = dif > 10) %>% group_by(sample) %>% summarise(ma = mean(affected))
-dfb %>% mutate(affected  = dif > 10) %>% group_by(sample) %>% summarise(ma = mean(affected))
+# dfa %>% mutate(affected  = dif > 10) %>% group_by(sample) %>% summarise(ma = mean(affected))
+# dfb %>% mutate(affected  = dif > 10) %>% group_by(sample) %>% summarise(ma = mean(affected))
 dfanew %>% mutate(affected  = dif > 10) %>% group_by(sample) %>% summarise(ma = mean(affected))
 dfbnew %>% mutate(affected  = dif > 10) %>% group_by(sample) %>% summarise(ma = mean(affected))
 
@@ -391,8 +394,10 @@ read_to_filter_out <- c(totally_lost_reads$read_id, too_many_cpgs_potentially_co
 write_lines(read_to_filter_out, "ldna/Rintermediates/yng_l1_promoter_potentially_compromised_reads.txt")
 l1_reads_ncpgs %>% pl()
 }
+}
 
 
+{
 refseq_gr <- import(conf$refseq_unaltered)
 genes_gr <- refseq_gr[mcols(refseq_gr)[, "type"] == "gene", ]
 genes_gr <- genes_gr[seqnames(genes_gr) %in% CHROMOSOMESINCLUDEDINANALYSIS, ]
@@ -436,6 +441,7 @@ cg_indices <- consensus_ss %>%
     as.numeric()
 cg_positions_df <- consensus_index_long %>% filter(consensus_pos %in% cg_indices)
 
+}
 
 ##################################### DML / DMR analysis
 if ((conf$single_condition == "no")) {

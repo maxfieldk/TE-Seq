@@ -343,7 +343,7 @@ rule align_to_hg38:
     params:
         ref = "/oscar/data/jsedivy/mkelsey/ref/genomes/hg38/hg38.p13.sorted.fa"
     output:
-        sam = temp(expand("ldna/intermediates/{{sample}}/alignments/{rate}/hg38/{{sample}}.{type}.{modification_string}.sam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]))
+        bam = temp(expand("ldna/intermediates/{{sample}}/alignments/{rate}/hg38/{{sample}}.{type}.{modification_string}.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]))
     resources:
         cpus_per_task =20,
         runtime = 1200,
@@ -352,8 +352,8 @@ rule align_to_hg38:
     conda: "minimap2"
     shell:
         """
-mkdir -p $(dirname {output.sam})
-minimap2 -a -x map-ont -t 14 -y {params.ref} {input.fastq} > {output.sam}
+mkdir -p $(dirname {output.bam})
+seqkit sana {input.fastq} | minimap2 -a -x map-ont -t 14 -y {params.ref} - | samtools view -@4 -bS - > {output.bam}
         """
 
 
@@ -779,7 +779,7 @@ rule filterbamnosup:
 samtools view -b -F 2304 -q {params.min_mapq} -e '[qs] >= {params.min_qscore}' {input.bam} > {output.bam}
         """
 
-rule filterbamnosup:
+rule filterbamnosuponly:
     input:
         bam = "ldna/{path}.sorted.bam"
     output:
@@ -1221,9 +1221,25 @@ rule get_entropy_genomewide:
 # touch {output.outfile}
 #         """
 
+rule scMD:
+    input:
+        bed = expand("ldna/intermediates/{sample}/methylation/analysis_default/{sample}_CG_bedMethyl.bed", sample = samples)
+    output:
+        "ldna/results/m/tables/scMD_cell_type_fractions.csv"
+    container: None
+    resources:
+        cpus_per_task = 20,
+        mem_mb = 600000,
+        runtime = 500
+    conda:
+        "scMD"
+    script:
+        "scripts/scMD.R"
+        
 rule dss:
     input:
         data = expand("ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_{{mod_code}}_dss.tsv", sample = samples, ref_genome = "analysis_default"),
+        cell_typefractions = "ldna/results/m/tables/scMD_cell_type_fractions.csv"
     params:
         chromosome = lambda w: w.chr,
         contrast = lambda w: w.contrast
@@ -1258,6 +1274,9 @@ rule merge_dss:
         "repeatanalysis"
     script:
         "scripts/merge_dss_multicond.R"
+
+
+
 
 
 rule extractmods:
@@ -1499,7 +1518,8 @@ rule bedmethylanalysis_process:
         dmrs = expand("ldna/results/{{mod_code}}/tables/{contrast}/dmrs.tsv", contrast = ldna_contrasts),
         dmls = expand("ldna/results/{{mod_code}}/tables/{contrast}/dmls.tsv", contrast = ldna_contrasts),
         bedmethylpaths = expand("ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_bedMethyl.bed", sample = samples, ref_genome = "analysis_default"),
-        read_mods = expand('ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_readmods_{context}_{region}.tsv', sample = samples, ref_genome = "analysis_default", region = config["ldna"]["rte_subfamily_read_level_analysis"], context = ["CpG", "NoContext"]),
+        read_mods = expand('ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_readmods_{context}_{region}.tsv', sample = samples, ref_genome = "analysis_default", region = config["ldna"]["rte_subfamily_read_level_analysis"], context = ["NoContext"]),
+        read_mods_cg = expand('ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_readmods_{context}_{region}.tsv', sample = samples, ref_genome = "analysis_default", region = config["ldna"]["rte_subfamily_read_level_analysis"], context = ["CpG"]),
         consensus_map = "ldna/results/m/plots/l1_alignment_meth/L1HS_fl_mapping_to_consensus_table.csv"
     params:
         mod_code = lambda wildcards: wildcards.mod_code
