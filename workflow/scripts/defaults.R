@@ -19,23 +19,30 @@ library("paletteer")
 get_repeat_annotations <- function(
     default_or_extended = "default",
     keep_non_central = TRUE) {
-    rmannShared <- read_csv(confALL$aref$rmann_shared)
+    if (default_or_extended == "default") {
+        rmannShared <- read_csv("aref/default/A.REF_annotations/A.REF_rmann.csv")
+    } else if (default_or_extended == "extended") {
+        rmannShared <- read_csv("aref/extended/A.REF_annotations/A.REF_rmann.csv")
+    } else {
+        print("FAIL LOAD RMANN")
+    }
     if (confALL$aref$update_ref_with_tldr$response == "yes") {
         if (confALL$aref$update_ref_with_tldr$per_sample == "yes") {
             rmannSamples <- list()
             for (sample in confALL$aref$samples) {
                 df <- read_csv(sprintf("aref/%s/%s_annotations/%s_rmann_nonref.csv", default_or_extended, sample, sample))
+                df$nonref_insert_sample_name <- sample
                 rmannSamples[[sample]] <- df
             }
             rmannnonref <- do.call(rbind, rmannSamples) %>% tibble()
             rmann <- bind_rows(rmannShared, rmannnonref)
             if (!keep_non_central) {
-                rmann <<- rmann %>% filter(refstatus != "NonCentral")
+                rmann <- rmann %>% filter(refstatus != "NonCentral")
             }
         } else if (confALL$aref$update_ref_with_tldr$per_sample == "no") {
             rmann <- rmannShared
             if (!keep_non_central) {
-                rmann <<- rmann %>% filter(refstatus != "NonCentral")
+                rmann <- rmann %>% filter(refstatus != "NonCentral")
             }
         }
     } else {

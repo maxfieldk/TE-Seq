@@ -48,6 +48,7 @@ tryCatch(
             "outputdir" = sprintf("%s/results/agg/deseq", conf$prefix),
             "r_annotation_fragmentsjoined" = conf$r_annotation_fragmentsjoined,
             "r_repeatmasker_annotation" = conf$r_repeatmasker_annotation,
+            "normalization_method" = conf$normalization_method,
             "paralellize_bioc" = 8
         ), env = globalenv())
         assign("outputs", list(
@@ -56,7 +57,8 @@ tryCatch(
         ), env = globalenv())
         assign("inputs", list(
             counts = sprintf("%s/outs/agg/featurecounts_genes/counts.txt", conf$prefix),
-            rte_counts = sprintf("%s/outs/%s/telescope/telescope-run_stats.tsv", conf$prefix, conf$samples)
+            rte_counts = sprintf("%s/outs/%s/telescope/telescope-run_stats.tsv", conf$prefix, conf$samples),
+            alignment_stats = sprintf("%s/outs/%s/star_output/%s.sorted.bam.stats.txt", conf$prefix, conf$samples, conf$samples)
         ), env = globalenv())
     }
 )
@@ -158,10 +160,31 @@ if (length(batch_vars_to_use) > 0) {
 }
 
 colData(dds)
-# sizeFactors(dds) <- calculateSizeFactors(unlist(lib_size))
 
-# I estimate the size factors using genes, and not RTEs, since there are 5M repeats and most have very very low counts
-dds <- estimateSizeFactors(dds, controlGenes = rownames(dds) %in% gene_cts$gene_id)
+normalization_method <- params[["normalization_method"]]
+if (normalization_method == "library_size") {
+    # Parse mapped reads from individual samtools stats files
+    norm_by_aligned_reads <- tibble(sample_name = character(), reads_mapped = numeric())
+    for (stats_file in inputs$alignment_stats) {
+        stats_lines <- readLines(stats_file)
+        if (conf$library_type == "PE") {
+            mapped_line <- grep("^SN\treads mapped and paired:", stats_lines, value = TRUE)
+        } else {
+            mapped_line <- grep("^SN\treads mapped:", stats_lines, value = TRUE)
+        }
+        reads_mapped <- as.numeric(gsub(".*:\t(\\d+).*", "\\1", mapped_line))
+        sname <- basename(dirname(dirname(stats_file)))
+        norm_by_aligned_reads <- bind_rows(norm_by_aligned_reads, tibble(sample_name = sname, reads_mapped = reads_mapped))
+    }
+    norm_by_aligned_reads <- norm_by_aligned_reads %>%
+        mutate(mean_mapped = mean(reads_mapped)) %>%
+        mutate(scale_factor = reads_mapped / mean_mapped)
+    sizeFactors(dds) <- setNames(norm_by_aligned_reads$scale_factor, norm_by_aligned_reads$sample_name)[colnames(dds)]
+} else {
+    # median of ratios using genes as control (default)
+    dds <- estimateSizeFactors(dds, controlGenes = rownames(dds) %in% gene_cts$gene_id)
+}
+
 sf <- as.data.frame(sizeFactors(dds)) %>%
     as_tibble(rownames = "sample_name") %>%
     dplyr::rename(sizefactor = `sizeFactors(dds)`)

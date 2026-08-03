@@ -1,5 +1,4 @@
 modcode <- "m"
-modcode <- "m"
 module_name <- "ldna"
 conf <- configr::read.config(file = "conf/config.yaml")[[module_name]]
 confALL <- configr::read.config(file = "conf/config.yaml")
@@ -58,33 +57,19 @@ tryCatch(
 
 library(Rsamtools)
 fa <- Rsamtools::FaFile(inputs$ref)
+sample_table <- read_csv(sprintf("conf/sample_table_%s.csv", conf$prefix))
+sample_table <- sample_table[match(conf$samples, sample_table$sample_name), ]
+source("workflow/scripts/defaults.R")
 
+rmann <- get_repeat_annotations(default_or_extended = "extended", keep_non_central = FALSE)
 
-if (confALL$aref$update_ref_with_tldr$response == "yes") {
-    if (confALL$aref$update_ref_with_tldr$per_sample == "yes") {
-        rmannShared <- read_csv(conf$rmann)
-        rmannSamples <- list()
-        for (sample in sample_table$sample_name) {
-            df <- read_csv(sprintf("aref/extended/%s_annotations/%s_rmann_nonref.csv", sample, sample))
-            df$sample_name <- sample
-            df <- df %>% left_join(sample_table)
-            rmannSamples[[sample]] <- df
-        }
-        rmannnonref <- do.call(rbind, rmannSamples) %>% tibble()
-        rmann <- bind_rows(rmannShared, rmannnonref) %>%
-            filter(refstatus != "NonCentral")
-    } else if (confALL$aref$update_ref_with_tldr$per_sample == "no") {
-        rmann <- read_csv(sprintf("aref/extended/%s_annotations/%s_rmann.csv", "A.REF", "A.REF")) %>% filter(refstatus != "NonCentral")
-    }
-} else {
-    rmann <- read_csv(sprintf("aref/extended/%s_annotations/%s_rmann.csv", "A.REF", "A.REF")) %>% filter(refstatus != "NonCentral")
-}
 ##############################
 outputdir_already_computed <- sprintf("/users/mkelsey/data/LF1/RTE/ldna/results/%s/plots/l1_alignment_meth", modcode)
 outputdir <- sprintf("ldna/results/%s/plots/l1_alignment_meth", modcode)
 
 subfams <- c("L1HS", "L1PA2", "L1PA3", "L1PA4", "L1PA5", "L1PA6")
 for (subfam in subfams) {
+    if (exists("index_df")) rm(index_df, envir = globalenv())
     grs_fl <- rmann %>%
         filter(rte_length_req == "FL") %>%
         filter(rte_subfamily == subfam) %>%
@@ -92,32 +77,56 @@ for (subfam in subfams) {
         mutate(length99 = quantile(length, 0.99)) %>%
         ungroup() %>%
         filter(length < length99 * 1.05)
+
+    if (nrow(grs_fl) < 2) {
+        message(sprintf("Skipping %s: fewer than 2 FL elements after filtering", subfam))
+        next
+    }
+
     grs_fl_ref <- grs_fl %>%
         filter(refstatus == "Ref") %>%
         GRanges()
 
-    grs_fl_ss_ref <- getSeq(fa, grs_fl_ref)
-    names(grs_fl_ss_ref) <- mcols(grs_fl_ref)$gene_id
+    if (length(grs_fl_ref) > 0) {
+        grs_fl_ss_ref <- getSeq(fa, grs_fl_ref)
+        names(grs_fl_ss_ref) <- mcols(grs_fl_ref)$gene_id
+    } else {
+        grs_fl_ss_ref <- DNAStringSet()
+    }
     grs_fl_ss_nonref_list <- list()
     if (confALL$aref$update_ref_with_tldr$per_sample == "yes") {
         for (sample in sample_table$sample_name) {
             sample_grs_fl <- grs_fl %>%
-                filter(sample_name == sample) %>%
+                filter(nonref_insert_sample_name == sample) %>%
                 GRanges()
+            if (length(sample_grs_fl) == 0) next
             sample_fa <- Rsamtools::FaFile(sprintf("aref/extended/%s.fa", sample))
             grs_fl_ss_sample <- getSeq(sample_fa, sample_grs_fl)
             names(grs_fl_ss_sample) <- paste0(sample, "___", mcols(sample_grs_fl)$gene_id)
             grs_fl_ss_nonref_list[[sample]] <- grs_fl_ss_sample
         }
-        grs_fl_ss_nonref <- purrr::reduce(grs_fl_ss_nonref_list, c)
+        if (length(grs_fl_ss_nonref_list) > 0) {
+            grs_fl_ss_nonref <- purrr::reduce(grs_fl_ss_nonref_list, c)
+        } else {
+            grs_fl_ss_nonref <- DNAStringSet()
+        }
     } else {
         grs_fl_nonref <- grs_fl %>%
             filter(refstatus == "NonRef") %>%
             GRanges()
-        grs_fl_ss_nonref <- getSeq(fa, grs_fl_nonref)
-        names(grs_fl_ss_nonref) <- mcols(grs_fl_nonref)$gene_id
+        if (length(grs_fl_nonref) > 0) {
+            grs_fl_ss_nonref <- getSeq(fa, grs_fl_nonref)
+            names(grs_fl_ss_nonref) <- mcols(grs_fl_nonref)$gene_id
+        } else {
+            grs_fl_ss_nonref <- DNAStringSet()
+        }
     }
     grs_fl_ss <- c(grs_fl_ss_ref, grs_fl_ss_nonref)
+
+    if (length(grs_fl_ss) < 2) {
+        message(sprintf("Skipping %s: fewer than 2 sequences for alignment", subfam))
+        next
+    }
 
     fl_fa_path <- sprintf("%s/alignments/%s_fl.fa", outputdir, subfam)
     dir.create(dirname(fl_fa_path), recursive = TRUE)
@@ -205,62 +214,64 @@ for (subfam in subfams) {
     # consensus_index_long <- read_csv(sprintf("%s/%s_fl_mapping_to_consensus_table.csv", outputdir, subfam))
 }
 ##########
-consensus_index_long
-consensus_index_long %>% filter(sequence_pos < 10)
-consensus_index_long %>%
-    filter(gene_id == "L1HS_12q21.1_1") %>%
-    pl()
-consensus_index_long %>%
-    filter(consensus_pos > 10) %>%
-    filter(sequence_pos < 10)
-consensus_index_long %>%
-    filter(!is.na(consensus_pos)) %>%
-    group_by(gene_id) %>%
-    summarise(minsp = min(consensus_pos, na.rm = TRUE)) %$% minsp %>%
-    table()
-consensus_index_long %>% filter(sequence_pos == 1)
-consensus_index_long %>% filter(gene_id == "L1HS_10p11.21_4")
 
-consensus_index_long %>%
-    filter(!is.na(sequence_pos)) %>%
-    group_by(gene_id) %>%
-    summarise(minsp = min(consensus_pos, na.rm = TRUE)) %$% minsp %>%
-    table()
-consensus_index_long %$% gene_id %>% unique()
-consensus_index_long %>%
-    filter(!is.na(sequence_pos)) %>%
-    group_by(gene_id) %>%
-    summarise(minsp = min(consensus_pos, na.rm = TRUE)) %$% minsp %>%
-    table() %>%
-    sum()
 
-consensus_index_long %>%
-    filter(!is.na(sequence_pos)) %>%
-    mutate(m_ind = if_else(seq == consensus_seq, 0, 1)) %>%
-    filter(consensus_pos < 21) %>%
-    filter(consensus_pos >= 10) %>%
-    group_by(gene_id) %>%
-    summarise(n = n(), mm = sum(m_ind)) %$%
-    mm %>%
-    table()
-perfect_yy1_elements <- consensus_index_long %>%
-    filter(!is.na(sequence_pos)) %>%
-    mutate(m_ind = if_else(seq == consensus_seq, 0, 1)) %>%
-    filter(consensus_pos <= 21) %>%
-    filter(consensus_pos >= 11) %>%
-    group_by(gene_id) %>%
-    summarise(n = n(), mm = sum(m_ind)) %>%
-    filter(mm == 0) %>%
-    filter(n == 11) %$% gene_id
-ok_yy1_elements <- consensus_index_long %>%
-    filter(!is.na(sequence_pos)) %>%
-    mutate(m_ind = if_else(seq == consensus_seq, 0, 1)) %>%
-    filter(consensus_pos <= 21) %>%
-    filter(consensus_pos >= 11) %>%
-    group_by(gene_id) %>%
-    summarise(n = n(), mm = sum(m_ind)) %>%
-    filter(mm < 4) %>%
-    filter(n > 9) %$% gene_id
+# consensus_index_long
+# consensus_index_long %>% filter(sequence_pos < 10)
+# consensus_index_long %>%
+#     filter(gene_id == "L1HS_12q21.1_1") %>%
+#     pl()
+# consensus_index_long %>%
+#     filter(consensus_pos > 10) %>%
+#     filter(sequence_pos < 10)
+# consensus_index_long %>%
+#     filter(!is.na(consensus_pos)) %>%
+#     group_by(gene_id) %>%
+#     summarise(minsp = min(consensus_pos, na.rm = TRUE)) %$% minsp %>%
+#     table()
+# consensus_index_long %>% filter(sequence_pos == 1)
+# consensus_index_long %>% filter(gene_id == "L1HS_10p11.21_4")
+
+# consensus_index_long %>%
+#     filter(!is.na(sequence_pos)) %>%
+#     group_by(gene_id) %>%
+#     summarise(minsp = min(consensus_pos, na.rm = TRUE)) %$% minsp %>%
+#     table()
+# consensus_index_long %$% gene_id %>% unique()
+# consensus_index_long %>%
+#     filter(!is.na(sequence_pos)) %>%
+#     group_by(gene_id) %>%
+#     summarise(minsp = min(consensus_pos, na.rm = TRUE)) %$% minsp %>%
+#     table() %>%
+#     sum()
+
+# consensus_index_long %>%
+#     filter(!is.na(sequence_pos)) %>%
+#     mutate(m_ind = if_else(seq == consensus_seq, 0, 1)) %>%
+#     filter(consensus_pos < 21) %>%
+#     filter(consensus_pos >= 10) %>%
+#     group_by(gene_id) %>%
+#     summarise(n = n(), mm = sum(m_ind)) %$%
+#     mm %>%
+#     table()
+# perfect_yy1_elements <- consensus_index_long %>%
+#     filter(!is.na(sequence_pos)) %>%
+#     mutate(m_ind = if_else(seq == consensus_seq, 0, 1)) %>%
+#     filter(consensus_pos <= 21) %>%
+#     filter(consensus_pos >= 11) %>%
+#     group_by(gene_id) %>%
+#     summarise(n = n(), mm = sum(m_ind)) %>%
+#     filter(mm == 0) %>%
+#     filter(n == 11) %$% gene_id
+# ok_yy1_elements <- consensus_index_long %>%
+#     filter(!is.na(sequence_pos)) %>%
+#     mutate(m_ind = if_else(seq == consensus_seq, 0, 1)) %>%
+#     filter(consensus_pos <= 21) %>%
+#     filter(consensus_pos >= 11) %>%
+#     group_by(gene_id) %>%
+#     summarise(n = n(), mm = sum(m_ind)) %>%
+#     filter(mm < 4) %>%
+#     filter(n > 9) %$% gene_id
 
 # p <- perelementdf_promoters %>% filter(rte_subfamily == "L1HS", rte_length_req == "FL") %>%
 # mutate(yy1 = if_else(gene_id %in% ok_yy1_elements, "yes", "no")) %>%

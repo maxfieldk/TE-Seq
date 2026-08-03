@@ -172,6 +172,7 @@ srna:
     - "condition_ESEN_vs_PRO"
     - "condition_LSEN_vs_PRO"
 
+  normalization_method: "median_of_ratios" # "median_of_ratios" or "library_size"
   paralellize_bioc: 8
   counttypes: #For TEs, whether to consider unique + multi mapping reads OR only unique mappers. Default is to run the pipeline for both.
     - "telescope_multi"
@@ -359,6 +360,7 @@ lrna:
   #specify strand for stranded plotting of rnaseq data
   regions_of_interest: "conf/lrna_regions_of_interest.bed"
 
+  normalization_method: "median_of_ratios" # "median_of_ratios" or "library_size"
   paralellize_bioc: 8
 
   dorado: "/users/mkelsey/data/tools/dorado-0.7.2-linux-x64/bin/dorado"
