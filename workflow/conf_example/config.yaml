@@ -31,6 +31,9 @@ containers:
   dorado:
     use_preexisting_response: "no"
     path: "/users/mkelsey/data/Nanopore/alz/RTE/containers/dorado:sha268dcb4cd02093e75cdc58821f8b93719c4255ed.sif"
+  clair3:
+    use_preexisting_response: "no"
+    path: ""
   tetranscripts:
     use_preexisting_response: "no"
     path: "/users/mkelsey/data/Nanopore/alz/RTE/containers/tetranscripts:2.2.3.sif"

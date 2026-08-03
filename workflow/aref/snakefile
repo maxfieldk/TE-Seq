@@ -41,6 +41,8 @@ clair3_container = (
     else "containers/clair3:v2.0.1_gpu.sif"
 )
 
+somalier_container = "docker://brentp/somalier:v0.3.1"
+
 container: teseq_container
 
 import os
@@ -110,7 +112,7 @@ def aref_complete_input(wildcards):
             # paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_refseq.complete.gff3", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
             paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_indeces/make_star_index.out", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
             paths.append(expand("aref/{default_or_extended}/{sample_or_ref}_annotations/{sample_or_ref}_repeatmasker_tetranscripts.gtf", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
-
+            paths.append(expand("aref/intermediates/{sample_or_ref}/pepper/merged.bam", sample_or_ref = config["aref"]["samples"]))
             if config["aref"]["patch_ref"] == "yes":
                 paths.append(expand("aref/{default_or_extended}/{sample_or_ref}.snp_patched_indeces/make_star_index.out", sample_or_ref = config["aref"]["samples"], default_or_extended = d_or_e))
         else:
@@ -209,12 +211,13 @@ rule dorado:
         input_dir = lambda wildcards: sample_table.loc[sample_table["sample_name"] == wildcards.sample, "nanopore_rawdata_dir"].iloc[0]
     container:
         dorado_container
+    priority: 1000
     resources:
         cpus_per_task =12,
         slurm_partition="gpu-he",
         mem_mb = 128000,
         runtime = 5760,
-        slurm_extra="'--gres=gpu:a6000:2'"
+        slurm_extra="'--gres=gpu:2 --constraint=a6000|h100|a100|l40s|b200'"
     shell:
         """
 mkdir -p $(dirname {output.calls})
@@ -337,7 +340,9 @@ rule pycoQC:
     benchmark:
         "aref/benchmarks/pycoQC/{sample}.tsv"
     resources:
-        mem_mb = 100000,
+        cpus_per_task = 6,
+        mem_mb = 250000,
+        runtime = 500
     conda:
         "pycoQC"
     shell:
@@ -500,7 +505,8 @@ rule tldr_aggregate_multiple_samples:
     benchmark:
         "aref/benchmarks/tldr_aggregate_multiple_samples/tldr_aggregate_multiple_samples_{chromosome}.tsv"
     output:
-        tldr = "aref/A.REF_tldr/{chromosome}.table.txt"
+        tldr = "aref/A.REF_tldr/{chromosome}.table.txt",
+        sqfs = "aref/A.REF_tldr/{chromosome}.sqfs"
     resources:
         cpus_per_task = 24,
         mem_mb = 100000,
@@ -554,6 +560,8 @@ fi
 mkdir -p $(dirname {output.tldr})
 mv {wildcards.chromosome}.table.txt {output.tldr}
 mv {wildcards.chromosome} $(dirname {output.tldr})/
+mksquashfs $(dirname {output.tldr})/{wildcards.chromosome} {output.sqfs} -comp lz4
+rm -rf $(dirname {output.tldr})/{wildcards.chromosome}
         """
 
 def merge_tldr_agg(wildcards):
@@ -582,7 +590,7 @@ rule merge_agg_tldr:
 
 rule call_tldr_per_sample:
     input:
-        expand("aref/{sample_or_ref}_tldr/{sample_or_ref}.table.txt", sample = config["aref"]["samples"], sample_or_ref = config["aref"]["samples"])
+        expand("aref/{sample_or_ref}_tldr/{sample_or_ref}.table.txt", sample_or_ref = ["CTRL6", "AD7", "AD8"])
 rule tldr_per_sample:
     input:
         bam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
@@ -594,11 +602,13 @@ rule tldr_per_sample:
         tldr_te_ref = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_te_ref"][species],
         known_nonref = lambda w: [config["aref"]["update_ref_with_tldr"]["known_nonref"]["path"] if config["aref"]["update_ref_with_tldr"]["known_nonref"]["response"] == "yes" else "not_provided"][0]
     output:
-        tldr = "aref/{sample}_tldr/{sample}.table.txt"
+        tldr = "aref/{sample}_tldr/{sample}.table.txt",
+        sqfs = "aref/{sample}_tldr/{sample}.sqfs"
     resources:
         cpus_per_task = 24,
-        mem_mb = 100000,
-        runtime = 300
+        mem_mb = 300000,
+        runtime = 3000
+    container: None
     conda:
         "tldr"
     shell:
@@ -612,7 +622,7 @@ then
 tldr -b {input.bam} \
 -e {params.tldr_te_ref} \
 -r {params.tldr_input_bam_ref} \
--p 20 \
+-p 16 \
 --minreads 1 \
 --outbase {wildcards.sample} \
 --detail_output \
@@ -624,7 +634,7 @@ else
 tldr -b {input.bam} \
 -e {params.tldr_te_ref} \
 -r {params.tldr_input_bam_ref} \
--p 20 \
+-p 16 \
 --nonref {params.known_nonref} \
 --minreads 1 \
 --outbase {wildcards.sample} \
@@ -637,6 +647,8 @@ fi
 mkdir -p $(dirname {output.tldr})
 mv {wildcards.sample}.table.txt {output.tldr}
 mv {wildcards.sample} $(dirname {output.tldr})/
+mksquashfs $(dirname {output.tldr})/{wildcards.sample} {output.sqfs} -comp lz4
+rm -rf $(dirname {output.tldr})/{wildcards.sample}
         """
 
 rule update_reference:
@@ -655,10 +667,15 @@ rule update_reference:
     script:
         "scripts/create_reference.R"
 
+rule get_ref:
+    input:
+        expand("aref/default/{sample_or_ref}-pre-ins-filtering_nonrefcontigs.fa", sample_or_ref = config["aref"]["samples"])
+
 rule update_reference_extended_nonref_flank:
     input:
         reference = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"],
-        tldroutput = "aref/{sample_or_ref}_tldr/{sample_or_ref}.table.txt"
+        tldroutput = "aref/{sample_or_ref}_tldr/{sample_or_ref}.table.txt",
+        sqfs = "aref/{sample_or_ref}_tldr/{sample_or_ref}.sqfs"
     params:
         sample_or_ref = lambda w: w.sample_or_ref
     output:
@@ -666,6 +683,7 @@ rule update_reference_extended_nonref_flank:
         non_ref_contigs_plusflank = "aref/extended/{sample_or_ref}-pre-ins-filtering_nonrefcontigs.fa"
     benchmark:
         "aref/benchmarks/update_reference/{sample_or_ref}.tsv"
+    container: None
     conda:
         "repeatanalysis"
     script:
@@ -815,7 +833,7 @@ rule sniffles:
     shell:
         """
 mkdir -p $(dirname {output})
-sniffles -i {input.mapq60bam} -v {output.vcf} --threads 28 --mosaic --reference {params.ref}
+sniffles -i {input.mapq60bam} -v {output.vcf} --threads 28 --reference {params.ref}
         """
 
 rule determine_tes_to_mask:
@@ -1141,6 +1159,157 @@ bcftools filter -i 'TYPE="snp" && MIN(DP)>10 && QUAL>20 && FILTER="PASS"' {input
 bgzip {output.hq_snps}
 mv {output.hq_snps}.gz {output.hq_snps}
 tabix {output.hq_snps}
+        """
+
+
+# Ancestry analysis via somalier.
+# Samples are aligned to T2T hs1 — hq_snps are lifted to hg38 so they are compatible
+# with the 1KGP hg38 somalier reference files (no T2T 1KGP files exist).
+# Chain: /oscar/data/jsedivy/mkelsey/ref/genomes/hs1/liftOver/hs1ToHg38.over.chain
+
+rule get_hg38_gatk_dict:
+    input:
+        gatk_container = ancient(gatk_container)
+    params:
+        ref = config["aref"]["hg38_ref"],
+        refdict = config["aref"]["hg38_ref"].replace(".fa", ".dict")
+    output:
+        outfile = "aref/intermediates/hg38_gatk_dict.outfile"
+    container: gatk_container
+    shell:
+        """
+gatk CreateSequenceDictionary -R {params.ref} -O {params.refdict}
+mkdir -p $(dirname {output.outfile})
+touch {output.outfile}
+        """
+
+
+rule get_ancestry:
+    input:
+        "aref/results/ancestry/somalier-ancestry.html",
+        "aref/results/ancestry/ancestry-labels-predicted.tsv"
+
+
+rule liftover_snps_hg38:
+    input:
+        gatk_container = ancient(gatk_container),
+        dict_outfile = "aref/intermediates/hg38_gatk_dict.outfile",
+        vcf = "aref/intermediates/{sample_or_ref}/pepper/hq_snps.vcf.gz"
+    params:
+        chain = "/oscar/data/jsedivy/mkelsey/ref/genomes/hs1/liftOver/hs1ToHg38.over.chain",
+        ref = config["aref"]["hg38_ref"],
+    output:
+        vcf = "aref/intermediates/{sample_or_ref}/pepper/hq_snps.hg38.vcf.gz",
+        tbi = "aref/intermediates/{sample_or_ref}/pepper/hq_snps.hg38.vcf.gz.tbi"
+    resources:
+        runtime = 120,
+        mem_mb = 32000,
+        cpus_per_task = 4
+    container: gatk_container
+    shell:
+        """
+gatk LiftoverVcf \
+    -I {input.vcf} \
+    -C {params.chain} \
+    -O {output.vcf} \
+    -R {params.ref} \
+    --REJECT {output.vcf}.rejected.vcf
+tabix -f {output.vcf}
+        """
+
+
+rule reheader_snps_hg38:
+    input:
+        vcf = "aref/intermediates/{sample_or_ref}/pepper/hq_snps.hg38.vcf.gz",
+        tbi = "aref/intermediates/{sample_or_ref}/pepper/hq_snps.hg38.vcf.gz.tbi"
+    output:
+        vcf = "aref/intermediates/{sample_or_ref}/pepper/hq_snps.hg38.reheadered.vcf.gz",
+        tbi = "aref/intermediates/{sample_or_ref}/pepper/hq_snps.hg38.reheadered.vcf.gz.tbi"
+    resources:
+        runtime = 30,
+        mem_mb = 4000,
+        cpus_per_task = 1
+    conda: "omics"
+    shell:
+        """
+echo "{wildcards.sample_or_ref}" > {output.vcf}.samplename.txt
+bcftools reheader -s {output.vcf}.samplename.txt -o {output.vcf} {input.vcf}
+tabix -f {output.vcf}
+rm {output.vcf}.samplename.txt
+        """
+
+
+rule reheader_snps_hs1:
+    input:
+        vcf = "aref/intermediates/{sample_or_ref}/pepper/hq_snps.vcf.gz"
+    output:
+        vcf = "aref/intermediates/{sample_or_ref}/pepper/hq_snps.reheadered.vcf.gz",
+        tbi = "aref/intermediates/{sample_or_ref}/pepper/hq_snps.reheadered.vcf.gz.tbi"
+    resources:
+        runtime = 30,
+        mem_mb = 4000,
+        cpus_per_task = 1
+    conda: "omics"
+    shell:
+        """
+echo "{wildcards.sample_or_ref}" > {output.vcf}.samplename.txt
+bcftools reheader -s {output.vcf}.samplename.txt -o {output.vcf} {input.vcf}
+tabix -f {output.vcf}
+rm {output.vcf}.samplename.txt
+        """
+
+
+rule somalier_extract:
+    input:
+        bam = expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
+        bai = expand("aref/intermediates/{{sample_or_ref}}/alignments/{rate}/{{sample_or_ref}}.{type}.{modification_string}.sorted.filtered.bam.bai", rate = config["aref"]["rate"], type = config["aref"]["type"], modification_string = config["aref"]["modification_string"]),
+    params:
+        ref = lambda w: config["aref"]["update_ref_with_tldr"]["tldr_input_bam_ref"],
+        sites = config["aref"]["somalier_sites"],
+        outdir = "aref/intermediates/{sample_or_ref}/somalier"
+    output:
+        somalier_file = "aref/intermediates/{sample_or_ref}/somalier/{sample_or_ref}.somalier"
+    resources:
+        runtime = 60,
+        mem_mb = 16000,
+        cpus_per_task = 4
+    container: somalier_container
+    shell:
+        """
+mkdir -p {params.outdir}
+somalier extract \
+    -d {params.outdir} \
+    -s {params.sites} \
+    -f {params.ref} \
+    --sample-prefix {wildcards.sample_or_ref} \
+    {input.bam}
+mv {params.outdir}/*.somalier {output.somalier_file}.temp
+mv {output.somalier_file}.temp {output.somalier_file}
+        """
+
+
+rule somalier_ancestry:
+    input:
+        somalier_files = expand("aref/intermediates/{sample_or_ref}/somalier/{sample_or_ref}.somalier", sample_or_ref = config["aref"]["samples"])
+    params:
+        labels = config["aref"]["somalier_1kgp_labels"],
+        kgp_dir = config["aref"]["somalier_1kgp_dir"],
+        outdir = "aref/results/ancestry"
+    output:
+        html = "aref/results/ancestry/somalier.somalier-ancestry.html",
+        # tsv = "aref/results/ancestry/somalier.ancestry-labels-predicted.tsv"
+    resources:
+        runtime = 60,
+        mem_mb = 32000,
+        cpus_per_task = 4
+    container: somalier_container
+    shell:
+        """
+mkdir -p {params.outdir}
+somalier ancestry \
+    --labels {params.labels} \
+    -o {params.outdir}/somalier \
+    {params.kgp_dir}/*.somalier ++ {input.somalier_files}
         """
 
 

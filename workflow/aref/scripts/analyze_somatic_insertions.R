@@ -810,6 +810,7 @@ somatic_alpha %>%
     summarize(n = n())
 
 somatic_alpha_annotated <- somatic_alpha %>%
+    mutate(Strand = ifelse(Strand == "None", "*", Strand)) %>%
     annotate_mappability() %>%
     annotate_read_metadata() %>%
     annotate_teend()
@@ -897,7 +898,7 @@ f4_less_stringent_l1hs_extended <- f3_l1hs_extended %>%
 
 sdf <- rbind(f4, f4_less_stringent)
 sdf_l1hs_extended <- rbind(f4_l1hs_extended, f4_less_stringent_l1hs_extended)
-
+f4 %>% filter(sample_name == "AD2")
 
 sdf %$% inrepregion %>% table()
 sdf_l1hs_extended %$% inrepregion %>% table()

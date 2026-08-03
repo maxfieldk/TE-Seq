@@ -65,19 +65,19 @@ rmgrs <- rmfragments %>%
 
 dir.create(dirname(outputs$absent_tes_to_mask), recursive = TRUE)
 
-if (nrow(dfSV) > 0) {
+if (nrow(dfSV) == 0) {
+    maskbeddf <- tibble(seqnames = character(), start = integer(), end = integer(), name = character(), score = numeric(), strand = character())
+    GRanges(maskbeddf) %>%
+        rtracklayer::export(., con = outputs$absent_tes_to_mask, format = "bed")
+} else {
     dfSVgrs <- GRanges(
         seqnames = dfSV$seqnames,
         ranges = IRanges(start = dfSV$start, end = dfSV$end),
         strand = "*",
         mcols = dfSV[, !(names(dfSV) %in% c("seqnames", "start", "end"))]
     )
-    dfSVgrs %>%
-        width() %>%
-        sum()
 
     hits <- findOverlaps(rmgrs, dfSVgrs)
-
     rm_hits <- rmgrs[queryHits(hits)]
     sv_hits <- dfSVgrs[subjectHits(hits)]
 
@@ -97,9 +97,6 @@ if (nrow(dfSV) > 0) {
         dplyr::rename(name = gene_id) %>%
         GRanges() %>%
         rtracklayer::export(., con = outputs$absent_tes_to_mask, format = "bed")
-} else {
-    # No DELs passed filtering - write empty bed file
-    writeLines(character(0), outputs$absent_tes_to_mask)
 }
 
 ##### NOW WRITE A DF ANNOTATING ZYGOSITY
@@ -119,6 +116,8 @@ dfSV <- tidyvcf_SV$fix %>%
         )
     )
 
+zygosity_annotdf <- tibble(seqnames = character(), start = integer(), end = integer(), gene_id = character(), fraction_deleted = numeric(), gt = character(), sniffles_gtInsPresence = character())
+
 if (nrow(dfSV) > 0) {
     dfSVgrs <- GRanges(
         seqnames = dfSV$seqnames,
@@ -126,15 +125,18 @@ if (nrow(dfSV) > 0) {
         strand = "*",
         mcols = dfSV[, !(names(dfSV) %in% c("seqnames", "start", "end"))]
     )
-    dfSVgrs %>%
-        width() %>%
-        sum()
 
     hits <- findOverlaps(rmgrs, dfSVgrs)
-
     rm_hits <- rmgrs[queryHits(hits)]
     sv_hits <- dfSVgrs[subjectHits(hits)]
 
+    overlaps <- pintersect(rm_hits, sv_hits)
+    mcols(overlaps)$gt <- mcols(sv_hits)$mcols.gt_GT
+    percent_overlap <- width(overlaps) / width(rm_hits)
+    keep <- percent_overlap >= 0.05
+    fraction_deleted <- percent_overlap[percent_overlap >= 0.05]
+    zygosity_annot <- overlaps[keep]
+    mcols(zygosity_annot)$fraction_deleted <- fraction_deleted
     overlaps <- pintersect(rm_hits, sv_hits)
     mcols(overlaps)$gt <- mcols(sv_hits)$mcols.gt_GT
     percent_overlap <- width(overlaps) / width(rm_hits)
@@ -152,6 +154,12 @@ if (nrow(dfSV) > 0) {
     zygosity_annotdf <- tibble(seqnames = character(), start = integer(), end = integer(), gene_id = character(), fraction_deleted = numeric(), gt = character(), sniffles_gtInsPresence = character())
 }
 
+    zygosity_annotdf <- zygosity_annot %>%
+        as.data.frame() %>%
+        tibble() %>%
+        dplyr::select(seqnames, start, end, gene_id, fraction_deleted, gt) %>%
+        mutate(sniffles_gtInsPresence = gsub("1/1", "0/0", gt))
+}
 
 # add info on insertion zygosity
 
@@ -163,7 +171,6 @@ dfSVins <- tidyvcf_SV$fix %>%
     dplyr::select(-CHROM, -POS) %>%
     dplyr::relocate(seqnames, start, end, SVLEN, SUPPORT, COVERAGE, AF, gt_GT) %>%
     filter(SVLEN < 15000)
-
 
 if (nrow(dfSVins) > 0) {
     dfSVinsgrs <- GRanges(
@@ -186,7 +193,6 @@ if (nrow(dfSVins) > 0) {
         GRanges()
 
     hits <- findOverlaps(rmgrsnonref, dfSVinsgrs)
-
     rm_hits <- rmgrsnonref[queryHits(hits)]
     sv_hits <- dfSVinsgrs[subjectHits(hits)]
 
