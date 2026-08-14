@@ -54,7 +54,7 @@ dfSV <- tidyvcf_SV$fix %>%
     filter(SVTYPE == "DEL") %>%
     mutate(seqnames = CHROM, start = POS, end = start - SVLEN) %>%
     dplyr::select(-CHROM, -POS) %>%
-    dplyr::relocate(seqnames, start, end, SVLEN, SUPPORT, COVERAGE, VAF, gt_GT) %>%
+    dplyr::relocate(seqnames, start, end, SVLEN, SUPPORT, COVERAGE, AF, gt_GT) %>%
     filter(SVLEN > -15000) %>%
     filter(gt_GT == "1/1") %>%
     filter(SUPPORT >= conf$rte_mask_supporting_read_count_threshold)
@@ -107,7 +107,7 @@ dfSV <- tidyvcf_SV$fix %>%
     filter(SVTYPE == "DEL") %>%
     mutate(seqnames = CHROM, start = POS, end = start - SVLEN) %>%
     dplyr::select(-CHROM, -POS) %>%
-    dplyr::relocate(seqnames, start, end, SVLEN, SUPPORT, COVERAGE, VAF, gt_GT) %>%
+    dplyr::relocate(seqnames, start, end, SVLEN, SUPPORT, COVERAGE, AF, gt_GT) %>%
     filter(SVLEN > -15000) %>%
     filter(
         case_when(
@@ -137,6 +137,22 @@ if (nrow(dfSV) > 0) {
     fraction_deleted <- percent_overlap[percent_overlap >= 0.05]
     zygosity_annot <- overlaps[keep]
     mcols(zygosity_annot)$fraction_deleted <- fraction_deleted
+    overlaps <- pintersect(rm_hits, sv_hits)
+    mcols(overlaps)$gt <- mcols(sv_hits)$mcols.gt_GT
+    percent_overlap <- width(overlaps) / width(rm_hits)
+    keep <- percent_overlap >= 0.05
+    fraction_deleted <- percent_overlap[percent_overlap >= 0.05]
+    zygosity_annot <- overlaps[keep]
+    mcols(zygosity_annot)$fraction_deleted <- fraction_deleted
+
+    zygosity_annotdf <- zygosity_annot %>%
+        as.data.frame() %>%
+        tibble() %>%
+        dplyr::select(seqnames, start, end, gene_id, fraction_deleted, gt) %>%
+        mutate(sniffles_gtInsPresence = gsub("1/1", "0/0", gt))
+} else {
+    zygosity_annotdf <- tibble(seqnames = character(), start = integer(), end = integer(), gene_id = character(), fraction_deleted = numeric(), gt = character(), sniffles_gtInsPresence = character())
+}
 
     zygosity_annotdf <- zygosity_annot %>%
         as.data.frame() %>%
@@ -153,7 +169,7 @@ dfSVins <- tidyvcf_SV$fix %>%
     filter(SVTYPE == "INS") %>%
     mutate(seqnames = CHROM, start = POS - 5, end = POS + 5) %>%
     dplyr::select(-CHROM, -POS) %>%
-    dplyr::relocate(seqnames, start, end, SVLEN, SUPPORT, COVERAGE, VAF, gt_GT) %>%
+    dplyr::relocate(seqnames, start, end, SVLEN, SUPPORT, COVERAGE, AF, gt_GT) %>%
     filter(SVLEN < 15000)
 
 if (nrow(dfSVins) > 0) {

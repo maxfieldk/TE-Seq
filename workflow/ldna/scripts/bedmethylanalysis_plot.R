@@ -363,7 +363,7 @@ dfbnew %>% mutate(affected  = dif > 10) %>% group_by(sample) %>% summarise(ma = 
 { #Get readIDs to filter out from bam for visualization purpose. 
 #Will only remove reads that lose CpGs to filtering in the promoter
 
-flyngl1 <- rmann %>%
+flyngl1 <- rmannextended %>%
     filter(rte_length_req == "FL") %>%
     filter(rte_subfamily == "L1HS" | rte_subfamily == "L1PA2")
 
@@ -1638,7 +1638,7 @@ tryCatch(
 
 
 p <- pf %>%
-    left_join(rmann) %>%
+    left_join(rmannextended) %>%
     filter(region == "909") %>%
     ggplot(aes(x = loc_lowres_integrative_stranded, y = mean_meth, color = condition)) +
     ggbeeswarm::geom_quasirandom(dodge.width = 0.75) +
@@ -1651,7 +1651,7 @@ p <- pf %>%
 tryCatch(
     {
         res <- pf %>%
-            left_join(rmann) %>% # Join with rmann
+            left_join(rmannextended) %>% # Join with rmannextended
             filter(region == "909") %>% # Filter for region 909
             group_by(sample, loc_lowres_integrative_stranded) %>%
             summarise(pctM = mean(mean_meth), .groups = "drop") %>% # Summarize mean methylation
@@ -2007,8 +2007,8 @@ if ((conf$single_condition == "no")) {
             y_valmin <- y_lim_lower
             y_valmax <- y_lim_lower + ((y_lim_upper - y_lim_lower) / 10)
 
-            if (rmann %>% filter(gene_id == element) %$% strand == "+") {
-                modifier <- rmann %>% filter(gene_id == element) %$% start
+            if (rmannextended %>% filter(gene_id == element) %$% strand == "+") {
+                modifier <- rmannextended %>% filter(gene_id == element) %$% start
                 color_intervals <- element_anatomy %>%
                     filter(!(feature %in% c("EN", "RT"))) %>%
                     filter(gene_id == element) %>%
@@ -2045,7 +2045,7 @@ if ((conf$single_condition == "no")) {
             mysaveandstore(pl = p1line, sprintf("ldna/results/%s/plots/rte/%s/%s_methylation_line.pdf", params$mod_code, element_type, element), 5, 5)
 
             } else {
-                modifier <- rmann %>% filter(gene_id == element) %$% end
+                modifier <- rmannextended %>% filter(gene_id == element) %$% end
                 color_intervals <- element_anatomy %>%
                     filter(!(feature %in% c("EN", "RT"))) %>%
                     filter(gene_id == element) %>%
@@ -2096,8 +2096,8 @@ if ((conf$single_condition == "no")) {
             y_valmin <- y_lim_lower
             y_valmax <- y_lim_lower + ((y_lim_upper - y_lim_lower) / 10)
 
-            if (rmann %>% filter(gene_id == element) %$% strand == "+") {
-                modifier <- rmann %>% filter(gene_id == element) %$% start
+            if (rmannextended %>% filter(gene_id == element) %$% strand == "+") {
+                modifier <- rmannextended %>% filter(gene_id == element) %$% start
                 color_intervals <- element_anatomy %>%
                     filter(!(feature %in% c("EN", "RT"))) %>%
                     filter(gene_id == element) %>%
@@ -2126,7 +2126,7 @@ if ((conf$single_condition == "no")) {
                     scale_y_continuous(expand = c(0, 0.4)) +
                     theme(legend.position = "none")
             } else {
-                modifier <- rmann %>% filter(gene_id == element) %$% end
+                modifier <- rmannextended %>% filter(gene_id == element) %$% end
                 color_intervals <- element_anatomy %>%
                     filter(!(feature %in% c("EN", "RT"))) %>%
                     filter(gene_id == element) %>%
@@ -2343,7 +2343,7 @@ read_analysis1 <- function(
 
     readsdf1 <- df %>%
         filter(mod_code == mod_code_var) %>%
-        left_join(rmann %>%
+        left_join(rmannextended %>%
             dplyr::select(gene_id, start, end, strand, rte_length_req, intactness_req) %>%
             dplyr::rename(element_strand = strand, element_start = start, element_end = end)) %>%
         filter(rte_length_req == "FL")
@@ -2865,7 +2865,7 @@ read_analysis1 <- function(
         filter(subset != "400to600") %>%
         group_by(gene_id, meth_threshold, condition, subset) %>%
         summarise(max_frac = max(propUnmeth)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_threshold, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -2882,7 +2882,7 @@ read_analysis1 <- function(
     p <- by_gene_id %>%
         group_by(gene_id, meth_threshold, condition, subset) %>%
         summarise(max_frac = max(propUnmeth)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_threshold, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -2900,7 +2900,7 @@ read_analysis1 <- function(
         filter(subset != "400to600") %>%
         group_by(gene_id, meth_threshold, condition, subset) %>%
         summarise(max_frac = max(propUnmeth)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_threshold, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -2918,7 +2918,7 @@ read_analysis1 <- function(
     p <- by_gene_id %>%
         group_by(gene_id, meth_threshold, condition, subset) %>%
         summarise(max_frac = max(propUnmeth)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_threshold, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -2936,7 +2936,7 @@ read_analysis1 <- function(
     p <- by_gene_id %>%
         group_by(gene_id, meth_threshold, condition, subset) %>%
         summarise(max_frac = mean(propUnmeth)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_threshold, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -2954,7 +2954,7 @@ read_analysis1 <- function(
         filter(subset != "400to600") %>%
         group_by(gene_id, meth_threshold, condition, subset) %>%
         summarise(max_frac = mean(propUnmeth)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_threshold, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -2971,7 +2971,7 @@ read_analysis1 <- function(
     p <- by_gene_id %>%
         group_by(gene_id, meth_threshold, condition, subset) %>%
         summarise(max_frac = mean(propUnmeth)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_threshold, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -2990,7 +2990,7 @@ read_analysis1 <- function(
         filter(subset != "400to600") %>%
         group_by(gene_id, meth_threshold, condition, subset) %>%
         summarise(max_frac = mean(propUnmeth)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_threshold, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -3332,7 +3332,7 @@ read_analysis2 <- function(
 
 
     readsdf1 <- inputreaddf %>%
-        left_join(rmann %>%
+        left_join(rmannextended %>%
             dplyr::select(gene_id, start, end, strand, rte_length_req, intactness_req) %>%
             dplyr::rename(element_strand = strand, element_start = start, element_end = end)) %>%
         filter(rte_length_req == "FL")
@@ -3927,7 +3927,7 @@ read_analysis2 <- function(
         filter(subset != "400to600") %>%
         group_by(gene_id, meth_bin, condition, subset) %>%
         summarise(max_frac = max(prop_in_bin)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_bin, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -3944,7 +3944,7 @@ read_analysis2 <- function(
     p <- by_gene_id %>%
         group_by(gene_id, meth_bin, condition, subset) %>%
         summarise(max_frac = max(prop_in_bin)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_bin, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -3962,7 +3962,7 @@ read_analysis2 <- function(
         filter(subset != "400to600") %>%
         group_by(gene_id, meth_bin, condition, subset) %>%
         summarise(max_frac = max(prop_in_bin)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_bin, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -3980,7 +3980,7 @@ read_analysis2 <- function(
     p <- by_gene_id %>%
         group_by(gene_id, meth_bin, condition, subset) %>%
         summarise(max_frac = max(prop_in_bin)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_bin, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -3998,7 +3998,7 @@ read_analysis2 <- function(
     p <- by_gene_id %>%
         group_by(gene_id, meth_bin, condition, subset) %>%
         summarise(max_frac = mean(prop_in_bin)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_bin, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -4016,7 +4016,7 @@ read_analysis2 <- function(
         filter(subset != "400to600") %>%
         group_by(gene_id, meth_bin, condition, subset) %>%
         summarise(max_frac = mean(prop_in_bin)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_bin, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -4033,7 +4033,7 @@ read_analysis2 <- function(
     p <- by_gene_id %>%
         group_by(gene_id, meth_bin, condition, subset) %>%
         summarise(max_frac = mean(prop_in_bin)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_bin, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -4052,7 +4052,7 @@ read_analysis2 <- function(
         filter(subset != "400to600") %>%
         group_by(gene_id, meth_bin, condition, subset) %>%
         summarise(max_frac = mean(prop_in_bin)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_bin, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -4372,7 +4372,7 @@ read_analysis3 <- function(
     inputreaddf_total %$% total_qual %>% table()
 
     readsdf1 <- inputreaddf_total %>%
-        left_join(rmann %>%
+        left_join(rmannextended %>%
             dplyr::select(gene_id, start, end, strand, rte_length_req, intactness_req) %>%
             dplyr::rename(element_strand = strand, element_start = start, element_end = end)) %>%
         filter(rte_length_req == "FL")
@@ -4909,7 +4909,7 @@ read_analysis3 <- function(
         filter(subset != "400to600") %>%
         group_by(gene_id, meth_bin, condition, subset) %>%
         summarise(max_frac = max(prop_in_bin)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_bin, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -4926,7 +4926,7 @@ read_analysis3 <- function(
     p <- by_gene_id %>%
         group_by(gene_id, meth_bin, condition, subset) %>%
         summarise(max_frac = max(prop_in_bin)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_bin, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -4944,7 +4944,7 @@ read_analysis3 <- function(
         filter(subset != "400to600") %>%
         group_by(gene_id, meth_bin, condition, subset) %>%
         summarise(max_frac = max(prop_in_bin)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_bin, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -4962,7 +4962,7 @@ read_analysis3 <- function(
     p <- by_gene_id %>%
         group_by(gene_id, meth_bin, condition, subset) %>%
         summarise(max_frac = max(prop_in_bin)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_bin, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -4980,7 +4980,7 @@ read_analysis3 <- function(
     p <- by_gene_id %>%
         group_by(gene_id, meth_bin, condition, subset) %>%
         summarise(max_frac = mean(prop_in_bin)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_bin, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -4998,7 +4998,7 @@ read_analysis3 <- function(
         filter(subset != "400to600") %>%
         group_by(gene_id, meth_bin, condition, subset) %>%
         summarise(max_frac = mean(prop_in_bin)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_bin, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -5015,7 +5015,7 @@ read_analysis3 <- function(
     p <- by_gene_id %>%
         group_by(gene_id, meth_bin, condition, subset) %>%
         summarise(max_frac = mean(prop_in_bin)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_bin, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -5034,7 +5034,7 @@ read_analysis3 <- function(
         filter(subset != "400to600") %>%
         group_by(gene_id, meth_bin, condition, subset) %>%
         summarise(max_frac = mean(prop_in_bin)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_bin, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -7105,7 +7105,7 @@ mysaveandstore(sprintf("ldna/results/%s/plots/centromere/censatTypes_boxplot.pdf
 
 ##############
 # METHYLATION CLUSTERING
-
+{
 outputdir_meth_clustering <- sprintf("ldna/results/%s/plots/l1_alignment_meth", modcode)
 subfam <- "L1HS"
 consensus_index_long <- read_csv(sprintf("%s/%s_fl_mapping_to_consensus_table.csv", outputdir_meth_clustering, subfam))
@@ -7224,18 +7224,18 @@ rm(p)
 
 
 
-rmann_nr_list <- list()
+rmannextended_nr_list <- list()
 merged_nr_list <- list()
 for (sample in sample_table$sample_name) {
-    rmann_nr_temp <- read_csv(sprintf("aref/extended/%s_annotations/%s_rmann_nonref.csv", sample, sample))
-    rmann_nr_temp$sample_name <- sample
-    rmann_nr_list[[sample]] <- rmann_nr_temp
+    rmannextended_nr_temp <- read_csv(sprintf("aref/extended/%s_annotations/%s_rmannextended_nonref.csv", sample, sample))
+    rmannextended_nr_temp$sample_name <- sample
+    rmannextended_nr_list[[sample]] <- rmannextended_nr_temp
     grs_nr_temp <- grs_nr[mcols(grs_nr)$sample == sample]
-    merged_temp <- merge_with_grs(grs_nr_temp, GRanges(rmann_nr_temp))
+    merged_temp <- merge_with_grs(grs_nr_temp, GRanges(rmannextended_nr_temp))
     merged_nr_list[[sample]] <- merged_temp
 }
 
-rmann_nr <- do.call(rbind, rmann_nr_list) %>%
+rmannextended_nr <- do.call(rbind, rmannextended_nr_list) %>%
     tibble() %>%
     mutate(gene_id = paste0(sample_name, "___", gene_id)) %>%
     mutate(seqnames = paste0(sample_name, "___", seqnames))
@@ -7437,7 +7437,7 @@ merged_nr <- do.call(rbind, merged_nr_list) %>%
         return(l1hs_resized)
     }
 
-    flL1HS5UTR <- filter_by_consensus_pos(fl_grs = rmann_nr %>% filter(rte_subfamily == "L1HS") %>% filter(rte_length_req == "FL") %>% GRanges(), pos_mapping = consensus_index_long, include_up_to_pos = 909)
+    flL1HS5UTR <- filter_by_consensus_pos(fl_grs = rmannextended_nr %>% filter(rte_subfamily == "L1HS") %>% filter(rte_length_req == "FL") %>% GRanges(), pos_mapping = consensus_index_long, include_up_to_pos = 909)
 
     nr_5utr <- GRanges(merged_nr %>% filter(rte_subfamily == "L1HS")) %>% subsetByOverlaps(flL1HS5UTR)
 
@@ -7474,7 +7474,7 @@ merged_nr <- do.call(rbind, merged_nr_list) %>%
 
 ## READ DISPERSION ANALYSIS
 {
-    flyngl1 <- rmann %>%
+    flyngl1 <- rmannextended %>%
         filter(rte_length_req == "FL") %>%
         filter(rte_subfamily == "L1HS" | rte_subfamily == "L1PA2")
 
@@ -7496,7 +7496,7 @@ merged_nr <- do.call(rbind, merged_nr_list) %>%
     merged[!(mcols(merged$flanked_promoters)$name == mcols(merged$l1cpggrs1)$name), ]
 
 
-    rmann %>%
+    rmannextended %>%
         filter(gene_id == "L1HS_4q28.3_9") %>%
         pw()
 
@@ -7518,7 +7518,7 @@ merged_nr <- do.call(rbind, merged_nr_list) %>%
     rm(readsdf)
     rm(mbo)
 
-    chr1rtes_grs <- rmann %>%
+    chr1rtes_grs <- rmannextended %>%
         filter(seqnames == "chr1") %>%
         filter(rte_subfamily != "Other") %>%
         GRanges()
@@ -7635,7 +7635,7 @@ merged_nr <- do.call(rbind, merged_nr_list) %>%
         ungroup() %>%
         group_by(gene_id) %>%
         mutate(mean_fm = mean(fraction_meth)) %>%
-        left_join(rmann %>% dplyr::select(gene_id, rte_subfamily, rte_length_req))
+        left_join(rmannextended %>% dplyr::select(gene_id, rte_subfamily, rte_length_req))
 
 
 
@@ -7683,7 +7683,7 @@ merged_nr <- do.call(rbind, merged_nr_list) %>%
         subsetByOverlaps(gencode, invert = TRUE) %>%
         subsetByOverlaps(promoters, invert = TRUE) %>%
         subsetByOverlaps(refseq_gr[mcols(refseq_gr)$type == "gene"], invert = TRUE) %>%
-        subsetByOverlaps(rmann %>% GRanges(), invert = TRUE) %>%
+        subsetByOverlaps(rmannextended %>% GRanges(), invert = TRUE) %>%
         subsetByOverlaps(ccresgr, invert = TRUE) %>%
         subsetByOverlaps(chromHMMgr[mcols(chromHMMgr)$name == "Quies"], invert = FALSE)
 
@@ -7709,7 +7709,7 @@ merged_nr <- do.call(rbind, merged_nr_list) %>%
     genes_to_extract_reads_from_grs <- promoters[mcols(promoters)$gene_id %in% genes_to_extract_reads_from]
 
     set.seed(74)
-    rtes_to_extract_reads_from_grs <- rmann %>%
+    rtes_to_extract_reads_from_grs <- rmannextended %>%
         filter(!(seqnames %in% c("chrX", "chrY"))) %>%
         filter(rte_subfamily %in% c("L1HS", "L1PA2", "L1PA3", "L1PA4", "L1PA5", "L1PA6")) %>%
         filter(rte_length_req == "FL") %>%
@@ -7814,7 +7814,7 @@ merged_nr <- do.call(rbind, merged_nr_list) %>%
         filter(mean_fm > .80)
     by_read_yngl1s <- by_read_rois_ds %>%
         filter(gene_id %in% mcols(rtes_to_extract_reads_from_grs)$gene_id) %>%
-        left_join(rmann) %>% 
+        left_join(rmannextended) %>% 
         mutate(roi = rte_subfamily) %>%
         filter(mean_fm > .80)
 
@@ -7825,7 +7825,7 @@ merged_nr <- do.call(rbind, merged_nr_list) %>%
         "boringcpgi" = by_read_boringcpgi
     )
 
-    dfsl1s <- split(by_read_yngl1s %>% ungroup() %>% dplyr::select(-colnames(rmann)[!colnames(rmann) %in% c("gene_id", "rte_subfamily")]), by_read_yngl1s$rte_subfamily)
+    dfsl1s <- split(by_read_yngl1s %>% ungroup() %>% dplyr::select(-colnames(rmannextended)[!colnames(rmannextended) %in% c("gene_id", "rte_subfamily")]), by_read_yngl1s$rte_subfamily)
 
     dfsall <- c(dfs, dfsl1s)
     dfsallbound <- bind_rows(dfsall)
@@ -7989,7 +7989,7 @@ read_analysis_alt_regions <- function(
     dir.create(outputdirtables, recursive = TRUE)
 
     readsdf1 <- readscg %>%
-        left_join(rmann %>%
+        left_join(rmannextended %>%
             dplyr::select(gene_id, start, end, strand, rte_length_req, intactness_req) %>%
             dplyr::rename(element_strand = strand, element_start = start, element_end = end)) %>%
         filter(rte_length_req == "FL")
@@ -8513,7 +8513,7 @@ read_analysis_alt_regions <- function(
         filter(subset != "400to600") %>%
         group_by(gene_id, meth_threshold, condition, subset) %>%
         summarise(max_frac = max(propUnmeth)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_threshold, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -8530,7 +8530,7 @@ read_analysis_alt_regions <- function(
     p <- by_gene_id %>%
         group_by(gene_id, meth_threshold, condition, subset) %>%
         summarise(max_frac = max(propUnmeth)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_threshold, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -8548,7 +8548,7 @@ read_analysis_alt_regions <- function(
         filter(subset != "400to600") %>%
         group_by(gene_id, meth_threshold, condition, subset) %>%
         summarise(max_frac = max(propUnmeth)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_threshold, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -8566,7 +8566,7 @@ read_analysis_alt_regions <- function(
     p <- by_gene_id %>%
         group_by(gene_id, meth_threshold, condition, subset) %>%
         summarise(max_frac = max(propUnmeth)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_threshold, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -8584,7 +8584,7 @@ read_analysis_alt_regions <- function(
     p <- by_gene_id %>%
         group_by(gene_id, meth_threshold, condition, subset) %>%
         summarise(max_frac = mean(propUnmeth)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_threshold, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -8602,7 +8602,7 @@ read_analysis_alt_regions <- function(
         filter(subset != "400to600") %>%
         group_by(gene_id, meth_threshold, condition, subset) %>%
         summarise(max_frac = mean(propUnmeth)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_threshold, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -8619,7 +8619,7 @@ read_analysis_alt_regions <- function(
     p <- by_gene_id %>%
         group_by(gene_id, meth_threshold, condition, subset) %>%
         summarise(max_frac = mean(propUnmeth)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_threshold, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%
@@ -8638,7 +8638,7 @@ read_analysis_alt_regions <- function(
         filter(subset != "400to600") %>%
         group_by(gene_id, meth_threshold, condition, subset) %>%
         summarise(max_frac = mean(propUnmeth)) %>%
-        left_join(rmann) %>%
+        left_join(rmannextended) %>%
         group_by(meth_threshold, condition, subset) %>%
         arrange(max_frac) %>%
         mutate(ranked_row = row_number()) %>%

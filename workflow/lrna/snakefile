@@ -1035,15 +1035,56 @@ rule tpm:
     script:
         "scripts/tpm.R"
 
+rule characterize_tpm:
+    input:
+        tpm = "lrna/outs/agg/tpm/{counttype}/tpmdf.tsv"
+    params:
+        counttype = lambda w: w.counttype,
+        outputdir = lambda w, output: os.path.dirname(os.path.dirname(output.environment)),
+        r_annotation_fragmentsjoined = config["lrna"]["r_annotation_fragmentsjoined"],
+        r_repeatmasker_annotation = config["lrna"]["r_repeatmasker_annotation"],
+        refseq = config["lrna"]["annotation_genes"],
+        ref = "aref/default/A.REF.fa",
+        annotation_genes = config["lrna"]["annotation_genes"],
+        module_name = "lrna"
+    benchmark:
+        "lrna/benchmarks/characterize_tpm/{counttype}.tsv"
+    conda:
+        "repeatanalysis"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 200000,
+        runtime = 500
+    output:
+        environment = "lrna/results/agg/tpm_sources/{counttype}/characterize_tpm_environment.RData",
+        report = report(
+            directory("lrna/results/agg/tpm_sources/{counttype}"),
+            patterns=["{group}/{restofstring}.pdf", "{group}/{restofstring}.pdf"],
+            category="TPM Characterization {counttype}",
+            subcategory="{group}")
+    script:
+        "scripts/characterize_samples.R"
+
 rule deseq:
     input:
         counts = "lrna/outs/agg/featurecounts_genes/counts.txt",
-        rte_counts = expand("lrna/outs/{sample}/telescope/telescope-run_stats.tsv", sample = samples)
+        rte_counts = expand("lrna/outs/{sample}/telescope/telescope-run_stats.tsv", sample = samples),
+        alignment_stats = [
+            "lrna/qc/%s/%s/%s.%s.%s.sorted.bam.stats.txt" % (
+                s,
+                sample_table.loc[sample_table.sample_name == s, "rate"].iloc[0],
+                s,
+                sample_table.loc[sample_table.sample_name == s, "type"].iloc[0],
+                sample_table.loc[sample_table.sample_name == s, "modification_string"].iloc[0]
+            )
+            for s in samples
+        ] if config["lrna"]["normalization_method"] == "library_size" else [],
     params:
         sample_table = config["lrna"]["sample_table"],
         contrasts = config["lrna"]["contrasts"],
         levels = config["lrna"]["levels"],
         paralellize_bioc = config["lrna"]["paralellize_bioc"],
+        normalization_method = config["lrna"]["normalization_method"],
         counttype = lambda w: w.counttype,
         outputdir =lambda w, output: os.path.dirname(os.path.dirname(output.counts_normed)),
     resources:

@@ -68,9 +68,12 @@ r_annotation_fragmentsjoined <- read_csv(conf$r_annotation_fragmentsjoined)
 r_repeatmasker_annotation <- read_csv(conf$r_repeatmasker_annotation)
 rmann <- left_join(r_annotation_fragmentsjoined, r_repeatmasker_annotation)
 rm(r_annotation_fragmentsjoined, r_repeatmasker_annotation)
-
+rmannextended <- get_repeat_annotations(
+    default_or_extended = "extended",
+    keep_non_central = FALSE
+)
 # Load pre-computed intermediates
-# yl1annm <- read_delim("lrna/Rintermediates/yl1annm.fa", col_names = TRUE)
+yl1annm <- read_delim("lrna/Rintermediates/yl1annm.fa", col_names = TRUE)
 
 # rtedf <- read_delim(sprintf("lrna/Rintermediates/%s/rtedf.tsv", current_mod_name), col_names = TRUE)
 yl1annm_alllength <- read_delim("lrna/Rintermediates/yl1annm_alllength.tsv")
@@ -79,6 +82,175 @@ yl1annm %>% filter(rte_length_req == "FL")
 
 reads_path <- sprintf("lrna/Rintermediates/%s/reads_context_all.tsv", current_mod_name)
 reads <- read_delim(reads_path, col_names = TRUE)
+reads %>% pw()
+
+annot
+readslong <- reads %>%
+    filter(read_length > 900) %>%
+    filter(sample != "N_ORF1_4")
+
+readsvlong <- readslong %>% filter(read_length > 5000)
+readsvlong_mapped <- readsvlong %>%
+    left_join(yl1annm_filtered %>% dplyr::select(start = genome_pos, harmonized_pos, gene_id)) %>%
+    left_join(annot) %>%
+    filter(orf1_intactness == "ORF1Intact") %>%
+    filter(harmonized_pos %in% reliable_sites_harmonized_pos) %>%
+    mutate(is_mod = ifelse(mod_qual > 0.5, 1, 0)) %>%
+    mutate(bcondition = case_when(
+        grepl("ORF1", condition) ~ "ORF1",
+        grepl("TOT", condition) ~ "TOT",
+        TRUE ~ condition
+    ))
+
+# Per-read mean m6A
+readsvlong_mapped %>%
+    group_by(read_id, condition, sample) %>%
+    summarise(mm = mean(is_mod)) %>%
+    group_by(condition, sample) %>%
+    summarise(mm = mean(mm))
+
+outdir_vlong <- str_glue("{outdir_base}/vlong_per_site")
+dir.create(outdir_vlong, recursive = TRUE, showWarnings = FALSE)
+
+# --- 1. Per-site dotplot: %m6A for ORF1 vs TOT ---
+vlong_site_stats <- readsvlong_mapped %>%
+    group_by(harmonized_pos, bcondition) %>%
+    summarise(pctM = mean(is_mod) * 100, n_reads = n(), .groups = "drop")
+
+vlong_site_wide <- vlong_site_stats %>%
+    pivot_wider(names_from = bcondition, values_from = c(pctM, n_reads), names_sep = "_") %>%
+    filter(!is.na(pctM_ORF1) & !is.na(pctM_TOT))
+
+p <- ggplot(vlong_site_wide, aes(
+    x = pctM_TOT, y = pctM_ORF1,
+    size = log10(n_reads_ORF1 + n_reads_TOT)
+)) +
+    geom_point(alpha = 0.7, color = "#4393C3") +
+    geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "grey50") +
+    geom_text_repel(aes(label = harmonized_pos), size = 2.5, max.overlaps = 20) +
+    scale_size_continuous(name = "log10(total cov)", range = c(1, 6)) +
+    labs(
+        x = "% m6A (TOT)", y = "% m6A (ORF1)",
+        title = "L1HS ORF1-intact (>5kb reads): Per-site m6A"
+    ) +
+    coord_equal() +
+    mtclosed
+mss(
+    pl = p, fn = str_glue("{outdir_vlong}/per_site_m6a_orf1_vs_tot1.pdf"),
+    fw = 2, fh = 2, plus_void = TRUE
+)
+
+# Bar version
+vlong_site_plot <- vlong_site_stats %>%
+    mutate(harmonized_pos = factor(harmonized_pos, levels = sort(unique(harmonized_pos))))
+
+p <- ggplot(vlong_site_plot, aes(x = harmonized_pos, y = pctM, fill = bcondition)) +
+    geom_col(position = position_dodge(0.8), width = 0.7) +
+    geom_text(aes(label = scales::comma(n_reads)),
+        position = position_dodge(0.8),
+        vjust = -0.5, size = 2
+    ) +
+    labs(
+        x = "Harmonized position", y = "% m6A", fill = "Condition",
+        title = "L1HS ORF1-intact (>5kb reads): Per-site m6A"
+    ) +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.3))) +
+    mtclosed +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1))
+mss(
+    pl = p, fn = str_glue("{outdir_vlong}/per_site_m6a_barplot111.pdf"),
+    fw = 4, fh = 1, plus_void = TRUE
+)
+
+# --- 2. Intra-read pairwise correlation heatmap ---
+# Pivot to wide: one column per site, one row per read
+vlong_wide <- readsvlong_mapped %>%
+    dplyr::select(read_id, bcondition, harmonized_pos, is_mod) %>%
+    distinct(read_id, harmonized_pos, .keep_all = TRUE) %>%
+    pivot_wider(names_from = harmonized_pos, values_from = is_mod, names_prefix = "site_")
+
+vlong_site_cols <- grep("^site_", colnames(vlong_wide), value = TRUE)
+vlong_site_mat <- vlong_wide %>%
+    dplyr::select(all_of(vlong_site_cols)) %>%
+    as.matrix()
+
+cor_mat_vl <- cor(vlong_site_mat, use = "pairwise.complete.obs")
+colnames(cor_mat_vl) <- gsub("^site_", "", colnames(cor_mat_vl))
+rownames(cor_mat_vl) <- gsub("^site_", "", rownames(cor_mat_vl))
+pos_order_vl <- order(as.numeric(colnames(cor_mat_vl)))
+cor_mat_vl <- cor_mat_vl[pos_order_vl, pos_order_vl]
+
+p <- Heatmap(
+    cor_mat_vl,
+    name = "Pearson r",
+    col = circlize::colorRamp2(c(-0.3, 0, 0.3, 0.6, 1), c("#2166AC", "#F7F7F7", "#F7F7F7", "#FDDBC7", "#B2182B")),
+    cluster_rows = FALSE, cluster_columns = FALSE,
+    column_title = "L1HS ORF1-intact (>5kb): Intra-read m6A correlation (all)",
+    row_names_gp = gpar(fontsize = 7),
+    column_names_gp = gpar(fontsize = 7)
+)
+pdf(str_glue("{outdir_vlong}/intraread_correlation_heatmap_all1.pdf"), width = 6, height = 5)
+draw(p)
+dev.off()
+
+# Per-condition correlation heatmaps
+for (cond in c("ORF1", "TOT")) {
+    cond_mat <- vlong_wide %>%
+        filter(bcondition == cond) %>%
+        dplyr::select(all_of(vlong_site_cols)) %>%
+        as.matrix()
+    if (nrow(cond_mat) < 10) next
+
+    cor_cond <- cor(cond_mat, use = "pairwise.complete.obs")
+    colnames(cor_cond) <- gsub("^site_", "", colnames(cor_cond))
+    rownames(cor_cond) <- gsub("^site_", "", rownames(cor_cond))
+    cor_cond <- cor_cond[pos_order_vl, pos_order_vl]
+
+    p <- Heatmap(
+        cor_cond,
+        name = "Pearson r",
+        col = circlize::colorRamp2(c(-0.3, 0, 0.3, 0.6, 1), c("#2166AC", "#F7F7F7", "#F7F7F7", "#FDDBC7", "#B2182B")),
+        cluster_rows = FALSE, cluster_columns = FALSE,
+        column_title = str_glue("L1HS ORF1-intact (>5kb): Intra-read m6A correlation ({cond})"),
+        row_names_gp = gpar(fontsize = 7),
+        column_names_gp = gpar(fontsize = 7)
+    )
+    pdf(str_glue("{outdir_vlong}/intraread_correlation_heatmap_{tolower(cond)}.pdf"), width = 6, height = 5)
+    draw(p)
+    dev.off()
+}
+
+# Difference heatmap: ORF1 - TOT
+orf1_mat_vl <- vlong_wide %>%
+    filter(bcondition == "ORF1") %>%
+    dplyr::select(all_of(vlong_site_cols)) %>%
+    as.matrix()
+tot_mat_vl <- vlong_wide %>%
+    filter(bcondition == "TOT") %>%
+    dplyr::select(all_of(vlong_site_cols)) %>%
+    as.matrix()
+if (nrow(orf1_mat_vl) >= 10 && nrow(tot_mat_vl) >= 10) {
+    cor_diff_vl <- cor(orf1_mat_vl, use = "pairwise.complete.obs") - cor(tot_mat_vl, use = "pairwise.complete.obs")
+    colnames(cor_diff_vl) <- gsub("^site_", "", colnames(cor_diff_vl))
+    rownames(cor_diff_vl) <- gsub("^site_", "", rownames(cor_diff_vl))
+    cor_diff_vl <- cor_diff_vl[pos_order_vl, pos_order_vl]
+
+    p <- Heatmap(
+        cor_diff_vl,
+        name = "Δr (ORF1-TOT)",
+        col = circlize::colorRamp2(c(-0.3, 0, 0.3), c("#2166AC", "#F7F7F7", "#B2182B")),
+        cluster_rows = FALSE, cluster_columns = FALSE,
+        column_title = "L1HS ORF1-intact (>5kb): Correlation diff (ORF1 - TOT)",
+        row_names_gp = gpar(fontsize = 7),
+        column_names_gp = gpar(fontsize = 7),
+        cell_fun = function(j, i, x, y, width, height, fill) {
+            if (i != j) grid.text(sprintf("%.2f", cor_diff_vl[i, j]), x, y, gp = gpar(fontsize = 5))
+        }
+    )
+    pdf(str_glue("{outdir_vlong}/intraread_correlation_diff_orf1_minus_tot.pdf"), width = 8, height = 7)
+    draw(p)
+    dev.off()
+}
 
 # Load consensus sequences
 l1hs_cs <- readDNAStringSet("ldna/results/m/plots/l1_alignment_meth/alignments/L1HS_fl_consensus.fa")
@@ -116,76 +288,86 @@ for (sf in names(aligned)) {
 pos_to_aln_df <- bind_rows(subfam_pos_to_aln)
 
 # Load expression / enrichment data
-contrasts_lr <- c("condition_N_ORF1_vs_N_TOT")
-elements_for_enrichment <- rmann %>% filter(rte_subfamily %in% YOUNG_L1_SUBFAMILIES, rte_length_req == "FL") %$% gene_id
-elements_for_enrichment_all <- rmann %>% filter(rte_subfamily %in% YOUNG_L1_SUBFAMILIES) %$% gene_id
-enrichment_lr <- tibble(gene_id = elements_for_enrichment)
-for (contrast in contrasts_lr) {
-    filepath <- str_glue("lrna/results/agg/deseq/relaxed/{contrast}/results_rtes.csv")
-    df <- read_csv(filepath, show_col_types = FALSE)
-    colnames(df)[1] <- "gene_id"
-    df <- df %>%
-        filter(gene_id %in% elements_for_enrichment) %>%
-        dplyr::select(gene_id, baseMean, log2FoldChange, lfcSE, padj) %>%
-        dplyr::rename(
-            !!str_glue("baseMean_{contrast}") := baseMean,
-            !!str_glue("l2fc_{contrast}") := log2FoldChange,
-            !!str_glue("lfcSE_{contrast}") := lfcSE,
-            !!str_glue("padj_{contrast}") := padj
-        )
-    enrichment_lr <- enrichment_lr %>% left_join(df, by = "gene_id")
-}
-for (contrast in contrasts_lr) {
-    enrichment_lr <- enrichment_lr %>%
-        mutate(!!str_glue("l2fc_{contrast}") := replace_na(!!sym(str_glue("l2fc_{contrast}")), 0)) %>%
-        mutate(!!str_glue("padj_{contrast}") := replace_na(!!sym(str_glue("padj_{contrast}")), 1))
-}
 
-normed_lr_raw <- read_csv("lrna/results/agg/deseq/relaxed/counttablesizenormed.csv", show_col_types = FALSE)
-colnames(normed_lr_raw)[1] <- "gene_id"
-normed_lr_long_all <- normed_lr_raw %>%
-    filter(gene_id %in% elements_for_enrichment_all) %>%
-    pivot_longer(-gene_id, names_to = "sample_name", values_to = "normed_count") %>%
-    left_join(sample_table_lrna %>% dplyr::select(sample_name, condition), by = "sample_name")
-normed_lr_long <- normed_lr_long_all %>% filter(gene_id %in% elements_for_enrichment)
-normed_lr_mean <- normed_lr_long %>%
-    group_by(gene_id, condition) %>%
-    summarise(mean_normed = mean(normed_count, na.rm = TRUE), .groups = "drop") %>%
-    pivot_wider(names_from = condition, values_from = mean_normed, names_prefix = "mean_lr_")
-enrichment_lr <- enrichment_lr %>%
-    left_join(normed_lr_mean, by = "gene_id") %>%
-    mutate(across(starts_with("mean_lr_"), ~ replace_na(., 0)))
 
-# Build enrichment for all-length elements (FL + trnc)
-enrichment_lr_all <- tibble(gene_id = elements_for_enrichment_all)
-for (contrast in contrasts_lr) {
-    filepath <- str_glue("lrna/results/agg/deseq/relaxed/{contrast}/results_rtes.csv")
-    df <- read_csv(filepath, show_col_types = FALSE)
-    colnames(df)[1] <- "gene_id"
-    df <- df %>%
-        filter(gene_id %in% elements_for_enrichment_all) %>%
-        dplyr::select(gene_id, baseMean, log2FoldChange, lfcSE, padj) %>%
-        dplyr::rename(
-            !!str_glue("baseMean_{contrast}") := baseMean,
-            !!str_glue("l2fc_{contrast}") := log2FoldChange,
-            !!str_glue("lfcSE_{contrast}") := lfcSE,
-            !!str_glue("padj_{contrast}") := padj
-        )
-    enrichment_lr_all <- enrichment_lr_all %>% left_join(df, by = "gene_id")
-}
-for (contrast in contrasts_lr) {
-    enrichment_lr_all <- enrichment_lr_all %>%
-        mutate(!!str_glue("l2fc_{contrast}") := replace_na(!!sym(str_glue("l2fc_{contrast}")), 0)) %>%
-        mutate(!!str_glue("padj_{contrast}") := replace_na(!!sym(str_glue("padj_{contrast}")), 1))
-}
-normed_lr_mean_all <- normed_lr_long_all %>%
-    group_by(gene_id, condition) %>%
-    summarise(mean_normed = mean(normed_count, na.rm = TRUE), .groups = "drop") %>%
-    pivot_wider(names_from = condition, values_from = mean_normed, names_prefix = "mean_lr_")
-enrichment_lr_all <- enrichment_lr_all %>%
-    left_join(normed_lr_mean_all, by = "gene_id") %>%
-    mutate(across(starts_with("mean_lr_"), ~ replace_na(., 0)))
 
+# contrasts_lr <- c("condition_N_ORF1_vs_N_TOT")
+# elements_for_enrichment <- rmann %>% filter(rte_subfamily %in% YOUNG_L1_SUBFAMILIES, rte_length_req == "FL") %$% gene_id
+# elements_for_enrichment_all <- rmann %>% filter(rte_subfamily %in% YOUNG_L1_SUBFAMILIES) %$% gene_id
+# enrichment_lr <- tibble(gene_id = elements_for_enrichment)
+# for (contrast in contrasts_lr) {
+#     filepath <- str_glue("lrna/results/agg/deseq/telescope_multi/{contrast}/results_rtes.csv")
+#     df <- read_csv(filepath, show_col_types = FALSE)
+#     colnames(df)[1] <- "gene_id"
+#     df <- df %>%
+#         filter(gene_id %in% elements_for_enrichment) %>%
+#         dplyr::select(gene_id, baseMean, log2FoldChange, lfcSE, padj) %>%
+#         dplyr::rename(
+#             !!str_glue("baseMean_{contrast}") := baseMean,
+#             !!str_glue("l2fc_{contrast}") := log2FoldChange,
+#             !!str_glue("lfcSE_{contrast}") := lfcSE,
+#             !!str_glue("padj_{contrast}") := padj
+#         )
+#     enrichment_lr <- enrichment_lr %>% left_join(df, by = "gene_id")
+# }
+# for (contrast in contrasts_lr) {
+#     enrichment_lr <- enrichment_lr %>%
+#         mutate(!!str_glue("l2fc_{contrast}") := replace_na(!!sym(str_glue("l2fc_{contrast}")), 0)) %>%
+#         mutate(!!str_glue("padj_{contrast}") := replace_na(!!sym(str_glue("padj_{contrast}")), 1))
+# }
+
+# normed_lr_raw <- read_csv("lrna/results/agg/deseq/telescope_multi/counttablesizenormed.csv", show_col_types = FALSE)
+# colnames(normed_lr_raw)[1] <- "gene_id"
+# normed_lr_long_all <- normed_lr_raw %>%
+#     filter(gene_id %in% elements_for_enrichment_all) %>%
+#     pivot_longer(-gene_id, names_to = "sample_name", values_to = "normed_count") %>%
+#     left_join(sample_table_lrna %>% dplyr::select(sample_name, condition), by = "sample_name")
+# normed_lr_long <- normed_lr_long_all %>% filter(gene_id %in% elements_for_enrichment)
+# normed_lr_mean <- normed_lr_long %>%
+#     group_by(gene_id, condition) %>%
+#     summarise(mean_normed = mean(normed_count, na.rm = TRUE), .groups = "drop") %>%
+#     pivot_wider(names_from = condition, values_from = mean_normed, names_prefix = "mean_lr_")
+# enrichment_lr <- enrichment_lr %>%
+#     left_join(normed_lr_mean, by = "gene_id") %>%
+#     mutate(across(starts_with("mean_lr_"), ~ replace_na(., 0)))
+
+# # Build enrichment for all-length elements (FL + trnc)
+# enrichment_lr_all <- tibble(gene_id = elements_for_enrichment_all)
+# for (contrast in contrasts_lr) {
+#     filepath <- str_glue("lrna/results/agg/deseq/telescope_multi/{contrast}/results_rtes.csv")
+#     df <- read_csv(filepath, show_col_types = FALSE)
+#     colnames(df)[1] <- "gene_id"
+#     df <- df %>%
+#         filter(gene_id %in% elements_for_enrichment_all) %>%
+#         dplyr::select(gene_id, baseMean, log2FoldChange, lfcSE, padj) %>%
+#         dplyr::rename(
+#             !!str_glue("baseMean_{contrast}") := baseMean,
+#             !!str_glue("l2fc_{contrast}") := log2FoldChange,
+#             !!str_glue("lfcSE_{contrast}") := lfcSE,
+#             !!str_glue("padj_{contrast}") := padj
+#         )
+#     enrichment_lr_all <- enrichment_lr_all %>% left_join(df, by = "gene_id")
+# }
+# for (contrast in contrasts_lr) {
+#     enrichment_lr_all <- enrichment_lr_all %>%
+#         mutate(!!str_glue("l2fc_{contrast}") := replace_na(!!sym(str_glue("l2fc_{contrast}")), 0)) %>%
+#         mutate(!!str_glue("padj_{contrast}") := replace_na(!!sym(str_glue("padj_{contrast}")), 1))
+# }
+# normed_lr_mean_all <- normed_lr_long_all %>%
+#     group_by(gene_id, condition) %>%
+#     summarise(mean_normed = mean(normed_count, na.rm = TRUE), .groups = "drop") %>%
+#     pivot_wider(names_from = condition, values_from = mean_normed, names_prefix = "mean_lr_")
+# enrichment_lr_all <- enrichment_lr_all %>%
+#     left_join(normed_lr_mean_all, by = "gene_id") %>%
+#     mutate(across(starts_with("mean_lr_"), ~ replace_na(., 0)))
+
+count_data <- readRDS("custom/counts/count_data.rds")
+method_data <- count_data$method_data
+quant_all <- count_data$quant_all
+quant_all_raw <- count_data$quant_all_raw
+annot <- count_data$annot
+
+annot %$% orf1_intactness %>% table()
 # Create output directories
 outdir_base <- str_glue("lrna/results/plots/m6a_l1_analysis")
 outdir_ivt <- str_glue("{outdir_base}/ivt_filtering")
@@ -365,12 +547,11 @@ p <- ivt_profile %>%
         y = -2, label = L1_REGIONS$region, size = 2.5
     ) +
     labs(
-        x = "L1HS consensus position", y = "% m6A (IVT)", color = NULL,
-        title = "IVT m6A profile along L1HS (basecalling artifact detection)"
+        x = "L1HS consensus position", y = "% m6A (IVT)", color = NULL
     ) +
     coord_cartesian(ylim = c(-4, max(ivt_profile$pctM[ivt_profile$cov >= 5], na.rm = TRUE) * 1.1)) +
-    mtopen
-mysaveandstore(str_glue("{outdir_ivt}/ivt_modification_profile11.pdf"), w = 12, h = 5)
+    theme_minimal(base_size = 12)
+mss(str_glue("{outdir_ivt}/ivt_modification_profile11.pdf"), fw = 4, fh = 2, plus_void = TRUE)
 
 # Plot 2: IVT coverage along element
 p <- ivt_profile %>%
@@ -378,8 +559,8 @@ p <- ivt_profile %>%
     geom_bar(stat = "identity", fill = "steelblue", alpha = 0.7, width = 1) +
     geom_hline(yintercept = FP_MIN_COV, linetype = "dashed", color = "red") +
     labs(x = "L1HS consensus position", y = "Coverage", title = "IVT coverage along L1HS construct") +
-    mtopen
-mysaveandstore(str_glue("{outdir_ivt}/ivt_coverage_profile.pdf"), w = 12, h = 4)
+    theme_minimal(base_size = 12)
+mss(str_glue("{outdir_ivt}/ivt_coverage_profile.pdf"), fw = 4, fh = 2)
 
 # Plot 3: Histogram of IVT pctM
 p <- ivt_profile %>%
@@ -389,8 +570,8 @@ p <- ivt_profile %>%
     geom_vline(xintercept = FP_THRESHOLD, linetype = "dashed", color = "red", linewidth = 1) +
     annotate("text", x = FP_THRESHOLD + 1, y = Inf, vjust = 2, label = str_glue("FP threshold = {FP_THRESHOLD}%"), color = "red", size = 3.5) +
     labs(x = "% m6A in IVT", y = "# positions", title = "Distribution of apparent m6A in IVT (no true modification expected)") +
-    mtopen
-mysaveandstore(str_glue("{outdir_ivt}/ivt_pctM_histogram.pdf"), w = 8, h = 5)
+    theme_minimal(base_size = 12)
+mss(str_glue("{outdir_ivt}/ivt_pctM_histogram111.pdf"), fw = 1.5, fh = 1.5, plus_void = TRUE)
 
 # Plot 4: Before/after filtering comparison
 orf1_mean_before <- yl1annm %>%
@@ -421,7 +602,7 @@ p <- before_after %>%
         x = "L1HS consensus position", y = "Mean % m6A (ORF1 RIP)", color = NULL,
         title = "ORF1 RIP L1HS modification: before vs after IVT filtering"
     ) +
-    mtopen
+    theme_minimal(base_size = 12)
 mysaveandstore(str_glue("{outdir_ivt}/before_after_filtering.pdf"), w = 12, h = 8)
 
 # Plot 5: IVT pctM vs ORF1-RIP pctM scatter
@@ -450,10 +631,10 @@ p <- scatter_df %>%
     ) +
     labs(
         x = "% m6A in IVT (no real modification)", y = "% m6A in ORF1 RIP",
-        color = NULL, title = "Systematic errors vs real m6A signal"
+        color = NULL
     ) +
-    mtopen
-mysaveandstore(str_glue("{outdir_ivt}/ivt_vs_orf1_scatter.pdf"), w = 8, h = 7)
+    theme_minimal(base_size = 12)
+mysaveandstore(str_glue("{outdir_ivt}/ivt_vs_orf1_scatter1.pdf"), w = 6, h = 5)
 
 # Plot 6: Summary stats
 cat(sprintf("\n--- IVT Filtering Summary ---\n"))
@@ -629,6 +810,7 @@ run_sections_2_and_3 <- function(subfamilies, label, suffix, length_filter = "FL
             mean_n_elements >= MIN_N_ELEMENTS,
             mean_total_cov >= MIN_TOTAL_COV
         )
+    reliable_sites_harmonized_pos <- reliable_sites %$% harmonized_pos
 
     reliable_sites2 <- pos_summary %>%
         filter(
@@ -684,7 +866,7 @@ run_sections_2_and_3 <- function(subfamilies, label, suffix, length_filter = "FL
             color = "Reliable", size = "# elements",
             title = sprintf("m6A modification profile: reliable sites [%s]", full_label)
         ) +
-        mtopen
+        theme_minimal(base_size = 12)
     mysaveandstore(str_glue("{outdir_sites}/modification_profile_reliable_sites.pdf"), w = 14, h = 6)
 
     # Plot 2: Per-condition profiles at reliable sites
@@ -720,7 +902,7 @@ run_sections_2_and_3 <- function(subfamilies, label, suffix, length_filter = "FL
             color = "Condition",
             title = sprintf("m6A profile by condition [%s]", full_label)
         ) +
-        mtopen
+        theme_minimal(base_size = 12)
     mysaveandstore(str_glue("{outdir_sites}/modification_profile_by_condition.pdf"), w = 14, h = 6)
 
     # Plot 3: Replicate reproducibility scatter (all samples)
@@ -748,7 +930,7 @@ run_sections_2_and_3 <- function(subfamilies, label, suffix, length_filter = "FL
             scale_color_manual(values = c("TRUE" = "#D62728", "FALSE" = "grey70")) +
             annotate("text", x = 5, y = 90, label = sprintf("r = %.3f", r_val), size = 4) +
             labs(x = pair[1], y = pair[2], title = pair_label) +
-            mtopen +
+            theme_minimal(base_size = 12) +
             theme(legend.position = "none")
     }
     p <- plot_grid(plotlist = rep_scatter_list, ncol = min(length(rep_scatter_list), 3))
@@ -770,7 +952,7 @@ run_sections_2_and_3 <- function(subfamilies, label, suffix, length_filter = "FL
             x = "Mean % m6A (pooled)", y = "-log10(CV)", color = "Reliable",
             title = "Site reliability: modification level vs cross-sample consistency"
         ) +
-        mtopen
+        theme_minimal(base_size = 12)
     mysaveandstore(str_glue("{outdir_sites}/volcano_style_reliability.pdf"), w = 8, h = 6)
 
     # Plot 5: Element-level heatmap at reliable sites
@@ -1123,7 +1305,7 @@ run_sections_2_and_3 <- function(subfamilies, label, suffix, length_filter = "FL
         geom_col(fill = "steelblue", alpha = 0.8) +
         geom_text(aes(label = n), vjust = -0.5, size = 4) +
         labs(x = NULL, y = "# positions", title = sprintf("Filtering funnel for reliable m6A sites [%s]", full_label)) +
-        mtopen +
+        theme_minimal(base_size = 12) +
         theme(axis.text.x = element_text(angle = 30, hjust = 1))
     mysaveandstore(str_glue("{outdir_sites}/filtering_funnel.pdf"), w = 8, h = 5)
 
@@ -1139,7 +1321,7 @@ run_sections_2_and_3 <- function(subfamilies, label, suffix, length_filter = "FL
             x = "% m6A per element-position", y = "Density", fill = NULL,
             title = sprintf("Modification distribution at reliable vs non-reliable sites [%s]", full_label)
         ) +
-        mtopen
+        theme_minimal(base_size = 12)
     mysaveandstore(str_glue("{outdir_sites}/density_reliable_vs_nonreliable.pdf"),
         w = 5 * length(conditions_present), h = 5
     )
@@ -1159,7 +1341,7 @@ run_sections_2_and_3 <- function(subfamilies, label, suffix, length_filter = "FL
                 size = "# elements", color = "Condition",
                 title = sprintf("Reliable m6A sites by condition [%s]", full_label)
             ) +
-            mtopen
+            theme_minimal(base_size = 12)
         mysaveandstore(str_glue("{outdir_sites}/site_dotplot_reliable.pdf"),
             w = 9, h = max(4, nrow(reliable_sites) * 0.25)
         )
@@ -1222,7 +1404,7 @@ run_sections_2_and_3 <- function(subfamilies, label, suffix, length_filter = "FL
                 title = "FP positions: sample signal vs IVT artifact",
                 subtitle = "Blue dotted line = 3x IVT level. Points above may have real signal despite artifact."
             ) +
-            mtopen
+            theme_minimal(base_size = 12)
         mysaveandstore(str_glue("{outdir_sites}/fp_sample_vs_ivt_signal.pdf"), w = 9, h = 7)
 
         # Also save a table of potentially rescuable FP positions
@@ -1292,7 +1474,7 @@ run_sections_2_and_3 <- function(subfamilies, label, suffix, length_filter = "FL
             color = NULL, size = "# elements",
             title = sprintf("m6A profile: DRACH context [%s]", full_label),
         ) +
-        mtopen
+        theme_minimal(base_size = 12)
     mysaveandstore(str_glue("{outdir_sites}/modification_profile_drach.pdf"), w = 14, h = 6)
 
     # Summary of DRACH vs non-DRACH among reliable sites
@@ -1363,7 +1545,7 @@ run_sections_2_and_3 <- function(subfamilies, label, suffix, length_filter = "FL
                 fill = "Base",
                 title = sprintf("Sequence context: modified vs unmodified DRACH sites [%s]", full_label)
             ) +
-            mtopen
+            theme_minimal(base_size = 12)
         mysaveandstore(str_glue("{outdir_sites}/drach_motif_context_comparison.pdf"), w = 10, h = 7)
 
         # Per-position enrichment: Fisher's test at each position for each base
@@ -1414,7 +1596,7 @@ run_sections_2_and_3 <- function(subfamilies, label, suffix, length_filter = "FL
                 title = sprintf("Base enrichment: modified vs unmodified DRACH [%s]", full_label),
                 subtitle = "Stars = BH-adjusted p < 0.05"
             ) +
-            mtopen
+            theme_minimal(base_size = 12)
         mysaveandstore(str_glue("{outdir_sites}/drach_motif_enrichment.pdf"), w = 10, h = 5)
 
         # Summary statistics
@@ -1475,7 +1657,7 @@ run_sections_2_and_3 <- function(subfamilies, label, suffix, length_filter = "FL
                 color = "Length", size = "# elements",
                 title = sprintf("m6A profile: FL vs truncated (%s)", full_label)
             ) +
-            mtopen
+            theme_minimal(base_size = 12)
         mysaveandstore(str_glue("{outdir_sites}/modification_profile_by_length.pdf"),
             w = 14, h = 5 * length(conditions_present)
         )
@@ -1506,7 +1688,7 @@ run_sections_2_and_3 <- function(subfamilies, label, suffix, length_filter = "FL
                 size = "# elements",
                 title = sprintf("m6A profile by condition x length (%s)", full_label)
             ) +
-            mtopen
+            theme_minimal(base_size = 12)
         mysaveandstore(str_glue("{outdir_sites}/modification_profile_faceted_condition_x_length.pdf"),
             w = 14, h = 4 * length(conditions_present)
         )
@@ -1536,7 +1718,7 @@ run_sections_2_and_3 <- function(subfamilies, label, suffix, length_filter = "FL
                     fill = "Length",
                     title = sprintf("FL vs truncated at reliable sites (%s)", full_label)
                 ) +
-                mtopen +
+                theme_minimal(base_size = 12) +
                 theme(axis.text.x = element_text(angle = 45, hjust = 1))
             mysaveandstore(str_glue("{outdir_sites}/reliable_sites_fl_vs_trnc.pdf"),
                 w = max(7, nrow(reliable_sites) * 0.8 + 2), h = 4 * length(conditions_present)
@@ -1560,7 +1742,7 @@ run_sections_2_and_3 <- function(subfamilies, label, suffix, length_filter = "FL
                 fill = "Length",
                 title = sprintf("Elements by subfamily and length (%s)", full_label)
             ) +
-            mtopen
+            theme_minimal(base_size = 12)
         mysaveandstore(str_glue("{outdir_sites}/element_counts_by_length.pdf"),
             w = 5 * length(conditions_present), h = 5
         )
@@ -1700,6 +1882,196 @@ results_all_yl1_alllength <- run_sections_2_and_3(YOUNG_L1_SUBFAMILIES, label = 
 results_l1hs_alllength <- run_sections_2_and_3(subfamilies = "L1HS", label = "L1HS", suffix = "_L1HS_alllength", length_filter = "all")
 
 # ============================================================
+# //ANCHOR - PER-SITE m6A DOTPLOT + INTRA-READ CORRELATION HEATMAP
+# ============================================================
+# Uses reads_wide_annotated from Section 2/3 (FL L1HS)
+
+outdir_m6a_sites <- str_glue("{outdir_base}/per_site_plots")
+dir.create(outdir_m6a_sites, recursive = TRUE, showWarnings = FALSE)
+
+# Load read-level data at reliable sites
+reads_ann <- read_tsv(str_glue("{intdir}_L1HS/reads_wide_annotated.tsv"))
+reliable_sites_l1hs <- results_l1hs$reliable_sites
+site_cols <- grep("^site_", colnames(reads_ann), value = TRUE)
+
+# Derive condition label (ORF1 vs TOT)
+reads_ann <- reads_ann %>%
+    mutate(bcondition = case_when(
+        grepl("ORF1", condition) ~ "ORF1",
+        grepl("TOT", condition) ~ "TOT",
+        TRUE ~ condition
+    ))
+
+# --- 1. Per-site dotplot: %m6A for ORF1 vs TOT ---
+# Pivot back to long for per-site stats
+reads_long <- reads_ann %>%
+    pivot_longer(
+        cols = all_of(site_cols),
+        names_to = "site", values_to = "is_mod",
+        names_prefix = "site_"
+    ) %>%
+    filter(!is.na(is_mod)) %>%
+    mutate(harmonized_pos = as.numeric(site))
+
+site_stats <- reads_long %>%
+    group_by(harmonized_pos, bcondition) %>%
+    summarise(
+        pctM = mean(is_mod) * 100,
+        n_reads = n(),
+        .groups = "drop"
+    )
+
+site_stats_wide <- site_stats %>%
+    pivot_wider(
+        names_from = bcondition,
+        values_from = c(pctM, n_reads),
+        names_sep = "_"
+    ) %>%
+    filter(!is.na(pctM_ORF1) & !is.na(pctM_TOT))
+
+# Join with consensus_pos for x-axis labeling
+if (exists("hp_to_cp")) {
+    site_stats_wide <- site_stats_wide %>%
+        left_join(hp_to_cp, by = "harmonized_pos")
+}
+
+p <- ggplot(site_stats_wide, aes(
+    x = pctM_TOT, y = pctM_ORF1,
+    size = log10(n_reads_ORF1 + n_reads_TOT)
+)) +
+    geom_point(alpha = 0.7, color = "#4393C3") +
+    geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "grey50") +
+    geom_text_repel(aes(label = harmonized_pos), size = 2.5, max.overlaps = 20) +
+    scale_size_continuous(name = "log10(total cov)", range = c(1, 6)) +
+    labs(
+        x = "% m6A (TOT)", y = "% m6A (ORF1)",
+        title = "L1HS FL: Per-site m6A — ORF1 vs TOT"
+    ) +
+    coord_equal() +
+    mtclosed
+mss(
+    pl = p, fn = str_glue("{outdir_m6a_sites}/per_site_m6a_orf1_vs_tot.pdf"),
+    fw = 2, fh = 2, plus_void = TRUE
+)
+
+# Bar version: each site as a bar, ORF1 and TOT side by side
+site_stats_plot <- site_stats %>%
+    mutate(harmonized_pos = factor(harmonized_pos, levels = sort(unique(harmonized_pos))))
+
+p <- ggplot(site_stats_plot, aes(x = harmonized_pos, y = pctM, fill = bcondition)) +
+    geom_col(position = position_dodge(0.8), width = 0.7) +
+    geom_text(aes(label = sprintf("%.0f", pctM)),
+        position = position_dodge(0.8),
+        vjust = -0.5, size = 2
+    ) +
+    labs(
+        x = "Harmonized position", y = "% m6A", fill = "Condition",
+        title = "L1HS FL: Per-site m6A levels"
+    ) +
+    mtclosed
+mss(
+    pl = p, fn = str_glue("{outdir_m6a_sites}/per_site_m6a_barplot.pdf"),
+    fw = 3, fh = 1.5, plus_void = TRUE
+)
+
+# --- 2. Intra-read pairwise correlation heatmap ---
+# For each pair of reliable sites, compute correlation of is_mod across reads
+site_mat <- reads_ann %>%
+    dplyr::select(all_of(site_cols)) %>%
+    as.matrix()
+
+# Pairwise phi (Pearson on binary) correlation
+cor_mat <- cor(site_mat, use = "pairwise.complete.obs")
+colnames(cor_mat) <- gsub("^site_", "", colnames(cor_mat))
+rownames(cor_mat) <- gsub("^site_", "", rownames(cor_mat))
+
+# Order by position
+pos_order <- order(as.numeric(colnames(cor_mat)))
+cor_mat <- cor_mat[pos_order, pos_order]
+
+p <- Heatmap(
+    cor_mat,
+    name = "Pearson r",
+    col = circlize::colorRamp2(c(-0.3, 0, 0.3, 0.6, 1), c("#2166AC", "#F7F7F7", "#F7F7F7", "#FDDBC7", "#B2182B")),
+    cluster_rows = FALSE, cluster_columns = FALSE,
+    column_title = "L1HS FL: Intra-read m6A correlation (all conditions)",
+    row_names_gp = gpar(fontsize = 7),
+    column_names_gp = gpar(fontsize = 7),
+    cell_fun = function(j, i, x, y, width, height, fill) {
+        if (i != j) grid.text(sprintf("%.2f", cor_mat[i, j]), x, y, gp = gpar(fontsize = 5))
+    }
+)
+pdf(str_glue("{outdir_m6a_sites}/intraread_correlation_heatmap_all.pdf"), width = 8, height = 7)
+draw(p)
+dev.off()
+
+# Per-condition correlation heatmaps
+for (cond in c("ORF1", "TOT")) {
+    cond_reads <- reads_ann %>%
+        filter(bcondition == cond) %>%
+        dplyr::select(all_of(site_cols)) %>%
+        as.matrix()
+
+    if (nrow(cond_reads) < 10) next
+
+    cor_cond <- cor(cond_reads, use = "pairwise.complete.obs")
+    colnames(cor_cond) <- gsub("^site_", "", colnames(cor_cond))
+    rownames(cor_cond) <- gsub("^site_", "", rownames(cor_cond))
+    cor_cond <- cor_cond[pos_order, pos_order]
+
+    p <- Heatmap(
+        cor_cond,
+        name = "Pearson r",
+        col = circlize::colorRamp2(c(-0.3, 0, 0.3, 0.6, 1), c("#2166AC", "#F7F7F7", "#F7F7F7", "#FDDBC7", "#B2182B")),
+        cluster_rows = FALSE, cluster_columns = FALSE,
+        column_title = str_glue("L1HS FL: Intra-read m6A correlation ({cond})"),
+        row_names_gp = gpar(fontsize = 7),
+        column_names_gp = gpar(fontsize = 7),
+        cell_fun = function(j, i, x, y, width, height, fill) {
+            if (i != j) grid.text(sprintf("%.2f", cor_cond[i, j]), x, y, gp = gpar(fontsize = 5))
+        }
+    )
+    pdf(str_glue("{outdir_m6a_sites}/intraread_correlation_heatmap_{tolower(cond)}.pdf"), width = 8, height = 7)
+    draw(p)
+    dev.off()
+}
+
+# Difference heatmap: ORF1 - TOT correlation
+orf1_reads <- reads_ann %>%
+    filter(bcondition == "ORF1") %>%
+    dplyr::select(all_of(site_cols)) %>%
+    as.matrix()
+tot_reads <- reads_ann %>%
+    filter(bcondition == "TOT") %>%
+    dplyr::select(all_of(site_cols)) %>%
+    as.matrix()
+if (nrow(orf1_reads) >= 10 && nrow(tot_reads) >= 10) {
+    cor_orf1 <- cor(orf1_reads, use = "pairwise.complete.obs")
+    cor_tot <- cor(tot_reads, use = "pairwise.complete.obs")
+    cor_diff <- cor_orf1 - cor_tot
+    colnames(cor_diff) <- gsub("^site_", "", colnames(cor_diff))
+    rownames(cor_diff) <- gsub("^site_", "", rownames(cor_diff))
+    cor_diff <- cor_diff[pos_order, pos_order]
+
+    p <- Heatmap(
+        cor_diff,
+        name = "Δr (ORF1-TOT)",
+        col = circlize::colorRamp2(c(-0.3, 0, 0.3), c("#2166AC", "#F7F7F7", "#B2182B")),
+        cluster_rows = FALSE, cluster_columns = FALSE,
+        column_title = "L1HS FL: Correlation difference (ORF1 - TOT)",
+        row_names_gp = gpar(fontsize = 7),
+        column_names_gp = gpar(fontsize = 7),
+        cell_fun = function(j, i, x, y, width, height, fill) {
+            if (i != j) grid.text(sprintf("%.2f", cor_diff[i, j]), x, y, gp = gpar(fontsize = 5))
+        }
+    )
+    pdf(str_glue("{outdir_m6a_sites}/intraread_correlation_diff_orf1_minus_tot.pdf"), width = 8, height = 7)
+    draw(p)
+    dev.off()
+}
+
+
+# ============================================================
 # //ANCHOR - SECTION 3: GLMM FITTING + PLOTS (at global scope for parallelism)
 # ============================================================
 
@@ -1711,13 +2083,19 @@ run_glmm <- function(modeling_inputs, suffix = "") {
     intdir_local <- str_glue("{intdir}{suffix}")
     for (d in c(outdir_glmm_local, intdir_local)) dir.create(d, recursive = TRUE, showWarnings = FALSE)
 
+    # Shadow mysaveandstore to capture function-local p instead of global p
+    .global_mysaveandstore <- get("mysaveandstore", envir = globalenv())
+    mysaveandstore <- function(fn = "ztmp.pdf", w = 5, h = 5, res = 600, store = store_var, raster = FALSE, ...) {
+        .global_mysaveandstore(fn = fn, w = w, h = h, res = res, pl = p, store = store, raster = raster, ...)
+    }
+
     cat(sprintf("\n=== Fitting GLMMs%s ===\n", ifelse(suffix == "", "", sprintf(" [%s]", suffix))))
 
     # Fit full models (parallel)
     plan(multisession, workers = min(length(site_cols), 16))
 
     model_results <- site_cols %>%
-        set_names() %>%
+        purrr::set_names() %>%
         future_map(~ {
             fit_site_model(.x, reads_annotated_sub, site_cols)
         }, .progress = TRUE)
@@ -1732,7 +2110,7 @@ run_glmm <- function(modeling_inputs, suffix = "") {
     plan(multisession, workers = min(length(site_cols), 8))
 
     model_results_nosite <- site_cols %>%
-        set_names() %>%
+        purrr::set_names() %>%
         future_map(~ {
             fit_site_model(.x, reads_annotated_sub, site_cols, include_other_sites = FALSE)
         }, .progress = TRUE)
@@ -1903,7 +2281,7 @@ run_glmm <- function(modeling_inputs, suffix = "") {
                     x = "Log-odds (estimate)", y = NULL,
                     title = sprintf("GLMM: predictors of m6A at %s", site), color = "padj < 0.05"
                 ) +
-                mtopen
+                theme_minimal(base_size = 12)
             mysaveandstore(str_glue("{outdir_glmm}/forest_{site}.pdf"), w = 8, h = max(4, nrow(site_coefs) * 0.35 + 1))
         }
 
@@ -1951,7 +2329,7 @@ run_glmm <- function(modeling_inputs, suffix = "") {
                     x = "Target site", y = "Variance (SD)", fill = "Random effect",
                     title = "Random effect variance components across models"
                 ) +
-                mtopen +
+                theme_minimal(base_size = 12) +
                 theme(axis.text.x = element_text(angle = 45, hjust = 1))
             mysaveandstore(str_glue("{outdir_glmm}/random_effect_variance.pdf"), w = max(6, n_success * 0.8 + 2), h = 5)
         }
@@ -1968,7 +2346,7 @@ run_glmm <- function(modeling_inputs, suffix = "") {
             geom_col() +
             scale_fill_manual(values = c("TRUE" = "steelblue", "FALSE" = "red")) +
             labs(x = NULL, y = "AIC", fill = "Converged", title = "Model fit (AIC) for each target site") +
-            mtopen +
+            theme_minimal(base_size = 12) +
             theme(axis.text.x = element_text(angle = 45, hjust = 1))
         mysaveandstore(str_glue("{outdir_glmm}/model_fit_summary.pdf"), w = max(6, n_success * 0.8 + 2), h = 5)
 
@@ -1996,7 +2374,7 @@ run_glmm <- function(modeling_inputs, suffix = "") {
                         pred_effects <- tryCatch(ggpredict(mod, terms = pred), error = function(e) NULL)
                         if (is.null(pred_effects)) next
                         p <- plot(pred_effects) +
-                            labs(title = sprintf("Predicted P(m6A) at %s by %s", target, pred)) + mtopen
+                            labs(title = sprintf("Predicted P(m6A) at %s by %s", target, pred)) + theme_minimal(base_size = 12)
                         mysaveandstore(str_glue("{outdir_glmm}/predicted_prob_{target}_{pred}.pdf"), w = 7, h = 5)
                     }
                 },
@@ -2076,7 +2454,7 @@ run_glmm <- function(modeling_inputs, suffix = "") {
                     x = "Log-odds (estimate)", y = NULL,
                     title = sprintf("Context-only GLMM: predictors of m6A at %s", site), color = "padj < 0.05"
                 ) +
-                mtopen
+                theme_minimal(base_size = 12)
             mysaveandstore(str_glue("{outdir_glmm}/forest_nosite_{site}.pdf"), w = 8, h = max(4, nrow(site_coefs) * 0.35 + 1))
         }
 
@@ -2106,7 +2484,7 @@ run_glmm <- function(modeling_inputs, suffix = "") {
                     x = NULL, y = expression(Delta * "AIC (context-only - full)"), fill = NULL,
                     title = "Model comparison: does co-modification information improve fit?"
                 ) +
-                mtopen +
+                theme_minimal(base_size = 12) +
                 theme(axis.text.x = element_text(angle = 45, hjust = 1))
             mysaveandstore(str_glue("{outdir_glmm}/aic_full_vs_nosite.pdf"), w = max(6, nrow(aic_compare) * 0.8 + 2), h = 5)
         }
@@ -2148,7 +2526,7 @@ run_glmm <- function(modeling_inputs, suffix = "") {
                         title = sprintf("%s: effect on m6A across sites", pred_title),
                         subtitle = "Stars = BH-adjusted p-value (* <0.05, ** <0.01, *** <0.001)"
                     ) +
-                    mtopen +
+                    theme_minimal(base_size = 12) +
                     theme(axis.text.x = element_text(angle = 45, hjust = 1))
                 mysaveandstore(str_glue("{outdir_glmm}/ctx_lollipop_{pred}{suffix}.pdf"),
                     w = max(7, nrow(pred_data) * 0.6 + 2), h = 5
@@ -2165,7 +2543,7 @@ run_glmm <- function(modeling_inputs, suffix = "") {
                         x = "Site (linear position)", y = "Coefficient (log-odds)",
                         title = sprintf("%s: effect on m6A across sites", pred_title)
                     ) +
-                    mtopen +
+                    theme_minimal(base_size = 12) +
                     theme(axis.text.x = element_text(angle = 45, hjust = 1))
                 mysaveandstore(str_glue("{outdir_glmm}/ctx_pointrange_{pred}{suffix}.pdf"),
                     w = max(7, nrow(pred_data) * 0.6 + 2), h = 5
@@ -2185,7 +2563,7 @@ run_glmm <- function(modeling_inputs, suffix = "") {
                         x = "Site (linear position)", y = "Coefficient (log-odds)",
                         title = sprintf("%s: effect on m6A across sites", pred_title)
                     ) +
-                    mtopen +
+                    theme_minimal(base_size = 12) +
                     theme(axis.text.x = element_text(angle = 45, hjust = 1))
                 mysaveandstore(str_glue("{outdir_glmm}/ctx_barplot_{pred}{suffix}.pdf"),
                     w = max(7, nrow(pred_data) * 0.6 + 2), h = 5
@@ -2204,7 +2582,7 @@ run_glmm <- function(modeling_inputs, suffix = "") {
                         x = "Site (linear position)", y = NULL,
                         title = sprintf("%s: effect on m6A%s", pred_label, title_extra), caption = "Star = padj < 0.05"
                     ) +
-                    mtopen +
+                    theme_minimal(base_size = 12) +
                     theme(
                         axis.text.y = element_blank(), axis.ticks.y = element_blank(),
                         axis.text.x = element_text(angle = 45, hjust = 1)
@@ -2232,7 +2610,7 @@ run_glmm <- function(modeling_inputs, suffix = "") {
                         x = "Site (linear position)", y = NULL,
                         title = paste0("Context predictors of m6A across L1 sites", title_extra)
                     ) +
-                    mtopen +
+                    theme_minimal(base_size = 12) +
                     theme(axis.text.x = element_text(angle = 45, hjust = 1))
                 mysaveandstore(str_glue("{outdir_glmm}/ctx_combined_tile{suffix}.pdf"),
                     w = max(7, n_distinct(ctx_data$target_site) * 0.6 + 3), h = 4
@@ -2505,7 +2883,7 @@ p <- l1hs_poly %>%
             nrow(l1hs_poly), sum(l1hs_poly$is_polymorphic)
         )
     ) +
-    mtopen
+    theme_minimal(base_size = 12)
 mysaveandstore(str_glue("{outdir_evo}/drach_polymorphism_histogram.pdf"), w = 7, h = 5)
 
 # Plot 0b: Polymorphism along the element (all positions)
@@ -2537,7 +2915,7 @@ p <- l1hs_poly %>%
         x = "L1HS consensus position", y = "% elements with DRACH",
         color = NULL, title = "DRACH polymorphism along L1HS (circles = reliable m6A sites)"
     ) +
-    mtopen
+    theme_minimal(base_size = 12)
 mysaveandstore(str_glue("{outdir_evo}/drach_polymorphism_along_element.pdf"), w = 14, h = 6)
 
 # Plot 1: DRACH fraction evolution across subfamilies (reliable sites only)
@@ -2556,7 +2934,7 @@ p <- reliable_poly %>%
         color = "Evolutionary category",
         title = "DRACH motif evolution across L1 subfamilies at reliable m6A sites"
     ) +
-    mtopen
+    theme_minimal(base_size = 12)
 mysaveandstore(str_glue("{outdir_evo}/drach_fraction_evolution.pdf"), w = 10, h = 6)
 
 # Same but faceted by site for clarity
@@ -2570,7 +2948,7 @@ p <- reliable_poly %>%
     scale_y_continuous(labels = scales::percent) +
     facet_wrap(~harmonized_pos, scales = "free_y") +
     labs(x = "Subfamily", y = "Fraction DRACH", color = "Category") +
-    mtopen +
+    theme_minimal(base_size = 12) +
     theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 7))
 mysaveandstore(str_glue("{outdir_evo}/drach_fraction_evolution_faceted.pdf"),
     w = max(8, ceiling(sqrt(n_reliable_sites)) * 3),
@@ -2661,7 +3039,7 @@ p <- plot_df_evo %>%
         x = "Position relative to site", y = NULL,
         title = "Sequence context at reliable m6A sites across L1 subfamilies"
     ) +
-    mtopen +
+    theme_minimal(base_size = 12) +
     theme(strip.text = element_text(size = 8))
 mysaveandstore(str_glue("{outdir_evo}/alignment_windows_reliable_sites.pdf"),
     w = 4 * min(length(reliable_harmonized), 4) + 2,
@@ -2679,7 +3057,7 @@ p <- site_evolution %>%
         x = NULL, y = "# reliable m6A sites",
         title = "Evolutionary classification of DRACH context at reliable m6A sites"
     ) +
-    mtopen +
+    theme_minimal(base_size = 12) +
     theme(legend.position = "none", axis.text.x = element_text(angle = 30, hjust = 1))
 mysaveandstore(str_glue("{outdir_evo}/evolutionary_category_summary.pdf"), w = 7, h = 5)
 
@@ -2705,7 +3083,7 @@ if (exists("drach_mod_link") && nrow(drach_mod_link) > 0) {
                 x = NULL, y = "Mean % m6A", fill = NULL,
                 title = "m6A modification at polymorphic DRACH sites"
             ) +
-            mtopen +
+            theme_minimal(base_size = 12) +
             theme(legend.position = "none")
         mysaveandstore(str_glue("{outdir_evo}/drach_polymorphism_vs_modification.pdf"),
             w = 3 * min(length(poly_positions), 4) + 1,
@@ -2732,7 +3110,7 @@ p <- site_evolution %>%
         color = "Category",
         title = "Does DRACH conservation predict modification level?"
     ) +
-    mtopen
+    theme_minimal(base_size = 12)
 mysaveandstore(str_glue("{outdir_evo}/modification_vs_drach_conservation.pdf"), w = 8, h = 6)
 
 # Plot 6: Consensus evolution heatmap (5-mer across subfamilies)
@@ -2754,7 +3132,7 @@ p <- consensus_5mer_hm %>%
         x = "Harmonized position", y = NULL, fill = "Motif context",
         title = "DRACH motif evolution at reliable m6A sites"
     ) +
-    mtopen +
+    theme_minimal(base_size = 12) +
     theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8))
 mysaveandstore(str_glue("{outdir_evo}/consensus_5mer_evolution_heatmap.pdf"),
     w = max(8, n_distinct(consensus_5mer_hm$harmonized_pos) * 0.8 + 3), h = 5
@@ -2794,7 +3172,7 @@ if (nrow(drach_poly_df) > 0 && length(poly_positions) > 0) {
             scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 25, name = "% mod") +
             facet_wrap(~harmonized_pos, scales = "free_y", ncol = 3) +
             labs(x = NULL, y = NULL, title = "Motif variants at polymorphic DRACH m6A sites") +
-            mtopen +
+            theme_minimal(base_size = 12) +
             theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
         mysaveandstore(str_glue("{outdir_evo}/motif_variant_frequency.pdf"),
             w = 4 * min(length(poly_positions), 3) + 1, h = 3 * ceiling(length(poly_positions) / 3) + 1
@@ -2824,7 +3202,7 @@ p <- timeline_data %>%
         x = "Subfamily (young -> old)", y = "Harmonized position", fill = "DRACH context",
         title = "DRACH context evolution across L1 phylogeny at reliable m6A sites"
     ) +
-    mtopen +
+    theme_minimal(base_size = 12) +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
 mysaveandstore(str_glue("{outdir_evo}/drach_evolution_timeline.pdf"),
     w = 8, h = max(4, n_distinct(timeline_data$harmonized_pos) * 0.3 + 2)
@@ -2967,7 +3345,7 @@ if (nrow(drach_poly_df_al) > 0) {
             color = "Evolutionary category",
             title = "DRACH motif evolution: FL vs truncated elements"
         ) +
-        mtopen
+        theme_minimal(base_size = 12)
     mysaveandstore(str_glue("{outdir_evo_al}/drach_fraction_evolution_by_length.pdf"), w = 14, h = 6)
 
     # Plot 2: FL vs trnc DRACH fraction comparison
@@ -2988,7 +3366,7 @@ if (nrow(drach_poly_df_al) > 0) {
                 color = "Subfamily",
                 title = "DRACH polymorphism: FL vs truncated elements"
             ) +
-            mtopen
+            theme_minimal(base_size = 12)
         mysaveandstore(str_glue("{outdir_evo_al}/drach_fraction_fl_vs_trnc.pdf"), w = 8, h = 7)
     }
 
@@ -3012,7 +3390,7 @@ if (nrow(drach_poly_df_al) > 0) {
                 x = NULL, y = "Mean % m6A", fill = NULL,
                 title = "m6A at polymorphic DRACH sites: FL vs truncated"
             ) +
-            mtopen +
+            theme_minimal(base_size = 12) +
             theme(legend.position = "none")
         mysaveandstore(str_glue("{outdir_evo_al}/drach_polymorphism_vs_modification_by_length.pdf"),
             w = 3 * min(length(poly_positions_all), 4) + 1,
@@ -3037,7 +3415,7 @@ if (nrow(drach_poly_df_al) > 0) {
             fill = "Length",
             title = "Modification at reliable m6A sites: FL vs truncated elements"
         ) +
-        mtopen +
+        theme_minimal(base_size = 12) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1))
     mysaveandstore(str_glue("{outdir_evo_al}/modification_reliable_sites_fl_vs_trnc.pdf"),
         w = max(7, length(reliable_harmonized) * 0.8 + 2), h = 5
@@ -3061,7 +3439,7 @@ if (nrow(drach_poly_df_al) > 0) {
             color = "Category", shape = "Length",
             title = "DRACH conservation vs modification (FL + trnc)"
         ) +
-        mtopen
+        theme_minimal(base_size = 12)
     mysaveandstore(str_glue("{outdir_evo_al}/modification_vs_drach_conservation_alllength.pdf"), w = 9, h = 6)
 
     # Plot 6: Element count by length and subfamily at reliable sites
@@ -3080,7 +3458,7 @@ if (nrow(drach_poly_df_al) > 0) {
             fill = "Length",
             title = "Element coverage at reliable sites: FL vs truncated"
         ) +
-        mtopen +
+        theme_minimal(base_size = 12) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1))
     mysaveandstore(str_glue("{outdir_evo_al}/element_coverage_by_length.pdf"),
         w = max(7, length(reliable_harmonized) * 0.8 + 2), h = 5
@@ -3209,7 +3587,7 @@ run_element_analysis <- function(meth_data, enrich_data, subfamilies, reliable_s
             color = "Subfamily",
             title = sprintf("Element-level m6A at reliable sites (%s)", full_label)
         ) +
-        mtopen +
+        theme_minimal(base_size = 12) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1))
     mysaveandstore(str_glue("{outdir_elem}/element_m6a_per_site_violin.pdf"),
         w = max(8, length(reliable_hpos) * 0.8 + 2), h = 6
@@ -3229,7 +3607,7 @@ run_element_analysis <- function(meth_data, enrich_data, subfamilies, reliable_s
                 color = "Subfamily",
                 title = sprintf("Element-level m6A by length (%s)", full_label)
             ) +
-            mtopen +
+            theme_minimal(base_size = 12) +
             theme(axis.text.x = element_text(angle = 45, hjust = 1))
         mysaveandstore(str_glue("{outdir_elem}/element_m6a_per_site_violin_by_length.pdf"),
             w = max(8, length(reliable_hpos) * 0.8 + 2), h = 10
@@ -3251,7 +3629,7 @@ run_element_analysis <- function(meth_data, enrich_data, subfamilies, reliable_s
             subtitle = "Labels: # elements (total coverage)",
             title = sprintf("Per-site coverage by subfamily (%s)", full_label)
         ) +
-        mtopen +
+        theme_minimal(base_size = 12) +
         theme(
             axis.text.x = element_text(angle = 45, hjust = 1, size = 7),
             legend.position = "none"
@@ -3275,7 +3653,7 @@ run_element_analysis <- function(meth_data, enrich_data, subfamilies, reliable_s
             x = NULL, y = "Total read coverage",
             title = sprintf("Per-site total coverage by subfamily (%s)", full_label)
         ) +
-        mtopen +
+        theme_minimal(base_size = 12) +
         theme(
             axis.text.x = element_text(angle = 45, hjust = 1, size = 7),
             legend.position = "none"
@@ -3300,7 +3678,7 @@ run_element_analysis <- function(meth_data, enrich_data, subfamilies, reliable_s
             x = "Reliable site (harmonized position)", y = "Subfamily",
             title = sprintf("Coverage per site per subfamily (%s)", full_label)
         ) +
-        mtopen +
+        theme_minimal(base_size = 12) +
         theme(axis.text.x = element_text(angle = 45, hjust = 1))
     mysaveandstore(str_glue("{outdir_elem}/site_subfamily_coverage_heatmap.pdf"),
         w = max(7, length(reliable_hpos) * 0.6 + 3), h = max(4, length(subfamilies) * 0.5 + 2)
@@ -3411,7 +3789,7 @@ run_element_analysis <- function(meth_data, enrich_data, subfamilies, reliable_s
             x = "Mean % m6A across reliable sites", y = "# elements",
             title = sprintf("Distribution of aggregate element methylation (%s)", full_label)
         ) +
-        mtopen
+        theme_minimal(base_size = 12)
     mysaveandstore(str_glue("{outdir_elem}/aggregate_m6a_distribution.pdf"), w = 7, h = 5)
 
     # Plot 5: Aggregate methylation by subfamily
@@ -3425,7 +3803,7 @@ run_element_analysis <- function(meth_data, enrich_data, subfamilies, reliable_s
             x = "Subfamily", y = "Mean % m6A across reliable sites",
             title = sprintf("Aggregate element m6A by subfamily (%s)", full_label)
         ) +
-        mtopen +
+        theme_minimal(base_size = 12) +
         theme(legend.position = "none")
     mysaveandstore(str_glue("{outdir_elem}/aggregate_m6a_by_subfamily.pdf"), w = 7, h = 5)
 
@@ -3441,7 +3819,7 @@ run_element_analysis <- function(meth_data, enrich_data, subfamilies, reliable_s
                 x = "Intactness", y = "Mean % m6A across reliable sites",
                 title = sprintf("Aggregate m6A by intactness (%s)", full_label)
             ) +
-            mtopen +
+            theme_minimal(base_size = 12) +
             theme(legend.position = "none", axis.text.x = element_text(angle = 30, hjust = 1))
         mysaveandstore(str_glue("{outdir_elem}/aggregate_m6a_by_intactness.pdf"), w = 7, h = 5)
     }
@@ -3458,7 +3836,7 @@ run_element_analysis <- function(meth_data, enrich_data, subfamilies, reliable_s
                 x = "Genic location", y = "Mean % m6A across reliable sites",
                 title = sprintf("Aggregate m6A by genic location (%s)", full_label)
             ) +
-            mtopen +
+            theme_minimal(base_size = 12) +
             theme(legend.position = "none", axis.text.x = element_text(angle = 30, hjust = 1))
         mysaveandstore(str_glue("{outdir_elem}/aggregate_m6a_by_genic_loc.pdf"), w = 7, h = 5)
     }
@@ -3475,7 +3853,7 @@ run_element_analysis <- function(meth_data, enrich_data, subfamilies, reliable_s
                 x = "Integrative location", y = "Mean % m6A across reliable sites",
                 title = sprintf("Aggregate m6A by integrative location (%s)", full_label)
             ) +
-            mtopen +
+            theme_minimal(base_size = 12) +
             theme(legend.position = "none", axis.text.x = element_text(angle = 30, hjust = 1))
         mysaveandstore(str_glue("{outdir_elem}/aggregate_m6a_by_loc_superlowres_integrative_stranded.pdf"), w = 8, h = 5)
     }
@@ -3506,7 +3884,7 @@ run_element_analysis <- function(meth_data, enrich_data, subfamilies, reliable_s
                 x = NULL, y = "% m6A per element", fill = "Subfamily",
                 title = sprintf("Per-site m6A by subfamily (%s)", full_label)
             ) +
-            mtopen +
+            theme_minimal(base_size = 12) +
             theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 7))
         mysaveandstore(str_glue("{outdir_elem}/per_site_m6a_by_subfamily.pdf"),
             w = max(8, ceiling(sqrt(length(reliable_hpos))) * 3 + 2),
@@ -3553,7 +3931,7 @@ run_element_analysis <- function(meth_data, enrich_data, subfamilies, reliable_s
                 x = NULL, y = "% m6A per element", fill = "Intactness",
                 title = sprintf("Per-site m6A by intactness (%s)", full_label)
             ) +
-            mtopen +
+            theme_minimal(base_size = 12) +
             theme(axis.text.x = element_text(angle = 30, hjust = 1, size = 7))
         mysaveandstore(str_glue("{outdir_elem}/per_site_m6a_by_intactness.pdf"),
             w = max(8, ceiling(sqrt(length(reliable_hpos))) * 3 + 2),
@@ -3579,7 +3957,7 @@ run_element_analysis <- function(meth_data, enrich_data, subfamilies, reliable_s
                 x = NULL, y = "% m6A per element", fill = "Location",
                 title = sprintf("Per-site m6A by genomic location (%s)", full_label)
             ) +
-            mtopen +
+            theme_minimal(base_size = 12) +
             theme(
                 axis.text.x = element_text(angle = 45, hjust = 1, size = 6),
                 legend.position = "none"
@@ -3608,7 +3986,7 @@ run_element_analysis <- function(meth_data, enrich_data, subfamilies, reliable_s
                 x = NULL, y = "% m6A per element", fill = "Genic loc",
                 title = sprintf("Per-site m6A by genic location (%s)", full_label)
             ) +
-            mtopen +
+            theme_minimal(base_size = 12) +
             theme(axis.text.x = element_text(angle = 30, hjust = 1, size = 7))
         mysaveandstore(str_glue("{outdir_elem}/per_site_m6a_by_genic_loc.pdf"),
             w = max(8, ceiling(sqrt(length(reliable_hpos))) * 3 + 2),
@@ -3627,7 +4005,7 @@ run_element_analysis <- function(meth_data, enrich_data, subfamilies, reliable_s
             color = "Subfamily",
             title = sprintf("Element m6A vs ORF1 enrichment (%s)", full_label)
         ) +
-        mtopen
+        theme_minimal(base_size = 12)
     mysaveandstore(str_glue("{outdir_elem}/m6a_vs_orf1_enrichment.pdf"), w = 8, h = 6)
 
     # Plot 10: Scatter - aggregate m6A vs expression (baseMean)
@@ -3644,7 +4022,7 @@ run_element_analysis <- function(meth_data, enrich_data, subfamilies, reliable_s
             color = "Subfamily",
             title = sprintf("Element m6A vs expression (%s)", full_label)
         ) +
-        mtopen
+        theme_minimal(base_size = 12)
     mysaveandstore(str_glue("{outdir_elem}/m6a_vs_expression.pdf"), w = 8, h = 6)
 
     # Plot 11: Scatter - aggregate m6A vs divergence
@@ -3658,7 +4036,7 @@ run_element_analysis <- function(meth_data, enrich_data, subfamilies, reliable_s
             color = "Subfamily",
             title = sprintf("Element m6A vs sequence divergence (%s)", full_label)
         ) +
-        mtopen
+        theme_minimal(base_size = 12)
     mysaveandstore(str_glue("{outdir_elem}/m6a_vs_divergence.pdf"), w = 8, h = 6)
 
     # Plot 12: Scatter - aggregate m6A vs element length
@@ -3672,7 +4050,7 @@ run_element_analysis <- function(meth_data, enrich_data, subfamilies, reliable_s
             color = "Subfamily",
             title = sprintf("Element m6A vs element length (%s)", full_label)
         ) +
-        mtopen
+        theme_minimal(base_size = 12)
     mysaveandstore(str_glue("{outdir_elem}/m6a_vs_length.pdf"), w = 8, h = 6)
 
     # Plot 12b: Scatter - aggregate m6A vs Total RNA expression
@@ -3687,7 +4065,7 @@ run_element_analysis <- function(meth_data, enrich_data, subfamilies, reliable_s
                 color = "Subfamily",
                 title = sprintf("Element m6A vs Total RNA expression (%s)", full_label)
             ) +
-            mtopen
+            theme_minimal(base_size = 12)
         mysaveandstore(str_glue("{outdir_elem}/m6a_vs_total_rna_expression.pdf"), w = 8, h = 6)
     }
 
@@ -3703,7 +4081,7 @@ run_element_analysis <- function(meth_data, enrich_data, subfamilies, reliable_s
                 color = "Subfamily",
                 title = sprintf("Element m6A vs ORF1 RIP expression (%s)", full_label)
             ) +
-            mtopen
+            theme_minimal(base_size = 12)
         mysaveandstore(str_glue("{outdir_elem}/m6a_vs_orf1_rip_expression.pdf"), w = 8, h = 6)
     }
 
@@ -3725,7 +4103,7 @@ run_element_analysis <- function(meth_data, enrich_data, subfamilies, reliable_s
                 x = "Total RNA (log10 normed count)", y = "ORF1 RIP (log10 normed count)",
                 title = sprintf("Expression landscape colored by m6A (%s)", full_label)
             ) +
-            mtopen
+            theme_minimal(base_size = 12)
         mysaveandstore(str_glue("{outdir_elem}/total_vs_orf1_expression_by_m6a.pdf"), w = 8, h = 7)
     }
 
@@ -3742,7 +4120,7 @@ run_element_analysis <- function(meth_data, enrich_data, subfamilies, reliable_s
                 x = NULL, y = "Mean % m6A across reliable sites",
                 title = sprintf("Aggregate m6A: FL vs truncated (%s)", full_label)
             ) +
-            mtopen +
+            theme_minimal(base_size = 12) +
             theme(legend.position = "none")
         mysaveandstore(str_glue("{outdir_elem}/aggregate_m6a_fl_vs_trnc.pdf"), w = 5, h = 5)
 
@@ -3758,7 +4136,7 @@ run_element_analysis <- function(meth_data, enrich_data, subfamilies, reliable_s
                 fill = "Length",
                 title = sprintf("Aggregate m6A by subfamily and length (%s)", full_label)
             ) +
-            mtopen
+            theme_minimal(base_size = 12)
         mysaveandstore(str_glue("{outdir_elem}/aggregate_m6a_by_subfamily_and_length.pdf"), w = 9, h = 5)
 
         # Key scatter plots faceted by length
@@ -3774,7 +4152,7 @@ run_element_analysis <- function(meth_data, enrich_data, subfamilies, reliable_s
                 color = "Length",
                 title = sprintf("m6A vs enrichment by length (%s)", full_label)
             ) +
-            mtopen
+            theme_minimal(base_size = 12)
         mysaveandstore(str_glue("{outdir_elem}/m6a_vs_enrichment_by_length.pdf"), w = 8, h = 6)
 
         # m6A vs divergence by length
@@ -3789,7 +4167,7 @@ run_element_analysis <- function(meth_data, enrich_data, subfamilies, reliable_s
                 color = "Length",
                 title = sprintf("m6A vs divergence by length (%s)", full_label)
             ) +
-            mtopen
+            theme_minimal(base_size = 12)
         mysaveandstore(str_glue("{outdir_elem}/m6a_vs_divergence_by_length.pdf"), w = 8, h = 6)
 
         # m6A vs Total RNA expression by length
@@ -3805,7 +4183,7 @@ run_element_analysis <- function(meth_data, enrich_data, subfamilies, reliable_s
                     color = "Length",
                     title = sprintf("m6A vs Total RNA by length (%s)", full_label)
                 ) +
-                mtopen
+                theme_minimal(base_size = 12)
             mysaveandstore(str_glue("{outdir_elem}/m6a_vs_total_rna_by_length.pdf"), w = 8, h = 6)
         }
 
@@ -3822,7 +4200,7 @@ run_element_analysis <- function(meth_data, enrich_data, subfamilies, reliable_s
                     color = "Length",
                     title = sprintf("m6A vs ORF1 RIP by length (%s)", full_label)
                 ) +
-                mtopen
+                theme_minimal(base_size = 12)
             mysaveandstore(str_glue("{outdir_elem}/m6a_vs_orf1_rip_by_length.pdf"), w = 8, h = 6)
         }
 
@@ -3840,7 +4218,7 @@ run_element_analysis <- function(meth_data, enrich_data, subfamilies, reliable_s
                     color = "Length",
                     title = sprintf("Element m6A vs features by length (%s)", full_label)
                 ) +
-                mtopen +
+                theme_minimal(base_size = 12) +
                 theme(strip.text = element_text(size = 9))
             mysaveandstore(str_glue("{outdir_elem}/m6a_vs_features_panel_by_length.pdf"), w = 14, h = 10)
         }
@@ -3920,7 +4298,7 @@ run_element_analysis <- function(meth_data, enrich_data, subfamilies, reliable_s
             color = "Subfamily",
             title = sprintf("Element m6A vs features (%s)", full_label)
         ) +
-        mtopen +
+        theme_minimal(base_size = 12) +
         theme(strip.text = element_text(size = 9))
     mysaveandstore(str_glue("{outdir_elem}/m6a_vs_features_panel.pdf"), w = 14, h = 10)
 
@@ -3945,7 +4323,7 @@ run_element_analysis <- function(meth_data, enrich_data, subfamilies, reliable_s
                 color = "Subfamily",
                 title = sprintf("Per-site m6A vs ORF1 enrichment (%s)", full_label)
             ) +
-            mtopen
+            theme_minimal(base_size = 12)
         mysaveandstore(str_glue("{outdir_elem}/per_site_m6a_vs_enrichment.pdf"),
             w = max(8, ceiling(sqrt(length(reliable_hpos))) * 3 + 2),
             h = max(6, ceiling(length(reliable_hpos) / ceiling(sqrt(length(reliable_hpos)))) * 3 + 1)
@@ -3960,7 +4338,7 @@ run_element_analysis <- function(meth_data, enrich_data, subfamilies, reliable_s
             x = "# reliable sites covered", y = "# elements",
             title = sprintf("Site coverage per element (%s)", full_label)
         ) +
-        mtopen
+        theme_minimal(base_size = 12)
     mysaveandstore(str_glue("{outdir_elem}/sites_covered_per_element.pdf"), w = 7, h = 5)
 
     # ============================================================
@@ -4062,7 +4440,7 @@ run_element_analysis <- function(meth_data, enrich_data, subfamilies, reliable_s
                 x = "Site (harmonized position)", y = NULL,
                 title = sprintf("Differential m6A by element features (%s)", full_label)
             ) +
-            mtopen +
+            theme_minimal(base_size = 12) +
             theme(axis.text.x = element_text(angle = 45, hjust = 1))
         mysaveandstore(str_glue("{outdir_elem}/diffmeth_summary_tile.pdf"),
             w = max(7, length(reliable_hpos) * 0.6 + 3), h = max(3, n_distinct(diffmeth_all$group_var) * 0.8 + 2)
@@ -4087,7 +4465,7 @@ run_element_analysis <- function(meth_data, enrich_data, subfamilies, reliable_s
                     x = NULL, y = "% m6A", fill = "Intactness",
                     title = sprintf("Differential m6A by intactness (padj < 0.1) (%s)", full_label)
                 ) +
-                mtopen +
+                theme_minimal(base_size = 12) +
                 theme(legend.position = "bottom", axis.text.x = element_text(angle = 30, hjust = 1))
             mysaveandstore(str_glue("{outdir_elem}/diffmeth_intactness_violin.pdf"),
                 w = max(6, ceiling(sqrt(length(sig_sites_int))) * 3 + 1),
@@ -4114,7 +4492,7 @@ run_element_analysis <- function(meth_data, enrich_data, subfamilies, reliable_s
                     x = NULL, y = "% m6A", fill = "Genic location",
                     title = sprintf("Differential m6A by genic location (padj < 0.1) (%s)", full_label)
                 ) +
-                mtopen +
+                theme_minimal(base_size = 12) +
                 theme(legend.position = "bottom", axis.text.x = element_text(angle = 30, hjust = 1))
             mysaveandstore(str_glue("{outdir_elem}/diffmeth_genic_loc_violin.pdf"),
                 w = max(6, ceiling(sqrt(length(sig_sites_gen))) * 3 + 1),
@@ -4142,7 +4520,7 @@ run_element_analysis <- function(meth_data, enrich_data, subfamilies, reliable_s
                     x = NULL, y = "% m6A", fill = "Length",
                     title = sprintf("Differential m6A: FL vs truncated (padj < 0.1) (%s)", full_label)
                 ) +
-                mtopen +
+                theme_minimal(base_size = 12) +
                 theme(legend.position = "bottom")
             mysaveandstore(str_glue("{outdir_elem}/diffmeth_fl_vs_trnc_violin.pdf"),
                 w = max(6, ceiling(sqrt(length(sig_sites_len))) * 3 + 1),
@@ -4177,7 +4555,7 @@ run_element_analysis <- function(meth_data, enrich_data, subfamilies, reliable_s
                 color = "Significant (padj<0.05)", shape = "Feature",
                 title = sprintf("Differential m6A effect sizes (%s)", full_label)
             ) +
-            mtopen +
+            theme_minimal(base_size = 12) +
             theme(axis.text.x = element_text(angle = 45, hjust = 1))
         mysaveandstore(str_glue("{outdir_elem}/diffmeth_effect_sizes.pdf"),
             w = max(8, length(reliable_hpos) * 0.6 + 3), h = 6
