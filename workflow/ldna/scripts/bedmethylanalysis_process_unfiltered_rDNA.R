@@ -96,7 +96,7 @@ for (sample_name in samples) {
 grsunfiltered <- Reduce(c, sample_grs)
 rm(sample_grs)
 # filter out low coverage and ensure that all samples have the same cpgs
-grs <- grsunfiltered[grsunfiltered$cov > 3]
+grs <- grsunfiltered[grsunfiltered$cov > MINIMUMCOVERAGE]
 grsdf <- tibble(as.data.frame(grs))
 grsdf %$% seqnames %>% unique()
 dir.create("ldna/Rintermediates", recursive = TRUE)
@@ -109,24 +109,17 @@ grsdf$pos <- pos
 
 grsdfuntidy <- grsdf %>%
     filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS) %>%
-    pivot_wider(id_cols = c("pos", "seqnames"), names_from = "sample", values_from = "pctM", names_prefix = "pctM")
+    pivot_wider(id_cols = c("pos", "seqnames"), names_from = "sample", values_from = "pctM", names_prefix = "pctM") %>%
+    drop_na()
 
-grsdfuntidy1 <- grsdfuntidy %>%
-    mutate(sum_na_AD = case_when(is.na(pctMSEN1) + is.na(pctMSEN2) + is.na(pctMSEN3) + is.na(pctMSEN4) > 2 ~ "FAIL", TRUE ~ "PASS")) %>%
-    mutate(sum_na_CTRL = case_when(is.na(pctMPRO1) + is.na(pctMPRO2) + is.na(pctMPRO3) + is.na(pctMPRO4) > 2 ~ "FAIL", TRUE ~ "PASS")) %>%
-    mutate(keep = case_when(sum_na_AD == "PASS" & sum_na_CTRL == "PASS" ~ TRUE, TRUE ~ FALSE))
+grsinboth <- grsdfuntidy %>% pull(pos)
+rm(grsdfuntidy)
 
-grsinboth <- grsdfuntidy1 %>%
-    filter(keep == TRUE) %>%
-    pull(pos)
-# TODO pivot wider introduces sample names as variables, this needs to be addressed
 grsdffiltered <- grsdf %>%
     filter(pos %in% grsinboth)
 
-
 grsdf <- grsdffiltered
 rm(grsdffiltered)
-rm(grsdfuntidy)
 
 cpg_islands <- rtracklayer::import(conf$cpg_islands)
 cpgi_shores <- rtracklayer::import(conf$cpgi_shores)
@@ -517,11 +510,9 @@ mysaveandstore(sprintf("ldna/results/%s/plots/hardtomap/satellites_bar1111.pdf",
 satgene <- satdfwgeneid %>%
     group_by(condition, gene_id, length) %>%
     summarise(pctM = mean(pctM)) %>%
-    pivot_wider(names_from = condition, values_from = pctM) %>%
-    mutate(dif = SEN - PRO, pct_change = 100 * (dif / PRO))
+    pivot_wider(names_from = condition, values_from = pctM)
 
-
-satgene %>% arrange(dif)
+satgene
 
 
 

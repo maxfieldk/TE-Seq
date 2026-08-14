@@ -254,7 +254,18 @@ dir.create(outputdir, recursive = TRUE, showWarnings = FALSE)
                     # pdf(sprintf("%s/dotplot_insertsite_vs_insertsite.pdf", insert_outputdir))
                     # dotPlot(insert_site_split, insert_site_split, wsize = 10, nmatch = 9)
                     # dev.off()
-                    pdf(sprintf("%s/dotplot_consensussmall_vs_insertsite.pdf", insert_outputdir))
+                    pdf(sprintf("%s/dotplot_consensussmall_vs_insertsite_7match.pdf", insert_outputdir))
+                    dotPlot(consensus_small_split, insert_site_split, wsize = 10, nmatch = 7)
+                    dev.off()
+                }
+                if (length(consensus_small_split) < 2000) {
+                    # pdf(sprintf("%s/dotplot_consensussmall_vs_consensussmall.pdf", insert_outputdir))
+                    # dotPlot(consensus_small_split, consensus_small_split, wsize = 10, nmatch = 9)
+                    # dev.off()
+                    # pdf(sprintf("%s/dotplot_insertsite_vs_insertsite.pdf", insert_outputdir))
+                    # dotPlot(insert_site_split, insert_site_split, wsize = 10, nmatch = 9)
+                    # dev.off()
+                    pdf(sprintf("%s/dotplot_consensussmall_vs_insertsite2.pdf", insert_outputdir))
                     dotPlot(consensus_small_split, insert_site_split, wsize = 10, nmatch = 9)
                     dev.off()
                 }
@@ -403,24 +414,31 @@ dir.create(outputdir, recursive = TRUE, showWarnings = FALSE)
         print(element_group_name)
         for (insert_id in group_frame$UUID) {
             print(insert_id)
-            insert_outputdir <- sprintf("%s/unique_insert_data/%s/%s", outputdir, element_group_name, insert_id)
+            sample <- group_frame %>% filter(UUID == insert_id) %$% sample_name
+            insert_outputdir <- sprintf("%s/unique_insert_data/%s/%s/%s", outputdir, sample, element_group_name, insert_id)
             analyze_insert(group_frame, insert_id, insert_outputdir)
         }
 
         conda_base_path <- system("conda info --base", intern = TRUE)
-        rm_outputdir <- dirname(insert_outputdir)
         species <- conf$species
-        insertsfa <- sprintf("%s/all_inserts.fa", rm_outputdir)
-        callRM(conda_base_path, rm_outputdir, species, insertsfa)
+        for (sample in unique(group_frame$sample_name)) {
+            rm_outputdir <- sprintf("%s/unique_insert_data/%s/%s", outputdir, sample, element_group_name)
+            insertsfa <- sprintf("%s/all_inserts.fa", rm_outputdir)
+            if (file.exists(insertsfa)) {
+                callRM(conda_base_path, rm_outputdir, species, insertsfa)
+            }
+        }
 
         for (insert_id in group_frame$UUID) {
-            insert_outputdir <- sprintf("%s/unique_insert_data/%s/%s", outputdir, element_group_name, insert_id)
+            sample <- group_frame %>% filter(UUID == insert_id) %$% sample_name
+            insert_outputdir <- sprintf("%s/unique_insert_data/%s/%s/%s", outputdir, sample, element_group_name, insert_id)
             extractRMperID(group_frame, insert_id, insert_outputdir)
         }
 
         insert_suspicion_level <- list()
         for (insert_id in group_frame$UUID) {
-            insert_outputdir <- sprintf("%s/unique_insert_data/%s/%s", outputdir, element_group_name, insert_id)
+            sample <- group_frame %>% filter(UUID == insert_id) %$% sample_name
+            insert_outputdir <- sprintf("%s/unique_insert_data/%s/%s/%s", outputdir, sample, element_group_name, insert_id)
 
             insert_row <- read_tsv(sprintf("%s/insert_info.tsv", insert_outputdir))
             insert_annot <- import(sprintf("%s/insert_structure_annot.gtf", insert_outputdir))
@@ -450,7 +468,10 @@ dir.create(outputdir, recursive = TRUE, showWarnings = FALSE)
         }
         susdf <- tibble(UUID = names(insert_suspicion_level), insert_te_adjacent_to_same_subfam_te = unlist(insert_suspicion_level))
         susdf <- susdf %>% left_join(group_frame %>% dplyr::select(UUID, TEMatch))
-        write_csv(susdf, sprintf("%s/suspicion_level.csv", rm_outputdir))
+        for (sample in unique(group_frame$sample_name)) {
+            rm_outputdir <- sprintf("%s/unique_insert_data/%s/%s", outputdir, sample, element_group_name)
+            write_csv(susdf %>% filter(UUID %in% (group_frame %>% filter(sample_name == sample) %$% UUID)), sprintf("%s/suspicion_level.csv", rm_outputdir))
+        }
     }
 
     get_promising_transduction <- function(sf_with_trsd, sample_or_aref) {
@@ -470,7 +491,13 @@ dir.create(outputdir, recursive = TRUE, showWarnings = FALSE)
 
 
         bl <- blast(db = sub("\\.[^.]*$", "", grep(sample_or_aref, inputs$blast_njs, value = TRUE)))
-        bres <- tibble(predict(bl, trsd_ss_for_blast))
+        bres <- tibble(predict(bl, trsd_ss_for_blast)) %>%
+            dplyr::rename(
+                qseqid = QueryID, sseqid = SubjectID, pident = Perc.Ident,
+                length = Alignment.Length, mismatch = Mismatches, gapopen = Gap.Openings,
+                qstart = Q.start, qend = Q.end, sstart = S.start, send = S.end,
+                evalue = E, bitscore = Bits
+            )
         if (nrow(bres) == 0) {
             return(tibble())
         }
@@ -646,6 +673,7 @@ sample_table %>%
     mutate(coverage = bases_number / (3.1 * 10**9)) %>%
     write_delim(sprintf("aref/results/sample_chars.txt"))
 p <- sample_table %>%
+    arrange(condition) %>%
     left_join(sample_sequencing_data) %>%
     dplyr::select(-condition, -nanopore_rawdata_dir) %>%
     mutate(coverage = signif(bases_number / (3.1 * 10**9), 3)) %>%
@@ -654,7 +682,9 @@ p <- sample_table %>%
         ~ formatC(as.numeric(.x), format = "e", digits = 2)
     )) %>%
     ggtexttable(theme = ttheme("minimal"))
-mysaveandstore(pl = p, sprintf("aref/results/sample_chars.pdf"), 8, 5)
+mysaveandstore(pl = p, sprintf("aref/results/sample_chars.pdf"), 12, 7)
+
+
 p <- sample_table %>%
     left_join(sample_sequencing_data) %>%
     dplyr::select(-nanopore_rawdata_dir) %>%
@@ -815,7 +845,7 @@ somatic_alpha_annotated <- somatic_alpha %>%
     annotate_read_metadata() %>%
     annotate_teend()
 
-dfall_AD <- read_csv("/users/mkelsey/data/Nanopore/alz/RTE/aref_asofjun26_2025_good/results/dfall_allsamples.csv")
+dfall_AD <- read_csv("/users/mkelsey/data/Nanopore/alz/RTE/aref/results/dfall_allsamples.csv")
 all_nr <- dfall_AD %>%
     filter(!is.na(Subfamily)) %>%
     mutate(Strand = ifelse(Strand == "None", ".", Strand))
@@ -853,9 +883,42 @@ somatic_alpha_annotated %$% deletion_status %>% table()
 somatic_alpha_annotated %$% clip_status %>% table()
 somatic_alpha_annotated %$% inrepregion %>% table()
 
+lrsvall <- read_delim("/users/mkelsey/data/Nanopore/alz/RTE/conf/lrSvAll_hs1.bed",
+    delim = "\t", col_names = FALSE
+) %>%
+    filter(X13 == "INS") %>%
+    filter(X12 > 200)
+lrsvall_grs <- GRanges(
+    seqnames = lrsvall$X1,
+    ranges = IRanges(start = lrsvall$X2, end = lrsvall$X3),
+    sv_type = lrsvall$X13,
+    sv_len = lrsvall$X12
+)
+
+knownsvins <- somatic_alpha_annotated %>%
+    GRanges() %>%
+    subsetByOverlaps(lrsvall_grs + 350) %>%
+    as.data.frame() %>%
+    tibble() %$% UUID
+
+
+abc <- "edd3a7ff-4289-4d52-9815-49144c644de0"
+abc %in% knownsvins # this shoudl be true given what I see in ucsc genome browser
+somatic_alpha_annotated %>% filter(UUID == abc)
+somatic_alpha_annotated <- somatic_alpha_annotated %>% mutate(not_in_knownsv = !(UUID %in% knownsvins))
+
+aa <- read_csv("/users/mkelsey/data/Nanopore/alz/RTE/aref/results/somatic_insertions/insert_characteristics/temp.txt")
+aa$UUID %in% knownsvins
+
+c(lrsvall_grs + 350) %>% subsetByOverlaps(somatic_alpha_annotated %>% filter(UUID == abc) %>% GRanges())
+somatic_alpha_annotated %>%
+    group_by(not_in_knownsv) %>%
+    summarise(div = mean(TEMatch))
+
 
 f1 <- somatic_alpha_annotated %>%
     filter(not_found_in_other_samples == TRUE) %>%
+    filter(not_in_knownsv == TRUE) %>%
     filter(is.na(NonRef))
 
 f2 <- f1 %>%
@@ -923,7 +986,7 @@ insert_frames <- sdf %>%
     split(.$sup_read_combination)
 names(insert_frames)
 
-imap(insert_frames, ~ analyze_inserts(.x, .y))
+imap(insert_frames["high_tsd_pass_1.1"], ~ analyze_inserts(.x, .y))
 
 insert_frames_l1hs_extended <- sdf_l1hs_extended %>%
     mutate(tsd_filter = ifelse(TSD_OK, "tsd_pass", "tsd_fail")) %>%

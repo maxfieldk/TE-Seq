@@ -49,7 +49,6 @@ tryCatch(
         assign("params", list(
             l13 = conf$l13fasta,
             mod_code = modcode
-            mod_code = modcode
         ), env = globalenv())
         assign("outputs", list(), env = globalenv())
     }
@@ -287,11 +286,7 @@ for (subfam in subfams) {
     write_csv(consensus_index_long, sprintf("%s/%s_fl_mapping_to_consensus_table.csv", outputdir, subfam))
     # consensus_index_long <- read_csv(sprintf("%s/%s_fl_mapping_to_consensus_table.csv", outputdir, subfam))
 }
-    write_csv(alignment_index_long, sprintf("%s/%s_fl_mapping_to_alignment_table.csv", outputdir, subfam))
-    # alignment_index_long <- read_csv(sprintf("%s/%s_fl_mapping_to_alignment_table.csv", outputdir, subfam))
-    write_csv(consensus_index_long, sprintf("%s/%s_fl_mapping_to_consensus_table.csv", outputdir, subfam))
-    # consensus_index_long <- read_csv(sprintf("%s/%s_fl_mapping_to_consensus_table.csv", outputdir, subfam))
-}
+
 ##########
 
 

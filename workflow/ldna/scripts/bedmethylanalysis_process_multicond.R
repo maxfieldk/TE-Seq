@@ -105,6 +105,11 @@ rm(sample_grs)
 grs <- grsunfiltered[grsunfiltered$cov > MINIMUMCOVERAGE]
 grsdf <- tibble(as.data.frame(grs))
 grsdf %$% seqnames %>% unique()
+
+aa <- "dog"
+ab <- "cat"
+print(aa)
+print(ab)
 dir.create(sprintf("ldna/Rintermediates/%s", params$mod_code), recursive = TRUE)
 write_delim(grsdf %>% filter(grepl("^NI_", seqnames)), sprintf("ldna/Rintermediates/%s/grsdf_nonref.tsv", params$mod_code), col_names = TRUE)
 grsdf$seqnames <- factor(grsdf$seqnames, levels = chromosomesAll)
@@ -283,10 +288,6 @@ merge_with_grs <- function(grs, rte_frame) {
     return(rtedf_promoters)
 }
 
-rte_frame <- GRanges(RMdf)
-alltedf <- merge_with_grs(grs, rte_frame)
-write_delim(alltedf, sprintf("ldna/Rintermediates/%s/alltedf.tsv", params$mod_code), col_names = TRUE)
-
 rte_frame <- GRanges(RMdf %>% filter(rte_subfamily != "Other"))
 rtedf <- merge_with_grs(grs, rte_frame)
 write_delim(rtedf, sprintf("ldna/Rintermediates/%s/rtedf.tsv", params$mod_code), col_names = TRUE)
@@ -349,8 +350,10 @@ filter_by_consensus_pos <- function(fl_grs, pos_mapping, pos_vec) {
             start_pos <- pos_end - 1
             match <- FALSE
             while (match == FALSE) {
-                seqval <- dfs %>% filter(consensus_pos == start_pos) %$% sequence_pos
-                if (length(seqval) != 0) {
+                seqval <- dfs %>%
+                    filter(consensus_pos == start_pos) %$% sequence_pos %>%
+                    pluck(1)
+                if (!is.null(seqval)) {
                     if (!is.na(seqval)) {
                         filter_pos <- seqval
                         match <- TRUE
@@ -386,8 +389,10 @@ filter_by_consensus_pos <- function(fl_grs, pos_mapping, pos_vec) {
                 start_pos <- pos_start
                 match <- FALSE
                 while (match == FALSE) {
-                    seqval <- dfs %>% filter(consensus_pos == start_pos) %$% sequence_pos
-                    if (length(seqval) != 0) {
+                    seqval <- dfs %>%
+                        filter(consensus_pos == start_pos) %$% sequence_pos %>%
+                        pluck(1)
+                    if (!is.null(seqval)) {
                         if (!is.na(seqval)) {
                             filter_pos <- seqval
                             match <- TRUE
@@ -431,7 +436,12 @@ filter_by_consensus_pos <- function(fl_grs, pos_mapping, pos_vec) {
             return(fix_start)
         }
     })
-    number_omitted <- length(grlist) - nrow(mapping)
+    grlistresized <- purrr::compact(grlistresized)
+    number_omitted <- length(grlist) - length(grlistresized)
+    if (length(grlistresized) == 0) {
+        print("No resized GRanges produced")
+        return(GRanges())
+    }
     l1hs_resized <- purrr::reduce(grlistresized, c)
     return(l1hs_resized)
 }
@@ -694,8 +704,10 @@ filter_by_consensus_pos <- function(fl_grs, pos_mapping, pos_vec) {
             start_pos <- pos_end - 1
             match <- FALSE
             while (match == FALSE) {
-                seqval <- dfs %>% filter(consensus_pos == start_pos) %$% sequence_pos
-                if (length(seqval) != 0) {
+                seqval <- dfs %>%
+                    filter(consensus_pos == start_pos) %$% sequence_pos %>%
+                    pluck(1)
+                if (!is.null(seqval)) {
                     if (!is.na(seqval)) {
                         filter_pos <- seqval
                         match <- TRUE
@@ -731,8 +743,10 @@ filter_by_consensus_pos <- function(fl_grs, pos_mapping, pos_vec) {
                 start_pos <- pos_start
                 match <- FALSE
                 while (match == FALSE) {
-                    seqval <- dfs %>% filter(consensus_pos == start_pos) %$% sequence_pos
-                    if (length(seqval) != 0) {
+                    seqval <- dfs %>%
+                        filter(consensus_pos == start_pos) %$% sequence_pos %>%
+                        pluck(1)
+                    if (!is.null(seqval)) {
                         if (!is.na(seqval)) {
                             filter_pos <- seqval
                             match <- TRUE
@@ -776,7 +790,12 @@ filter_by_consensus_pos <- function(fl_grs, pos_mapping, pos_vec) {
             return(fix_start)
         }
     })
-    number_omitted <- length(grlist) - nrow(mapping)
+    grlistresized <- purrr::compact(grlistresized)
+    number_omitted <- length(grlist) - length(grlistresized)
+    if (length(grlistresized) == 0) {
+        print("No resized GRanges produced")
+        return(GRanges())
+    }
     l1hs_resized <- purrr::reduce(grlistresized, c)
     return(l1hs_resized)
 }

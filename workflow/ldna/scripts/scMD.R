@@ -21,9 +21,9 @@ sample_table <- sample_table[match(samples, sample_table$sample_name), ]
 {
     genome_lengths <- fasta.seqlengths(conf$reference)
     chromosomesAll <- names(genome_lengths)
-    nonrefchromosomes <- grep("^NI_", chromosomesAll, value = TRUE) %>% str_sort(numeric = TRUE)
-    refchromosomes <- grep("^chr", chromosomesAll, value = TRUE) %>% str_sort(numeric = TRUE)
-    autosomes <- grep("^chr[1-9]", refchromosomes, value = TRUE) %>% str_sort(numeric = TRUE)
+    nonrefchromosomes <- grep("^NI_", chromosomesAll, value = TRUE) %>% stringr::str_sort(numeric = TRUE)
+    refchromosomes <- grep("^chr", chromosomesAll, value = TRUE) %>% stringr::str_sort(numeric = TRUE)
+    autosomes <- grep("^chr[1-9]", refchromosomes, value = TRUE) %>% stringr::str_sort(numeric = TRUE)
     chrX <- c("chrX")
     chrY <- c("chrY")
     MINIMUMCOVERAGE <- conf$MINIMUM_COVERAGE_FOR_METHYLATION_ANALYSIS
@@ -365,6 +365,7 @@ Tian_res <- sc_MD_deconv_safe(bulk_mat_both,
 
 # Ensemble across methods, excluding outlier methods
 phat_all <- c(Lee_res, Tian_res)
+dir.create("ldna/results/m/tables", recursive = TRUE)
 saveRDS(phat_all, "ldna/results/m/tables/phat_all.rds")
 exclude_methods <- c("EPIC_Mval_linear", "DCQ_beta_log")
 keep_idx <- !grepl(paste(exclude_methods, collapse = "|"), names(phat_all))
@@ -391,10 +392,17 @@ cell_type_fractions <- make_fractions(phat_all[keep_idx])
 cell_type_fractions_lee <- make_fractions(Lee_res[lee_keep])
 cell_type_fractions_tian <- make_fractions(Tian_res[tian_keep])
 
+cell_type_fractions_all <- make_fractions(phat_all)
+cell_type_fractions_lee_all <- make_fractions(Lee_res)
+cell_type_fractions_tian_all <- make_fractions(Tian_res)
+
 dir.create("ldna/results/m/tables", recursive = TRUE, showWarnings = FALSE)
 write_csv(cell_type_fractions, "ldna/results/m/tables/scMD_cell_type_fractions.csv")
 write_csv(cell_type_fractions_lee, "ldna/results/m/tables/scMD_cell_type_fractions_Lee.csv")
 write_csv(cell_type_fractions_tian, "ldna/results/m/tables/scMD_cell_type_fractions_Tian.csv")
+write_csv(cell_type_fractions_all, "ldna/results/m/tables/scMD_cell_type_fractions_all.csv")
+write_csv(cell_type_fractions_lee_all, "ldna/results/m/tables/scMD_cell_type_fractions_Lee_all.csv")
+write_csv(cell_type_fractions_tian_all, "ldna/results/m/tables/scMD_cell_type_fractions_Tian_all.csv")
 # cell_type_fractions <- read_csv("ldna/results/m/tables/scMD_cell_type_fractions.csv")
 # cell_type_fractions_lee <- read_csv("ldna/results/m/tables/scMD_cell_type_fractions_Lee.csv")
 # cell_type_fractions_tian <- read_csv("ldna/results/m/tables/scMD_cell_type_fractions_Tian.csv")
@@ -406,7 +414,7 @@ print(cell_type_fractions)
 # Plotting helper
 cell_types <- c("Astro", "Micro", "Endo", "Oligo", "OPC", "Inh", "Exc")
 dir.create("ldna/results/m/plots/scMD", recursive = TRUE, showWarnings = FALSE)
-
+library(tidyverse)
 plot_scmd <- function(ctf, label) {
     ctl <- ctf %>%
         pivot_longer(cols = all_of(cell_types), names_to = "cell_type", values_to = "fraction")
@@ -483,6 +491,9 @@ plot_scmd <- function(ctf, label) {
 plot_scmd(cell_type_fractions, "ensemble")
 plot_scmd(cell_type_fractions_lee, "Lee")
 plot_scmd(cell_type_fractions_tian, "Tian")
+plot_scmd(cell_type_fractions_all, "ensemble_all")
+plot_scmd(cell_type_fractions_lee_all, "Lee_all")
+plot_scmd(cell_type_fractions_tian_all, "Tian_all")
 
 # Neuron fraction by condition: plot and test
 plot_neu_by_condition <- function(ctf, label) {
@@ -519,6 +530,9 @@ plot_neu_by_condition <- function(ctf, label) {
 plot_neu_by_condition(cell_type_fractions, "ensemble")
 plot_neu_by_condition(cell_type_fractions_lee, "Lee")
 plot_neu_by_condition(cell_type_fractions_tian, "Tian")
+plot_neu_by_condition(cell_type_fractions_all, "ensemble_all")
+plot_neu_by_condition(cell_type_fractions_lee_all, "Lee_all")
+plot_neu_by_condition(cell_type_fractions_tian_all, "Tian_all")
 
 # Per-method stacked plots split by reference
 phat <- phat_all
@@ -554,6 +568,9 @@ all_methods_long <- all_methods_df %>%
     filter(!(method %in% c("DCQ_beta_log", "EPIC_Mval_linear"))) %>%
     pivot_longer(cols = any_of(cell_types), names_to = "cell_type", values_to = "fraction")
 
+all_methods_long_all <- all_methods_df %>%
+    pivot_longer(cols = any_of(cell_types), names_to = "cell_type", values_to = "fraction")
+
 for (ref in c("Lee", "Tian")) {
     p <- all_methods_long %>%
         filter(reference == ref) %>%
@@ -567,4 +584,17 @@ for (ref in c("Lee", "Tian")) {
             axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, size = 6)
         )
     ggsave(sprintf("ldna/results/m/plots/scMD/cell_type_by_method_%s2.pdf", ref), p, width = 14, height = 16)
+
+    p_all <- all_methods_long_all %>%
+        filter(reference == ref) %>%
+        ggplot(aes(x = sample_name, y = fraction, fill = cell_type)) +
+        geom_col() +
+        facet_wrap(~method, ncol = 2) +
+        labs(x = "", y = "Estimated Fraction", title = sprintf("scMD Per-Method Estimates (%s reference, all methods)", ref)) +
+        theme_minimal() +
+        theme(
+            panel.border = element_rect(color = "black", fill = NA, size = 1),
+            axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, size = 6)
+        )
+    ggsave(sprintf("ldna/results/m/plots/scMD/cell_type_by_method_%s2_all.pdf", ref), p_all, width = 14, height = 16)
 }

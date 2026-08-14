@@ -3,6 +3,8 @@ import pandas as pd
 from pathlib import Path
 samples = config["ldna"]["samples"]
 ldna_contrasts = config["ldna"].get("contrasts", [])
+ldna_sample_table = pd.read_csv(config["ldna"]["sample_table"])
+ldna_levels = config["ldna"]["levels"]
 
 # Cache NI_ insert names per sample to avoid repeated file reads during DAG resolution
 _per_sample = config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes"
@@ -59,6 +61,7 @@ rule mod_bam_to_fastq:
         bam = expand("aref/intermediates/{{sample}}/alignments/{rate}/{{sample}}.{type}.{modification_string}.sorted.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
     output:
         fastq = "ldna/intermediates/{sample}/fastqs/{sample}.fq.gz"
+    container: None
     conda: 
         "omics"
     resources:
@@ -155,7 +158,21 @@ rule get_non_ref_alignments:
         mem_mb = 300000
     shell:
         """
-samtools merge -f -@ 4 -o {output.catbam}.tempmerged.bam {input.sample_bams}
+echo {input.sample_bams} | tr ' ' '\n' > {output.catbam}.bamlist.txt
+BATCH_SIZE=200
+BATCH_NUM=0
+BATCH_OUTPUTS=""
+split -l $BATCH_SIZE -d {output.catbam}.bamlist.txt {output.catbam}.batch_
+for BATCH in {output.catbam}.batch_*; do
+    BATCH_OUT="{output.catbam}.tempmerged_batch_$BATCH_NUM.bam"
+    samtools merge -f -@ 4 -b "$BATCH" -o "$BATCH_OUT"
+    BATCH_OUTPUTS="$BATCH_OUTPUTS $BATCH_OUT"
+    BATCH_NUM=$((BATCH_NUM + 1))
+    rm "$BATCH"
+done
+echo "done batched merge"
+samtools merge -f -@ 4 -o {output.catbam}.tempmerged.bam $BATCH_OUTPUTS
+rm $BATCH_OUTPUTS
 echo "done"
 samtools merge -f -@ 4 -o {output.catbam}.tempmerged1.bam {input.ldna_bam} {output.catbam}.tempmerged.bam
 echo "done1"
@@ -163,7 +180,9 @@ samtools sort -@8 {output.catbam}.tempmerged1.bam > {output.catbam}.tempmerged1.
 mv {output.catbam}.tempmerged1.sorted.bam {output.catbam}
 rm {output.catbam}.tempmerged1.bam
 rm {output.catbam}.tempmerged.bam
+rm {output.catbam}.bamlist.txt
         """
+
 
 
 rule call_catbam:
@@ -642,7 +661,9 @@ rule coverage:
     params:
         fai = lambda wildcards: "aref/extended/%s.fa.fai"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF.fa.fai"
     output:
-        bg = "ldna/intermediates/{sample}/coverage/{ref_genome}/{sample}.sorted.bg"
+        bg = "ldna/intermediates/{sample}/coverage/{ref_genome}/{sample}.sorted.bg",
+        summary = "ldna/intermediates/{sample}/coverage/{ref_genome}/{sample}.sorted.bg.mosdepth.mosdepth.summary.txt",
+        regions = "ldna/intermediates/{sample}/coverage/{ref_genome}/{sample}.sorted.bg.mosdepth.regions.bed.gz"
     resources:
         cpus_per_task = 8,
         runtime = 100,
@@ -654,7 +675,7 @@ rule coverage:
         """
 mosdepth --by 1000 --no-per-base --fast-mode --threads 4 {output.bg}.mosdepth {input.sortedbam}
 
-zcat {output.bg}.mosdepth.regions.bed.gz \
+zcat {output.regions} \
 | awk 'BEGIN{{OFS="\\t"}} {{print $1, $2, $3, $4}}' > {output.bg}
         """
 
@@ -1035,27 +1056,137 @@ rule bedmethylanalysis_process_unfiltered_hardtomapregions:
     script:
         "scripts/bedmethylanalysis_process_unfiltered_hardtomapregions.R"
 
-# rule methbigwig:
-#     input:
-#         bed = "ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_bedMethyl.bed"
-#     output:
-#         meth_bed = "ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_m.bed",
-#         hmeth_bed = "ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_h.bed",
-#         meth_bw = "ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_m_50bp.bw",
-#         hmeth_bw = "ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_h_50bp.bw",
-#     conda:
-#         "omics"
-#     shell:
-#         """
-# cat {input.bed} | awk 'BEGIN{{OFS="\t"}} $4=="m" && NR>1{{print $1,$2,$3,$4,$11}}' > {output.meth_bedgraph}
-# cat {input.bed} | awk 'BEGIN{{OFS="\t"}} $4=="h" && NR>1{{print $1,$2,$3,$4,$11}}' > {output.hmeth_bedgraph}
+rule methbigwig:
+    input:
+        bed = "ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_bedMethyl.bed"
+    params:
+        ref = lambda wildcards: "/oscar/data/jsedivy/mkelsey/ref/genomes/hg38/hg38.p13.sorted.fa" if wildcards.ref_genome == "hg38" else "aref/extended/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF.fa"
+    output:
+        meth_bw = "ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_m.bw",
+        hmeth_bw = "ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_h.bw"
+    resources:
+        cpus_per_task = 2,
+        mem_mb = 50000,
+        runtime = 300
+    container: None
+    conda:
+        "omics"
+    shell:
+        """
+export LC_COLLATE=C
+cut -f1,2 {params.ref}.fai > {output.meth_bw}.chrom.sizes
 
-# bedtools makewindows 
-# bedmap --echo --mean --range 100 windows.bed map.bed
+awk '$4=="m" {{OFS="\\t"; print $1,$2,$3,$11}}' {input.bed} \
+    | sort -k1,1 -k2,2n > {output.meth_bw}.tmp.bg
+bedGraphToBigWig {output.meth_bw}.tmp.bg {output.meth_bw}.chrom.sizes {output.meth_bw}
+
+awk '$4=="h" {{OFS="\\t"; print $1,$2,$3,$11}}' {input.bed} \
+    | sort -k1,1 -k2,2n > {output.hmeth_bw}.tmp.bg
+bedGraphToBigWig {output.hmeth_bw}.tmp.bg {output.meth_bw}.chrom.sizes {output.hmeth_bw}
+
+rm -f {output.meth_bw}.tmp.bg {output.hmeth_bw}.tmp.bg {output.meth_bw}.chrom.sizes
+        """
+
+rule methbigwig_average:
+    input:
+        bws = lambda wildcards: expand(
+            "ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_{mod}.bw",
+            sample = ldna_sample_table.loc[ldna_sample_table["condition"] == wildcards.condition, "sample_name"].tolist(),
+            ref_genome = wildcards.ref_genome,
+            mod = wildcards.mod
+        )
+    params:
+        n_samples = lambda wildcards: len(ldna_sample_table.loc[ldna_sample_table["condition"] == wildcards.condition, "sample_name"].tolist()),
+        ref = lambda wildcards: "/oscar/data/jsedivy/mkelsey/ref/genomes/hg38/hg38.p13.sorted.fa" if wildcards.ref_genome == "hg38" else "aref/extended/A.REF.fa"
+    container: None
+    output:
+        bw = "ldna/results/{mod}/bigwig/{ref_genome}/{condition}_CG_{mod}_mean.bw"
+    resources:
+        cpus_per_task = 4,
+        mem_mb = 100000,
+        runtime = 300
+    conda:
+        "omics"
+    shell:
+        """
+export LC_COLLATE=C
+cut -f1,2 {params.ref}.fai > {output.bw}.chrom.sizes
+bigWigMerge {input.bws} {output.bw}.tmp.bg
+sort -k1,1 -k2,2n {output.bw}.tmp.bg \
+    | awk -v n={params.n_samples} 'BEGIN{{OFS="\\t"}} {{print $1,$2,$3,$4/n}}' > {output.bw}.mean.bg
+bedGraphToBigWig {output.bw}.mean.bg {output.bw}.chrom.sizes {output.bw}
+rm -f {output.bw}.tmp.bg {output.bw}.mean.bg {output.bw}.chrom.sizes
+        """
 
 
-# bigwigAverage -b sample1.bw sample2.bw -o outfile.bw
-#         """
+rule methbigwig_unfiltered_hardtomapregions:
+    input:
+        bed = "ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_bedMethyl_unfiltered_hardtomapregions.bed"
+    params:
+        ref = lambda wildcards: "/oscar/data/jsedivy/mkelsey/ref/genomes/hg38/hg38.p13.sorted.fa" if wildcards.ref_genome == "hg38" else "aref/extended/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF.fa"
+    output:
+        meth_bw = "ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_m_unfiltered_hardtomapregions.bw",
+        hmeth_bw = "ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_h_unfiltered_hardtomapregions.bw"
+    resources:
+        cpus_per_task = 2,
+        mem_mb = 50000,
+        runtime = 300
+    container: None
+    conda:
+        "omics"
+    shell:
+        """
+export LC_COLLATE=C
+cut -f1,2 {params.ref}.fai > {output.meth_bw}.chrom.sizes
+
+awk '$4=="m" {{OFS="\\t"; print $1,$2,$3,$11}}' {input.bed} \
+    | sort -k1,1 -k2,2n > {output.meth_bw}.tmp.bg
+bedGraphToBigWig {output.meth_bw}.tmp.bg {output.meth_bw}.chrom.sizes {output.meth_bw}
+
+awk '$4=="h" {{OFS="\\t"; print $1,$2,$3,$11}}' {input.bed} \
+    | sort -k1,1 -k2,2n > {output.hmeth_bw}.tmp.bg
+bedGraphToBigWig {output.hmeth_bw}.tmp.bg {output.meth_bw}.chrom.sizes {output.hmeth_bw}
+
+rm -f {output.meth_bw}.tmp.bg {output.hmeth_bw}.tmp.bg {output.meth_bw}.chrom.sizes
+        """
+
+rule methbigwig_average_unfiltered_hardtomapregions:
+    input:
+        bws = lambda wildcards: expand(
+            "ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_{mod}_unfiltered_hardtomapregions.bw",
+            sample = ldna_sample_table.loc[ldna_sample_table["condition"] == wildcards.condition, "sample_name"].tolist(),
+            ref_genome = wildcards.ref_genome,
+            mod = wildcards.mod
+        )
+    params:
+        n_samples = lambda wildcards: len(ldna_sample_table.loc[ldna_sample_table["condition"] == wildcards.condition, "sample_name"].tolist()),
+        ref = lambda wildcards: "/oscar/data/jsedivy/mkelsey/ref/genomes/hg38/hg38.p13.sorted.fa" if wildcards.ref_genome == "hg38" else "aref/extended/A.REF.fa"
+    output:
+        bw = "ldna/results/{mod}/bigwig/{ref_genome}/{condition}_CG_{mod}_unfiltered_hardtomapregions_mean.bw"
+    resources:
+        cpus_per_task = 4,
+        mem_mb = 100000,
+        runtime = 300
+    container: None
+    conda:
+        "omics"
+    shell:
+        """
+export LC_COLLATE=C
+cut -f1,2 {params.ref}.fai > {output.bw}.chrom.sizes
+bigWigMerge {input.bws} {output.bw}.tmp.bg
+sort -k1,1 -k2,2n {output.bw}.tmp.bg \
+    | awk -v n={params.n_samples} 'BEGIN{{OFS="\\t"}} {{print $1,$2,$3,$4/n}}' > {output.bw}.mean.bg
+bedGraphToBigWig {output.bw}.mean.bg {output.bw}.chrom.sizes {output.bw}
+rm -f {output.bw}.tmp.bg {output.bw}.mean.bg {output.bw}.chrom.sizes
+        """
+
+rule get_methbigwigs:
+    input:
+        per_sample = expand("ldna/intermediates/{sample}/methylation/analysis_default/{sample}_CG_{mod}.bw", sample = samples, mod = ["m", "h"]),
+        averaged = expand("ldna/results/{mod}/bigwig/analysis_default/{condition}_CG_{mod}_mean.bw", mod = ["m", "h"], condition = ldna_levels),
+        per_sample_htm = expand("ldna/intermediates/{sample}/methylation/analysis_default/{sample}_CG_{mod}_unfiltered_hardtomapregions.bw", sample = samples, mod = ["m", "h"]),
+        averaged_htm = expand("ldna/results/{mod}/bigwig/analysis_default/{condition}_CG_{mod}_unfiltered_hardtomapregions_mean.bw", mod = ["m", "h"], condition = ldna_levels)
 
 rule modbamtobed_region:
     input:
@@ -1140,12 +1271,12 @@ rule modkit_entropy_dmrs:
         sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.bam.bai", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
     params:
         ref = lambda wildcards: "aref/extended/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF.fa",
-        rois = lambda wildcards: "ldna/Rintermediates/m/dmrs_%s.bed"%(wildcards.subset)
+        rois = lambda wildcards: "ldna/Rintermediates/m/%s/dmrs_%s.bed"%(wildcards.contrast, wildcards.subset)
     resources:
         cpus_per_task = 32,
         mem_mb = 64000
     output:
-        outfile = "ldna/results/m/tables/entropy_{subset}/{sample}/outfile.txt",
+        outfile = "ldna/results/m/tables/entropy_{contrast}/{subset}/{sample}/outfile.txt",
     conda:
         "omics"
     shell: 
@@ -1168,8 +1299,9 @@ touch {output.outfile}
 
 rule get_entropy_dmrs:
     input:
-        expand("ldna/results/m/tables/entropy_{subset}/{sample}/outfile.txt", sample = samples, subset = ["hypo_t05", "hyper_t05", "t05", "hypo_t01", "hyper_t01", "t01"] )
+        expand("ldna/results/m/tables/entropy_{contrast}/{subset}/{sample}/outfile.txt", sample = samples, contrast = ldna_contrasts, subset = ["hypo_t05", "hyper_t05", "t05", "hypo_t01", "hyper_t01", "t01"] )
 
+ruleorder: modkit_entropy_genomewide > modkit_entropy_dmrs
 
 rule modkit_entropy_genomewide:
     input:
@@ -1202,6 +1334,12 @@ rule get_entropy_genomewide:
     input:
         expand("ldna/results/m/tables/entropy_genomewide/{sample}/outfile.txt", sample = samples)
 
+
+rule get_all_entropy:
+    input:
+        a = expand("ldna/results/m/tables/entropy_genomewide/{sample}/outfile.txt", sample = samples),
+        b = expand("ldna/results/m/tables/entropy_{contrast}/{subset}/{sample}/outfile.txt", sample = samples, contrast = ldna_contrasts, subset = ["hypo_t05", "hyper_t05", "t05", "hypo_t01", "hyper_t01", "t01"] ),
+        c = expand("ldna/results/m/tables/entropy/{sample}/outfile.txt", sample = samples)
 # rule modbamtobedTLDRinsertions:
 #     input:
 #         tldr = "aref/{sample}_tldr/{sample}.table.txt"
@@ -1225,7 +1363,7 @@ rule scMD:
     input:
         bed = expand("ldna/intermediates/{sample}/methylation/analysis_default/{sample}_CG_bedMethyl.bed", sample = samples)
     output:
-        "ldna/results/m/tables/scMD_cell_type_fractions.csv"
+        "ldna/results/m/tables/scMD_cell_type_fractions_all.csv"
     container: None
     resources:
         cpus_per_task = 20,
@@ -1239,7 +1377,7 @@ rule scMD:
 rule dss:
     input:
         data = expand("ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_{{mod_code}}_dss.tsv", sample = samples, ref_genome = "analysis_default"),
-        cell_typefractions = "ldna/results/m/tables/scMD_cell_type_fractions.csv"
+        cell_typefractions = "ldna/results/m/tables/scMD_cell_type_fractions_all.csv"
     params:
         chromosome = lambda w: w.chr,
         contrast = lambda w: w.contrast
@@ -1291,7 +1429,7 @@ rule extractmods:
         region = lambda wildcards: "aref/extended/%s_annotations/%s_rte_beds/outfile.txt"%(wildcards.sample, wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF_annotations/A.REF_rte_beds/outfile.txt"
     resources:
         cpus_per_task = 8,
-        mem_mb = 80000,
+        mem_mb = 180000,
         runtime = 400
     conda:
         "omics"
@@ -1323,7 +1461,7 @@ rule extractmods_cg_context:
         region = lambda wildcards: "aref/extended/%s_annotations/%s_rte_beds/outfile.txt"%(wildcards.sample, wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF_annotations/A.REF_rte_beds/outfile.txt"
     resources:
         cpus_per_task = 8,
-        mem_mb = 80000,
+        mem_mb = 180000,
         runtime = 400
     conda:
         "omics"
@@ -1355,24 +1493,30 @@ rule extractmods_cg_context_cpgislands:
         ref = config["ldna"]["reference"],
     resources:
         cpus_per_task = 8,
-        mem_mb = 80000,
+        mem_mb = 180000,
         runtime = 400
+    container: None
     conda:
-        "omics"
+        "ds"
     shell: 
         """
 mkdir -p $(dirname {output})
+rm -f {output.read_mods}.temp.tsv
+
+awk -F '\\t' -v OFS='\\t' '{{print $1, $2, $3, "cpgI", 0, "."}}' aref/extended/A.REF_annotations/cpg_islands.proper.bed > {output.read_mods}.temp_cpgi.bed
 
 /oscar/data/jsedivy/mkelsey/tools/modkit extract \
 --cpg \
 --mapped \
 --no-filtering \
 --edge-filter 20 \
---include-bed aref/extended/A.REF_annotations/cpg_islands.proper.bed \
+--include-bed {output.read_mods}.temp_cpgi.bed \
 --ref {params.ref} \
 --threads {resources.cpus_per_task} \
 {input.sortedbam} \
 {output.read_mods}.temp.tsv
+
+rm {output.read_mods}.temp_cpgi.bed
 
 Rscript workflow/ldna/scripts/retain_essential_read_info.R {output.read_mods}.temp.tsv
 rm {output.read_mods}.temp.tsv
@@ -1580,11 +1724,240 @@ rule bedmethylanalysis_plot:
         cpus_per_task =10,
         mem_mb = 200000,
         runtime = 400
+    container: None
     conda:
         "ds"
     script:
         "scripts/bedmethylanalysis_plot_multicond.R"
 
+rule bedmeth_1genomewide:
+    input:
+        grsdf = "ldna/Rintermediates/{mod_code}/grsdf.tsv",
+        coverage_summary = expand("ldna/intermediates/{sample}/coverage/analysis_default/{sample}.sorted.bg.mosdepth.mosdepth.summary.txt", sample = samples),
+        coverage_regions = expand("ldna/intermediates/{sample}/coverage/analysis_default/{sample}.sorted.bg.mosdepth.regions.bed.gz", sample = samples)
+    params:
+        mod_code = lambda wildcards: wildcards.mod_code,
+        contrasts = ldna_contrasts
+    output:
+        outfile = "ldna/outfiles/bedmeth_1genomewide_{mod_code}.done"
+    resources:
+        cpus_per_task = 10,
+        mem_mb = 200000,
+        runtime = 400
+    container: None
+    conda:
+        "ds"
+    script:
+        "scripts/bedmeth/1genomewide.R"
+
+rule bedmeth_1centro:
+    input:
+        grsdf = "ldna/Rintermediates/{mod_code}/grsdf.tsv"
+    params:
+        mod_code = lambda wildcards: wildcards.mod_code,
+        contrasts = ldna_contrasts
+    output:
+        outfile = "ldna/outfiles/bedmeth_1centro_{mod_code}.done"
+    resources:
+        cpus_per_task = 10,
+        mem_mb = 200000,
+        runtime = 400
+    container: None
+    conda:
+        "ds"
+    script:
+        "scripts/bedmeth/1centro.R"
+
+rule bedmeth_1dispersion_analysis:
+    input:
+        grsdf = "ldna/Rintermediates/{mod_code}/grsdf.tsv",
+        cgireads = 'ldna/intermediates/merged/merged_cpgI_reads1.tsv'
+    params:
+        mod_code = lambda wildcards: wildcards.mod_code,
+        contrasts = ldna_contrasts
+    output:
+        outfile = "ldna/outfiles/bedmeth_1dispersion_analysis_{mod_code}.done"
+    resources:
+        cpus_per_task = 10,
+        mem_mb = 200000,
+        runtime = 400
+    container: None
+    conda:
+        "ds"
+    script:
+        "scripts/bedmeth/1dispersion_analysis.R"
+
+rule bedmeth_1entropy:
+    input:
+        grsdf = "ldna/Rintermediates/{mod_code}/grsdf.tsv"
+    params:
+        mod_code = lambda wildcards: wildcards.mod_code,
+        contrasts = ldna_contrasts
+    output:
+        outfile = "ldna/outfiles/bedmeth_1entropy_{mod_code}.done"
+    resources:
+        cpus_per_task = 10,
+        mem_mb = 200000,
+        runtime = 400
+    container: None
+    conda:
+        "ds"
+    script:
+        "scripts/bedmeth/1entropy.R"
+
+rule bedmeth_1read_analysis_alt_regions:
+    input:
+        grsdf = "ldna/Rintermediates/{mod_code}/grsdf.tsv"
+    params:
+        mod_code = lambda wildcards: wildcards.mod_code,
+        contrasts = ldna_contrasts
+    output:
+        outfile = "ldna/outfiles/bedmeth_1read_analysis_alt_regions_{mod_code}.done"
+    resources:
+        cpus_per_task = 10,
+        mem_mb = 200000,
+        runtime = 400
+    container: None
+    conda:
+        "ds"
+    script:
+        "scripts/bedmeth/1read_analysis_alt_regions.R"
+
+rule bedmeth_11_rte_boxplots:
+    input:
+        grsdf = "ldna/Rintermediates/{mod_code}/grsdf.tsv"
+    params:
+        mod_code = lambda wildcards: wildcards.mod_code,
+        contrasts = ldna_contrasts
+    output:
+        outfile = "ldna/outfiles/bedmeth_11_rte_boxplots_{mod_code}.done"
+    resources:
+        cpus_per_task = 10,
+        mem_mb = 200000,
+        runtime = 400
+    container: None
+    conda:
+        "ds"
+    script:
+        "scripts/bedmeth/11_rte_boxplots.R"
+
+rule bedmeth_12_l1hs_promoter_av:
+    input:
+        grsdf = "ldna/Rintermediates/{mod_code}/grsdf.tsv"
+    params:
+        mod_code = lambda wildcards: wildcards.mod_code,
+        contrasts = ldna_contrasts
+    output:
+        outfile = "ldna/outfiles/bedmeth_12_l1hs_promoter_av_{mod_code}.done"
+    resources:
+        cpus_per_task = 10,
+        mem_mb = 200000,
+        runtime = 400
+    container: None
+    conda:
+        "ds"
+    script:
+        "scripts/bedmeth/12_l1hs_promoter_av.R"
+
+rule bedmeth_13_reads:
+    input:
+        grsdf = "ldna/Rintermediates/{mod_code}/grsdf.tsv"
+    params:
+        mod_code = lambda wildcards: wildcards.mod_code,
+        contrasts = ldna_contrasts
+    output:
+        outfile = "ldna/outfiles/bedmeth_13_reads_{mod_code}.done"
+    resources:
+        cpus_per_task = 10,
+        mem_mb = 200000,
+        runtime = 400
+    container: None
+    conda:
+        "ds"
+    script:
+        "scripts/bedmeth/13_reads.R"
+
+rule bedmeth_14_dmrs:
+    input:
+        grsdf = "ldna/Rintermediates/{mod_code}/grsdf.tsv",
+        dmrs = expand("ldna/results/{{mod_code}}/tables/{contrast}/dmrs.tsv", contrast = ldna_contrasts),
+        dmls = expand("ldna/results/{{mod_code}}/tables/{contrast}/dmls.tsv", contrast = ldna_contrasts)
+    params:
+        mod_code = lambda wildcards: wildcards.mod_code,
+        contrasts = ldna_contrasts
+    output:
+        outfile = "ldna/outfiles/bedmeth_14_dmrs_{mod_code}.done"
+    resources:
+        cpus_per_task = 10,
+        mem_mb = 200000,
+        runtime = 400
+    container: None
+    conda:
+        "ds"
+    script:
+        "scripts/bedmeth/14_dmrs.R"
+
+rule bedmeth_15:
+    input:
+        grsdf = "ldna/Rintermediates/{mod_code}/grsdf.tsv"
+    params:
+        mod_code = lambda wildcards: wildcards.mod_code,
+        contrasts = ldna_contrasts
+    output:
+        outfile = "ldna/outfiles/bedmeth_15_{mod_code}.done"
+    resources:
+        cpus_per_task = 10,
+        mem_mb = 200000,
+        runtime = 400
+    container: None
+    conda:
+        "ds"
+    script:
+        "scripts/bedmeth/15.R"
+
+rule bedmeth_16_great:
+    input:
+        grsdf = "ldna/Rintermediates/{mod_code}/grsdf.tsv"
+    params:
+        mod_code = lambda wildcards: wildcards.mod_code,
+        contrasts = ldna_contrasts
+    output:
+        outfile = "ldna/outfiles/bedmeth_16_great_{mod_code}.done"
+    resources:
+        cpus_per_task = 10,
+        mem_mb = 200000,
+        runtime = 2000
+    container: None
+    conda:
+        "ds"
+    script:
+        "scripts/bedmeth/16_great.R"
+
+rule bedmeth_17:
+    input:
+        grsdf = "ldna/Rintermediates/{mod_code}/grsdf.tsv"
+    params:
+        mod_code = lambda wildcards: wildcards.mod_code,
+        contrasts = ldna_contrasts
+    output:
+        outfile = "ldna/outfiles/bedmeth_17_{mod_code}.done"
+    resources:
+        cpus_per_task = 10,
+        mem_mb = 200000,
+        runtime = 400
+    container: None
+    conda:
+        "ds"
+    script:
+        "scripts/bedmeth/17.R"
+
+rule get_bedmeth_all:
+    input:
+        expand("ldna/outfiles/bedmeth_{script}_{mod_code}.done",
+            script = ["1genomewide", "1centro", "1dispersion_analysis", "1entropy",
+                      "1read_analysis_alt_regions", "11_rte_boxplots", "12_l1hs_promoter_av",
+                      "13_reads", "14_dmrs", "15", "16_great", "17"],
+            mod_code = ["m", "h"])
 
 rule insertion_analysis:
     params:
