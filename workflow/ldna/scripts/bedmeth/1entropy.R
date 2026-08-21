@@ -215,9 +215,7 @@ mysaveandstore("zztemp.32411111111111111111111111111111111.pdf")
 summary(lm(me ~ condition + mean_num_reads + age + sex, pf))
 
 
-entdf %>%
-    group_by(sample_name) %>%
-    p() <- entdf %>%
+p <- entdf %>%
     group_by(sample_name) %>%
     summarise(me = mean(mean_entropy), med_ent = mean(median_entropy), mean_num_reads = mean(mean_num_reads)) %>%
     ggplot() +

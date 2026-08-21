@@ -1017,8 +1017,8 @@ filter_by_consensus_pos <- function(fl_grs, pos_mapping, include_up_to_pos) {
             start_pos <- include_up_to_pos - 1
             match <- FALSE
             while (match == FALSE) {
-                seqval <- dfs %>% filter(consensus_pos == start_pos) %$% sequence_pos
-                if (length(seqval) != 0) {
+                seqval <- dfs %>% filter(consensus_pos == start_pos) %$% sequence_pos %>% pluck(1)
+                if (!is.null(seqval)) {
                     if (!is.na(seqval)) {
                         filter_pos <- seqval
                         match <- TRUE
@@ -1042,10 +1042,19 @@ filter_by_consensus_pos <- function(fl_grs, pos_mapping, include_up_to_pos) {
     grlist <- map(seq_along(fl_grs_with_homology), function(x) fl_grs_with_homology[x])
     grlistresized <- map(grlist, function(x) {
         if (mcols(x)$gene_id %in% mapping$gene_id) {
-            return(resize(x, width = (mapping %>% filter(gene_id == mcols(x)$gene_id) %$% filter_pos)))
+            new_width <- mapping %>% filter(gene_id == mcols(x)$gene_id) %$% filter_pos %>% pluck(1)
+            if (!is.null(new_width) && !is.na(new_width) && new_width > 0) {
+                return(resize(x, width = new_width))
+            }
         }
+        return(NULL)
     })
-    number_omitted <- length(grlist) - nrow(mapping)
+    grlistresized <- purrr::compact(grlistresized)
+    number_omitted <- length(grlist) - length(grlistresized)
+    if (length(grlistresized) == 0) {
+        print("No resized GRanges produced")
+        return(GRanges())
+    }
     l1hs_resized <- purrr::reduce(grlistresized, c)
     return(l1hs_resized)
 }

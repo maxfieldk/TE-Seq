@@ -1110,12 +1110,21 @@ rule methbigwig_average:
     shell:
         """
 export LC_COLLATE=C
-cut -f1,2 {params.ref}.fai > {output.bw}.chrom.sizes
-bigWigMerge {input.bws} {output.bw}.tmp.bg
-sort -k1,1 -k2,2n {output.bw}.tmp.bg \
-    | awk -v n={params.n_samples} 'BEGIN{{OFS="\\t"}} {{print $1,$2,$3,$4/n}}' > {output.bw}.mean.bg
+grep -v '^NI_' {params.ref}.fai | cut -f1,2 > {output.bw}.chrom.sizes
+bg_files=""
+i=0
+for bw in {input.bws}; do
+    bg={output.bw}.sample_$i.bg
+    bigWigToBedGraph "$bw" "$bg"
+    grep -v '^NI_' "$bg" | sort -k1,1 -k2,2n > "$bg.filt"
+    mv "$bg.filt" "$bg"
+    bg_files="$bg_files $bg"
+    i=$((i+1))
+done
+bedtools unionbedg -i $bg_files \
+    | awk -v n={params.n_samples} 'BEGIN{{OFS="\\t"}} {{s=0; for(i=4;i<=NF;i++) s+=$i; print $1,$2,$3,s/n}}' > {output.bw}.mean.bg
 bedGraphToBigWig {output.bw}.mean.bg {output.bw}.chrom.sizes {output.bw}
-rm -f {output.bw}.tmp.bg {output.bw}.mean.bg {output.bw}.chrom.sizes
+rm -f {output.bw}.mean.bg {output.bw}.chrom.sizes $bg_files
         """
 
 
@@ -1173,12 +1182,21 @@ rule methbigwig_average_unfiltered_hardtomapregions:
     shell:
         """
 export LC_COLLATE=C
-cut -f1,2 {params.ref}.fai > {output.bw}.chrom.sizes
-bigWigMerge {input.bws} {output.bw}.tmp.bg
-sort -k1,1 -k2,2n {output.bw}.tmp.bg \
-    | awk -v n={params.n_samples} 'BEGIN{{OFS="\\t"}} {{print $1,$2,$3,$4/n}}' > {output.bw}.mean.bg
+grep -v '^NI_' {params.ref}.fai | cut -f1,2 > {output.bw}.chrom.sizes
+bg_files=""
+i=0
+for bw in {input.bws}; do
+    bg={output.bw}.sample_$i.bg
+    bigWigToBedGraph "$bw" "$bg"
+    grep -v '^NI_' "$bg" | sort -k1,1 -k2,2n > "$bg.filt"
+    mv "$bg.filt" "$bg"
+    bg_files="$bg_files $bg"
+    i=$((i+1))
+done
+bedtools unionbedg -i $bg_files \
+    | awk -v n={params.n_samples} 'BEGIN{{OFS="\\t"}} {{s=0; for(i=4;i<=NF;i++) s+=$i; print $1,$2,$3,s/n}}' > {output.bw}.mean.bg
 bedGraphToBigWig {output.bw}.mean.bg {output.bw}.chrom.sizes {output.bw}
-rm -f {output.bw}.tmp.bg {output.bw}.mean.bg {output.bw}.chrom.sizes
+rm -f {output.bw}.mean.bg {output.bw}.chrom.sizes $bg_files
         """
 
 rule get_methbigwigs:
@@ -1870,7 +1888,7 @@ rule bedmeth_13_reads:
     resources:
         cpus_per_task = 10,
         mem_mb = 200000,
-        runtime = 400
+        runtime = 2000
     container: None
     conda:
         "ds"
@@ -2067,12 +2085,13 @@ mkdir -p $(dirname {output})
 /users/mkelsey/data/tools/wgbs_tools/wgbstools init_genome --fasta_path {params.ref} hg38
 touch {output.outfile}
         """
+        
 rule wgbs_bam2pat:
     input:
         outfile = "aref/extended/A.REF.{ref_genome}.wgbs.init.out",
-        bam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        bam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.endmethfilteredyngl1.bam", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
     output:
-        pat = expand("ldna/results/{{mod_code}}/wgbs/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        pat = expand("ldna/results/{{mod_code}}/wgbs/{{ref_genome}}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.endmethfilteredyngl1.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
     resources:
         runtime = 1000,
         mem_mb = 128000,
@@ -2128,11 +2147,11 @@ uxm deconv --include Neuron Oligodend --atlas {params.atlas} --output ${{outputc
 
 rule get_merged_pat:
     input:
-        pat = expand("ldna/results/{{mod_code}}/wgbs/analysis_default/{sample}.{type}.{modification_string}.sorted.filterednosup.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
+        pat = expand("ldna/results/{{mod_code}}/wgbs/analysis_default/{sample}.{type}.{modification_string}.sorted.filterednosup.endmethfilteredyngl1.pat.gz", type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"], sample = samples)
     params:
         inputdir = lambda wildcards: "ldna/results/%s/wgbs/analysis_default"%wildcards.mod_code,
         level1 = config["ldna"]["levels"][0],
-        level2 = lambda wildcards: config["ldna"]["levels"][1] if len(config["ldna"]["levels"]) > 1 else None,  # Second level if exists    
+        level2 = lambda wildcards: config["ldna"]["levels"][1] if len(config["ldna"]["levels"]) > 1 else "",
     container: None
     conda:
         "omics"
