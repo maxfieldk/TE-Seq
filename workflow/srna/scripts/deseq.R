@@ -230,8 +230,8 @@ if (any(grepl("batch", colnames(coldata)))) {
     } else if (sum(grepl("batchCat", colnames(coldata))) == 2) {
         batches <- grep("batch", colnames(coldata), value = TRUE)
         categorical_vars <- grep("batchCat", colnames(coldata), value = TRUE)
-        batch_vector <- coldata[[batches[1]]]
-        batch2_vector <- coldata[[batches[2]]]
+        batch_vector <- coldata[[categorical_vars[1]]]
+        batch2_vector <- coldata[[categorical_vars[2]]]
 
         if (any(grepl("batchCon", colnames(coldata)))) {
             continous_vars <- grep("batchCon", colnames(coldata), value = TRUE)
@@ -253,7 +253,7 @@ if (any(grepl("batch", colnames(coldata)))) {
     } else if (sum(grepl("batchCat", colnames(coldata))) == 1) {
         batches <- grep("batch", colnames(coldata), value = TRUE)
         categorical_vars <- grep("batchCat", colnames(coldata), value = TRUE)
-        batch_vector <- coldata[[batches[1]]]
+        batch_vector <- coldata[[categorical_vars[1]]]
         if (any(grepl("batchCon", colnames(coldata)))) {
             continous_vars <- grep("batchCon", colnames(coldata), value = TRUE)
             batch_formula <- as.formula(paste("~", paste(continous_vars, collapse = " + ")))
@@ -399,17 +399,18 @@ for (subset in c("rtes", "genes")) {
     }
 
     vst <- varianceStabilizingTransformation(ddstemp, blind = FALSE)
-    vst_assay <- assay(vst)
     for (batchnormed in c("yes", "no")) {
         if (batchnormed == "yes" & !(any(grepl("batch", colnames(coldata))))) {
             next
         }
+        # start from the uncorrected vst each iteration so "no" is not built on the "yes" result
+        vst_assay <- assay(vst)
         if (batchnormed == "yes") {
             if (sum(grepl("batchCat", colnames(coldata))) == 2) {
                 batches <- grep("batch", colnames(coldata), value = TRUE)
                 categorical_vars <- grep("batchCat", colnames(coldata), value = TRUE)
-                batch_vector <- coldata[[batches[1]]]
-                batch2_vector <- coldata[[batches[2]]]
+                batch_vector <- coldata[[categorical_vars[1]]]
+                batch2_vector <- coldata[[categorical_vars[2]]]
 
                 if (any(grepl("batchCon", colnames(coldatatemp)))) {
                     continous_vars <- grep("batchCon", colnames(coldatatemp), value = TRUE)
@@ -431,7 +432,7 @@ for (subset in c("rtes", "genes")) {
             } else if (sum(grepl("batchCat", colnames(coldatatemp))) == 1) {
                 batches <- grep("batch", colnames(coldatatemp), value = TRUE)
                 categorical_vars <- grep("batchCat", colnames(coldatatemp), value = TRUE)
-                batch_vector <- coldatatemp[[batches[1]]]
+                batch_vector <- coldatatemp[[categorical_vars[1]]]
                 if (any(grepl("batchCon", colnames(coldatatemp)))) {
                     continous_vars <- grep("batchCon", colnames(coldatatemp), value = TRUE)
                     batch_formula <- as.formula(paste("~", paste(continous_vars, collapse = " + ")))
@@ -469,11 +470,24 @@ for (subset in c("rtes", "genes")) {
 
         p <- screeplot(pcaObj, title = "") + mtopen + anchorbar
         mysaveandstore(paste(outputdir, counttype, subset, sprintf("batchRemoved_%s", batchnormed), "screeplot.pdf", sep = "/"), 4, 4)
-        p <- plotloadings(pcaObj,
-            components = getComponents(pcaObj, seq_len(3)),
-            rangeRetain = 0.045, labSize = 4
-        ) + mtopen
-        mysaveandstore(paste(outputdir, counttype, subset, sprintf("batchRemoved_%s", batchnormed), "loadings.pdf", sep = "/"), 10, 7)
+        ## plotloadings labels every retained feature; with millions of RTE loci this
+        ## overflows the C stack, so only hand it the top-loading features
+        pcaObjLoad <- pcaObj
+        loadcomps <- seq_len(min(3, ncol(pcaObj$loadings)))
+        toploadings <- order(apply(abs(pcaObj$loadings[, loadcomps, drop = FALSE]), 1, max), decreasing = TRUE)
+        pcaObjLoad$loadings <- pcaObj$loadings[head(toploadings, 2000), , drop = FALSE]
+        tryCatch(
+            {
+                p <- plotloadings(pcaObjLoad,
+                    components = getComponents(pcaObj, seq_len(3)),
+                    rangeRetain = 0.045, labSize = 4
+                ) + mtopen
+                mysaveandstore(paste(outputdir, counttype, subset, sprintf("batchRemoved_%s", batchnormed), "loadings.pdf", sep = "/"), 10, 7)
+            },
+            error = function(e) {
+                print("plotloadings fail")
+            }
+        )
 
         if (any(grepl("batchCat", colnames(coldata)))) {
             categorical_batch_vars <- grep("batchCat", colnames(coldata), value = TRUE)
