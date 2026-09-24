@@ -222,9 +222,10 @@ for (baselevel in baselevels) {
 counttablesizenormedrtes <- counts(ddsrteslist[[1]], normalized = TRUE)
 counttablesizenormedgenes <- counts(ddsgeneslist[[1]], normalized = TRUE)
 counttablesizenormedbatchnotremoved <- rbind(as.data.frame(counttablesizenormedrtes), as.data.frame(counttablesizenormedgenes))
-colnames(counttablesizenormedbatchnotremoved) == coldata$sample_name
+stopifnot(identical(colnames(counttablesizenormedbatchnotremoved), as.character(coldata$sample_name)))
 
 if (any(grepl("batch", colnames(coldata)))) {
+    counttablesizenormedbatchnotremovedlog <- log2(as.matrix(counttablesizenormedbatchnotremoved) + 1)
     if (sum(grepl("batchCat", colnames(coldata))) > 2) {
         print("ERROR: too many categorical batch variables")
     } else if (sum(grepl("batchCat", colnames(coldata))) == 2) {
@@ -237,14 +238,14 @@ if (any(grepl("batch", colnames(coldata)))) {
             continous_vars <- grep("batchCon", colnames(coldata), value = TRUE)
             batch_formula <- as.formula(paste("~", paste(continous_vars, collapse = " + ")))
             covariates_matrix <- model.matrix(batch_formula, data = coldata)
-            counttablesizenormed <- removeBatchEffect(counttablesizenormedbatchnotremoved,
+            counttablesizenormed <- removeBatchEffect(counttablesizenormedbatchnotremovedlog,
                 batch = batch_vector,
                 batch2 = batch2_vector,
                 covariates = covariates_matrix[, -1],
                 design = model.matrix(~ coldata$condition)
             )
         } else {
-            counttablesizenormed <- removeBatchEffect(counttablesizenormedbatchnotremoved,
+            counttablesizenormed <- removeBatchEffect(counttablesizenormedbatchnotremovedlog,
                 batch = batch_vector,
                 batch2 = batch2_vector,
                 design = model.matrix(~ coldata$condition)
@@ -258,13 +259,13 @@ if (any(grepl("batch", colnames(coldata)))) {
             continous_vars <- grep("batchCon", colnames(coldata), value = TRUE)
             batch_formula <- as.formula(paste("~", paste(continous_vars, collapse = " + ")))
             covariates_matrix <- model.matrix(batch_formula, data = coldata)
-            counttablesizenormed <- removeBatchEffect(counttablesizenormedbatchnotremoved,
+            counttablesizenormed <- removeBatchEffect(counttablesizenormedbatchnotremovedlog,
                 batch = batch_vector,
                 covariates = covariates_matrix[, -1],
                 design = model.matrix(~ coldata$condition)
             )
         } else {
-            counttablesizenormed <- removeBatchEffect(counttablesizenormedbatchnotremoved,
+            counttablesizenormed <- removeBatchEffect(counttablesizenormedbatchnotremovedlog,
                 batch = batch_vector,
                 design = model.matrix(~ coldata$condition)
             )
@@ -273,11 +274,13 @@ if (any(grepl("batch", colnames(coldata)))) {
         continous_vars <- grep("batchCon", colnames(coldata), value = TRUE)
         batch_formula <- as.formula(paste("~", paste(continous_vars, collapse = " + ")))
         covariates_matrix <- model.matrix(batch_formula, data = coldata)
-        counttablesizenormed <- removeBatchEffect(counttablesizenormedbatchnotremoved,
+        counttablesizenormed <- removeBatchEffect(counttablesizenormedbatchnotremovedlog,
             covariates = covariates_matrix[, -1],
             design = model.matrix(~ coldata$condition)
         )
     }
+    counttablesizenormed <- pmax(2^counttablesizenormed - 1, 0)
+
     countsbatchnotremovedpath <- paste(outputdir, counttype, "counttablesizenormedbatchnotremoved.csv", sep = "/")
     dir.create(dirname(countsbatchnotremovedpath), recursive = TRUE, showWarnings = FALSE)
     write.csv(counttablesizenormedbatchnotremoved, file = countsbatchnotremovedpath)
