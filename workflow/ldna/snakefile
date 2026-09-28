@@ -1286,15 +1286,20 @@ rule get_entropy:
 rule modkit_entropy_dmrs:
     input:
         sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
-        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.bam.bai", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"])
+        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.bam.bai", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        rois = "ldna/Rintermediates/{mod_code}/{contrast}/dmrs_{subset}.bed"
     params:
-        ref = lambda wildcards: "aref/extended/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF.fa",
-        rois = lambda wildcards: "ldna/Rintermediates/m/%s/dmrs_%s.bed"%(wildcards.contrast, wildcards.subset)
+        ref = lambda wildcards: "aref/extended/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF.fa"
+    wildcard_constraints:
+        mod_code = "m|h",
+        contrast = "condition_[A-Za-z0-9]+_vs_[A-Za-z0-9]+",
+        subset = "[a-z0-9_]+",
+        sample = "[0-9A-Za-z]+"
     resources:
         cpus_per_task = 32,
         mem_mb = 64000
     output:
-        outfile = "ldna/results/m/tables/entropy_{contrast}/{subset}/{sample}/outfile.txt",
+        outfile = "ldna/results/{mod_code}/tables/entropy_{contrast}/{subset}/{sample}/outfile.txt",
     conda:
         "omics"
     shell: 
@@ -1304,7 +1309,7 @@ mkdir -p $(dirname {output.outfile})
 /oscar/data/jsedivy/mkelsey/tools/dist_modkit_v0.5.1_8fa79e3/modkit entropy \
  --in-bam {input.sortedbam} \
  -o $(dirname {output.outfile}) \
- --regions {params.rois} \
+ --regions {input.rois} \
  --cpg \
  --header \
  --max-filtered-positions 0 \
@@ -1317,7 +1322,116 @@ touch {output.outfile}
 
 rule get_entropy_dmrs:
     input:
-        expand("ldna/results/m/tables/entropy_{contrast}/{subset}/{sample}/outfile.txt", sample = samples, contrast = ldna_contrasts, subset = ["hypo_t05", "hyper_t05", "t05", "hypo_t01", "hyper_t01", "t01"] )
+        expand("ldna/results/{mod_code}/tables/entropy_{contrast}/{subset}/{sample}/outfile.txt", mod_code = "m", sample = samples, contrast = ldna_contrasts, subset = ["hypo_t05", "hyper_t05", "t05", "hypo_t01", "hyper_t01", "t01"] )
+
+
+# Shannon entropy from reads is biased downward at low depth, and sequencing depth is not balanced across
+# conditions here (YNG ~30x vs CTRL/AD ~40x genome-wide), so raw entropy differences are partly technical.
+# These rules subsample every sample down to a common depth over the DMRs before calling modkit entropy,
+# so the estimate is made at matched depth for every sample.
+ENTROPY_DOWNSAMPLE_DEPTH = config["ldna"].get("entropy_downsample_target_depth", 15)
+ENTROPY_DOWNSAMPLE_SEED = config["ldna"].get("entropy_downsample_seed", 42)
+
+ruleorder: downsample_bam_dmrs > IndexBam
+
+rule downsample_bam_dmrs:
+    input:
+        sortedbam = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.bam", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        sortedbamindex = expand("ldna/intermediates/{{sample}}/alignments/{rate}/{ref_genome}/{{sample}}.{type}.{modification_string}.sorted.filterednosup.bam.bai", ref_genome = "analysis_default", rate = config["ldna"]["rate"], type = config["ldna"]["type"], modification_string = config["ldna"]["modification_string"]),
+        rois = "ldna/Rintermediates/{mod_code}/{contrast}/dmrs_{subset}.bed"
+    params:
+        seed = ENTROPY_DOWNSAMPLE_SEED
+    wildcard_constraints:
+        mod_code = "m|h",
+        contrast = "condition_[A-Za-z0-9]+_vs_[A-Za-z0-9]+",
+        subset = "[a-z0-9_]+",
+        sample = "[0-9A-Za-z]+",
+        target_depth = "[0-9]+"
+    resources:
+        cpus_per_task = 16,
+        mem_mb = 32000
+    output:
+        bam = temp("ldna/intermediates/{sample}/alignments/analysis_default/entropy_downsampled/{mod_code}/{contrast}/{subset}/{sample}.ds{target_depth}.bam"),
+        bai = temp("ldna/intermediates/{sample}/alignments/analysis_default/entropy_downsampled/{mod_code}/{contrast}/{subset}/{sample}.ds{target_depth}.bam.bai"),
+        stats = "ldna/results/{mod_code}/tables/entropy_ds{target_depth}_{contrast}/{subset}/{sample}/downsample_stats.tsv"
+    conda:
+        "omics"
+    shell:
+        """
+set -euo pipefail
+mkdir -p $(dirname {output.bam}) $(dirname {output.stats})
+tmpdir=$(mktemp -d -p $(dirname {output.bam}))
+trap 'rm -rf "$tmpdir"' EXIT
+
+# mosdepth needs a position-sorted, non-overlapping bed
+sort -k1,1 -k2,2n {input.rois} | bedtools merge -i - > "$tmpdir/rois.bed"
+
+# pull out just the reads overlapping the DMRs -- everything modkit will look at, and all we subsample from.
+# this seeks via the bam index, so it is far cheaper than streaming the whole genome bam.
+samtools view -@ 15 -b -M -L "$tmpdir/rois.bed" -o "$tmpdir/regions.bam" {input.sortedbam}
+samtools index -@ 15 "$tmpdir/regions.bam"
+
+# mean depth over every base of the DMRs (mosdepth's total_region; zero-depth bases included, so samples are comparable)
+mosdepth -t 8 -n -b "$tmpdir/rois.bed" "$tmpdir/before" "$tmpdir/regions.bam"
+depth_before=$(awk '$1 == "total_region" {{print $4}}' "$tmpdir/before.mosdepth.summary.txt")
+
+# fraction of reads to keep; samples already at or below the target keep every read
+frac=$(awk -v d="$depth_before" -v t={wildcards.target_depth} 'BEGIN{{ if (d <= t || d == 0) printf "1"; else printf "%.6f", t/d }}')
+
+if [ "$frac" = "1" ]; then
+    cp "$tmpdir/regions.bam" {output.bam}
+else
+    samtools view -@ 15 -b --subsample "$frac" --subsample-seed {params.seed} -o {output.bam} "$tmpdir/regions.bam"
+fi
+samtools index -@ 15 {output.bam}
+
+mosdepth -t 8 -n -b "$tmpdir/rois.bed" "$tmpdir/after" {output.bam}
+depth_after=$(awk '$1 == "total_region" {{print $4}}' "$tmpdir/after.mosdepth.summary.txt")
+printf "sample\tmod_code\tcontrast\tsubset\ttarget_depth\tdepth_before\tkeep_fraction\tdepth_after\n" > {output.stats}
+printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" {wildcards.sample} {wildcards.mod_code} {wildcards.contrast} {wildcards.subset} {wildcards.target_depth} "$depth_before" "$frac" "$depth_after" >> {output.stats}
+        """
+
+rule modkit_entropy_dmrs_downsampled:
+    input:
+        sortedbam = "ldna/intermediates/{sample}/alignments/analysis_default/entropy_downsampled/{mod_code}/{contrast}/{subset}/{sample}.ds{target_depth}.bam",
+        sortedbamindex = "ldna/intermediates/{sample}/alignments/analysis_default/entropy_downsampled/{mod_code}/{contrast}/{subset}/{sample}.ds{target_depth}.bam.bai",
+        rois = "ldna/Rintermediates/{mod_code}/{contrast}/dmrs_{subset}.bed"
+    params:
+        ref = lambda wildcards: "aref/extended/%s.fa"%(wildcards.sample) if config["aref"]["update_ref_with_tldr"]["per_sample"] == "yes" else "aref/extended/A.REF.fa"
+    wildcard_constraints:
+        mod_code = "m|h",
+        contrast = "condition_[A-Za-z0-9]+_vs_[A-Za-z0-9]+",
+        subset = "[a-z0-9_]+",
+        sample = "[0-9A-Za-z]+",
+        target_depth = "[0-9]+"
+    resources:
+        cpus_per_task = 32,
+        mem_mb = 64000
+    output:
+        outfile = "ldna/results/{mod_code}/tables/entropy_ds{target_depth}_{contrast}/{subset}/{sample}/outfile.txt",
+    conda:
+        "omics"
+    shell:
+        """
+mkdir -p $(dirname {output.outfile})
+
+/oscar/data/jsedivy/mkelsey/tools/dist_modkit_v0.5.1_8fa79e3/modkit entropy \
+ --in-bam {input.sortedbam} \
+ -o $(dirname {output.outfile}) \
+ --regions {input.rois} \
+ --cpg \
+ --header \
+ --max-filtered-positions 0 \
+ --ref {params.ref} \
+ --threads 30 \
+ --window-size 1000 \
+ --log-filepath $(dirname {output.outfile})/modkit_entropy.log
+touch {output.outfile}
+        """
+
+rule get_entropy_dmrs_downsampled:
+    input:
+        expand("ldna/results/{mod_code}/tables/entropy_ds{target_depth}_{contrast}/{subset}/{sample}/outfile.txt", mod_code = "m", target_depth = ENTROPY_DOWNSAMPLE_DEPTH, sample = samples, contrast = ldna_contrasts, subset = ["hypo_t05", "hyper_t05", "t05", "hypo_t01", "hyper_t01", "t01"] )
 
 ruleorder: modkit_entropy_genomewide > modkit_entropy_dmrs
 
@@ -1356,7 +1470,7 @@ rule get_entropy_genomewide:
 rule get_all_entropy:
     input:
         a = expand("ldna/results/m/tables/entropy_genomewide/{sample}/outfile.txt", sample = samples),
-        b = expand("ldna/results/m/tables/entropy_{contrast}/{subset}/{sample}/outfile.txt", sample = samples, contrast = ldna_contrasts, subset = ["hypo_t05", "hyper_t05", "t05", "hypo_t01", "hyper_t01", "t01"] ),
+        b = expand("ldna/results/{mod_code}/tables/entropy_{contrast}/{subset}/{sample}/outfile.txt", mod_code = "m", sample = samples, contrast = ldna_contrasts, subset = ["hypo_t05", "hyper_t05", "t05", "hypo_t01", "hyper_t01", "t01"] ),
         c = expand("ldna/results/m/tables/entropy/{sample}/outfile.txt", sample = samples)
 # rule modbamtobedTLDRinsertions:
 #     input:
@@ -1686,10 +1800,11 @@ rule bedmethylanalysis_process:
     params:
         mod_code = lambda wildcards: wildcards.mod_code
     output:
-        grsdf = "ldna/Rintermediates/{mod_code}/grsdf.tsv"
+        grsdf = "ldna/Rintermediates/{mod_code}/grsdf.tsv",
+        dmr_beds = expand("ldna/Rintermediates/{{mod_code}}/{contrast}/dmrs_{subset}.bed", contrast = ldna_contrasts, subset = ["hypo_t05", "hyper_t05", "t05", "hypo_t01", "hyper_t01", "t01"])
     resources:
         cpus_per_task =10,
-        mem_mb = 600000,
+        mem_mb = 700000,
         runtime = 600
     conda:
         "ds"
@@ -1724,6 +1839,24 @@ rule bedmethylanalysis_process_single_condition:
         "ds"
     script:
         "scripts/bedmethylanalysis_process.R"
+
+
+rule bedmethylanalysis_process_multimod:
+    input:
+        bedmethylpaths = expand("ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_CG_bedMethyl.bed", sample = samples, ref_genome = "analysis_default"),
+        read_mods = expand('ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_readmods_{context}_{region}.tsv', sample = samples, ref_genome = "analysis_default", region = config["ldna"]["rte_subfamily_read_level_analysis"], context = ["NoContext"]),
+        read_mods_cg = expand('ldna/intermediates/{sample}/methylation/{ref_genome}/{sample}_readmods_{context}_{region}.tsv', sample = samples, ref_genome = "analysis_default", region = config["ldna"]["rte_subfamily_read_level_analysis"], context = ["CpG"]),
+        consensus_map = "ldna/results/m/plots/l1_alignment_meth/L1HS_fl_mapping_to_consensus_table.csv"
+    output:
+        grsdf = "ldna/Rintermediates/grsdf.tsv"
+    resources:
+        cpus_per_task =10,
+        mem_mb = 600000,
+        runtime = 600
+    conda:
+        "ds"
+    script:
+        "scripts/bedmethylanalysis_process_multicond_multimod.R"
 
 
 rule bedmethylanalysis_plot:
@@ -1807,7 +1940,9 @@ rule bedmeth_1dispersion_analysis:
 
 rule bedmeth_1entropy:
     input:
-        grsdf = "ldna/Rintermediates/{mod_code}/grsdf.tsv"
+        grsdf = "ldna/Rintermediates/{mod_code}/grsdf.tsv",
+        entropy_dmrs = expand("ldna/results/{{mod_code}}/tables/entropy_{contrast}/{subset}/{sample}/outfile.txt", sample = samples, contrast = ldna_contrasts, subset = ["hypo_t05", "hyper_t05", "t05", "hypo_t01", "hyper_t01", "t01"]),
+        entropy_l1hs = expand("ldna/results/m/tables/entropy/{sample}/outfile.txt", sample = samples)
     params:
         mod_code = lambda wildcards: wildcards.mod_code,
         contrasts = ldna_contrasts

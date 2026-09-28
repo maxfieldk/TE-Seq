@@ -393,62 +393,6 @@ readscg_endfiltnew5 <- readscg %>%
   })
 
 
-totcpg <- readscg %>% nrow()
-filtcpg3 <- readscg_endfilt %>% nrow()
-filtcpg5 <- readscg_5endfilt %>% nrow()
-(totcpg - filtcpg3)/totcpg
-(totcpg - filtcpg5)/totcpg
-
-
-totcpg <- readscg %>% nrow()
-filtcpg3new <- readscg_endfiltnew %>% nrow()
-filtcpg5new <- readscg_endfiltnew5 %>% nrow()
-(totcpg - filtcpg3new)/totcpg
-(totcpg - filtcpg5new)/totcpg
-
-
-# aaa <- readscg_endfilt %>% filter(mod_code == "m") %>% group_by(read_id) %>% summarise(filtread_n_total_mod = n(), read_n_total_mod = dplyr::first(read_n_total_mod)/2, sample = dplyr::first(sample))
-# bbb <- readscg_5endfilt %>% filter(mod_code == "m") %>% group_by(read_id) %>% summarise(filtread_n_total_mod = n(), read_n_total_mod = dplyr::first(read_n_total_mod)/2, sample = dplyr::first(sample))
-aaanew <- readscg_endfiltnew %>% filter(mod_code == "m") %>% group_by(read_id) %>% summarise(filtread_n_total_mod = n(), read_n_total_mod = dplyr::first(read_n_total_mod)/2, sample = dplyr::first(sample))
-bbbnew <- readscg_endfiltnew5 %>% filter(mod_code == "m") %>% group_by(read_id) %>% summarise(filtread_n_total_mod = n(), read_n_total_mod = dplyr::first(read_n_total_mod)/2, sample = dplyr::first(sample))
-
-# dfa <- aaa %>% mutate(dif = (read_n_total_mod - filtread_n_total_mod)) 
-# dfb <- bbb %>% mutate(dif = (read_n_total_mod - filtread_n_total_mod)) 
-dfanew <- aaanew %>% mutate(dif = (read_n_total_mod - filtread_n_total_mod)) 
-dfbnew <- bbbnew %>% mutate(dif = (read_n_total_mod - filtread_n_total_mod)) 
-
-p <- ggplot() +
-    geom_histogram(data = dfa, aes(x = dif), fill = "blue", alpha = 0.5) +
-    geom_histogram(data = dfb, aes(x = dif), fill = "green", alpha = 0.5) +
-    lims(x = c(0,10)) +
-    mtclosed
-mysaveandstore("zztmp1.pdf")
-
-p <- ggplot() +
-    geom_histogram(data = dfanew, aes(x = dif), fill = "red", alpha = 0.5) +
-    geom_histogram(data = dfbnew, aes(x = dif), fill = "purple", alpha = 0.5) +
-    lims(x = c(-1,10)) +
-    mtclosed
-mysaveandstore("zztmp12.pdf")
-
-
-c(c(dfa %$% dif) > 5) %>% mean()
-c(c(dfb %$% dif) > 5) %>% mean()
-c(c(dfanew %$% dif) > 5) %>% mean()
-c(c(dfbnew %$% dif) > 5) %>% mean()
-
-c(c(dfa %$% dif) > 5) %>% mean()
-c(c(dfb %$% dif) > 5) %>% mean()
-c(c(dfanew %$% dif) > 3) %>% mean()
-c(c(dfbnew %$% dif) > 3) %>% mean()
-
-dfanew %>% filter(dif > 3) %$% dif %>% mean()
-
-
-dfa %>% mutate(affected  = dif > 10) %>% group_by(sample) %>% summarise(ma = mean(affected))
-dfb %>% mutate(affected  = dif > 10) %>% group_by(sample) %>% summarise(ma = mean(affected))
-dfanew %>% mutate(affected  = dif > 10) %>% group_by(sample) %>% summarise(ma = mean(affected))
-dfbnew %>% mutate(affected  = dif > 10) %>% group_by(sample) %>% summarise(ma = mean(affected))
 
 
 { #Get readIDs to filter out from bam for visualization purpose. 

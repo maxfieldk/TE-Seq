@@ -101,6 +101,7 @@ for (sample_name in samples) {
 
 grsunfiltered <- Reduce(c, sample_grs)
 rm(sample_grs)
+write_delim(grsunfiltered, sprintf("ldna/Rintermediates/%s/grsdf_nocpgorcovfilt.tsv", params$mod_code), col_names = TRUE)
 # filter out low coverage and ensure that all samples have the same cpgs
 grs <- grsunfiltered[grsunfiltered$cov > MINIMUMCOVERAGE]
 grsdf <- tibble(as.data.frame(grs))
@@ -178,11 +179,12 @@ if (conf$single_condition == "no") {
 
         # Write bed files per contrast
         dmrs_c <- dmrs_per_contrast[[contrast]]
-        dir.create(sprintf("ldna/Rintermediates/m/%s", contrast), recursive = TRUE, showWarnings = FALSE)
+        dir.create(sprintf("ldna/Rintermediates/%s/%s", params$mod_code, contrast), recursive = TRUE, showWarnings = FALSE)
+        # DSS coordinates are 1-based; BED is 0-based half-open, so shift start by one
         for (threshold in unique(dmrs_c$dmr_type)) {
-            write_delim(dmrs_c %>% filter(dmr_type == threshold) %>% dplyr::select(chr, start, end), str_glue("ldna/Rintermediates/m/{contrast}/dmrs_{threshold}.bed"), delim = "\t", col_names = FALSE)
-            write_delim(dmrs_c %>% filter(dmr_type == threshold) %>% filter(direction == grep("Hypo", dmrs_c %$% direction %>% unique(), value = TRUE)) %>% dplyr::select(chr, start, end), str_glue("ldna/Rintermediates/m/{contrast}/dmrs_hypo_{threshold}.bed"), delim = "\t", col_names = FALSE)
-            write_delim(dmrs_c %>% filter(dmr_type == threshold) %>% filter(direction == grep("Hyper", dmrs_c %$% direction %>% unique(), value = TRUE)) %>% dplyr::select(chr, start, end), str_glue("ldna/Rintermediates/m/{contrast}/dmrs_hyper_{threshold}.bed"), delim = "\t", col_names = FALSE)
+            write_delim(dmrs_c %>% filter(dmr_type == threshold) %>% dplyr::transmute(chr, start = start - 1, end), str_glue("ldna/Rintermediates/{params$mod_code}/{contrast}/dmrs_{threshold}.bed"), delim = "\t", col_names = FALSE)
+            write_delim(dmrs_c %>% filter(dmr_type == threshold) %>% filter(direction == grep("Hypo", dmrs_c %$% direction %>% unique(), value = TRUE)) %>% dplyr::transmute(chr, start = start - 1, end), str_glue("ldna/Rintermediates/{params$mod_code}/{contrast}/dmrs_hypo_{threshold}.bed"), delim = "\t", col_names = FALSE)
+            write_delim(dmrs_c %>% filter(dmr_type == threshold) %>% filter(direction == grep("Hyper", dmrs_c %$% direction %>% unique(), value = TRUE)) %>% dplyr::transmute(chr, start = start - 1, end), str_glue("ldna/Rintermediates/{params$mod_code}/{contrast}/dmrs_hyper_{threshold}.bed"), delim = "\t", col_names = FALSE)
         }
     }
 }

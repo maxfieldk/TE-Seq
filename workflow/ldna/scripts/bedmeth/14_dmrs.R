@@ -248,8 +248,544 @@ enh_no_mcols <- chromHMM_enhancers_grs
 mcols(enh_no_mcols) <- NULL
 
 
-###########################
+########################### DMR areaStat distributions, top DMRs, and DMRs shared between contrasts
+if ((conf$single_condition == "no")) {
+    dmr_types_to_plot <- c("t01", "t05")
+    n_top_dmrs <- 20
+    contrast_label <- function(x) gsub("^condition_", "", x)
 
+    # rDNA annotations used to flag DMRs in rDNA arrays: the 45S transcripts from the CAT/liftoff annotation,
+    # and the whole rDNA model regions (transcripts plus intergenic spacers)
+    catlift <- rtracklayer::import("/users/mkelsey/data/Nanopore/alz/RTE/catLiftOffGenesV1.bed")
+    rdna_transcripts <- catlift[grepl("RNA45", mcols(catlift)$name)]
+    rdna_models <- rtracklayer::import("/users/mkelsey/data/Nanopore/alz/RTE/rdnaModel.bed")
+    # the model regions miss some 45S copies at the array flanks, so the region set is the union of both to keep it a superset
+    rdna_regions <- GenomicRanges::reduce(c(granges(rdna_models), granges(rdna_transcripts)))
+    rdna_annots <- list(rdna_transcript = rdna_transcripts, rdna_region = rdna_regions)
+    rdna_annot_labels <- c(rdna_transcript = "rDNA transcripts", rdna_region = "rDNA regions")
+    rdna_overlap_summary <- list()
+
+    # per-contrast: global areaStat distribution and top DMRs
+    for (contrast in contrasts) {
+        if (is.null(dmrsgr_per_contrast[[contrast]])) next
+        dmrdf <- dmrsgr_per_contrast[[contrast]] %>%
+            as.data.frame() %>%
+            tibble() %>%
+            mutate(label = sprintf("%s:%s-%s", seqnames, start, end))
+        for (rdna_annot in names(rdna_annots)) {
+            dmrdf[[rdna_annot]] <- ifelse(overlapsAny(dmrsgr_per_contrast[[contrast]], rdna_annots[[rdna_annot]]), "rDNA", "non-rDNA")
+        }
+        for (dmrtype in dmr_types_to_plot) {
+            dmrdf_type <- dmrdf %>% filter(dmr_type == dmrtype)
+            if (nrow(dmrdf_type) == 0) next
+            outdir <- sprintf("ldna/results/%s/plots/genomewide/%s/%s", params$mod_code, contrast, dmrtype)
+
+            # top n/2 hyper and top n/2 hypo DMRs by |areaStat|
+            top_dmrs <- bind_rows(
+                dmrdf_type %>% filter(direction == "Hyper") %>% slice_max(areaStat, n = n_top_dmrs / 2, with_ties = FALSE),
+                dmrdf_type %>% filter(direction == "Hypo") %>% slice_min(areaStat, n = n_top_dmrs / 2, with_ties = FALSE)
+            ) %>% mutate(label = fct_reorder(label, areaStat))
+
+            p <- ggplot(dmrdf_type) +
+                geom_histogram(aes(x = areaStat, fill = direction), bins = 100, color = "black", linewidth = 0.2) +
+                geom_vline(xintercept = 0, linetype = "dashed") +
+                labs(x = "areaStat", y = "Count") +
+                ggtitle(sprintf("DMR areaStat (%s)", contrast)) +
+                mtopen +
+                scale_methylation +
+                anchorbar
+            mysaveandstore(fn = sprintf("%s/dmr_areastat_hist.pdf", outdir), w = 5, h = 4)
+
+            # areaStat is heavy-tailed, so also show |areaStat| on a log axis
+            p <- ggplot(dmrdf_type) +
+                geom_histogram(aes(x = abs(areaStat), fill = direction), bins = 60, color = "black", linewidth = 0.2, alpha = 0.7, position = "identity") +
+                scale_x_log10() +
+                annotation_logticks(sides = "b") +
+                labs(x = "|areaStat|", y = "Count") +
+                ggtitle(sprintf("DMR |areaStat| (%s)", contrast)) +
+                mtopen +
+                scale_methylation +
+                anchorbar
+            mysaveandstore(fn = sprintf("%s/dmr_areastat_hist_log.pdf", outdir), w = 5, h = 4)
+
+            p <- ggplot(dmrdf_type, aes(x = direction, y = abs(areaStat), fill = direction)) +
+                geom_violin(color = "black", show.legend = FALSE) +
+                geom_boxplot(width = 0.15, outlier.shape = NA, fill = "white", show.legend = FALSE) +
+                scale_y_log10() +
+                annotation_logticks(sides = "l") +
+                labs(x = "", y = "|areaStat|") +
+                ggtitle(sprintf("DMR |areaStat| (%s)", contrast)) +
+                mtopen +
+                scale_methylation
+            mysaveandstore(fn = sprintf("%s/dmr_areastat_violin.pdf", outdir), w = 3.5, h = 4)
+
+            # ranked areaStat ("waterfall") with the top DMRs labelled
+            dmrdf_rank <- dmrdf_type %>%
+                arrange(areaStat) %>%
+                mutate(rank = row_number())
+            p <- ggplot(dmrdf_rank, aes(x = rank, y = areaStat)) +
+                geom_point(aes(color = direction), size = 0.6) +
+                geom_hline(yintercept = 0, linetype = "dashed") +
+                ggrepel::geom_text_repel(
+                    data = dmrdf_rank %>% filter(label %in% as.character(top_dmrs$label)),
+                    aes(label = label), size = 1.8, max.overlaps = Inf, segment.size = 0.2, box.padding = 0.4
+                ) +
+                labs(x = "DMR rank", y = "areaStat") +
+                ggtitle(sprintf("DMR areaStat rank (%s)", contrast)) +
+                mtopen +
+                scale_methylation
+            mysaveandstore(fn = sprintf("%s/dmr_areastat_rank.pdf", outdir), w = 6, h = 4.5)
+
+            p <- ggplot(dmrdf_type, aes(x = nCG, y = areaStat)) +
+                geom_point(aes(color = direction), size = 0.6, alpha = 0.6) +
+                geom_hline(yintercept = 0, linetype = "dashed") +
+                ggrepel::geom_text_repel(
+                    data = dmrdf_type %>% filter(label %in% as.character(top_dmrs$label)),
+                    aes(label = label), size = 1.8, max.overlaps = Inf, segment.size = 0.2
+                ) +
+                labs(x = "nCG", y = "areaStat") +
+                ggtitle(sprintf("DMR areaStat vs nCG (%s)", contrast)) +
+                mtopen +
+                scale_methylation
+            mysaveandstore(fn = sprintf("%s/dmr_areastat_vs_ncg.pdf", outdir), w = 6, h = 4.5)
+
+            p <- ggplot(top_dmrs) +
+                geom_col(aes(x = areaStat, y = label, fill = direction), color = "black") +
+                geom_vline(xintercept = 0) +
+                geom_text(
+                    data = top_dmrs %>% filter(rdna_region == "rDNA"),
+                    aes(x = areaStat, y = label, label = "rDNA", hjust = ifelse(areaStat > 0, -0.2, 1.2)), size = 2
+                ) +
+                scale_x_continuous(expand = expansion(mult = 0.2)) +
+                labs(x = "areaStat", y = "") +
+                ggtitle(sprintf("Top %d DMRs by |areaStat| (%s)", n_top_dmrs, contrast)) +
+                mtopen +
+                scale_methylation +
+                theme(axis.text.y = element_text(size = 6))
+            mysaveandstore(fn = sprintf("%s/dmr_top_areastat.pdf", outdir), w = 5, h = 5.5)
+
+            # how many DMRs (all, and the top ones) overlap each rDNA annotation
+            for (rdna_annot in names(rdna_annots)) {
+                rdna_df <- bind_rows(
+                    dmrdf_type %>% mutate(set = "all DMRs"),
+                    top_dmrs %>% mutate(label = as.character(label), set = sprintf("top %d", n_top_dmrs))
+                ) %>%
+                    mutate(set = factor(set, levels = c("all DMRs", sprintf("top %d", n_top_dmrs))), rdna = .data[[rdna_annot]]) %>%
+                    group_by(set, direction, rdna) %>%
+                    summarize(n = n(), .groups = "drop") %>%
+                    complete(set, direction, rdna, fill = list(n = 0)) %>%
+                    group_by(set, direction) %>%
+                    mutate(frac = n / sum(n)) %>%
+                    ungroup()
+                rdna_overlap_summary[[paste(contrast, dmrtype, rdna_annot)]] <- rdna_df %>% mutate(contrast = contrast, dmr_type = dmrtype, annotation = rdna_annot)
+
+                p <- ggplot(rdna_df, aes(x = direction, y = frac, fill = rdna)) +
+                    geom_col(color = "black") +
+                    geom_text(data = rdna_df %>% filter(rdna == "rDNA"), aes(y = 1, label = sprintf("%d rDNA\n(%.1f%%)", n, 100 * frac)), vjust = -0.2, size = 2.5) +
+                    facet_wrap(~set) +
+                    scale_fill_manual(values = c("non-rDNA" = "grey90", "rDNA" = methylation_palette[["Hyper"]])) +
+                    scale_y_continuous(labels = scales::percent, expand = expansion(mult = c(0, 0.2))) +
+                    labs(x = "", y = "Fraction of DMRs", fill = "") +
+                    ggtitle(sprintf("DMRs overlapping %s (%s)", rdna_annot_labels[[rdna_annot]], contrast)) +
+                    mtopen +
+                    anchorbar
+                mysaveandstore(fn = sprintf("%s/dmr_%s_overlap.pdf", outdir, rdna_annot), w = 5, h = 4)
+            }
+        }
+    }
+
+    # rDNA overlap across contrasts
+    if (length(rdna_overlap_summary) > 0) {
+        rdna_overlap_df <- bind_rows(rdna_overlap_summary) %>%
+            mutate(contrast = factor(contrast_label(contrast), levels = contrast_label(contrasts)))
+        write_delim(rdna_overlap_df, sprintf("ldna/results/%s/tables/dmr_rdna_overlap.tsv", params$mod_code), delim = "\t")
+        for (dmrtype in dmr_types_to_plot) {
+            for (rdna_annot in names(rdna_annots)) {
+                plotdf <- rdna_overlap_df %>% filter(dmr_type == dmrtype, annotation == rdna_annot, rdna == "rDNA")
+                if (nrow(plotdf) == 0) next
+                p <- ggplot(plotdf, aes(x = contrast, y = frac, fill = direction)) +
+                    geom_col(position = position_dodge(width = 0.9), color = "black") +
+                    geom_text(aes(label = n), position = position_dodge(width = 0.9), vjust = -0.5, size = 2.5) +
+                    facet_wrap(~set) +
+                    scale_y_continuous(labels = scales::percent, expand = expansion(mult = c(0, 0.15))) +
+                    labs(x = "", y = sprintf("Fraction of DMRs in %s", rdna_annot_labels[[rdna_annot]])) +
+                    ggtitle(sprintf("DMRs overlapping %s (%s)", rdna_annot_labels[[rdna_annot]], dmrtype)) +
+                    mtopen +
+                    scale_methylation +
+                    anchorbar +
+                    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+                mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/shared/%s/dmr_%s_overlap_all_contrasts.pdf", params$mod_code, dmrtype, rdna_annot), w = 2 + 1.2 * nlevels(plotdf$contrast), h = 4)
+            }
+        }
+    }
+
+    # shared DMRs between contrasts: DMRs are collapsed to a union of merged regions, and each region is
+    # marked as present in a contrast if it overlaps one of that contrast's DMRs
+    contrasts_with_dmrs <- names(dmrsgr_per_contrast)
+    if (length(contrasts_with_dmrs) >= 2) {
+        for (dmrtype in dmr_types_to_plot) {
+            grs_by_contrast <- lapply(contrasts_with_dmrs, function(ct) {
+                gr <- dmrsgr_per_contrast[[ct]]
+                gr[mcols(gr)$dmr_type == dmrtype]
+            }) %>% setNames(contrasts_with_dmrs)
+            grs_by_contrast <- grs_by_contrast[lengths(grs_by_contrast) > 0]
+            if (length(grs_by_contrast) < 2) next
+            outdir <- sprintf("ldna/results/%s/plots/genomewide/shared/%s", params$mod_code, dmrtype)
+            tabledir <- sprintf("ldna/results/%s/tables/shared", params$mod_code)
+            dir.create(tabledir, showWarnings = FALSE, recursive = TRUE)
+
+            union_gr <- lapply(grs_by_contrast, function(gr) {
+                mcols(gr) <- NULL
+                gr
+            }) %>%
+                GRangesList() %>%
+                unlist() %>%
+                GenomicRanges::reduce()
+            membership <- do.call(cbind, lapply(grs_by_contrast, function(gr) overlapsAny(union_gr, gr)))
+            colnames(membership) <- names(grs_by_contrast)
+            # per region and contrast, take the areaStat/direction of the strongest overlapping DMR
+            strongest_hit <- function(gr, col) {
+                hits <- findOverlaps(union_gr, gr)
+                hitdf <- tibble(q = queryHits(hits), areaStat = mcols(gr)$areaStat[subjectHits(hits)], value = mcols(gr)[[col]][subjectHits(hits)]) %>%
+                    group_by(q) %>%
+                    slice_max(abs(areaStat), n = 1, with_ties = FALSE) %>%
+                    ungroup()
+                out <- rep(NA, length(union_gr))
+                out[hitdf$q] <- hitdf$value
+                out
+            }
+            direction_mat <- do.call(cbind, lapply(grs_by_contrast, strongest_hit, col = "direction"))
+            areastat_mat <- do.call(cbind, lapply(grs_by_contrast, strongest_hit, col = "areaStat"))
+            colnames(direction_mat) <- colnames(areastat_mat) <- names(grs_by_contrast)
+
+            shared_regions <- union_gr %>%
+                as.data.frame() %>%
+                tibble() %>%
+                dplyr::select(seqnames, start, end, width) %>%
+                mutate(
+                    n_contrasts = rowSums(membership),
+                    contrasts = apply(membership, 1, function(x) paste(contrast_label(names(x)[x]), collapse = ";"))
+                ) %>%
+                bind_cols(
+                    as_tibble(direction_mat) %>% rename_with(~ paste0("direction_", contrast_label(.x))),
+                    as_tibble(areastat_mat) %>% rename_with(~ paste0("areaStat_", contrast_label(.x)))
+                )
+            # a region is concordant if every contrast it is a DMR in agrees on direction (singletons are trivially concordant)
+            region_direction <- apply(direction_mat, 1, function(x) {
+                x <- unique(na.omit(x))
+                if (length(x) == 1) x else "discordant"
+            })
+            shared_regions <- shared_regions %>% mutate(concordant_direction = region_direction, .after = contrasts)
+            write_delim(shared_regions, sprintf("%s/dmr_shared_regions_%s.tsv", tabledir, dmrtype), delim = "\t")
+
+            # upsets only count concordant regions: all regions, then hyper-only and hypo-only
+            upset_sets <- list(
+                all = region_direction != "discordant",
+                Hyper = region_direction == "Hyper",
+                Hypo = region_direction == "Hypo"
+            )
+            for (upset_name in names(upset_sets)) {
+                membership_concordant <- membership[upset_sets[[upset_name]], , drop = FALSE]
+                if (nrow(membership_concordant) == 0) next
+                comb_mat <- ComplexHeatmap::make_comb_mat(membership_concordant * 1L)
+                ComplexHeatmap::set_name(comb_mat) <- contrast_label(ComplexHeatmap::set_name(comb_mat))
+                p <- ComplexHeatmap::UpSet(comb_mat,
+                    set_order = order(ComplexHeatmap::set_size(comb_mat), decreasing = TRUE),
+                    comb_order = order(ComplexHeatmap::comb_size(comb_mat), decreasing = TRUE),
+                    top_annotation = ComplexHeatmap::upset_top_annotation(comb_mat, add_numbers = TRUE),
+                    right_annotation = ComplexHeatmap::upset_right_annotation(comb_mat, add_numbers = TRUE),
+                    column_title = sprintf("Shared concordant DMRs, %s (%s)", upset_name, dmrtype)
+                )
+                mysaveandstore(fn = sprintf("%s/dmr_shared_upset_concordant_%s.pdf", outdir, upset_name), w = 3 + 0.4 * length(ComplexHeatmap::comb_size(comb_mat)), h = 2.5 + 0.3 * ncol(membership))
+            }
+
+            p <- shared_regions %>%
+                count(n_contrasts) %>%
+                ggplot() +
+                geom_col(aes(x = factor(n_contrasts), y = n), fill = mycolor, color = "black") +
+                geom_text(aes(x = factor(n_contrasts), y = n, label = n), vjust = -0.5, size = 3) +
+                labs(x = "Number of contrasts", y = "DMR regions") +
+                ggtitle(sprintf("DMR sharing (%s)", dmrtype)) +
+                mtopen +
+                anchorbar
+            mysaveandstore(fn = sprintf("%s/dmr_shared_ncontrasts.pdf", outdir), w = 4, h = 4)
+
+            # pairwise overlap, jaccard, and direction concordance between contrasts
+            pairdf <- expand_grid(contrast_a = names(grs_by_contrast), contrast_b = names(grs_by_contrast)) %>%
+                rowwise() %>%
+                mutate(
+                    n_a = sum(membership[, contrast_a]),
+                    n_b = sum(membership[, contrast_b]),
+                    n_shared = sum(membership[, contrast_a] & membership[, contrast_b]),
+                    n_union = sum(membership[, contrast_a] | membership[, contrast_b]),
+                    jaccard = n_shared / n_union,
+                    frac_a_in_b = n_shared / n_a,
+                    n_concordant = sum(membership[, contrast_a] & membership[, contrast_b] & direction_mat[, contrast_a] == direction_mat[, contrast_b], na.rm = TRUE),
+                    n_discordant = n_shared - n_concordant
+                ) %>%
+                ungroup() %>%
+                mutate(across(c(contrast_a, contrast_b), ~ factor(contrast_label(.x), levels = contrast_label(names(grs_by_contrast)))))
+            write_delim(pairdf, sprintf("%s/dmr_shared_pairwise_%s.tsv", tabledir, dmrtype), delim = "\t")
+
+            p <- ggplot(pairdf, aes(x = contrast_a, y = contrast_b)) +
+                geom_tile(aes(fill = jaccard), color = "black") +
+                geom_text(aes(label = sprintf("%d\n(%.2f)", n_shared, jaccard)), size = 2.5) +
+                scale_fill_gradient(low = "white", high = methylation_palette[["Hyper"]], limits = c(0, 1), name = "Jaccard") +
+                labs(x = "", y = "") +
+                ggtitle(sprintf("Shared DMRs (%s)", dmrtype)) +
+                mtopen +
+                theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+            mysaveandstore(fn = sprintf("%s/dmr_shared_pairwise_jaccard.pdf", outdir), w = 1.5 + 1.1 * ncol(membership), h = 1 + 1 * ncol(membership))
+
+            p <- ggplot(pairdf, aes(x = contrast_b, y = contrast_a)) +
+                geom_tile(aes(fill = frac_a_in_b), color = "black") +
+                geom_text(aes(label = sprintf("%.2f", frac_a_in_b)), size = 2.5) +
+                scale_fill_gradient(low = "white", high = methylation_palette[["Hyper"]], limits = c(0, 1), name = "Fraction") +
+                labs(x = "", y = "") +
+                ggtitle(sprintf("Fraction of row DMRs overlapping column DMRs (%s)", dmrtype)) +
+                mtopen +
+                theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+            mysaveandstore(fn = sprintf("%s/dmr_shared_pairwise_fraction.pdf", outdir), w = 1.5 + 1.1 * ncol(membership), h = 1 + 1 * ncol(membership))
+
+            p <- pairdf %>%
+                filter(as.integer(contrast_a) < as.integer(contrast_b)) %>%
+                mutate(pair = paste(contrast_a, contrast_b, sep = " & ")) %>%
+                pivot_longer(c(n_concordant, n_discordant), names_to = "concordance", values_to = "n") %>%
+                mutate(concordance = gsub("n_", "", concordance)) %>%
+                ggplot() +
+                geom_col(aes(x = pair, y = n, fill = concordance), color = "black") +
+                scale_fill_manual(values = c(concordant = methylation_palette[["Hyper"]], discordant = methylation_palette[["Hypo"]])) +
+                labs(x = "", y = "Shared DMR regions") +
+                ggtitle(sprintf("Direction concordance of shared DMRs (%s)", dmrtype)) +
+                mtopen +
+                anchorbar +
+                theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+            mysaveandstore(fn = sprintf("%s/dmr_shared_direction_concordance.pdf", outdir), w = 2 + 0.6 * choose(ncol(membership), 2), h = 4.5)
+
+            # areaStat agreement for regions shared by each pair of contrasts
+            for (ct_a in names(grs_by_contrast)) {
+                for (ct_b in names(grs_by_contrast)) {
+                    if (match(ct_a, names(grs_by_contrast)) >= match(ct_b, names(grs_by_contrast))) next
+                    pair_shared <- shared_regions %>%
+                        mutate(areaStat_a = areastat_mat[, ct_a], areaStat_b = areastat_mat[, ct_b], label = sprintf("%s:%s-%s", seqnames, start, end)) %>%
+                        filter(!is.na(areaStat_a), !is.na(areaStat_b)) %>%
+                        mutate(concordance = ifelse(sign(areaStat_a) == sign(areaStat_b), "concordant", "discordant"))
+                    if (nrow(pair_shared) < 3) next
+                    p <- ggplot(pair_shared, aes(x = areaStat_a, y = areaStat_b)) +
+                        geom_hline(yintercept = 0, linetype = "dashed") +
+                        geom_vline(xintercept = 0, linetype = "dashed") +
+                        geom_point(aes(color = concordance), size = 0.8, alpha = 0.7) +
+                        ggrepel::geom_text_repel(
+                            data = pair_shared %>% slice_max(abs(areaStat_a) + abs(areaStat_b), n = n_top_dmrs, with_ties = FALSE),
+                            aes(label = label), size = 1.8, max.overlaps = Inf, segment.size = 0.2
+                        ) +
+                        ggpubr::stat_cor(method = "spearman", size = 3) +
+                        scale_color_manual(values = c(concordant = methylation_palette[["Hyper"]], discordant = methylation_palette[["Hypo"]])) +
+                        labs(x = sprintf("areaStat (%s)", contrast_label(ct_a)), y = sprintf("areaStat (%s)", contrast_label(ct_b))) +
+                        ggtitle(sprintf("Shared DMRs (%s)", dmrtype)) +
+                        mtopen
+                    mysaveandstore(fn = sprintf("%s/dmr_shared_areastat_%s_vs_%s.pdf", outdir, contrast_label(ct_a), contrast_label(ct_b)), w = 6, h = 5)
+                }
+            }
+        }
+    }
+}
+
+##################################### DMR summary plots across contrasts (faceted / contrast on x)
+if ((conf$single_condition == "no")) {
+    # CpG island / shore / shelf / open sea status for DMRs, with islands taking precedence over shores over shelves
+    annotate_island_status <- function(gr) {
+        islands <- gr %>% subsetByOverlaps(cpg_islands)
+        shores <- gr %>%
+            subsetByOverlaps(cpgi_shores) %>%
+            subsetByOverlaps(islands, invert = TRUE)
+        shelves <- gr %>%
+            subsetByOverlaps(cpgi_shelves) %>%
+            subsetByOverlaps(gr %>% subsetByOverlaps(cpgi_shores), invert = TRUE)
+        opensea <- gr %>% subsetByOverlaps(cpgi_features, invert = TRUE)
+        mcols(islands)$islandStatus <- rep("island", length(islands))
+        mcols(shores)$islandStatus <- rep("shore", length(shores))
+        mcols(shelves)$islandStatus <- rep("shelf", length(shelves))
+        mcols(opensea)$islandStatus <- rep("opensea", length(opensea))
+        c(islands, shores, shelves, opensea) %>%
+            as.data.frame() %>%
+            tibble()
+    }
+
+    contrasts_with_dmrs <- names(dmrsgr_per_contrast)
+    dmrs_all_contrasts <- lapply(contrasts_with_dmrs, function(ct) {
+        annotate_island_status(dmrsgr_per_contrast[[ct]]) %>% mutate(contrast = ct)
+    }) %>%
+        bind_rows() %>%
+        mutate(
+            contrast = factor(contrast_label(contrast), levels = contrast_label(contrasts_with_dmrs)),
+            islandStatus = factor(islandStatus, levels = c("island", "shore", "shelf", "opensea"))
+        )
+    n_contrasts <- length(contrasts_with_dmrs)
+
+    for (dmrtype in unique(dmrs_all_contrasts$dmr_type)) {
+        dmrs_temp <- dmrs_all_contrasts %>% filter(dmr_type == dmrtype)
+        outdir <- sprintf("ldna/results/%s/plots/genomewide/all_contrasts/%s", params$mod_code, dmrtype)
+
+        # number of DMRs, contrasts on x
+        p <- dmrs_temp %>%
+            count(contrast, direction) %>%
+            ggplot() +
+            geom_col(aes(x = contrast, y = n, fill = direction), position = position_dodge(width = 0.9), color = "black") +
+            geom_text(aes(x = contrast, y = n, label = n, group = direction), position = position_dodge(width = 0.9), vjust = -0.5, size = 3) +
+            labs(x = "", y = "Count") +
+            scale_y_continuous(expand = expansion(mult = c(0, .15))) +
+            ggtitle("DMR Counts") +
+            mtopen +
+            scale_methylation +
+            theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+        mysaveandstore(fn = sprintf("%s/dmr_number.pdf", outdir), w = 2 + 1 * n_contrasts, h = 4)
+
+        # DMR lengths, faceted by contrast
+        p <- ggplot(data = dmrs_temp) +
+            geom_histogram(aes(length), fill = mycolor, color = "black") +
+            facet_wrap(~contrast, scales = "free_y") +
+            ggtitle("DMR Lengths") +
+            labs(x = "length (bp)") +
+            xlim(0, 3000) +
+            mtopen +
+            anchorbar
+        mysaveandstore(fn = sprintf("%s/dmr_length.pdf", outdir), w = 1.5 + 3 * n_contrasts, h = 4)
+
+        p <- ggplot(data = dmrs_temp) +
+            geom_histogram(aes(length, fill = direction), alpha = 0.7, color = "black") +
+            facet_wrap(~contrast, scales = "free_y") +
+            ggtitle("DMR Lengths") +
+            labs(x = "length (bp)") +
+            xlim(0, 3000) +
+            mtopen +
+            scale_methylation +
+            anchorbar
+        mysaveandstore(fn = sprintf("%s/dmr_length_stratified.pdf", outdir), w = 1.5 + 3 * n_contrasts, h = 4)
+
+        p <- ggplot(dmrs_temp, aes(x = contrast, y = length, fill = direction)) +
+            geom_boxplot(outlier.size = 0.3, color = "black") +
+            scale_y_log10() +
+            annotation_logticks(sides = "l") +
+            labs(x = "", y = "length (bp)") +
+            ggtitle("DMR Lengths") +
+            mtopen +
+            scale_methylation +
+            theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+        mysaveandstore(fn = sprintf("%s/dmr_length_boxplot.pdf", outdir), w = 2 + 1 * n_contrasts, h = 4)
+
+        # CpG island status: counts faceted by contrast, and fraction with contrasts on x
+        island_df <- dmrs_temp %>%
+            count(contrast, islandStatus, direction) %>%
+            group_by(contrast, direction) %>%
+            mutate(frac = n / sum(n)) %>%
+            ungroup()
+        p <- ggplot(island_df) +
+            geom_col(aes(x = islandStatus, y = n, fill = direction), position = "dodge", color = "black") +
+            facet_wrap(~contrast, scales = "free_y") +
+            mtopen +
+            scale_methylation +
+            anchorbar +
+            labs(x = "", y = "Count") +
+            ggtitle("DMR CpG island status") +
+            theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+        mysaveandstore(fn = sprintf("%s/dmr_count_islandstatus.pdf", outdir), w = 1.5 + 3 * n_contrasts, h = 4)
+
+        p <- ggplot(island_df) +
+            geom_col(aes(x = contrast, y = frac, fill = islandStatus), position = "stack", color = "black") +
+            facet_wrap(~direction) +
+            scale_fill_brewer(palette = "Greys", direction = -1, name = "") +
+            scale_y_continuous(labels = scales::percent, expand = expansion(mult = c(0, 0))) +
+            labs(x = "", y = "Fraction of DMRs") +
+            ggtitle("DMR CpG island status") +
+            mtopen +
+            theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+        mysaveandstore(fn = sprintf("%s/dmr_fraction_islandstatus.pdf", outdir), w = 2.5 + 1.5 * n_contrasts, h = 4)
+
+        # DMRs per chromosome, faceted by contrast
+        dmrlocdf <- dmrs_temp %>%
+            count(contrast, seqnames, direction) %>%
+            mutate(seqnames = factor(seqnames, levels = chromosomes)) %>%
+            filter(!is.na(seqnames))
+        p <- ggplot(data = dmrlocdf) +
+            geom_col(aes(y = seqnames, x = n, fill = direction), position = "dodge", color = "black") +
+            facet_wrap(~contrast, scales = "free_x") +
+            labs(x = "count", y = "") +
+            ggtitle("DMR Location") +
+            mtopen +
+            scale_methylation
+        mysaveandstore(fn = sprintf("%s/dmr_count.pdf", outdir), w = 1.5 + 3 * n_contrasts, h = 5)
+    }
+
+    # DMR counts at both thresholds, contrasts on x: t05 bars with the t01 subset overlaid
+    outdir <- sprintf("ldna/results/%s/plots/genomewide/all_contrasts/both", params$mod_code)
+    threshold_counts <- dmrs_all_contrasts %>%
+        filter(dmr_type %in% c("t01", "t05")) %>%
+        count(contrast, direction, dmr_type) %>%
+        mutate(
+            direction_threshold = paste0(direction, "_", gsub("t", "", dmr_type)),
+            direction_threshold = factor(direction_threshold, levels = c("Hypo_05", "Hypo_01", "Hyper_05", "Hyper_01"))
+        )
+
+    # facet_by = "direction" puts contrasts on x within a panel per direction; "contrast" puts directions on x within a panel per contrast
+    plot_threshold_counts <- function(df, facet_by = "direction") {
+        xvar <- ifelse(facet_by == "direction", "contrast", "direction")
+        ggplot(df) +
+            geom_col(
+                data = df %>% filter(dmr_type == "t05"),
+                aes(x = .data[[xvar]], y = n, fill = direction_threshold), color = "black"
+            ) +
+            geom_col(
+                data = df %>% filter(dmr_type == "t01"),
+                aes(x = .data[[xvar]], y = n, fill = direction_threshold), color = "black"
+            ) +
+            geom_text(aes(x = .data[[xvar]], y = n, label = n), vjust = -0.5, size = 3) +
+            facet_wrap(as.formula(paste0("~", facet_by))) +
+            scale_methylation_thresholds +
+            labs(x = "", y = "Count") +
+            ggtitle("DMR counts") +
+            mtopen +
+            theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+    }
+
+    p <- plot_threshold_counts(threshold_counts) +
+        annotation_logticks(sides = "l") +
+        scale_y_log10(
+            breaks = scales::trans_breaks("log10", function(x) 10^x),
+            labels = scales::trans_format("log10", math_format(10^.x)),
+            expand = expansion(mult = c(0, .15))
+        )
+    mysaveandstore(fn = sprintf("%s/dmr_count_numannot.pdf", outdir), w = 2.5 + 1.2 * n_contrasts, h = 4)
+
+    p <- plot_threshold_counts(threshold_counts) +
+        scale_y_continuous(expand = expansion(mult = c(0, .15)))
+    mysaveandstore(fn = sprintf("%s/dmr_count_numannot_linear.pdf", outdir), w = 2.5 + 1.2 * n_contrasts, h = 4)
+
+    p <- plot_threshold_counts(threshold_counts, facet_by = "contrast") +
+        annotation_logticks(sides = "l") +
+        scale_y_log10(
+            breaks = scales::trans_breaks("log10", function(x) 10^x),
+            labels = scales::trans_format("log10", math_format(10^.x)),
+            expand = expansion(mult = c(0, .15))
+        )
+    mysaveandstore(fn = sprintf("%s/dmr_count_numannot_facet_contrast.pdf", outdir), w = 1.5 + 1.6 * n_contrasts, h = 4)
+
+    p <- plot_threshold_counts(threshold_counts, facet_by = "contrast") +
+        scale_y_continuous(expand = expansion(mult = c(0, .15)))
+    mysaveandstore(fn = sprintf("%s/dmr_count_numannot_facet_contrast_linear.pdf", outdir), w = 1.5 + 1.6 * n_contrasts, h = 4)
+
+    # all four direction/threshold combinations dodged side by side
+    p <- ggplot(threshold_counts) +
+        geom_col(aes(x = contrast, y = n, fill = direction_threshold), position = position_dodge(width = 0.9), color = "black") +
+        geom_text(aes(x = contrast, y = n, label = n, group = direction_threshold), position = position_dodge(width = 0.9), vjust = -0.5, size = 2.5) +
+        scale_methylation_thresholds +
+        scale_y_continuous(expand = expansion(mult = c(0, .15))) +
+        labs(x = "", y = "Count") +
+        ggtitle("DMR counts") +
+        mtopen +
+        theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+    mysaveandstore(fn = sprintf("%s/dmr_count_thresholds_dodge.pdf", outdir), w = 2.5 + 1.5 * n_contrasts, h = 4)
+}
 
 ##################################### DML / DMR analysis
 if ((conf$single_condition == "no")) {
@@ -832,336 +1368,336 @@ if ((conf$single_condition == "no")) {
     levelslist[["ccres"]] <- c("PLS,CTCF-bound", "PLS", "pELS,CTCF-bound", "pELS", "dELS,CTCF-bound", "dELS", "DNase-H3K4me3,CTCF-bound", "CTCF-only,CTCF-bound", "DNase-H3K4me3", "DNase-only")
 
     for (contrast in contrasts) {
-    if (is.null(dmrsgr_split_per_contrast[[contrast]])) next
-    dmrsgr_split <- dmrsgr_split_per_contrast[[contrast]]
-    dmrsgr <- dmrsgr_per_contrast[[contrast]]
-    for (annotation_of_interest in names(annotations_of_interest)) {
-        annotdf <- as.data.frame(annotations_of_interest[[annotation_of_interest]]) %>%
-            tibble() %>%
-            filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS)
-        annot <- GRanges(annotdf)
-        annot_split <- split(annot, annot$name)
+        if (is.null(dmrsgr_split_per_contrast[[contrast]])) next
+        dmrsgr_split <- dmrsgr_split_per_contrast[[contrast]]
+        dmrsgr <- dmrsgr_per_contrast[[contrast]]
+        for (annotation_of_interest in names(annotations_of_interest)) {
+            annotdf <- as.data.frame(annotations_of_interest[[annotation_of_interest]]) %>%
+                tibble() %>%
+                filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS)
+            annot <- GRanges(annotdf)
+            annot_split <- split(annot, annot$name)
 
-        enrichdf <- map(
-            dmrsgr_split,
-            ~ map(annot_split, function(region) get_region_enrichment(.x, region, genome_size = genome_size_chrfiltered)) %>%
-                as.data.frame() %>%
-                as.matrix() %>%
-                t() %>%
-                as.data.frame() %>%
-                rownames_to_column("name")
-        ) %>%
-            bind_rows(.id = "type") %>%
-            tibble() %>%
-            mutate(direction_threshold = sub("t", "", type)) %>%
-            {
-                if (annotation_of_interest == "chromHMM") {
-                    mutate(., name = gsub("ZNF.Rpts", "ZNF/Rpts", name)) %>%
-                        mutate(name = factor(name, levels = levelslist[["chromHMM"]])) %>%
-                        mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["chromHMM"]], width = 20, side = "left", pad = "_")))
-                } else if (annotation_of_interest == "flrteprom") {
-                    mutate(., name = factor(name, levels = rev(levelslist[["rtesubfamily"]]))) %>%
-                        mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["rtesubfamily"]], width = 20, side = "left", pad = "_")))
-                } else if (annotation_of_interest == "cCREs") {
-                    mutate(., name = factor(name, levels = rev(levelslist[["ccres"]]))) %>%
-                        mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["ccres"]], width = 20, side = "left", pad = "_")))
-                } else {
-                    mutate(., name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_")))
+            enrichdf <- map(
+                dmrsgr_split,
+                ~ map(annot_split, function(region) get_region_enrichment(.x, region, genome_size = genome_size_chrfiltered)) %>%
+                    as.data.frame() %>%
+                    as.matrix() %>%
+                    t() %>%
+                    as.data.frame() %>%
+                    rownames_to_column("name")
+            ) %>%
+                bind_rows(.id = "type") %>%
+                tibble() %>%
+                mutate(direction_threshold = sub("t", "", type)) %>%
+                {
+                    if (annotation_of_interest == "chromHMM") {
+                        mutate(., name = gsub("ZNF.Rpts", "ZNF/Rpts", name)) %>%
+                            mutate(name = factor(name, levels = levelslist[["chromHMM"]])) %>%
+                            mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["chromHMM"]], width = 20, side = "left", pad = "_")))
+                    } else if (annotation_of_interest == "flrteprom") {
+                        mutate(., name = factor(name, levels = rev(levelslist[["rtesubfamily"]]))) %>%
+                            mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["rtesubfamily"]], width = 20, side = "left", pad = "_")))
+                    } else if (annotation_of_interest == "cCREs") {
+                        mutate(., name = factor(name, levels = rev(levelslist[["ccres"]]))) %>%
+                            mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["ccres"]], width = 20, side = "left", pad = "_")))
+                    } else {
+                        mutate(., name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_")))
+                    }
+                } %>%
+                mutate(enrichment_direction = "dmrs_enriched_for_a_region")
+
+            enrichdfrev <- map(
+                annot_split,
+                ~ map(dmrsgr_split, function(region) get_region_enrichment(.x, region, genome_size = genome_size_chrfiltered)) %>%
+                    as.data.frame() %>%
+                    as.matrix() %>%
+                    t() %>%
+                    as.data.frame() %>%
+                    rownames_to_column("type")
+            ) %>%
+                bind_rows(.id = "name") %>%
+                tibble() %>%
+                mutate(direction_threshold = sub("t", "", type)) %>%
+                {
+                    if (annotation_of_interest == "chromHMM") {
+                        mutate(., name = gsub("ZNF.Rpts", "ZNF/Rpts", name)) %>%
+                            mutate(name = factor(name, levels = levelslist[["chromHMM"]])) %>%
+                            mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["chromHMM"]], width = 20, side = "left", pad = "_")))
+                    } else if (annotation_of_interest == "flrteprom") {
+                        mutate(., name = factor(name, levels = rev(levelslist[["rtesubfamily"]]))) %>%
+                            mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["rtesubfamily"]], width = 20, side = "left", pad = "_")))
+                    } else if (annotation_of_interest == "cCREs") {
+                        mutate(., name = factor(name, levels = rev(levelslist[["ccres"]]))) %>%
+                            mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["ccres"]], width = 20, side = "left", pad = "_")))
+                    } else {
+                        mutate(., name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_")))
+                    }
+                } %>%
+                mutate(enrichment_direction = "region_enriched_for_a_dmr")
+
+            bidirec_enrich_df <- bind_rows(enrichdf, enrichdfrev)
+
+            enrichdf_bestoverlap <- map(
+                dmrsgr_split,
+                ~ get_region_enrichment2(.x, annot, genome_size = genome_size_chrfiltered)
+            ) %>%
+                bind_rows(.id = "type") %>%
+                tibble() %>%
+                mutate(direction_threshold = sub("t", "", type)) %>%
+                {
+                    if (annotation_of_interest == "chromHMM") {
+                        mutate(., name = gsub("ZNF.Rpts", "ZNF/Rpts", name)) %>%
+                            mutate(name = factor(name, levels = levelslist[["chromHMM"]])) %>%
+                            mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["chromHMM"]], width = 20, side = "left", pad = "_")))
+                    } else if (annotation_of_interest == "flrteprom") {
+                        mutate(., name = factor(name, levels = rev(levelslist[["rtesubfamily"]]))) %>%
+                            mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["rtesubfamily"]], width = 20, side = "left", pad = "_")))
+                    } else if (annotation_of_interest == "cCREs") {
+                        mutate(., name = factor(name, levels = rev(levelslist[["ccres"]]))) %>%
+                            mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["ccres"]], width = 20, side = "left", pad = "_")))
+                    } else {
+                        mutate(., name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_")))
+                    }
                 }
-            } %>%
-            mutate(enrichment_direction = "dmrs_enriched_for_a_region")
 
-        enrichdfrev <- map(
-            annot_split,
-            ~ map(dmrsgr_split, function(region) get_region_enrichment(.x, region, genome_size = genome_size_chrfiltered)) %>%
-                as.data.frame() %>%
-                as.matrix() %>%
-                t() %>%
-                as.data.frame() %>%
-                rownames_to_column("type")
-        ) %>%
-            bind_rows(.id = "name") %>%
-            tibble() %>%
-            mutate(direction_threshold = sub("t", "", type)) %>%
-            {
-                if (annotation_of_interest == "chromHMM") {
-                    mutate(., name = gsub("ZNF.Rpts", "ZNF/Rpts", name)) %>%
-                        mutate(name = factor(name, levels = levelslist[["chromHMM"]])) %>%
-                        mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["chromHMM"]], width = 20, side = "left", pad = "_")))
-                } else if (annotation_of_interest == "flrteprom") {
-                    mutate(., name = factor(name, levels = rev(levelslist[["rtesubfamily"]]))) %>%
-                        mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["rtesubfamily"]], width = 20, side = "left", pad = "_")))
-                } else if (annotation_of_interest == "cCREs") {
-                    mutate(., name = factor(name, levels = rev(levelslist[["ccres"]]))) %>%
-                        mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["ccres"]], width = 20, side = "left", pad = "_")))
-                } else {
-                    mutate(., name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_")))
-                }
-            } %>%
-            mutate(enrichment_direction = "region_enriched_for_a_dmr")
 
-        bidirec_enrich_df <- bind_rows(enrichdf, enrichdfrev)
+            max_abs <- log(max(abs(bidirec_enrich_df %>% filter(fold_enrichment != 0) %$% fold_enrichment))) * 1.1
+            p <- bidirec_enrich_df %>%
+                mutate(direction = gsub("_.*", "", direction_threshold)) %>%
+                ggplot(aes(y = name_padded, x = log(fold_enrichment), fill = direction_threshold)) +
+                geom_col(position = "dodge", color = "black") +
+                geom_vline(xintercept = 0, color = "green") +
+                coord_cartesian(xlim = c(-max_abs, max_abs)) +
+                facet_grid(rows = vars(direction), cols = vars(enrichment_direction)) +
+                scale_methylation_thresholds +
+                ggtitle("Enrichments") +
+                mtclosedgridv
+            mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/%s/%s/dmr_enrichments_in_%s_facet.pdf", params$mod_code, contrast, annotation_of_interest, "bidirectional_all", annotation_of_interest), 8, 6)
 
-        enrichdf_bestoverlap <- map(
-            dmrsgr_split,
-            ~ get_region_enrichment2(.x, annot, genome_size = genome_size_chrfiltered)
-        ) %>%
-            bind_rows(.id = "type") %>%
-            tibble() %>%
-            mutate(direction_threshold = sub("t", "", type)) %>%
-            {
-                if (annotation_of_interest == "chromHMM") {
-                    mutate(., name = gsub("ZNF.Rpts", "ZNF/Rpts", name)) %>%
-                        mutate(name = factor(name, levels = levelslist[["chromHMM"]])) %>%
-                        mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["chromHMM"]], width = 20, side = "left", pad = "_")))
-                } else if (annotation_of_interest == "flrteprom") {
-                    mutate(., name = factor(name, levels = rev(levelslist[["rtesubfamily"]]))) %>%
-                        mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["rtesubfamily"]], width = 20, side = "left", pad = "_")))
-                } else if (annotation_of_interest == "cCREs") {
-                    mutate(., name = factor(name, levels = rev(levelslist[["ccres"]]))) %>%
-                        mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["ccres"]], width = 20, side = "left", pad = "_")))
-                } else {
-                    mutate(., name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_")))
-                }
+            p <- bidirec_enrich_df %>%
+                filter(grepl("05", direction_threshold)) %>%
+                mutate(direction = gsub("_.*", "", direction_threshold)) %>%
+                ggplot(aes(y = name_padded, x = log(fold_enrichment), fill = direction_threshold)) +
+                geom_col(position = "dodge", color = "black") +
+                geom_vline(xintercept = 0, color = "green") +
+                coord_cartesian(xlim = c(-max_abs, max_abs)) +
+                facet_grid(rows = vars(direction), cols = vars(enrichment_direction)) +
+                scale_methylation_thresholds +
+                ggtitle("Enrichments") +
+                mtclosedgridv
+            mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/%s/%s/dmr_enrichments_in_%s_facet_05.pdf", params$mod_code, contrast, annotation_of_interest, "bidirectional_all", annotation_of_interest), 8, 6)
+
+            p <- bidirec_enrich_df %>%
+                filter(grepl("05", direction_threshold)) %>%
+                mutate(direction = gsub("_.*", "", direction_threshold)) %>%
+                ggplot(aes(y = name_padded, x = log(fold_enrichment), fill = direction_threshold)) +
+                geom_col(position = "dodge", color = "black") +
+                geom_vline(xintercept = 0, color = "green") +
+                coord_cartesian(xlim = c(-max_abs, max_abs)) +
+                facet_grid(cols = vars(enrichment_direction)) +
+                scale_methylation_thresholds +
+                ggtitle("Enrichments") +
+                mtclosedgridv
+            mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/%s/%s/dmr_enrichments_in_%s_facet_05_together.pdf", params$mod_code, contrast, annotation_of_interest, "bidirectional_all", annotation_of_interest), 7, 4)
+
+
+            enrichdflist <- list("alloverlaps" = enrichdf, "alloverlapsrev" = enrichdfrev, "bestoverlaps" = enrichdf_bestoverlap)
+            for (enrichtype in names(enrichdflist)) {
+                enrichdftemp <- enrichdflist[[enrichtype]]
+
+                p <- enrichdftemp %>%
+                    ggplot(aes(y = name_padded, x = log(fold_enrichment), fill = direction_threshold)) +
+                    geom_col(position = "dodge", color = "black") +
+                    scale_methylation_thresholds +
+                    mtclosedgridv
+                mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/%s/%s/dmr_enrichments_in_%s.pdf", params$mod_code, contrast, annotation_of_interest, enrichtype, annotation_of_interest), 7, 4)
+
+                p <- enrichdftemp %>%
+                    filter(direction_threshold %in% c("Hyper_05", "Hypo_05")) %>%
+                    ggplot(aes(y = name_padded, x = log(fold_enrichment), fill = direction_threshold)) +
+                    geom_col(position = "dodge", color = "black") +
+                    scale_methylation_thresholds +
+                    mtclosedgridv
+                mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/%s/%s/dmr_enrichments_in_%s_05.pdf", params$mod_code, contrast, annotation_of_interest, enrichtype, annotation_of_interest), 7, 4)
+
+                max_abs <- log(max(abs(enrichdftemp %>% filter(fold_enrichment != 0) %$% fold_enrichment))) * 1.1
+                p <- enrichdftemp %>%
+                    mutate(direction = gsub("_.*", "", direction_threshold)) %>%
+                    ggplot(aes(y = name_padded, x = log(fold_enrichment), fill = direction_threshold)) +
+                    geom_col(position = "dodge", color = "black") +
+                    geom_vline(xintercept = 0, color = "green") +
+                    coord_cartesian(xlim = c(-max_abs, max_abs)) +
+                    facet_wrap(~direction) +
+                    scale_methylation_thresholds +
+                    ggtitle("Enrichments") +
+                    mtclosedgridv
+                mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/%s/%s/dmr_enrichments_in_%s_facet.pdf", params$mod_code, contrast, annotation_of_interest, enrichtype, annotation_of_interest), 7, 4)
+
+                p <- enrichdftemp %>%
+                    mutate(direction = gsub("_.*", "", direction_threshold)) %>%
+                    ggplot(aes(y = name_padded, x = log(fold_enrichment), fill = direction_threshold)) +
+                    geom_col(position = "dodge", color = "black") +
+                    geom_vline(xintercept = 0, color = "green") +
+                    facet_wrap(~direction) +
+                    scale_methylation_thresholds +
+                    ggtitle("Enrichments") +
+                    mtclosedgridv
+                mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/%s/%s/dmr_enrichments_in_%s_facet_noaxislimmirror.pdf", params$mod_code, contrast, annotation_of_interest, enrichtype, annotation_of_interest), 7, 4)
+
+                p <- enrichdftemp %>%
+                    mutate(direction = gsub("_.*", "", direction_threshold)) %>%
+                    ggplot(aes(y = name_padded, x = log(fold_enrichment), color = direction_threshold)) +
+                    geom_point() +
+                    geom_vline(xintercept = 0, linetype = "dashed") +
+                    coord_cartesian(xlim = c(-max_abs, max_abs)) +
+                    facet_wrap(~direction) +
+                    scale_methylation_thresholds +
+                    ggtitle("Enrichments") +
+                    mtclosedgridv
+                mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/%s/%s/dmr_enrichments_in_%s_facet_dot.pdf", params$mod_code, contrast, annotation_of_interest, enrichtype, annotation_of_interest), 7, 4)
             }
+            # counts
 
+            mbo <- mergeByOverlaps(annot, dmrsgr)
+            mbodf <- tibble(as.data.frame(mbo)) %>%
+                {
+                    if (annotation_of_interest == "chromHMM") {
+                        mutate(., name = gsub("ZNF.Rpts", "ZNF/Rpts", name)) %>%
+                            mutate(name = factor(name, levels = levelslist[["chromHMM"]])) %>%
+                            mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["chromHMM"]], width = 20, side = "left", pad = "_")))
+                    } else if (annotation_of_interest == "flrteprom") {
+                        mutate(., name = factor(name, levels = rev(levelslist[["rtesubfamily"]]))) %>%
+                            mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["rtesubfamily"]], width = 20, side = "left", pad = "_")))
+                    } else if (annotation_of_interest == "cCREs") {
+                        mutate(., name = factor(name, levels = rev(levelslist[["ccres"]]))) %>%
+                            mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["ccres"]], width = 20, side = "left", pad = "_")))
+                    } else {
+                        mutate(., name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_")))
+                    }
+                }
 
-        max_abs <- log(max(abs(bidirec_enrich_df %>% filter(fold_enrichment != 0) %$% fold_enrichment))) * 1.1
-        p <- bidirec_enrich_df %>%
-            mutate(direction = gsub("_.*", "", direction_threshold)) %>%
-            ggplot(aes(y = name_padded, x = log(fold_enrichment), fill = direction_threshold)) +
-            geom_col(position = "dodge", color = "black") +
-            geom_vline(xintercept = 0, color = "green") +
-            coord_cartesian(xlim = c(-max_abs, max_abs)) +
-            facet_grid(rows = vars(direction), cols = vars(enrichment_direction)) +
-            scale_methylation_thresholds +
-            ggtitle("Enrichments") +
-            mtclosedgridv
-        mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/%s/%s/dmr_enrichments_in_%s_facet.pdf", params$mod_code, contrast, annotation_of_interest, "bidirectional_all", annotation_of_interest), 8, 6)
+            p <- mbodf %>%
+                group_by(name_padded, dmr_type, direction) %>%
+                summarise(n = n()) %>%
+                ggplot() +
+                geom_col(aes(x = name_padded, y = n, fill = direction), position = "dodge", color = "black") +
+                labs(x = "") +
+                coord_flip() +
+                ggtitle(str_glue("{annotation_of_interest} Methylation")) +
+                scale_y_continuous(expand = expansion(mult = c(0, .1))) +
+                mtopen +
+                scale_methylation
+            mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/%s/dmrs_in_%s.pdf", params$mod_code, contrast, annotation_of_interest, annotation_of_interest), 6, 4)
 
-        p <- bidirec_enrich_df %>%
-            filter(grepl("05", direction_threshold)) %>%
-            mutate(direction = gsub("_.*", "", direction_threshold)) %>%
-            ggplot(aes(y = name_padded, x = log(fold_enrichment), fill = direction_threshold)) +
-            geom_col(position = "dodge", color = "black") +
-            geom_vline(xintercept = 0, color = "green") +
-            coord_cartesian(xlim = c(-max_abs, max_abs)) +
-            facet_grid(rows = vars(direction), cols = vars(enrichment_direction)) +
-            scale_methylation_thresholds +
-            ggtitle("Enrichments") +
-            mtclosedgridv
-        mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/%s/%s/dmr_enrichments_in_%s_facet_05.pdf", params$mod_code, contrast, annotation_of_interest, "bidirectional_all", annotation_of_interest), 8, 6)
+            library(scales)
+            p <- mbodf %>%
+                filter(dmr_type != "t05CG10") %>%
+                filter(dmr_type != "t001") %>%
+                group_by(name_padded, direction, dmr_type) %>%
+                summarize(n = n()) %>%
+                ungroup() %>% # Summarize with groups dropped for completeness
+                tidyr::complete(name_padded, direction, dmr_type, fill = list(n = 0)) %>%
+                mutate(direction_threshold = paste0(direction, "_", gsub("t", "", dmr_type))) %>%
+                ggplot() +
+                geom_col(data = . %>% filter(dmr_type == "t05"), aes(x = name_padded, y = n, group = direction, fill = direction_threshold), position = position_dodge(preserve = "single"), color = "black") +
+                geom_col(data = . %>% filter(dmr_type == "t01"), aes(x = name_padded, y = n, group = direction, fill = direction_threshold), position = position_dodge(preserve = "single"), color = "black") +
+                labs(x = "") +
+                coord_flip() +
+                ggtitle(sprintf("%s Methylation", annotation_of_interest)) +
+                annotation_logticks(sides = "b") +
+                scale_y_log10(
+                    breaks = scales::trans_breaks("log10", function(x) 10^x),
+                    labels = scales::trans_format("log10", math_format(10^.x))
+                ) +
+                mtopen +
+                scale_methylation_thresholds
+            mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/%s/dmrs_in_%s_log.pdf", params$mod_code, contrast, annotation_of_interest, annotation_of_interest), 6, 4)
 
-        p <- bidirec_enrich_df %>%
-            filter(grepl("05", direction_threshold)) %>%
-            mutate(direction = gsub("_.*", "", direction_threshold)) %>%
-            ggplot(aes(y = name_padded, x = log(fold_enrichment), fill = direction_threshold)) +
-            geom_col(position = "dodge", color = "black") +
-            geom_vline(xintercept = 0, color = "green") +
-            coord_cartesian(xlim = c(-max_abs, max_abs)) +
-            facet_grid(cols = vars(enrichment_direction)) +
-            scale_methylation_thresholds +
-            ggtitle("Enrichments") +
-            mtclosedgridv
-        mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/%s/%s/dmr_enrichments_in_%s_facet_05_together.pdf", params$mod_code, contrast, annotation_of_interest, "bidirectional_all", annotation_of_interest), 7, 4)
+            p <- mbodf %>%
+                filter(dmr_type != "t05CG10") %>%
+                filter(dmr_type != "t001") %>%
+                group_by(name_padded, direction, dmr_type) %>%
+                summarize(n = n()) %>%
+                ungroup() %>% # Summarize with groups dropped for completeness
+                tidyr::complete(name_padded, direction, dmr_type, fill = list(n = 0)) %>%
+                mutate(direction_threshold = paste0(direction, "_", gsub("t", "", dmr_type))) %>%
+                ggplot() +
+                geom_col(data = . %>% filter(dmr_type == "t05"), aes(x = name_padded, y = n, group = direction, fill = direction_threshold), position = position_dodge(preserve = "single"), color = "black") +
+                geom_col(data = . %>% filter(dmr_type == "t01"), aes(x = name_padded, y = n, group = direction, fill = direction_threshold), position = position_dodge(preserve = "single"), color = "black") +
+                labs(x = "") +
+                geom_text(
+                    data = . %>% filter(dmr_type %in% c("t01", "t05")),
+                    aes(x = name_padded, y = n * 1.1, label = n, group = direction_threshold), # use direction_threshold for dodging
+                    position = position_dodge2(width = 0.9, preserve = "single"),
+                    vjust = 0, # 0 = top-aligned; more predictable than vjust=1 on log scale
+                    size = 3
+                ) +
+                coord_flip() +
+                ggtitle(sprintf("%s Methylation", annotation_of_interest)) +
+                annotation_logticks(sides = "b") +
+                scale_y_log10(
+                    breaks = scales::trans_breaks("log10", function(x) 10^x),
+                    labels = scales::trans_format("log10", math_format(10^.x))
+                ) +
+                mtopen +
+                scale_methylation_thresholds
+            mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/%s/dmrs_in_%s_log_numannot.pdf", params$mod_code, contrast, annotation_of_interest, annotation_of_interest), 6, 4)
 
+            total <- annotdf %>%
+                group_by(name) %>%
+                summarize(n = n())
+            totaldm <- mbodf %>%
+                group_by(name, name_padded, direction, dmr_type) %>%
+                summarize(n = n()) %>%
+                ungroup() %>% # Summarize with groups dropped for completeness
+                tidyr::complete(name_padded, direction, dmr_type, fill = list(n = 0)) %>%
+                mutate(direction_threshold = paste0(direction, "_", gsub("t", "", dmr_type)))
 
-        enrichdflist <- list("alloverlaps" = enrichdf, "alloverlapsrev" = enrichdfrev, "bestoverlaps" = enrichdf_bestoverlap)
-        for (enrichtype in names(enrichdflist)) {
-            enrichdftemp <- enrichdflist[[enrichtype]]
+            pctdm <- left_join(totaldm, total, by = c("name")) %>%
+                mutate(pct = 100 * n.x / n.y) %>%
+                mutate(myaxis = paste0(name_padded, "\n", "n=", n.y)) %>%
+                drop_na() %>%
+                {
+                    if (annotation_of_interest == "chromHMM") {
+                        mutate(., name = gsub("ZNF.Rpts", "ZNF/Rpts", name)) %>%
+                            mutate(name = factor(name, levels = levelslist[["chromHMM"]])) %>%
+                            mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["chromHMM"]], width = 20, side = "left", pad = "_")))
+                    } else if (annotation_of_interest == "flrteprom") {
+                        mutate(., name = factor(name, levels = rev(levelslist[["rtesubfamily"]]))) %>%
+                            mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["rtesubfamily"]], width = 20, side = "left", pad = "_")))
+                    } else if (annotation_of_interest == "cCREs") {
+                        mutate(., name = factor(name, levels = rev(levelslist[["ccres"]]))) %>%
+                            mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["ccres"]], width = 20, side = "left", pad = "_")))
+                    } else {
+                        mutate(., name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_")))
+                    }
+                }
 
-            p <- enrichdftemp %>%
-                ggplot(aes(y = name_padded, x = log(fold_enrichment), fill = direction_threshold)) +
-                geom_col(position = "dodge", color = "black") +
-                scale_methylation_thresholds +
-                mtclosedgridv
-            mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/%s/%s/dmr_enrichments_in_%s.pdf", params$mod_code, contrast, annotation_of_interest, enrichtype, annotation_of_interest), 7, 4)
+            p <- pctdm %>% ggplot() +
+                geom_col(data = . %>% filter(dmr_type == "t05"), aes(x = myaxis, y = pct, group = direction, fill = direction_threshold), position = position_dodge(), color = "black") +
+                geom_col(data = . %>% filter(dmr_type == "t01"), aes(x = myaxis, y = pct, group = direction, fill = direction_threshold), position = position_dodge(), color = "black") +
+                labs(x = "", y = "Pct Differentially Methylated") +
+                theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+                ggtitle(sprintf("%s Methylation", annotation_of_interest)) +
+                coord_flip() +
+                scale_y_continuous(expand = expansion(mult = c(0, .1))) +
+                mtopen +
+                scale_methylation_thresholds
+            mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/%s/dmrs_in_%s_pct.pdf", params$mod_code, contrast, annotation_of_interest, annotation_of_interest), 6, 4)
 
-            p <- enrichdftemp %>%
-                filter(direction_threshold %in% c("Hyper_05", "Hypo_05")) %>%
-                ggplot(aes(y = name_padded, x = log(fold_enrichment), fill = direction_threshold)) +
-                geom_col(position = "dodge", color = "black") +
-                scale_methylation_thresholds +
-                mtclosedgridv
-            mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/%s/%s/dmr_enrichments_in_%s_05.pdf", params$mod_code, contrast, annotation_of_interest, enrichtype, annotation_of_interest), 7, 4)
-
-            max_abs <- log(max(abs(enrichdftemp %>% filter(fold_enrichment != 0) %$% fold_enrichment))) * 1.1
-            p <- enrichdftemp %>%
-                mutate(direction = gsub("_.*", "", direction_threshold)) %>%
-                ggplot(aes(y = name_padded, x = log(fold_enrichment), fill = direction_threshold)) +
-                geom_col(position = "dodge", color = "black") +
-                geom_vline(xintercept = 0, color = "green") +
-                coord_cartesian(xlim = c(-max_abs, max_abs)) +
-                facet_wrap(~direction) +
-                scale_methylation_thresholds +
-                ggtitle("Enrichments") +
-                mtclosedgridv
-            mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/%s/%s/dmr_enrichments_in_%s_facet.pdf", params$mod_code, contrast, annotation_of_interest, enrichtype, annotation_of_interest), 7, 4)
-
-            p <- enrichdftemp %>%
-                mutate(direction = gsub("_.*", "", direction_threshold)) %>%
-                ggplot(aes(y = name_padded, x = log(fold_enrichment), fill = direction_threshold)) +
-                geom_col(position = "dodge", color = "black") +
-                geom_vline(xintercept = 0, color = "green") +
-                facet_wrap(~direction) +
-                scale_methylation_thresholds +
-                ggtitle("Enrichments") +
-                mtclosedgridv
-            mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/%s/%s/dmr_enrichments_in_%s_facet_noaxislimmirror.pdf", params$mod_code, contrast, annotation_of_interest, enrichtype, annotation_of_interest), 7, 4)
-
-            p <- enrichdftemp %>%
-                mutate(direction = gsub("_.*", "", direction_threshold)) %>%
-                ggplot(aes(y = name_padded, x = log(fold_enrichment), color = direction_threshold)) +
-                geom_point() +
-                geom_vline(xintercept = 0, linetype = "dashed") +
-                coord_cartesian(xlim = c(-max_abs, max_abs)) +
-                facet_wrap(~direction) +
-                scale_methylation_thresholds +
-                ggtitle("Enrichments") +
-                mtclosedgridv
-            mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/%s/%s/dmr_enrichments_in_%s_facet_dot.pdf", params$mod_code, contrast, annotation_of_interest, enrichtype, annotation_of_interest), 7, 4)
+            p <- pctdm %>% ggplot() +
+                geom_col(data = . %>% filter(dmr_type == "t05"), aes(x = name_padded, y = pct, group = direction, fill = direction_threshold), position = position_dodge(), color = "black") +
+                geom_col(data = . %>% filter(dmr_type == "t01"), aes(x = name_padded, y = pct, group = direction, fill = direction_threshold), position = position_dodge(), color = "black") +
+                labs(x = "", y = "Pct Differentially Methylated") +
+                theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+                ggtitle(sprintf("%s Methylation", annotation_of_interest)) +
+                coord_flip() +
+                scale_y_continuous(expand = expansion(mult = c(0, .1))) +
+                mtopen +
+                scale_methylation_thresholds
+            mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/%s/dmrs_in_%s_pct_orderedaxis.pdf", params$mod_code, contrast, annotation_of_interest, annotation_of_interest), 6, 4)
         }
-        # counts
-
-        mbo <- mergeByOverlaps(annot, dmrsgr)
-        mbodf <- tibble(as.data.frame(mbo)) %>%
-            {
-                if (annotation_of_interest == "chromHMM") {
-                    mutate(., name = gsub("ZNF.Rpts", "ZNF/Rpts", name)) %>%
-                        mutate(name = factor(name, levels = levelslist[["chromHMM"]])) %>%
-                        mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["chromHMM"]], width = 20, side = "left", pad = "_")))
-                } else if (annotation_of_interest == "flrteprom") {
-                    mutate(., name = factor(name, levels = rev(levelslist[["rtesubfamily"]]))) %>%
-                        mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["rtesubfamily"]], width = 20, side = "left", pad = "_")))
-                } else if (annotation_of_interest == "cCREs") {
-                    mutate(., name = factor(name, levels = rev(levelslist[["ccres"]]))) %>%
-                        mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["ccres"]], width = 20, side = "left", pad = "_")))
-                } else {
-                    mutate(., name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_")))
-                }
-            }
-
-        p <- mbodf %>%
-            group_by(name_padded, dmr_type, direction) %>%
-            summarise(n = n()) %>%
-            ggplot() +
-            geom_col(aes(x = name_padded, y = n, fill = direction), position = "dodge", color = "black") +
-            labs(x = "") +
-            coord_flip() +
-            ggtitle(str_glue("{annotation_of_interest} Methylation")) +
-            scale_y_continuous(expand = expansion(mult = c(0, .1))) +
-            mtopen +
-            scale_methylation
-        mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/%s/dmrs_in_%s.pdf", params$mod_code, contrast, annotation_of_interest, annotation_of_interest), 6, 4)
-
-        library(scales)
-        p <- mbodf %>%
-            filter(dmr_type != "t05CG10") %>%
-            filter(dmr_type != "t001") %>%
-            group_by(name_padded, direction, dmr_type) %>%
-            summarize(n = n()) %>%
-            ungroup() %>% # Summarize with groups dropped for completeness
-            tidyr::complete(name_padded, direction, dmr_type, fill = list(n = 0)) %>%
-            mutate(direction_threshold = paste0(direction, "_", gsub("t", "", dmr_type))) %>%
-            ggplot() +
-            geom_col(data = . %>% filter(dmr_type == "t05"), aes(x = name_padded, y = n, group = direction, fill = direction_threshold), position = position_dodge(preserve = "single"), color = "black") +
-            geom_col(data = . %>% filter(dmr_type == "t01"), aes(x = name_padded, y = n, group = direction, fill = direction_threshold), position = position_dodge(preserve = "single"), color = "black") +
-            labs(x = "") +
-            coord_flip() +
-            ggtitle(sprintf("%s Methylation", annotation_of_interest)) +
-            annotation_logticks(sides = "b") +
-            scale_y_log10(
-                breaks = scales::trans_breaks("log10", function(x) 10^x),
-                labels = scales::trans_format("log10", math_format(10^.x))
-            ) +
-            mtopen +
-            scale_methylation_thresholds
-        mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/%s/dmrs_in_%s_log.pdf", params$mod_code, contrast, annotation_of_interest, annotation_of_interest), 6, 4)
-
-        p <- mbodf %>%
-            filter(dmr_type != "t05CG10") %>%
-            filter(dmr_type != "t001") %>%
-            group_by(name_padded, direction, dmr_type) %>%
-            summarize(n = n()) %>%
-            ungroup() %>% # Summarize with groups dropped for completeness
-            tidyr::complete(name_padded, direction, dmr_type, fill = list(n = 0)) %>%
-            mutate(direction_threshold = paste0(direction, "_", gsub("t", "", dmr_type))) %>%
-            ggplot() +
-            geom_col(data = . %>% filter(dmr_type == "t05"), aes(x = name_padded, y = n, group = direction, fill = direction_threshold), position = position_dodge(preserve = "single"), color = "black") +
-            geom_col(data = . %>% filter(dmr_type == "t01"), aes(x = name_padded, y = n, group = direction, fill = direction_threshold), position = position_dodge(preserve = "single"), color = "black") +
-            labs(x = "") +
-            geom_text(
-                data = . %>% filter(dmr_type %in% c("t01", "t05")),
-                aes(x = name_padded, y = n * 1.1, label = n, group = direction_threshold), # use direction_threshold for dodging
-                position = position_dodge2(width = 0.9, preserve = "single"),
-                vjust = 0, # 0 = top-aligned; more predictable than vjust=1 on log scale
-                size = 3
-            ) +
-            coord_flip() +
-            ggtitle(sprintf("%s Methylation", annotation_of_interest)) +
-            annotation_logticks(sides = "b") +
-            scale_y_log10(
-                breaks = scales::trans_breaks("log10", function(x) 10^x),
-                labels = scales::trans_format("log10", math_format(10^.x))
-            ) +
-            mtopen +
-            scale_methylation_thresholds
-        mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/%s/dmrs_in_%s_log_numannot.pdf", params$mod_code, contrast, annotation_of_interest, annotation_of_interest), 6, 4)
-
-        total <- annotdf %>%
-            group_by(name) %>%
-            summarize(n = n())
-        totaldm <- mbodf %>%
-            group_by(name, name_padded, direction, dmr_type) %>%
-            summarize(n = n()) %>%
-            ungroup() %>% # Summarize with groups dropped for completeness
-            tidyr::complete(name_padded, direction, dmr_type, fill = list(n = 0)) %>%
-            mutate(direction_threshold = paste0(direction, "_", gsub("t", "", dmr_type)))
-
-        pctdm <- left_join(totaldm, total, by = c("name")) %>%
-            mutate(pct = 100 * n.x / n.y) %>%
-            mutate(myaxis = paste0(name_padded, "\n", "n=", n.y)) %>%
-            drop_na() %>%
-            {
-                if (annotation_of_interest == "chromHMM") {
-                    mutate(., name = gsub("ZNF.Rpts", "ZNF/Rpts", name)) %>%
-                        mutate(name = factor(name, levels = levelslist[["chromHMM"]])) %>%
-                        mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["chromHMM"]], width = 20, side = "left", pad = "_")))
-                } else if (annotation_of_interest == "flrteprom") {
-                    mutate(., name = factor(name, levels = rev(levelslist[["rtesubfamily"]]))) %>%
-                        mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["rtesubfamily"]], width = 20, side = "left", pad = "_")))
-                } else if (annotation_of_interest == "cCREs") {
-                    mutate(., name = factor(name, levels = rev(levelslist[["ccres"]]))) %>%
-                        mutate(name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_"), levels = str_pad(levelslist[["ccres"]], width = 20, side = "left", pad = "_")))
-                } else {
-                    mutate(., name_padded = factor(str_pad(name, width = 20, side = "left", pad = "_")))
-                }
-            }
-
-        p <- pctdm %>% ggplot() +
-            geom_col(data = . %>% filter(dmr_type == "t05"), aes(x = myaxis, y = pct, group = direction, fill = direction_threshold), position = position_dodge(), color = "black") +
-            geom_col(data = . %>% filter(dmr_type == "t01"), aes(x = myaxis, y = pct, group = direction, fill = direction_threshold), position = position_dodge(), color = "black") +
-            labs(x = "", y = "Pct Differentially Methylated") +
-            theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
-            ggtitle(sprintf("%s Methylation", annotation_of_interest)) +
-            coord_flip() +
-            scale_y_continuous(expand = expansion(mult = c(0, .1))) +
-            mtopen +
-            scale_methylation_thresholds
-        mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/%s/dmrs_in_%s_pct.pdf", params$mod_code, contrast, annotation_of_interest, annotation_of_interest), 6, 4)
-
-        p <- pctdm %>% ggplot() +
-            geom_col(data = . %>% filter(dmr_type == "t05"), aes(x = name_padded, y = pct, group = direction, fill = direction_threshold), position = position_dodge(), color = "black") +
-            geom_col(data = . %>% filter(dmr_type == "t01"), aes(x = name_padded, y = pct, group = direction, fill = direction_threshold), position = position_dodge(), color = "black") +
-            labs(x = "", y = "Pct Differentially Methylated") +
-            theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
-            ggtitle(sprintf("%s Methylation", annotation_of_interest)) +
-            coord_flip() +
-            scale_y_continuous(expand = expansion(mult = c(0, .1))) +
-            mtopen +
-            scale_methylation_thresholds
-        mysaveandstore(pl = p, sprintf("ldna/results/%s/plots/dmr_counts_and_enrichments/%s/%s/dmrs_in_%s_pct_orderedaxis.pdf", params$mod_code, contrast, annotation_of_interest, annotation_of_interest), 6, 4)
-    }
     } # end contrast loop for enrichments
 }
 
@@ -1176,12 +1712,15 @@ grs <- GRanges(grsdf)
 # FINAL SECTION
 library(tidyHeatmap)
 
+pf_per_contrast <- list()
 for (contrast in contrasts) {
     if (is.null(dmrs_per_contrast[[contrast]])) next
     cp <- parse_contrast(contrast)
     condition1 <- cp$condition1
     condition2 <- cp$condition2
-    contrast_samples <- sample_table %>% filter(condition %in% c(condition1, condition2)) %>% pull(sample_name)
+    contrast_samples <- sample_table %>%
+        filter(condition %in% c(condition1, condition2)) %>%
+        pull(sample_name)
     dmrs <- dmrs_per_contrast[[contrast]]
     dmrsgr <- dmrsgr_per_contrast[[contrast]]
 
@@ -1273,6 +1812,7 @@ for (contrast in contrasts) {
         group_by(sample, dmrid, condition, direction, dmr_type, nCG, length) %>%
         summarise(mean_meth = mean(pctM)) %>%
         ungroup()
+    pf_per_contrast[[contrast]] <- pf %>% mutate(contrast = contrast, condition1 = condition1, condition2 = condition2)
 
     p <- pf %>%
         filter(condition == condition1) %>%
@@ -1382,7 +1922,45 @@ for (contrast in contrasts) {
         annotation_tile(sex)
     mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/%s/dmrheatmap_allconditions.pdf", params$mod_code, contrast), w = 8, h = 10, res = 300, pl = p, raster = FALSE)
     mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/%s/dmrheatmap_allconditions.pdf", params$mod_code, contrast), w = 8, h = 10, res = 300, pl = p, raster = TRUE)
-
 } # end contrast loop for FINAL SECTION
+
+# average DMR methylation in each contrast's reference condition, contrasts as facet columns
+if (length(pf_per_contrast) > 0) {
+    dmr_meth_ref_all_contrasts <- bind_rows(pf_per_contrast) %>%
+        filter(condition == condition1, dmr_type %in% c("t01", "t05")) %>%
+        group_by(contrast, condition1, direction, dmrid, dmr_type) %>%
+        summarise(mean_meth = mean(mean_meth), .groups = "drop") %>%
+        mutate(
+            contrast_facet = factor(sprintf("%s\n(ref: %s)", contrast_label(contrast), condition1), levels = sprintf("%s\n(ref: %s)", contrast_label(names(pf_per_contrast)), sapply(pf_per_contrast, function(x) x$condition1[1]))),
+            direction_threshold = factor(paste0(direction, "_", gsub("t", "", dmr_type)), levels = c("Hypo_05", "Hypo_01", "Hyper_05", "Hyper_01"))
+        )
+    p <- dmr_meth_ref_all_contrasts %>%
+        ggplot(aes(x = mean_meth, fill = direction_threshold)) +
+        geom_histogram(color = "black") +
+        facet_grid2(direction ~ contrast_facet, scales = "free_y", independent = "y") +
+        scale_methylation_thresholds +
+        labs(x = "Average DMR Meth (reference condition)", fill = "") +
+        mtclosed
+    mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/all_contrasts/both/dmr_histogram1.pdf", params$mod_code), w = 2.5 + 2.5 * length(pf_per_contrast), h = 5, res = 300, pl = p)
+
+    p <- dmr_meth_ref_all_contrasts %>%
+        ggplot(aes(x = mean_meth, fill = direction_threshold)) +
+        geom_histogram(color = "black") +
+        facet_grid2(direction ~ contrast_facet, scales = "free_y", independent = "y") +
+        scale_methylation_thresholds +
+        labs(x = "Average DMR Meth (reference condition)", fill = "") +
+        mtclosed
+    mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/all_contrasts/both/dmr_histogram1.pdf", params$mod_code), w = 1.5 + 2.5 * length(pf_per_contrast), h = 4, res = 300, pl = p)
+
+
+    p <- dmr_meth_ref_all_contrasts %>%
+        ggplot(aes(x = mean_meth, color = contrast_facet)) +
+        geom_density(linewidth = 0.8) +
+        facet_grid(direction ~ dmr_type) +
+        scale_color_brewer(palette = "Dark2", name = "") +
+        labs(x = "Average DMR Meth (reference condition)", y = "Density") +
+        mtclosed
+    mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/all_contrasts/both/dmr_density_by_contrast.pdf", params$mod_code), w = 7, h = 5, res = 300, pl = p)
+}
 
 file.create(sprintf("ldna/outfiles/bedmeth_%s_%s.done", "14_dmrs", params$mod_code))

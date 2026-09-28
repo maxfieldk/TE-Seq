@@ -66,8 +66,8 @@ tryCatch(
 
 ldna_sample_table <- read_csv("conf/sample_table_ldna.csv")
 srna_sample_table <- read_csv("conf/sample_table_srna.csv") %>% mutate(condition = factor(condition, levels = confALL$srna$levels))
-srna_samples <- srna_sample_table %$% sample_name
-ldna_samples <- ldna_sample_table %$% sample_name
+srna_samples <- confALL$srna$samples
+ldna_samples <- confALL$ldna$samples
 
 
 rmannShared <- read_csv(conf$rmann)
@@ -172,7 +172,7 @@ if (promoter_meth_by_gene_tidy %$% sample_name %>% unique() %>% length() == 1) {
 
 l1hs_promoterregion_meth_by_gene_tidy <- read_delim(sprintf("ldna/Rintermediates/%s/perl1hs_5utr_region.tsv", params$mod_code), col_names = TRUE) %>%
     dplyr::rename(sample_name = sample) %>%
-    mutate(region = ordered(region, levels = c("328", "500", "909", "ASP"))) %>%
+    mutate(region = ordered(region, levels = c("110", "328", "500", "909", "ASP"))) %>%
     mutate(gene_id = case_when(
         grepl("NI_", gene_id) ~ paste0(sample_name, "_", gene_id),
         TRUE ~ gene_id
@@ -228,8 +228,8 @@ l1hs_promoterregion_hdmr_by_sample_tidy_strictly_intergenic <- l1hs_promoterregi
     summarise(propUnmeth = mean(propUnmeth)) %>%
     ungroup()
 
-for (tecounttype in c("telescope_unique")) {
-    srna_df <- read_delim(inputs$srna_results, delim = "\t") %>% filter(counttype == tecounttype)
+for (tecounttype in c("telescope_unique", "telescope_multi")) {
+    srna_df <- read_csv(str_glue("srna/results/agg/deseq/{tecounttype}/counttablesizenormedbatchnotremoved.csv")) %>% dplyr::rename(gene_id = `...1`)
     colnames(srna_df) <- paste0("srna_", colnames(srna_df)) %>% gsub("srna_gene_id", "gene_id", .)
 
 
@@ -247,7 +247,8 @@ for (tecounttype in c("telescope_unique")) {
         mutate(gene_id = case_when(
             grepl("NI_", gene_id) ~ paste0(sample_name, "_", gene_id),
             TRUE ~ gene_id
-        ))
+        )) %>%
+        filter(sample_name != "Y1")
 
 
     fll1hs_gene_expression_tidy <- srna_gene_expression_tidy %>%
@@ -279,13 +280,19 @@ for (tecounttype in c("telescope_unique")) {
         mutate(percentile = rank / !!nelements)
 
     { # needed plot
+        fll1hs_gene_expression_tidy_strictly_intergenic %>%
+            left_join(srna_sample_table) %>%
+            filter(sample_name != "Y1") %>%
+            group_by(condition, batchCat) %>%
+            summarise(meancounts = mean(srna_expression))
         pf <- fll1hs_gene_expression_tidy_strictly_intergenic %>%
+            filter(sample_name != "Y1") %>%
             group_by(sample_name) %>%
             summarise(sumcounts = sum(srna_expression)) %>%
             left_join(srna_sample_table)
         model <- lm(sumcounts ~ condition, data = pf)
         model_with_RIN <- lm(sumcounts ~ condition + RIN, data = pf)
-        model_with_RIN_with_cov <- lm(sumcounts ~ condition + RIN + age + sex, data = pf)
+        model_with_RIN_with_cov <- lm(sumcounts ~ condition + RIN + batchCat, data = pf)
         stats <- model %>%
             summary() %>%
             broom::tidy() %>%
@@ -314,6 +321,64 @@ for (tecounttype in c("telescope_unique")) {
             anchorbar +
             mtclosed
         mysaveandstore(str_glue("{outputdir}/L1HSFLexpression_bar.pdf"), w = 4, h = 4, sf = statsframe)
+
+        # every locus ranked by expression within each sample, top 5 labelled per facet.
+        # NI elements are dropped (as in fll1hs_stringly_intergenic_gene_exp_ranked) so the locus set is
+        # identical across facets and the ranked curves are comparable sample to sample.
+        pf_rank <- fll1hs_gene_expression_tidy_strictly_intergenic %>%
+            filter(!grepl("_NI_", gene_id)) %>%
+            left_join(srna_sample_table) %>%
+            group_by(sample_name) %>%
+            arrange(desc(srna_expression), .by_group = TRUE) %>%
+            mutate(rank = row_number()) %>%
+            ungroup() %>%
+            mutate(sample_name = factor(sample_name, levels = srna_sample_table$sample_name))
+        pf_rank_top5 <- pf_rank %>%
+            group_by(sample_name) %>%
+            slice_max(srna_expression, n = 5, with_ties = FALSE) %>%
+            ungroup()
+        write_csv(pf_rank_top5, str_glue("{outputdir}/L1HSFLexpression_ranked_per_sample_top5.csv"))
+        p <- pf_rank %>%
+            ggplot(aes(x = rank, y = srna_expression)) +
+            geom_point(aes(color = condition), size = 0.4, alpha = 0.6) +
+            geom_text_repel(data = pf_rank_top5, aes(label = gene_id), size = 1.8, max.overlaps = Inf, min.segment.length = 0, segment.size = 0.2) +
+            facet_wrap(~sample_name, ncol = 5) +
+            scale_conditions +
+            labs(x = "Locus rank within sample", y = "sRNA expression") +
+            mtclosed
+        mysaveandstore(str_glue("{outputdir}/L1HSFLexpression_ranked_per_locus_by_sample.pdf"), w = 15, h = 12, sf = pf_rank_top5)
+        p <- pf_rank %>%
+            filter(gene_id != "L1HS_5q31.1_1") %>%
+            ggplot(aes(x = rank, y = srna_expression)) +
+            geom_point(aes(color = condition), size = 0.4, alpha = 0.6) +
+            geom_text_repel(data = pf_rank_top5 %>% filter(gene_id != "L1HS_5q31.1_1"), aes(label = gene_id), size = 1.8, max.overlaps = Inf, min.segment.length = 0, segment.size = 0.2) +
+            facet_wrap(~sample_name, ncol = 5) +
+            scale_conditions +
+            labs(x = "Locus rank within sample", y = "sRNA expression") +
+            mtclosed
+        mysaveandstore(str_glue("{outputdir}/L1HSFLexpression_ranked_per_locus_by_sample_noL1HS_5q31.1_11.pdf"), w = 15, h = 12, sf = pf_rank_top5)
+
+        # top 10 loci by mean expression across samples, expression by condition
+        top10_loci <- pf_rank %>%
+            group_by(gene_id) %>%
+            summarise(mean_expression = mean(srna_expression)) %>%
+            slice_max(mean_expression, n = 10, with_ties = FALSE) %$% gene_id
+        pf_top10 <- pf_rank %>%
+            filter(gene_id %in% top10_loci) %>%
+            mutate(gene_id = factor(gene_id, levels = top10_loci))
+        stats <- pf_top10 %>%
+            group_by(gene_id) %>%
+            group_modify(~ summary(lm(srna_expression ~ condition, .x)) %>% broom::tidy()) %>%
+            ungroup()
+        p <- pf_top10 %>%
+            ggplot(aes(x = condition, y = srna_expression)) +
+            geom_violin(aes(fill = condition)) +
+            geom_point() +
+            facet_wrap(~gene_id, ncol = 5, scales = "free_y") +
+            scale_conditions +
+            labs(x = "", y = "sRNA expression") +
+            mtclosed
+        mysaveandstore(str_glue("{outputdir}/L1HSFLexpression_top10_loci_violin_by_condition.pdf"), w = 12, h = 6, sf = stats)
     }
 
     # srna_gene_expression_tidy %>% filter(grepl("__AS$", gene_id))
@@ -429,6 +494,72 @@ for (tecounttype in c("telescope_unique")) {
         ))
 
 
+    # L1HS promoter methylation (region 110) vs expression, methylation binned, faceted by condition
+    meth110_binned <- mrg_l1hs_by_gene_meth_strictly_intergenic %>%
+        filter(region == 110) %>%
+        mutate(mean_meth_binned = cut(mean_meth, breaks = seq(0, 100, 20), include.lowest = TRUE)) %>%
+        filter(!is.na(mean_meth_binned))
+    bin_n <- meth110_binned %>% count(condition, mean_meth_binned, name = "n_elements")
+    stats <- meth110_binned %>%
+        group_by(condition) %>%
+        group_modify(~ summary(lm(srna_expression ~ mean_meth_binned, .x)) %>% broom::tidy()) %>%
+        ungroup()
+
+    # boxplot summary
+    p <- meth110_binned %>% ggplot(aes(x = mean_meth_binned, y = srna_expression)) +
+        geom_boxplot(aes(fill = condition), outlier.shape = NA) +
+        geom_text(data = bin_n, aes(x = mean_meth_binned, y = -Inf, label = n_elements), vjust = -0.5, size = 2.5, inherit.aes = FALSE) +
+        facet_wrap(~condition) +
+        scale_conditions +
+        coord_cartesian(y = c(0, 10)) +
+        labs(x = "Mean methylation (%)", y = "sRNA expression") +
+        mtclosed +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    mysaveandstore(str_glue("{outputdir}/L1HS/meth110_vs_expression_binned_box1.pdf"), w = 10, h = 4, sf = stats, sfm = bin_n)
+
+    # mean summary
+    p <- meth110_binned %>% ggplot(aes(x = mean_meth_binned, y = srna_expression)) +
+        stat_summary(aes(fill = condition), fun = mean, geom = "bar", color = "black") +
+        stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.2) +
+        geom_text(data = bin_n, aes(x = mean_meth_binned, y = -Inf, label = n_elements), vjust = -0.5, size = 2.5, inherit.aes = FALSE) +
+        facet_wrap(~condition) +
+        scale_conditions +
+        anchorbar +
+        labs(x = "Mean methylation (%)", y = "sRNA expression") +
+        mtclosed +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    mysaveandstore(str_glue("{outputdir}/L1HS/meth110_vs_expression_binned_mean.pdf"), w = 10, h = 4, sf = stats, sfm = bin_n)
+
+    # all points
+    p <- meth110_binned %>% ggplot(aes(x = mean_meth_binned, y = srna_expression)) +
+        geom_jitter(aes(color = condition), width = 0.2, size = 0.8, alpha = 0.4) +
+        stat_summary(fun = mean, geom = "point", shape = 23, size = 2.5, fill = "white") +
+        geom_text(data = bin_n, aes(x = mean_meth_binned, y = -Inf, label = n_elements), vjust = -0.5, size = 2.5, inherit.aes = FALSE) +
+        facet_wrap(~condition) +
+        scale_conditions +
+        labs(x = "Mean methylation (%)", y = "sRNA expression") +
+        mtclosed +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    mysaveandstore(str_glue("{outputdir}/L1HS/meth110_vs_expression_binned_points.pdf"), w = 10, h = 4, sf = stats, sfm = bin_n)
+
+    # expression of two specific elements by condition, same y scale
+    pf_two_elements <- fll1hs_gene_expression_tidy_strictly_intergenic %>%
+        filter(gene_id %in% c("L1HS_2p13.2_1", "L1HS_2q21.1_2")) %>%
+        left_join(srna_sample_table)
+    stats <- pf_two_elements %>%
+        group_by(gene_id) %>%
+        group_modify(~ summary(lm(srna_expression ~ condition, .x)) %>% broom::tidy()) %>%
+        ungroup()
+    p <- pf_two_elements %>%
+        ggplot(aes(x = condition, y = srna_expression)) +
+        geom_boxplot(aes(fill = condition), outlier.shape = NA) +
+        geom_point() +
+        facet_wrap(~gene_id) +
+        scale_conditions +
+        labs(x = "", y = "sRNA expression") +
+        mtclosed
+    mysaveandstore(str_glue("{outputdir}/L1HS/L1HS_2p13.2_1_2q21.1_2_expression_by_condition.pdf"), w = 6, h = 4, sf = stats)
+
 
 
     ##########
@@ -537,10 +668,11 @@ for (tecounttype in c("telescope_unique")) {
                 formula = y ~ x, parse = TRUE, label.y.npc = "top"
             ) +
             geom_point(aes(color = condition), size = 3) +
+            facet_wrap(~batchCat) +
             mtclosed +
             scale_conditions +
             theme(axis.text.x = element_text(angle = 45, hjust = 1))
-        mysaveandstore(str_glue("{outputdir}/L1HS/meth_by_sample_strictly_intergenic_{sthresh}.pdf"), w = 4, h = 4, sf = statsframe, sfm = modelframe)
+        mysaveandstore(str_glue("{outputdir}/L1HS/meth_by_sample_strictly_intergenic_{sthresh}batchsplit.pdf"), w = 7, h = 4, sf = statsframe, sfm = modelframe)
 
         p <- tdf %>% ggplot(aes(x = RIN, y = srna_expression)) +
             stat_smooth(method = "lm", formula = y ~ x, color = "green", se = TRUE) +
@@ -640,67 +772,6 @@ for (tecounttype in c("telescope_unique")) {
         scale_y_continuous(expand = expansion(mult = c(0, .075)), limits = c(0, 1))
     mysaveandstore(pl = p, str_glue("{outputdir}/L1HS/meth_by_sample_ASP_strictly_intergenic_all_rsq.pdf"), w = 4, h = 4, sf = mf)
 
-
-    # now strictly intergenic without ctrl1 and 2
-    model_stats_list <- list()
-    for (sthresh in mrg_l1hs_by_sample_meth_strictly_intergenic$region %>% unique()) {
-        tdf <- mrg_l1hs_by_sample_meth_strictly_intergenic %>%
-            filter(region == sthresh) %>%
-            left_join(srna_sample_table) %>%
-            filter(!(sample_name %in% c("CTRL1", "CTRL2")))
-        model <- lm(srna_expression ~ mean_meth, data = tdf)
-        model_with_RIN <- lm(srna_expression ~ mean_meth + RIN, data = tdf)
-        stats <- model %>%
-            summary() %>%
-            broom::tidy() %>%
-            mutate(type = "no RIN")
-        stats_with_RIN <- model_with_RIN %>%
-            summary() %>%
-            broom::tidy() %>%
-            mutate(type = "with RIN")
-        model_stats <- model %>%
-            broom::glance() %>%
-            mutate(call = model %>% pluck("call") %>% deparse() %>% paste(collapse = " "))
-        model_stats_with_RIN <- model_with_RIN %>%
-            broom::glance() %>%
-            mutate(call = model_with_RIN %>% pluck("call") %>% deparse() %>% paste(collapse = " "))
-        statsframe <- bind_rows(stats, stats_with_RIN)
-        modelframe <- bind_rows(model_stats, model_stats_with_RIN)
-        p <- tdf %>% ggplot(aes(x = mean_meth, y = srna_expression)) +
-            stat_smooth(method = "lm", formula = y ~ x, color = "green", se = TRUE) +
-            ggpmisc::stat_poly_eq(aes(label = paste(..rr.label.., ..p.value.label.., sep = "~~~~")),
-                formula = y ~ x, parse = TRUE, label.y.npc = "top"
-            ) +
-            geom_point(aes(color = condition), size = 3) +
-            mtclosed +
-            scale_conditions +
-            theme(axis.text.x = element_text(angle = 45, hjust = 1))
-        mysaveandstore(str_glue("{outputdir}/L1HS/meth_by_sample_strictly_intergenic_{sthresh}_noctrl12.pdf"), w = 4, h = 4, sf = statsframe, sfm = modelframe)
-
-        p <- tdf %>% ggplot(aes(x = RIN, y = srna_expression)) +
-            stat_smooth(method = "lm", formula = y ~ x, color = "green", se = TRUE) +
-            ggpmisc::stat_poly_eq(aes(label = paste(..rr.label.., ..p.value.label.., sep = "~~~~")),
-                formula = y ~ x, parse = TRUE, label.y.npc = "top"
-            ) +
-            geom_point(aes(color = condition), size = 3) +
-            mtclosed +
-            scale_conditions +
-            theme(axis.text.x = element_text(angle = 45, hjust = 1))
-        mysaveandstore(str_glue("{outputdir}/L1HS/RIN_by_sample_strictly_intergenic_{sthresh}_noctrl12.pdf"), w = 4, h = 4)
-
-        model_stats_list[[sthresh]] <- model_stats
-    }
-
-    mf <- model_stats_list %>%
-        imap_dfr(~ .x %>%
-            dplyr::select(r.squared, p.value) %>%
-            mutate(region = .y))
-    p <- mf %>% ggplot() +
-        geom_col(aes(x = region, y = r.squared, fill = p.value), color = "black") +
-        mtclosed +
-        scale_y_continuous(expand = expansion(mult = c(0, .075)), limits = c(0, 1))
-
-    mysaveandstore(pl = p, str_glue("{outputdir}/L1HS/meth_by_sample_strictly_intergenic_all_rsq_noctrl12.pdf"), w = 3, h = 4, sf = mf)
 
     ###########
     ## HDRs
@@ -956,6 +1027,30 @@ for (tecounttype in c("telescope_unique")) {
                 mysaveandstore(str_glue("{outputdir}/L1HS/hdr_by_gene_strictly_intergenic_{sthresh}_colorbyregion.pdf"), w = 8, h = 4, sf = stats, sfm = model_stats)
 
                 model_stats_list[[sthresh]] <- model_stats
+            },
+            error = function(e) {
+
+            }
+        )
+
+        # binned version of the same relationship: prop_in_bin cut into 5 equal-width bins on x
+        tryCatch(
+            {
+                tdf_binned <- tdf %>%
+                    mutate(prop_in_bin_binned = cut(prop_in_bin, breaks = seq(0, 1, 0.2), include.lowest = TRUE)) %>%
+                    filter(!is.na(prop_in_bin_binned))
+                stats <- summary(lm(srna_expression ~ prop_in_bin_binned, data = tdf_binned)) %>% broom::tidy()
+                bin_n <- tdf_binned %>% count(prop_in_bin_binned, name = "n_elements")
+                p <- tdf_binned %>% ggplot(aes(x = prop_in_bin_binned, y = srna_expression)) +
+                    geom_boxplot(outlier.shape = NA) +
+                    geom_jitter(aes(color = condition), width = 0.2, size = 1, alpha = 0.4) +
+                    stat_summary(fun = mean, geom = "point", shape = 23, size = 2.5, fill = "white") +
+                    geom_text(data = bin_n, aes(x = prop_in_bin_binned, y = -Inf, label = n_elements), vjust = -0.5, size = 2.5, inherit.aes = FALSE) +
+                    labs(x = "prop_in_bin", y = "sRNA expression") +
+                    mtclosed +
+                    scale_conditions +
+                    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+                mysaveandstore(str_glue("{outputdir}/L1HS/hdr_by_gene_strictly_intergenic_{sthresh}_prop_in_bin_5bins.pdf"), w = 5, h = 4, sf = stats, sfm = bin_n)
             },
             error = function(e) {
 

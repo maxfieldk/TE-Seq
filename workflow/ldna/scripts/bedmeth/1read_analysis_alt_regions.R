@@ -4,13 +4,6 @@ confALL <- configr::read.config(file = "conf/config.yaml")
 source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 source("conf/sample_table_source.R")
-sample_table <- sample_table %>%
-    mutate(sample_name = factor(sample_name, levels = sample_table$sample_name)) %>%
-    mutate(condition = factor(condition, levels = conf$levels)) %>%
-    mutate(sample = sample_name)
-samples <- conf$samples
-sample_table <- sample_table[match(samples, sample_table$sample_name), ]
-
 cell_types_cols <- c("Astro", "Micro", "Endo", "Oligo", "OPC", "Inh", "Exc")
 
 cell_fractions <- read_delim("ldna/results/m/tables/scMD_cell_type_fractions_all.csv")
@@ -19,6 +12,12 @@ cell_fractions_scaled <- cell_fractions %>%
     mutate(across(all_of(c(cell_types_cols, "Neuron")), ~ as.numeric(scale(.)), .names = "{.col}_z"))
 
 sample_table <- sample_table %>% left_join(cell_fractions_scaled)
+sample_table <- sample_table %>%
+    mutate(sample_name = factor(sample_name, levels = sample_table$sample_name)) %>%
+    mutate(condition = factor(condition, levels = conf$levels)) %>%
+    mutate(sample = sample_name)
+samples <- conf$samples
+sample_table <- sample_table[match(samples, sample_table$sample_name), ]
 
 set.seed(123)
 
@@ -455,6 +454,7 @@ read_analysis_alt_regions <- function(
         #     map(~ broom::tidy(summary(lm(formula(sprintf("%s ~ %s", "propUnmeth", lm_right_hand_side)), .x)))) %>%
         #     imap_dfr(~ .x %>% mutate(subset = .y))
         stats_list <- list()
+        pairwise_list <- list()
         i <- 1
         for (subset in unique(by_cpg$subset)) {
             for (threshold in unique(by_sample$meth_threshold)) {
@@ -469,7 +469,7 @@ read_analysis_alt_regions <- function(
                     mutate(age_z = as.numeric(scale(age)))
                 model_tmp <- glmmTMB(
                     cbind(unmeth, total - unmeth) ~
-                        condition + sex + age_z + (1 | sample_name) + (1 | gene_id),
+                        condition + sex + ancestry + Oligo_z + Astro_z + Micro_z + Inh_z + Exc_z + OPC_z + (1 | sample_name) + (1 | gene_id),
                     data = by_cpg_tmp,
                     family = binomial()
                 )
@@ -477,6 +477,12 @@ read_analysis_alt_regions <- function(
                     mutate(threshold = !!threshold) %>%
                     mutate(subset = !!subset)
                 stats_list[[i]] <- res_tmp
+                pairwise_list[[i]] <- tryCatch({
+                    emmeans(model_tmp, ~ condition) %>%
+                        contrast(method = "pairwise") %>%
+                        as.data.frame() %>%
+                        mutate(threshold = !!threshold, subset = !!subset)
+                }, error = function(e) NULL)
                 i <- i + 1
             }
         }
@@ -486,6 +492,8 @@ read_analysis_alt_regions <- function(
             filter(subset != "400to600") %>%
             mutate(padj = p.adjust(p.value, method = "fdr"))
         statswpadj <- stats %>% left_join(stats_padj)
+        purrr::reduce(Filter(Negate(is.null), pairwise_list), bind_rows) %>%
+            write_mycsv(sprintf("ldna/results/%s/tables/reads_new/%s_%s/pairwise.csv", params$mod_code, region, required_fraction_of_total_cg))
         mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/barplot.pdf", params$mod_code, region, required_fraction_of_total_cg, context), 9, 4, pl = p, sf = statswpadj)
     } else {
         mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/barplot.pdf", params$mod_code, region, required_fraction_of_total_cg, context), 9, 4, pl = p)
@@ -904,6 +912,7 @@ read_analysis_alt_regions <- function(
 
     # Create an empty list to hold tidy model results
     stats_list <- list()
+    pairwise_list <- list()
 
     # Split data by group
     dat_groups <- named_group_split(dat_tmp, split_var)
@@ -927,19 +936,18 @@ read_analysis_alt_regions <- function(
         } else {
             model <- glmmTMB(
                 cbind(unmeth, total_read - unmeth) ~
-                    condition + sex + age_z + (1 | sample_name),
+                    condition + sex + ancestry + Oligo_z + Astro_z + Micro_z + Inh_z + Exc_z + OPC_z + (1 | sample_name),
                 data = group_data,
                 family = binomial()
             )
-            model <- glmmTMB(
-                cbind(unmeth, total_read - unmeth) ~
-                    condition + sex + age_z + (1 | sample_name),
-                data = group_data,
-                family = binomial()
-            )
-
             tidy_model <- broom::tidy(model) %>%
                 mutate(subset = group_name)
+            pairwise_list[[i]] <- tryCatch({
+                emmeans(model, ~ condition) %>%
+                    contrast(method = "pairwise") %>%
+                    as.data.frame() %>%
+                    mutate(subset = group_name)
+            }, error = function(e) NULL)
         }
         stats_list[[i]] <- tidy_model
     }
@@ -947,7 +955,9 @@ read_analysis_alt_regions <- function(
     # Combine the results into a single data frame
     stats <- purrr::reduce(stats_list, bind_rows) %>%
         tidyr::separate(subset, into = c("gene_id", "subset", "meth_threshold"), sep = "/", convert = TRUE)
-
+    purrr::reduce(Filter(Negate(is.null), pairwise_list), bind_rows) %>%
+        tidyr::separate(subset, into = c("gene_id", "subset", "meth_threshold"), sep = "/", convert = TRUE) %>%
+        write_csv(sprintf("ldna/results/%s/tables/reads_new/%s_%s/by_gene_pairwise.csv", params$mod_code, region, required_fraction_of_total_cg))
 
     write_csv(stats, sprintf("ldna/results/%s/tables/reads_new/%s_%s/by_gene_new.csv", params$mod_code, region, required_fraction_of_total_cg))
 

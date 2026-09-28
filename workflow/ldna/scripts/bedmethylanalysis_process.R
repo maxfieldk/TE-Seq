@@ -87,14 +87,33 @@ rte_subfamily_read_level_analysis <- conf$rte_subfamily_read_level_analysis
 sample_grs <- list()
 for (sample_name in samples) {
     df <- read_table(grep(sprintf("/%s/", sample_name), inputs$bedmethylpaths, value = TRUE), col_names = FALSE)
-    df_m <- df %>% filter(X4 == params$mod_code)
-    rm(df)
-    gr <- GRanges(
-        seqnames = df_m$X1,
-        ranges = IRanges(start = df_m$X2, end = df_m$X2),
-        cov = df_m$X10,
-        pctM = as.double(df_m$X11)
-    )
+    if (params$mod_code == "u") {
+        df_m_sub <- df %>%
+            filter(X4 == "m") %>%
+            select(X1, X2, cov = X10, Nmod_m = X12)
+        df_h_sub <- df %>%
+            filter(X4 == "h") %>%
+            select(X1, X2, Nmod_h = X12)
+        rm(df)
+        df_u <- inner_join(df_m_sub, df_h_sub, by = c("X1", "X2")) %>%
+            mutate(pctM = (cov - Nmod_m - Nmod_h) / cov * 100)
+        rm(df_m_sub, df_h_sub)
+        gr <- GRanges(
+            seqnames = df_u$X1,
+            ranges = IRanges(start = df_u$X2, end = df_u$X2),
+            cov = df_u$cov,
+            pctM = df_u$pctM
+        )
+    } else {
+        df_m <- df %>% filter(X4 == params$mod_code)
+        rm(df)
+        gr <- GRanges(
+            seqnames = df_m$X1,
+            ranges = IRanges(start = df_m$X2, end = df_m$X2),
+            cov = df_m$X10,
+            pctM = as.double(df_m$X11)
+        )
+    }
     gr$sample <- sample_name
     gr$condition <- sample_table[sample_table$sample_name == sample_name, ]$condition
     sample_grs[[sample_name]] <- gr
@@ -214,9 +233,9 @@ if ((conf$single_condition == "no") & (nrow(dmrs) > 0)) {
     )
 
     for (threshold in unique(dmrs$dmr_type)) {
-        write_delim(dmrs %>% filter(dmr_type == threshold) %>% dplyr::select(chr, start, end), str_glue("ldna/Rintermediates/m/dmrs_{threshold}.bed"), delim = "\t", col_names = FALSE)
-        write_delim(dmrs %>% filter(dmr_type == threshold) %>% filter(direction == grep("Hypo", dmrs %$% direction %>% unique(), value = TRUE)) %>% dplyr::select(chr, start, end), str_glue("ldna/Rintermediates/m/dmrs_hypo_{threshold}.bed"), delim = "\t", col_names = FALSE)
-        write_delim(dmrs %>% filter(dmr_type == threshold) %>% filter(direction == grep("Hyper", dmrs %$% direction %>% unique(), value = TRUE)) %>% dplyr::select(chr, start, end), str_glue("ldna/Rintermediates/m/dmrs_hyper_{threshold}.bed"), delim = "\t", col_names = FALSE)
+        write_delim(dmrs %>% filter(dmr_type == threshold) %>% dplyr::transmute(chr, start = start - 1, end), str_glue("ldna/Rintermediates/m/dmrs_{threshold}.bed"), delim = "\t", col_names = FALSE)
+        write_delim(dmrs %>% filter(dmr_type == threshold) %>% filter(direction == grep("Hypo", dmrs %$% direction %>% unique(), value = TRUE)) %>% dplyr::transmute(chr, start = start - 1, end), str_glue("ldna/Rintermediates/m/dmrs_hypo_{threshold}.bed"), delim = "\t", col_names = FALSE)
+        write_delim(dmrs %>% filter(dmr_type == threshold) %>% filter(direction == grep("Hyper", dmrs %$% direction %>% unique(), value = TRUE)) %>% dplyr::transmute(chr, start = start - 1, end), str_glue("ldna/Rintermediates/m/dmrs_hyper_{threshold}.bed"), delim = "\t", col_names = FALSE)
     }
 }
 

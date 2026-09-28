@@ -24,8 +24,20 @@ library(ggbeeswarm)
 library(Biostrings)
 library(zoo)
 
+source("conf/sample_table_source.R")
+cell_types_cols <- c("Astro", "Micro", "Endo", "Oligo", "OPC", "Inh", "Exc")
+
+cell_fractions <- read_delim("ldna/results/m/tables/scMD_cell_type_fractions_all.csv")
+cell_fractions_scaled <- cell_fractions %>%
+    mutate(Neuron = Inh + Exc) %>%
+    mutate(across(all_of(c(cell_types_cols, "Neuron")), ~ as.numeric(scale(.)), .names = "{.col}_z"))
+
+sample_table <- sample_table %>% left_join(cell_fractions_scaled)
+sample_table <- sample_table %>%
+    mutate(sample_name = factor(sample_name, levels = sample_table$sample_name)) %>%
+    mutate(condition = factor(condition, levels = conf$levels)) %>%
+    mutate(sample = sample_name)
 samples <- conf$samples
-sample_table <- read_csv(sprintf("conf/sample_table_%s.csv", conf$prefix))
 sample_table <- sample_table[match(samples, sample_table$sample_name), ]
 
 {
@@ -93,52 +105,52 @@ for (sample_name in samples) {
     sample_grs[[sample_name]] <- gr
 }
 
-grsunfiltered <- Reduce(c, sample_grs)
+grs <- Reduce(c, sample_grs)
 rm(sample_grs)
-# filter out low coverage and ensure that all samples have the same cpgs
-grs <- grsunfiltered[grsunfiltered$cov > MINIMUMCOVERAGE]
+# filter out low coverage and ensure that all samples have the same cpgs NOTE THAT WE DON'T DO THIS NOW TO RETAIN RDNA LOCI
+# grs <- grsunfiltered[grsunfiltered$cov > MINIMUMCOVERAGE]
 grsdf <- tibble(as.data.frame(grs))
-grsdf %$% seqnames %>% unique()
-dir.create("ldna/Rintermediates", recursive = TRUE)
-grsdf$seqnames <- factor(grsdf$seqnames, levels = chromosomesAll)
-seqnames <- grsdf$seqnames
-start <- grsdf$start
-end <- grsdf$end
-pos <- paste0(seqnames, "_", start, "_", end)
-grsdf$pos <- pos
+# grsdf %$% seqnames %>% unique()
+# dir.create("ldna/Rintermediates", recursive = TRUE)
+# grsdf$seqnames <- factor(grsdf$seqnames, levels = chromosomesAll)
+# seqnames <- grsdf$seqnames
+# start <- grsdf$start
+# end <- grsdf$end
+# pos <- paste0(seqnames, "_", start, "_", end)
+# grsdf$pos <- pos
 
-grsdfuntidy <- grsdf %>%
-    filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS) %>%
-    pivot_wider(id_cols = c("pos", "seqnames"), names_from = "sample", values_from = "pctM", names_prefix = "pctM") %>%
-    drop_na()
+# grsdfuntidy <- grsdf %>%
+#     filter(seqnames %in% CHROMOSOMESINCLUDEDINANALYSIS) %>%
+#     pivot_wider(id_cols = c("pos", "seqnames"), names_from = "sample", values_from = "pctM", names_prefix = "pctM") %>%
+#     drop_na()
 
-grsinboth <- grsdfuntidy %>% pull(pos)
-rm(grsdfuntidy)
+# grsinboth <- grsdfuntidy %>% pull(pos)
+# rm(grsdfuntidy)
 
-grsdffiltered <- grsdf %>%
-    filter(pos %in% grsinboth)
+# grsdffiltered <- grsdf %>%
+#     filter(pos %in% grsinboth)
 
-grsdf <- grsdffiltered
-rm(grsdffiltered)
+# grsdf <- grsdffiltered
+# rm(grsdffiltered)
 
-cpg_islands <- rtracklayer::import(conf$cpg_islands)
-cpgi_shores <- rtracklayer::import(conf$cpgi_shores)
-cpgi_shelves <- rtracklayer::import(conf$cpgi_shelves)
-cpgi_features <- c(cpg_islands, cpgi_shelves, cpgi_shores)
+# cpg_islands <- rtracklayer::import(conf$cpg_islands)
+# cpgi_shores <- rtracklayer::import(conf$cpgi_shores)
+# cpgi_shelves <- rtracklayer::import(conf$cpgi_shelves)
+# cpgi_features <- c(cpg_islands, cpgi_shelves, cpgi_shores)
 
 
-grs <- GRanges(grsdf)
-grs_cpg_islands <- grs %>% subsetByOverlaps(cpg_islands)
-grs_cpg_islands$islandStatus <- "island"
-grs_cpgi_shelves <- grs %>% subsetByOverlaps(cpgi_shelves)
-grs_cpgi_shelves$islandStatus <- "shelf"
-grs_cpgi_shores <- grs %>% subsetByOverlaps(cpgi_shores)
-grs_cpgi_shores$islandStatus <- "shore"
-grs_cpg_opensea <- grs %>% subsetByOverlaps(cpgi_features, invert = TRUE)
-grs_cpg_opensea$islandStatus <- "opensea"
+# grs <- GRanges(grsdf)
+# grs_cpg_islands <- grs %>% subsetByOverlaps(cpg_islands)
+# grs_cpg_islands$islandStatus <- "island"
+# grs_cpgi_shelves <- grs %>% subsetByOverlaps(cpgi_shelves)
+# grs_cpgi_shelves$islandStatus <- "shelf"
+# grs_cpgi_shores <- grs %>% subsetByOverlaps(cpgi_shores)
+# grs_cpgi_shores$islandStatus <- "shore"
+# grs_cpg_opensea <- grs %>% subsetByOverlaps(cpgi_features, invert = TRUE)
+# grs_cpg_opensea$islandStatus <- "opensea"
 
-grs <- c(grs_cpg_islands, grs_cpgi_shelves, grs_cpgi_shores, grs_cpg_opensea)
-grsdf <- tibble(as.data.frame(grs))
+# grs <- c(grs_cpg_islands, grs_cpgi_shelves, grs_cpgi_shores, grs_cpg_opensea)
+# grsdf <- tibble(as.data.frame(grs))
 
 dir.create("ldna/Rintermediates", showWarnings = FALSE)
 write_delim(grsdf, sprintf("ldna/Rintermediates/%s/grsdf_unfiltered_hardtomapregions.tsv", params$mod_code), col_names = TRUE)
@@ -265,135 +277,172 @@ plot_region <- function(region, meth_grs, highlights = NULL, group_var = "sample
 #     scale_conditions
 # mysaveandstore(sprintf("ldna/results/%s/plots/hardtomap/test_condition11.pdf", params$mod_code), 40, 4, raster = TRUE)
 
-
-rdna_transcripts_promoters <- promoters(rdna_transcripts, upstream = 186, downstream = 20)
-rdna_transcripts_promoters_grs <- merge_with_grs(grs, rdna_transcripts_promoters)
-
-rdna_transcripts_promoters_grs %>%
-    group_by(sample, name) %>%
-    summarise(pctM = mean(pctM)) %>%
-    ungroup() %>%
-    pivot_wider(names_from = sample, values_from = pctM)
-
-pf <- rdna_transcripts_promoters_grs %>%
-    group_by(sample) %>%
-    summarise(mean_meth = mean(pctM)) %>%
-    ungroup() %>%
-    dplyr::rename(sample_name = sample) %>%
-    left_join(sample_table) %>%
-    mutate(sample_name = fct_reorder(sample_name, mean_meth))
-
 library(ggnewscale)
 library(ggpubr)
-p <- pf %>%
-    ggviolin(x = "condition", y = "mean_meth", fill = "condition", add = c("dotplot")) +
-    scale_conditions +
-    ggtitle("45S rDNA Promoter Methylation") +
-    mtclosed
-stats <- summary(lm(mean_meth ~ condition, pf)) %>% broom::tidy()
-mysaveandstore(fn = sprintf("ldna/results/%s/plots/hardtomapregions/rdna_mean_meth_violin.pdf", params$mod_code), 4, 4, sf = stats)
-
 library(ggrepel)
-# p <- pf %>%
-#     mutate(sample_name = fct_reorder(paste0(sample_name, "_", age), age)) %>%
-#     ggplot(aes(y = sample_name, x = mean_meth, color = condition, shape = sex)) +
-#     geom_point(size = 3) +
-#     scale_conditions +
-#     geom_vline(xintercept = pf %>% filter(condition == "AD") %$% mean_meth %>% mean(), color = "blue", linetype = "dashed") +
-#     geom_vline(xintercept = pf %>% filter(condition == "CTRL") %$% mean_meth %>% mean(), color = "grey", linetype = "dashed") +
-#     geom_text_repel(aes(label = apoe)) +
-#     # new_scale_fill() +
-#     # geom_tile(aes(x = -1, fill = sex), width = 2) + # Add metadata strip
-#     scale_conditions +
-#     mtopen
-# stats <- summary(lm(mean_meth ~ condition + sex + age, pf)) %>% broom::tidy()
-# mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/pca/mean_meth_point_withage_ordered.pdf", params$mod_code), 5, 4, sf = stats)
+library(purrr)
+
+##########################
+# rDNA: methylation aggregated over each region definition
+# 45S promoter (-186/+20 around TSS), the 45S transcript itself, the intergenic
+# spacer (model region minus transcripts), and the full rDNA model region.
+rdna_igs <- GenomicRanges::setdiff(rdna_models, rdna_transcripts, ignore.strand = TRUE)
+mcols(rdna_igs)$name <- paste0("IGS_", as.character(seqnames(rdna_igs)))
+
+rdna_regions <- list(
+    "45S promoter" = promoters(rdna_transcripts, upstream = 186, downstream = 20),
+    "45S transcript" = rdna_transcripts,
+    "IGS" = rdna_igs,
+    "rDNA model" = rdna_models
+)
 
 
+grs %>% subsetByOverlaps(promoters(rdna_transcripts, upstream = 1000, downstream = 1000))
 
-## rDNA
+rdna_grs <- imap(rdna_regions, function(region, region_type) {
+    merge_with_grs(grs, region) %>%
+        dplyr::select(seqnames, start, end, cov, pctM, sample, condition, name, region_start, region_end) %>%
+        mutate(region_type = region_type)
+}) %>%
+    bind_rows() %>%
+    mutate(region_type = factor(region_type, levels = names(rdna_regions)))
+
+# per sample x region type
+rdna_sample_meth <- rdna_grs %>%
+    group_by(region_type, sample) %>%
+    summarise(mean_meth = mean(pctM), n_cpgs = n(), .groups = "drop") %>%
+    dplyr::rename(sample_name = sample) %>%
+    left_join(sample_table)
+dir.create(sprintf("ldna/results/%s/tables/hardtomapregions", params$mod_code), showWarnings = FALSE, recursive = TRUE)
+write_delim(rdna_sample_meth, sprintf("ldna/results/%s/tables/hardtomapregions/rdna_region_meth_by_sample.tsv", params$mod_code), delim = "\t")
+
+# per sample x region type x chromosome (each acrocentric arm separately)
+rdna_sample_chr_meth <- rdna_grs %>%
+    group_by(region_type, seqnames, sample, condition) %>%
+    summarise(mean_meth = mean(pctM), n_cpgs = n(), .groups = "drop")
+write_delim(rdna_sample_chr_meth, sprintf("ldna/results/%s/tables/hardtomapregions/rdna_region_meth_by_sample_chr.tsv", params$mod_code), delim = "\t")
+
+# per individual region copy (each 45S transcript / promoter / IGS / model element)
+rdna_copy_meth <- rdna_grs %>%
+    group_by(region_type, seqnames, region_start, region_end, name, condition) %>%
+    summarise(mean_meth = mean(pctM), .groups = "drop") %>%
+    pivot_wider(names_from = condition, values_from = mean_meth)
+write_delim(rdna_copy_meth, sprintf("ldna/results/%s/tables/hardtomapregions/rdna_region_meth_by_copy.tsv", params$mod_code), delim = "\t")
+
+rdna_condition_stats <- function(df, group = "region_type") {
+    df %>%
+        group_by(!!sym(group)) %>%
+        group_modify(~ summary(lm(mean_meth ~ condition + sex + ancestry + Oligo_z + Astro_z + Micro_z + Inh_z + Exc_z + OPC_z, .x)) %>% broom::tidy()) %>%
+        ungroup()
+}
+
+library(ggpubr)
+# one violin per region type
+rdna_sample_meth %$% region_type
+for (rt in names(rdna_regions)) {
+    pf <- rdna_sample_meth %>% filter(region_type == rt)
+    p <- pf %>%
+        ggviolin(x = "condition", y = "mean_meth", fill = "condition", add = c("dotplot")) +
+        scale_conditions +
+        labs(y = "Mean methylation (%)", title = sprintf("45S rDNA: %s", rt)) +
+        mtclosed
+    stats <- summary(lm(mean_meth ~ condition + sex + ancestry + Oligo_z + Astro_z + Micro_z + Inh_z + Exc_z + OPC_z, pf)) %>% broom::tidy()
+    mysaveandstore(sprintf("ldna/results/%s/plots/hardtomapregions/rdna_%s_mean_meth_violin.pdf", params$mod_code, gsub(" ", "_", rt)), 4, 4, sf = stats)
+}
+
+# all region types side by side
+p <- rdna_sample_meth %>%
+    ggplot(aes(x = region_type, y = mean_meth)) +
+    stat_summary(aes(group = condition, fill = condition), color = "black", fun = "mean", geom = "bar", position = position_dodge(width = 0.9)) +
+    geom_point(aes(group = condition), position = position_dodge(width = 0.9)) +
+    scale_conditions +
+    labs(x = "", y = "Mean methylation (%)", title = "rDNA methylation by region") +
+    mtclosed +
+    anchorbar +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+mysaveandstore(sprintf("ldna/results/%s/plots/hardtomapregions/rdna_regions_mean_meth_bar.pdf", params$mod_code), 5, 4, sf = rdna_condition_stats(rdna_sample_meth))
+
+p <- rdna_sample_meth %>%
+    ggviolin(x = "condition", y = "mean_meth", fill = "condition", add = c("dotplot"), facet.by = "region_type", nrow = 1) +
+    scale_conditions +
+    labs(y = "Mean methylation (%)") +
+    mtclosed
+mysaveandstore(sprintf("ldna/results/%s/plots/hardtomapregions/rdna_regions_mean_meth_violin.pdf", params$mod_code), 10, 4, sf = rdna_condition_stats(rdna_sample_meth))
+
+# broken out by chromosome
+p <- rdna_sample_chr_meth %>%
+    ggplot(aes(x = seqnames, y = mean_meth)) +
+    stat_summary(aes(group = condition, fill = condition), color = "black", fun = "mean", geom = "bar", position = position_dodge(width = 0.9)) +
+    geom_point(aes(group = condition), position = position_dodge(width = 0.9)) +
+    facet_wrap(~region_type, nrow = 1) +
+    scale_conditions +
+    labs(x = "", y = "Mean methylation (%)") +
+    mtclosed +
+    anchorbar +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+mysaveandstore(sprintf("ldna/results/%s/plots/hardtomapregions/rdna_regions_mean_meth_bar_by_chr.pdf", params$mod_code), 12, 4)
+
+# meta-profile across all 45S copies: CpG position relative to the TSS, with 1 kb of upstream IGS
+rdna_45S_flank <- resize(rdna_transcripts, width = width(rdna_transcripts) + 1000, fix = "end") # all copies are + strand
+rdna_profile <- merge_with_grs(grs, rdna_45S_flank) %>%
+    mutate(rel_pos = start - (region_start + 1000)) %>%
+    mutate(bin = floor(rel_pos / 100) * 100)
+p <- rdna_profile %>%
+    group_by(condition, bin) %>%
+    summarise(pctM = mean(pctM), .groups = "drop") %>%
+    ggplot(aes(x = bin, y = pctM, color = condition)) +
+    geom_line() +
+    geom_vline(xintercept = 0, linetype = "dashed") +
+    scale_conditions +
+    ylim(c(0, 100)) +
+    labs(x = "Position relative to 45S TSS (bp)", y = "Methylation (%)", title = "45S rDNA meta-profile") +
+    mtclosed
+mysaveandstore(sprintf("ldna/results/%s/plots/hardtomapregions/rdna_45S_metaprofile_condition.pdf", params$mod_code), 7, 4)
+p <- rdna_profile %>%
+    group_by(sample, bin) %>%
+    summarise(pctM = mean(pctM), .groups = "drop") %>%
+    ggplot(aes(x = bin, y = pctM, color = sample)) +
+    geom_line() +
+    geom_vline(xintercept = 0, linetype = "dashed") +
+    scale_samples +
+    ylim(c(0, 100)) +
+    labs(x = "Position relative to 45S TSS (bp)", y = "Methylation (%)", title = "45S rDNA meta-profile") +
+    mtclosed
+mysaveandstore(sprintf("ldna/results/%s/plots/hardtomapregions/rdna_45S_metaprofile_sample.pdf", params$mod_code), 7, 4)
+
+
+##########################
+# centromeres and centromeric satellites
 cytobandsdf <- read_delim(conf$ref_cytobands, col_names = FALSE, delim = "\t")
-cytobands <- cytobandsdf %>%
-    dplyr::rename(seqnames = X1, start = X2, end = X3) %>%
-    GRanges()
 centromere <- cytobandsdf %>%
     filter(X5 == "acen") %>%
     dplyr::rename(seqnames = X1, start = X2, end = X3) %>%
     GRanges()
-
-
+cent <- reduce(centromere)
 
 censat <- import.bed("resources/genomes/hs1/annotations/censat.bed")
-censatdf <- censat %>%
-    as.data.frame() %>%
-    tibble() %>%
-    mutate(types = gsub("_.*", "", name))
+mcols(censat)$types <- gsub("_.*", "", mcols(censat)$name)
 
-censat <- GRanges(censatdf)
+grs_cent <- merge_with_grs(grs, cent)
 
-censatdf %$% types %>% table()
-censatdf %>% filter(types == "rDNA")
-
-censatdf %>% filter(seqnames == "chr4")
-
-grs_cent <- merge_with_grs(grs, reduce(centromere))
-cent <- reduce(centromere)
-grs_cent %>% GRanges()
-grs_cent %>%
-    GRanges() %>%
-    subsetByOverlaps(cent)
-
-# region <- GRanges(seqnames = "chr13", ranges = IRanges(start = 6051123, end = 6170503))
-
-chrofinterest <- "chr3"
-roi <- cent[seqnames(cent) == chrofinterest]
-rmann %>%
-    filter(rte_subfamily != "Other") %>%
-    filter(rte_length_req == "FL") %>%
-    GRanges() %>%
-    subsetByOverlaps(roi) %>%
-    as.data.frame() %>%
-    tibble()
-highlightstemp <- censat %>%
-    subsetByOverlaps(roi) %>%
-    as.data.frame()
-p <- plot_region(roi, grs_cent, highlights = highlightstemp, group_var = "sample", smoothing = 500, type = "line") + ggtitle(chrofinterest)
-mysaveandstore(sprintf("ldna/results/%s/plots/hardtomap/cent_%s_by_sample_whighlight.pdf", params$mod_code, chrofinterest), 9, 4)
-mysaveandstore(sprintf("ldna/results/%s/plots/hardtomap/cent_%s_by_sample_whighlight_tall.pdf", params$mod_code, chrofinterest), 9, 8)
-
-chrofinterest <- "chr4"
-roi <- cent[seqnames(cent) == chrofinterest]
-rmann %>%
-    filter(rte_subfamily != "Other") %>%
-    filter(rte_length_req == "FL") %>%
-    GRanges() %>%
-    subsetByOverlaps(roi) %>%
-    as.data.frame() %>%
-    tibble()
-highlightstemp <- censat %>%
-    subsetByOverlaps(roi) %>%
-    as.data.frame()
-p <- plot_region(roi, grs_cent, highlights = highlightstemp, group_var = "sample", smoothing = 500, type = "line") + ggtitle(chrofinterest)
-mysaveandstore(sprintf("ldna/results/%s/plots/hardtomap/cent_%s_by_sample_whighlight11.pdf", params$mod_code, chrofinterest), 9, 4)
-mysaveandstore(sprintf("ldna/results/%s/plots/hardtomap/cent_%s_by_sample_whighlight_tall.pdf", params$mod_code, chrofinterest), 9, 8)
-
-centplots <- list()
-for (chr in cent %$% seqnames %>% unique()) {
-    p <- plot_region(cent[seqnames(cent) == chr], grs_cent, group_var = "sample", smoothing = 500, type = "line") +
-        scale_samples
-    centplots[[chr]] <- p
+# per-chromosome centromere plots with satellite annotation highlighted
+for (chrofinterest in c("chr3", "chr4")) {
+    roi <- cent[seqnames(cent) == chrofinterest]
+    highlightstemp <- censat %>%
+        subsetByOverlaps(roi) %>%
+        as.data.frame()
+    p <- plot_region(roi, grs_cent, highlights = highlightstemp, group_var = "sample", smoothing = 500, type = "line") + ggtitle(chrofinterest)
+    mysaveandstore(sprintf("ldna/results/%s/plots/hardtomap/cent_%s_by_sample_whighlight.pdf", params$mod_code, chrofinterest), 9, 4)
+    mysaveandstore(sprintf("ldna/results/%s/plots/hardtomap/cent_%s_by_sample_whighlight_tall.pdf", params$mod_code, chrofinterest), 9, 8)
 }
-# library(patchwork)
-# patch <- wrap_plots(centplots, ncol = 4, guides = "collect")
-# mysaveandstore(sprintf("ldna/results/%s/plots/hardtomap/cent_together.pdf", params$mod_code, chr), pl= patch, 12, 12)
 
 p <- grs_cent %>%
-    group_by(!!sym("sample"), seqnames) %>%
+    group_by(sample, seqnames) %>%
     mutate(plot_val = rollmean(pctM, 500, na.pad = TRUE, align = "center")) %>%
     filter(!is.na(plot_val)) %>%
     ungroup() %>%
     ggplot() +
-    geom_line(aes(x = start, y = plot_val, color = !!sym("sample"))) +
+    geom_line(aes(x = start, y = plot_val, color = sample)) +
     facet_wrap(~seqnames, ncol = 4, scales = "free_x") +
     ylim(c(0, 100)) +
     scale_samples +
@@ -402,115 +451,79 @@ p <- grs_cent %>%
         axis.text.x  = element_blank(),
         axis.ticks.x = element_blank()
     )
-
-mysaveandstore(sprintf("ldna/results/%s/plots/hardtomap/cent_together.pdf", params$mod_code, chr), 12, 12)
-
+mysaveandstore(sprintf("ldna/results/%s/plots/hardtomap/cent_together.pdf", params$mod_code), 12, 12)
 
 grs_censat <- merge_with_grs(grs, censat)
-
-
-
-p <- grs_censat %>%
+censat_sample_meth <- grs_censat %>%
     group_by(sample, condition, types) %>%
-    summarise(pctM = mean(pctM)) %>%
-    # mutate(family = fct_reorder(family, pctM, mean)) %>%
-    ggplot(aes(x = types, y = pctM)) +
+    summarise(mean_meth = mean(pctM), .groups = "drop")
+p <- censat_sample_meth %>%
+    ggplot(aes(x = types, y = mean_meth)) +
     stat_summary(aes(group = condition, fill = condition), color = "black", fun = "mean", geom = "bar", position = position_dodge(width = 0.9)) +
     geom_point(aes(group = condition), position = position_dodge(width = 0.9)) +
     scale_conditions +
+    labs(x = "", y = "Mean methylation (%)") +
     mtclosed +
     anchorbar +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
-mysaveandstore(sprintf("ldna/results/%s/plots/hardtomap/censat_bar.pdf", params$mod_code), 8, 4)
+mysaveandstore(sprintf("ldna/results/%s/plots/hardtomap/censat_bar.pdf", params$mod_code), 8, 4, sf = rdna_condition_stats(censat_sample_meth, group = "types"))
+
+mcols(censat)$types %>% unique()
 
 
-
-
-# next repeats in the centromere
-# r_annotation_fragmentsjoined <- read_csv(conf$r_annotation_fragmentsjoined)
-# r_repeatmasker_annotation <- read_csv(conf$r_repeatmasker_annotation)
-# rmann <- left_join(r_annotation_fragmentsjoined, r_repeatmasker_annotation)
-flRTEpromoter <- read_delim(sprintf("ldna/Rintermediates/%s/flRTEpromoter.tsv", params$mod_code), col_names = TRUE)
-
-
-
+##########################
+# full length RTEs inside centromeres
 cent_l1hs <- rmann %>%
     filter(rte_subfamily %in% c("L1HS", "L1PA2", "L1PA3", "HERVK-int")) %>%
     filter(rte_length_req == "FL") %>%
     GRanges() %>%
     subsetByOverlaps(cent)
 
-# telomeredf <- read_delim(confALL$aref$ref_telomere, col_names = FALSE, delim = "\t")
-# telomere <- telomeredf %>%
-#     dplyr::rename(seqnames = X1, start = X2, end = X3) %>%
-#     GRanges()
-
-# telo_l1hs <- rmann %>%
-#     filter(rte_subfamily %in% c("L1HS", "L1PA2", "L1PA3", "HERVK-int")) %>%
-#     filter(rte_length_req == "FL") %>%
-#     GRanges() %>%
-#     subsetByOverlaps(telomere)
-
 for (gene_id in mcols(cent_l1hs)$gene_id) {
-    p <- plot_region(cent_l1hs[mcols(cent_l1hs)$gene_id == gene_id], grs_cent, group_var = "sample", smoothing = 5, type = "point") +
+    element <- cent_l1hs[mcols(cent_l1hs)$gene_id == gene_id]
+    p <- plot_region(element, grs_cent, group_var = "sample", smoothing = 5, type = "point") +
         scale_samples
     mysaveandstore(sprintf("ldna/results/%s/plots/hardtomap/cent_%s.pdf", params$mod_code, gene_id), 5, 4)
-    p <- plot_region(cent_l1hs[mcols(cent_l1hs)$gene_id == gene_id], grs_cent, group_var = "condition", smoothing = 5, type = "point") +
+    p <- plot_region(element, grs_cent, group_var = "condition", smoothing = 5, type = "point") +
         scale_conditions
     mysaveandstore(sprintf("ldna/results/%s/plots/hardtomap/cent_%s_condition.pdf", params$mod_code, gene_id), 5, 4)
 }
 
 
-
-
-
-
-rmann %>%
-    filter(repeat_superfamily == "SAT") %>%
-    filter(length > 10000) %>%
-    arrange(-length)
-
+##########################
+# satellites
 sat <- rmann %>%
     filter(repeat_superfamily == "SAT") %>%
     GRanges()
 satgrs <- merge_with_grs(grs, sat)
 
-satgrs %>% pw()
-
 satdf <- satgrs %>%
     group_by(family, sample, condition) %>%
-    summarise(pctM = mean(pctM))
-satdfwgeneid <- satgrs %>%
-    group_by(gene_id, family, sample, condition, length) %>%
-    summarise(pctM = mean(pctM))
+    summarise(mean_meth = mean(pctM), .groups = "drop") %>%
+    mutate(family = fct_reorder(family, mean_meth, mean))
 
-p <- satdf %>% ggviolin(x = "family", y = "pctM", fill = "condition", add = c("dotplot")) +
+p <- satdf %>% ggviolin(x = "family", y = "mean_meth", fill = "condition", add = c("dotplot")) +
     scale_conditions +
+    labs(x = "", y = "Mean methylation (%)") +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
-mysaveandstore(sprintf("ldna/results/%s/plots/hardtomap/satellites1.pdf", params$mod_code, gene_id), 10, 4)
-
-p <- satdf %>% ggbarplot(x = "family", y = "pctM", fill = "condition", add = c("dotplot"), position = position_dodge()) +
-    scale_conditions +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1))
-mysaveandstore(sprintf("ldna/results/%s/plots/hardtomap/satellites_bar1.pdf", params$mod_code, gene_id), 8, 4)
-
+mysaveandstore(sprintf("ldna/results/%s/plots/hardtomap/satellites_violin.pdf", params$mod_code), 10, 4)
 
 p <- satdf %>%
-    group_by(family) %>%
-    mutate(family = fct_reorder(family, pctM, mean)) %>%
-    ggplot(aes(x = family, y = pctM)) +
+    ggplot(aes(x = family, y = mean_meth)) +
     stat_summary(aes(group = condition, fill = condition), color = "black", fun = "mean", geom = "bar", position = position_dodge(width = 0.9)) +
     geom_point(aes(group = condition), position = position_dodge(width = 0.9)) +
     scale_conditions +
+    labs(x = "", y = "Mean methylation (%)") +
     mtclosed +
     anchorbar +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
-mysaveandstore(sprintf("ldna/results/%s/plots/hardtomap/satellites_bar1111.pdf", params$mod_code, gene_id), 8, 4)
+mysaveandstore(sprintf("ldna/results/%s/plots/hardtomap/satellites_bar.pdf", params$mod_code), 8, 4, sf = rdna_condition_stats(satdf, group = "family"))
 
-satgene <- satdfwgeneid %>%
-    group_by(condition, gene_id, length) %>%
-    summarise(pctM = mean(pctM)) %>%
-    pivot_wider(names_from = condition, values_from = pctM)
+satgene <- satgrs %>%
+    group_by(gene_id, family, length, condition) %>%
+    summarise(mean_meth = mean(pctM), .groups = "drop") %>%
+    pivot_wider(names_from = condition, values_from = mean_meth)
+write_delim(satgene, sprintf("ldna/results/%s/tables/hardtomapregions/satellite_meth_by_element.tsv", params$mod_code), delim = "\t")
 
 satgene
 
@@ -531,5 +544,3 @@ highlightsdf <- rmann %>% filter(gene_id == "L1PA3_22p13_1")
 p <- plot_region(L1PA3_22p13_1_region, grsdf, highlights = highlightsdf, highlight_name_var = "gene_id", group_var = "sample", smoothing = 5, type = "line") +
     scale_samples
 mysaveandstore(sprintf("ldna/results/%s/plots/hardtomap/L1PA3_22p13_1_region_sample11111.pdf", params$mod_code), 5, 4)
-
-library(ggnewscale)

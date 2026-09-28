@@ -4,13 +4,6 @@ confALL <- configr::read.config(file = "conf/config.yaml")
 source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 source("conf/sample_table_source.R")
-sample_table <- sample_table %>%
-    mutate(sample_name = factor(sample_name, levels = sample_table$sample_name)) %>%
-    mutate(condition = factor(condition, levels = conf$levels)) %>%
-    mutate(sample = sample_name)
-samples <- conf$samples
-sample_table <- sample_table[match(samples, sample_table$sample_name), ]
-
 cell_types_cols <- c("Astro", "Micro", "Endo", "Oligo", "OPC", "Inh", "Exc")
 
 cell_fractions <- read_delim("ldna/results/m/tables/scMD_cell_type_fractions_all.csv")
@@ -19,6 +12,12 @@ cell_fractions_scaled <- cell_fractions %>%
     mutate(across(all_of(c(cell_types_cols, "Neuron")), ~ as.numeric(scale(.)), .names = "{.col}_z"))
 
 sample_table <- sample_table %>% left_join(cell_fractions_scaled)
+sample_table <- sample_table %>%
+    mutate(sample_name = factor(sample_name, levels = sample_table$sample_name)) %>%
+    mutate(condition = factor(condition, levels = conf$levels)) %>%
+    mutate(sample = sample_name)
+samples <- conf$samples
+sample_table <- sample_table[match(samples, sample_table$sample_name), ]
 
 set.seed(123)
 
@@ -50,6 +49,7 @@ library(scales)
 library(ggnewscale)
 library(glmmTMB)
 library(broom.mixed)
+library(emmeans)
 
 conditions <- conf$levels
 contrasts <- conf$contrasts
@@ -250,12 +250,14 @@ p <- pf %>%
     ggplot(aes(y = sample, x = mean_meth, color = condition)) +
     geom_point(size = 3) +
     scale_conditions +
-    geom_vline(xintercept = pf %>% filter(condition == condition2) %$% mean_meth %>% mean(), color = "blue", linetype = "dashed") +
-    geom_vline(xintercept = pf %>% filter(condition == condition1) %$% mean_meth %>% mean(), color = "grey", linetype = "dashed") +
-    # new_scale_fill() +
-    # geom_tile(aes(x = -1, fill = sex), width = 2) + # Add metadata strip
+    geom_vline(
+        data = pf %>% group_by(condition) %>% summarise(mean_meth = mean(mean_meth)),
+        aes(xintercept = mean_meth, color = condition),
+        linetype = "dashed"
+    ) +
     scale_conditions +
     mtopen
+
 if ("apoe" %in% names(pf)) {
     p <- p + geom_text_repel(aes(label = apoe))
 }
@@ -265,16 +267,81 @@ if (enough_samples_per_condition_for_stats) {
     # stats <- summary(lm(formula(sprintf("%s ~ %s", "mean_meth", lm_right_hand_side)), pf)) %>% tidy()
     genomewide_model <- glmmTMB(
         cbind(total_meth, total_cov - total_meth) ~
-            condition + sex + age_z + (1 | sample),
-        data = grsdfsummary %>% left_join(sample_table %>%
-            mutate(age_z = as.numeric(scale(age)))),
+            condition + sex + ancestry + Oligo_z + Astro_z + Micro_z + Inh_z + Exc_z + OPC_z + (1 | sample),
+        data = grsdfsummary %>% left_join(sample_table),
         family = binomial()
     )
-    stats <- broom::tidy(genomewide_model)
+    genomewide_model_pairwise <- emmeans(genomewide_model, ~condition) %>%
+        contrast(method = "pairwise") %>%
+        as.data.frame()
+    write_mycsv(genomewide_model_pairwise, sprintf("ldna/results/%s/tables/genomewide/genomewide_model_pairwise.csv", params$mod_code))
+
+    # the same comparison at the sample level: one mean methylation value per sample rather than a
+    # binomial fit over every CpG. the glmm's CpG-level counts make its standard errors very small,
+    # so this is the more conservative check on whether the condition effect is driven by between-sample
+    # variation rather than within-sample read counts.
+    genomewide_lm_covariates <- c("condition", "sex", "ancestry", "Oligo_z", "Astro_z", "Micro_z", "Inh_z", "Exc_z", "OPC_z")
+    genomewide_lm_covariates <- genomewide_lm_covariates[map_lgl(genomewide_lm_covariates, ~ .x %in% names(pf) && n_distinct(pf[[.x]], na.rm = TRUE) > 1)]
+
+    genomewide_lm_unadjusted <- lm(mean_meth ~ condition, pf)
+    genomewide_lm_adjusted <- lm(reformulate(genomewide_lm_covariates, "mean_meth"), pf)
+    genomewide_lm_adjusted_formula <- paste("mean_meth ~", paste(genomewide_lm_covariates, collapse = " + "))
+
+    genomewide_lm_unadjusted_pairwise <- emmeans(genomewide_lm_unadjusted, ~condition) %>%
+        contrast(method = "pairwise") %>%
+        as.data.frame()
+    genomewide_lm_adjusted_pairwise <- emmeans(genomewide_lm_adjusted, ~condition) %>%
+        contrast(method = "pairwise") %>%
+        as.data.frame()
+
+    bind_rows(
+        broom::tidy(genomewide_lm_unadjusted) %>% mutate(model = "unadjusted", formula = "mean_meth ~ condition", .before = 1),
+        broom::tidy(genomewide_lm_adjusted) %>% mutate(model = "adjusted", formula = genomewide_lm_adjusted_formula, .before = 1)
+    ) %>%
+        write_mycsv(sprintf("ldna/results/%s/tables/genomewide/genomewide_lm.csv", params$mod_code))
+
+    bind_rows(
+        genomewide_lm_unadjusted_pairwise %>% mutate(model = "unadjusted", .before = 1),
+        genomewide_lm_adjusted_pairwise %>% mutate(model = "adjusted", .before = 1)
+    ) %>%
+        write_mycsv(sprintf("ldna/results/%s/tables/genomewide/genomewide_lm_pairwise.csv", params$mod_code))
+
+    # every model summary in one tidy frame so it rides along with the plot as <plot>_stats.tsv.
+    # emmeans names its columns contrast/SE/t.ratio|z.ratio, broom uses term/std.error/statistic, so harmonize.
+    standardize_stats <- function(x, model, term_type, formula = NA_character_) {
+        df <- as.data.frame(x)
+        names(df)[names(df) == "contrast"] <- "term"
+        names(df)[names(df) == "SE"] <- "std.error"
+        names(df)[names(df) %in% c("t.ratio", "z.ratio")] <- "statistic"
+        if (!("df" %in% names(df))) df$df <- NA_real_
+        df %>%
+            tibble() %>%
+            mutate(model = model, term_type = term_type, formula = formula, .before = 1) %>%
+            dplyr::select(model, term_type, formula, term, estimate, std.error, statistic, df, p.value, everything())
+    }
+
+    genomewide_glmm_formula <- paste(deparse(formula(genomewide_model)), collapse = " ")
+    stats <- bind_rows(
+        standardize_stats(broom::tidy(genomewide_model), "glmm", "coefficient", genomewide_glmm_formula),
+        standardize_stats(genomewide_model_pairwise, "glmm", "pairwise", genomewide_glmm_formula),
+        standardize_stats(broom::tidy(genomewide_lm_unadjusted), "lm_unadjusted", "coefficient", "mean_meth ~ condition"),
+        standardize_stats(genomewide_lm_unadjusted_pairwise, "lm_unadjusted", "pairwise", "mean_meth ~ condition"),
+        standardize_stats(broom::tidy(genomewide_lm_adjusted), "lm_adjusted", "coefficient", genomewide_lm_adjusted_formula),
+        standardize_stats(genomewide_lm_adjusted_pairwise, "lm_adjusted", "pairwise", genomewide_lm_adjusted_formula)
+    )
+    write_mycsv(stats, sprintf("ldna/results/%s/tables/genomewide/genomewide_all_model_stats.csv", params$mod_code))
+
     mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/mean_meth_point_genomewide.pdf", params$mod_code), 5, 4, sf = stats)
 } else {
     mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/mean_meth_point_genomewide.pdf", params$mod_code), 5, 4)
 }
+
+p <- pf %>%
+    ggviolin(x = "condition", y = "mean_meth", fill = "condition", add = c("mean_se", "dotplot")) +
+    scale_conditions +
+    mtopen
+mysaveandstore(fn = sprintf("ldna/results/%s/plots/genomewide/mean_meth_point_genomewide.pdf", params$mod_code), 5, 4)
+
 
 tryCatch(
     {
@@ -283,8 +350,11 @@ tryCatch(
             ggplot(aes(y = sample, x = mean_meth, color = condition, shape = !!sym(asc))) +
             geom_point(size = 3) +
             scale_conditions +
-            geom_vline(xintercept = pf %>% filter(condition == condition2) %$% mean_meth %>% mean(), color = "blue", linetype = "dashed") +
-            geom_vline(xintercept = pf %>% filter(condition == condition1) %$% mean_meth %>% mean(), color = "grey", linetype = "dashed") +
+            geom_vline(
+                data = pf %>% group_by(condition) %>% summarise(mean_meth = mean(mean_meth)),
+                aes(xintercept = mean_meth, color = condition),
+                linetype = "dashed"
+            ) +
             geom_text_repel(aes(label = apoe)) +
             # new_scale_fill() +
             # geom_tile(aes(x = -1, fill = sex), width = 2) + # Add metadata strip

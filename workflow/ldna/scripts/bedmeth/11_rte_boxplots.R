@@ -4,13 +4,6 @@ confALL <- configr::read.config(file = "conf/config.yaml")
 source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 source("conf/sample_table_source.R")
-sample_table <- sample_table %>%
-    mutate(sample_name = factor(sample_name, levels = sample_table$sample_name)) %>%
-    mutate(condition = factor(condition, levels = conf$levels)) %>%
-    mutate(sample = sample_name)
-samples <- conf$samples
-sample_table <- sample_table[match(samples, sample_table$sample_name), ]
-
 cell_types_cols <- c("Astro", "Micro", "Endo", "Oligo", "OPC", "Inh", "Exc")
 
 cell_fractions <- read_delim("ldna/results/m/tables/scMD_cell_type_fractions_all.csv")
@@ -19,6 +12,12 @@ cell_fractions_scaled <- cell_fractions %>%
     mutate(across(all_of(c(cell_types_cols, "Neuron")), ~ as.numeric(scale(.)), .names = "{.col}_z"))
 
 sample_table <- sample_table %>% left_join(cell_fractions_scaled)
+sample_table <- sample_table %>%
+    mutate(sample_name = factor(sample_name, levels = sample_table$sample_name)) %>%
+    mutate(condition = factor(condition, levels = conf$levels)) %>%
+    mutate(sample = sample_name)
+samples <- conf$samples
+sample_table <- sample_table[match(samples, sample_table$sample_name), ]
 
 set.seed(123)
 

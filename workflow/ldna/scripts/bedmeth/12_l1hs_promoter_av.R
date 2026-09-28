@@ -4,13 +4,6 @@ confALL <- configr::read.config(file = "conf/config.yaml")
 source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 source("conf/sample_table_source.R")
-sample_table <- sample_table %>%
-    mutate(sample_name = factor(sample_name, levels = sample_table$sample_name)) %>%
-    mutate(condition = factor(condition, levels = conf$levels)) %>%
-    mutate(sample = sample_name)
-samples <- conf$samples
-sample_table <- sample_table[match(samples, sample_table$sample_name), ]
-
 cell_types_cols <- c("Astro", "Micro", "Endo", "Oligo", "OPC", "Inh", "Exc")
 
 cell_fractions <- read_delim("ldna/results/m/tables/scMD_cell_type_fractions_all.csv")
@@ -19,6 +12,12 @@ cell_fractions_scaled <- cell_fractions %>%
     mutate(across(all_of(c(cell_types_cols, "Neuron")), ~ as.numeric(scale(.)), .names = "{.col}_z"))
 
 sample_table <- sample_table %>% left_join(cell_fractions_scaled)
+sample_table <- sample_table %>%
+    mutate(sample_name = factor(sample_name, levels = sample_table$sample_name)) %>%
+    mutate(condition = factor(condition, levels = conf$levels)) %>%
+    mutate(sample = sample_name)
+samples <- conf$samples
+sample_table <- sample_table[match(samples, sample_table$sample_name), ]
 
 set.seed(123)
 
@@ -185,6 +184,24 @@ l1hs_intrautr <- read_delim(sprintf("ldna/Rintermediates/%s/l1hs_intrautr.tsv", 
 l1hs_intrautr$sample <- factor(l1hs_intrautr$sample, levels = conf$samples)
 l1hs_intrautr$condition <- factor(l1hs_intrautr$condition, levels = conf$levels)
 
+
+outputdir_meth_clustering <- "ldna/results/m/plots/l1_alignment_meth"
+subfam <- "L1HS"
+# the shipped table had every row written twice (duplicate accumulation loop in l1hs_alignment.R, now fixed),
+# which doubled rows on downstream joins; de-duplicate and overwrite the file in place
+consensus_index_long <- read_csv(sprintf("%s/%s_fl_mapping_to_consensus_table.csv", outputdir_meth_clustering, subfam)) %>% distinct()
+write_csv(consensus_index_long, sprintf("%s/%s_fl_mapping_to_consensus_table.csv", outputdir_meth_clustering, subfam))
+
+consensus_path <- sprintf("%s/alignments/%s_fl_consensus.fa", outputdir_meth_clustering, subfam)
+consensus_ss <- readDNAStringSet(consensus_path)
+cg_indices <- consensus_ss %>%
+    vmatchPattern(pattern = "CG") %>%
+    start() %>%
+    unlist() %>%
+    as.numeric()
+cg_positions_df <- consensus_index_long %>% filter(consensus_pos %in% cg_indices)
+
+
 ###########################
 
 
@@ -265,6 +282,19 @@ l1hs_intrautr$condition <- factor(l1hs_intrautr$condition, levels = conf$levels)
         mtopen
     mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/mean_meth_point_fll1hs_box.pdf", params$mod_code), 4.5, 3.75)
 
+    for (regionX in unique(c(pf %$% region))) {
+        p <- pf %>%
+            filter(region == regionX) %>%
+            group_by(sample, condition) %>%
+            summarise(mean_meth = mean(mean_meth)) %>%
+            mutate(condition = factor(condition, levels = conf$levels)) %>%
+            ggboxplot(x = "condition", y = "mean_meth", fill = "condition", add = c("mean_se", "dotplot")) +
+            scale_conditions +
+            mtopen
+        mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/mean_meth_point_fll1hs_%s_box.pdf", params$mod_code, regionX), 4.5, 3.75)
+    }
+
+
 
     p <- pf %>%
         ggplot(aes(x = region, y = mean_meth, color = condition)) +
@@ -327,7 +357,7 @@ l1hs_intrautr$condition <- factor(l1hs_intrautr$condition, levels = conf$levels)
 
             data_model <- dat %>%
                 mutate(consensus_pos = as.character(consensus_pos)) %>%
-                filter(region == "500") %>%
+                filter(region == "909") %>%
                 dplyr::rename(sample_name = sample) %>%
                 left_join(sample_table) %>%
                 mutate(
@@ -368,11 +398,42 @@ l1hs_intrautr$condition <- factor(l1hs_intrautr$condition, levels = conf$levels)
                 family = betabinomial()
             )
 
+            library(emmeans)
             broom::tidy(global_model)
+            emmeans(global_model, ~condition) %>%
+                contrast(method = "pairwise") %>%
+                as.data.frame() %>%
+                write_mycsv(sprintf("ldna/results/%s/tables/rte/fl_l1hs_global_hierarchical_model_909_global_model_pairwise.csv", params$mod_code))
             broom::tidy(global_model2) %>% write_mycsv(sprintf("ldna/results/%s/tables/rte/fl_l1hs_global_hierarchical_model_909.csv", params$mod_code))
             broom::tidy(global_model3)
+            emmeans(global_model3, ~condition) %>%
+                contrast(method = "pairwise") %>%
+                as.data.frame() %>%
+                write_mycsv(sprintf("ldna/results/%s/tables/rte/fl_l1hs_global_hierarchical_model_909_global_model3_pairwise.csv", params$mod_code))
+
+            # the same comparison at the sample level: one mean methylation value per sample
+            l1hs_pf <- data_model %>%
+                group_by(sample_name) %>%
+                summarise(total_sites = sum(total_sites), methylated_sites = sum(methylated_sites), .groups = "drop") %>%
+                mutate(mean_meth = methylated_sites / total_sites) %>%
+                left_join(sample_table, by = "sample_name")
+            l1hs_lm <- lm(mean_meth ~ condition + sex + ancestry + Oligo_z + Astro_z + Micro_z + Inh_z + Exc_z + OPC_z, l1hs_pf)
+            broom::tidy(l1hs_lm) %>%
+                write_mycsv(sprintf("ldna/results/%s/tables/rte/fl_l1hs_global_hierarchical_model_909_lm.csv", params$mod_code))
+            emmeans(l1hs_lm, ~condition) %>%
+                contrast(method = "pairwise", adjust = "none") %>%
+                as.data.frame() %>%
+                write_mycsv(sprintf("ldna/results/%s/tables/rte/fl_l1hs_global_hierarchical_model_909_lm_pairwise.csv", params$mod_code))
             broom::tidy(global_model4) %>% write_mycsv(sprintf("ldna/results/%s/tables/rte/fl_l1hs_global_hierarchical_model_909.csv", params$mod_code))
+            emmeans(global_model4, ~condition) %>%
+                contrast(method = "pairwise") %>%
+                as.data.frame() %>%
+                write_mycsv(sprintf("ldna/results/%s/tables/rte/fl_l1hs_global_hierarchical_model_909_pairwise.csv", params$mod_code))
             broom::tidy(global_model5)
+            emmeans(global_model5, ~condition) %>%
+                contrast(method = "pairwise") %>%
+                as.data.frame() %>%
+                write_mycsv(sprintf("ldna/results/%s/tables/rte/fl_l1hs_global_hierarchical_model_909_global_model5_pairwise.csv", params$mod_code))
             # //ANCHOR - global l1hs stats
 
 
@@ -382,61 +443,65 @@ l1hs_intrautr$condition <- factor(l1hs_intrautr$condition, levels = conf$levels)
 
             global_model_with_interaction <- glmmTMB(
                 cbind(methylated_sites, total_sites - methylated_sites) ~
-                    condition * sex + age_z + (1 | sample_name) + (1 | gene_id) + (1 | consensus_pos),
+                    condition * sex + ancestry + Oligo_z + Astro_z + Micro_z + Inh_z + Exc_z + OPC_z + (1 | sample_name) + (1 | gene_id) + (1 | consensus_pos),
                 data = data_model,
                 family = binomial()
             )
             broom::tidy(global_model_with_interaction) %>% write_mycsv(sprintf("ldna/results/%s/tables/rte/fl_l1hs_global_hierarchical_model_909_withsexinteraction.csv", params$mod_code))
+            emmeans(global_model_with_interaction, ~condition) %>%
+                contrast(method = "pairwise") %>%
+                as.data.frame() %>%
+                write_mycsv(sprintf("ldna/results/%s/tables/rte/fl_l1hs_global_hierarchical_model_909_withsexinteraction_pairwise.csv", params$mod_code))
 
-            gene_model_results <- data_model %>%
-                group_by(gene_id) %>%
-                group_split() %>%
-                map_df(~ {
-                    df <- .x
-                    if (n_distinct(df$condition) < 2) {
-                        return(NULL)
-                    } # skip genes with only one condition
+            # gene_model_results <- data_model %>%
+            #     group_by(gene_id) %>%
+            #     group_split() %>%
+            #     map_df(~ {
+            #         df <- .x
+            #         if (n_distinct(df$condition) < 2) {
+            #             return(NULL)
+            #         } # skip genes with only one condition
 
-                    model <- tryCatch(
-                        {
-                            glmmTMB(
-                                cbind(methylated_sites, total_sites - methylated_sites) ~
-                                    condition + sex + age_z + (1 | sample_name) + (1 | consensus_pos),
-                                data = df,
-                                family = binomial()
-                            )
-                        },
-                        error = function(e) {
-                            return(NULL)
-                        }
-                    )
+            #         model <- tryCatch(
+            #             {
+            #                 glmmTMB(
+            #                     cbind(methylated_sites, total_sites - methylated_sites) ~
+            #                         condition + sex + age_z + (1 | sample_name) + (1 | consensus_pos),
+            #                     data = df,
+            #                     family = binomial()
+            #                 )
+            #             },
+            #             error = function(e) {
+            #                 return(NULL)
+            #             }
+            #         )
 
-                    if (!is.null(model)) {
-                        est <- summary(model)$coefficients$cond
-                        data.frame(
-                            gene_id = unique(df$gene_id),
-                            condition_effect = est[paste0("condition", condition2), "Estimate"],
-                            std_error = est[paste0("condition", condition2), "Std. Error"],
-                            z_value = est[paste0("condition", condition2), "z value"],
-                            p_value = est[paste0("condition", condition2), "Pr(>|z|)"]
-                        )
-                    } else {
-                        NULL
-                    }
-                }) %>%
-                mutate(p_adj = p.adjust(p_value, method = "fdr")) # adjust for multiple testing
+            #         if (!is.null(model)) {
+            #             est <- summary(model)$coefficients$cond
+            #             data.frame(
+            #                 gene_id = unique(df$gene_id),
+            #                 condition_effect = est[paste0("condition", condition2), "Estimate"],
+            #                 std_error = est[paste0("condition", condition2), "Std. Error"],
+            #                 z_value = est[paste0("condition", condition2), "z value"],
+            #                 p_value = est[paste0("condition", condition2), "Pr(>|z|)"]
+            #             )
+            #         } else {
+            #             NULL
+            #         }
+            #     }) %>%
+            #     mutate(p_adj = p.adjust(p_value, method = "fdr")) # adjust for multiple testing
 
-            gene_model_results %>% write_mycsv(sprintf("ldna/results/%s/tables/rte/fl_l1hs_gene_level_hierarchical_model_909.csv", params$mod_code))
+            # gene_model_results %>% write_mycsv(sprintf("ldna/results/%s/tables/rte/fl_l1hs_gene_level_hierarchical_model_909.csv", params$mod_code))
 
-            gene_model_results %>%
-                mutate(sig = ifelse(p_adj <= 0.05, TRUE, FALSE)) %>%
-                mutate(sig_dir = case_when(
-                    condition_effect > 0 & sig == TRUE ~ "sig_up",
-                    condition_effect <= 0 & sig == TRUE ~ "sig_down",
-                    condition_effect > 0 & sig == FALSE ~ "notsig_up",
-                    condition_effect <= 0 & sig == FALSE ~ "notsig_down",
-                )) %$% sig_dir %>%
-                table()
+            # gene_model_results %>%
+            #     mutate(sig = ifelse(p_adj <= 0.05, TRUE, FALSE)) %>%
+            #     mutate(sig_dir = case_when(
+            #         condition_effect > 0 & sig == TRUE ~ "sig_up",
+            #         condition_effect <= 0 & sig == TRUE ~ "sig_down",
+            #         condition_effect > 0 & sig == FALSE ~ "notsig_up",
+            #         condition_effect <= 0 & sig == FALSE ~ "notsig_down",
+            #     )) %$% sig_dir %>%
+            #     table()
 
 
             ####
@@ -526,42 +591,42 @@ l1hs_intrautr$condition <- factor(l1hs_intrautr$condition, levels = conf$levels)
     )
 
 
-    p <- pf %>%
-        left_join(rmannextended) %>%
-        filter(region == "909") %>%
-        ggplot(aes(x = loc_lowres_integrative_stranded, y = mean_meth, color = condition)) +
-        ggbeeswarm::geom_quasirandom(dodge.width = 0.75) +
-        geom_boxplot(alpha = 0.5, outlier.shape = NA) +
-        xlab("") +
-        ylab("Average CpG Methylation Per Element") +
-        ggtitle("L1HS CpG Methylation") +
-        mtopen +
-        scale_conditions
-    tryCatch(
-        {
-            res <- pf %>%
-                left_join(rmannextended) %>% # Join with rmannextended
-                filter(region == "909") %>% # Filter for region 909
-                group_by(sample, loc_lowres_integrative_stranded) %>%
-                summarise(pctM = mean(mean_meth), .groups = "drop") %>% # Summarize mean methylation
-                left_join(sample_table) %>% # Join sample table
-                nest(data = -loc_lowres_integrative_stranded) %>% # Nest data for each locus
-                mutate(
-                    model_results = map(
-                        data,
-                        ~ lm(formula(sprintf("%s ~ %s", "pctM", lm_right_hand_side)), data = .x) %>%
-                            summary() %>%
-                            broom::tidy()
-                    )
-                ) %>%
-                dplyr::select(-data) %>% # Drop nested data
-                unnest(model_results)
-            mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/l1hs_boxplot_5utr_gene_loc.pdf", params$mod_code), 5, 4, sf = res)
-        },
-        error = function(e) {
-            mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/l1hs_boxplot_5utr_gene_loc.pdf", params$mod_code), 5, 4)
-        }
-    )
+    # p <- pf %>%
+    #     left_join(rmannextended) %>%
+    #     filter(region == "909") %>%
+    #     ggplot(aes(x = loc_lowres_integrative_stranded, y = mean_meth, color = condition)) +
+    #     ggbeeswarm::geom_quasirandom(dodge.width = 0.75) +
+    #     geom_boxplot(alpha = 0.5, outlier.shape = NA) +
+    #     xlab("") +
+    #     ylab("Average CpG Methylation Per Element") +
+    #     ggtitle("L1HS CpG Methylation") +
+    #     mtopen +
+    #     scale_conditions
+    # tryCatch(
+    #     {
+    #         res <- pf %>%
+    #             left_join(rmannextended) %>% # Join with rmannextended
+    #             filter(region == "909") %>% # Filter for region 909
+    #             group_by(sample, loc_lowres_integrative_stranded) %>%
+    #             summarise(pctM = mean(mean_meth), .groups = "drop") %>% # Summarize mean methylation
+    #             left_join(sample_table) %>% # Join sample table
+    #             nest(data = -loc_lowres_integrative_stranded) %>% # Nest data for each locus
+    #             mutate(
+    #                 model_results = map(
+    #                     data,
+    #                     ~ lm(formula(sprintf("%s ~ %s", "pctM", lm_right_hand_side)), data = .x) %>%
+    #                         summary() %>%
+    #                         broom::tidy()
+    #                 )
+    #             ) %>%
+    #             dplyr::select(-data) %>% # Drop nested data
+    #             unnest(model_results)
+    #         mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/l1hs_boxplot_5utr_gene_loc.pdf", params$mod_code), 5, 4, sf = res)
+    #     },
+    #     error = function(e) {
+    #         mysaveandstore(fn = sprintf("ldna/results/%s/plots/rte/l1hs_boxplot_5utr_gene_loc.pdf", params$mod_code), 5, 4)
+    #     }
+    # )
 }
 
 ########## PCA

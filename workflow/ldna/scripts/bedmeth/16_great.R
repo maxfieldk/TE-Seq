@@ -323,6 +323,69 @@ for (contrast in contrasts) {
         return(tablesMsigdb)
     }
 
+    # significance stars for adjusted p values
+    p_stars <- function(p) {
+        case_when(p <= 0.001 ~ "***", p <= 0.01 ~ "**", p <= 0.05 ~ "*", TRUE ~ "")
+    }
+
+    # one enrichment bar plot: types = c("Binom", "Hyper") draws paired bars, a single type draws full-width bars;
+    # stars = TRUE prints */**/*** inside each bar with p_adjust <= 0.05
+    plot_enrichment_bars <- function(combined_df, n_terms, types = c("Binom", "Hyper"), stars = FALSE, collection, direction) {
+        type_palettes <- c(Binom = "Blues", Hyper = "Greens")
+        type_scale_names <- c(Binom = "BinomP", Hyper = "HyperP")
+        paired <- length(types) > 1
+        bar_width <- ifelse(paired, 0.45, 0.7)
+        nudges <- if (paired) c(Binom = bar_width / 2, Hyper = -bar_width / 2) else c(Binom = 0, Hyper = 0)
+
+        # rank terms by the mean p across both tests when paired, else by the plotted test's own p
+        rank_df <- combined_df %>% filter(type %in% types)
+        terms_to_plot <- if (paired) {
+            rank_df %>% distinct(id, mean_padj) %>% arrange(mean_padj) %>% head(n = n_terms) %$% id
+        } else {
+            rank_df %>% arrange(p_adjust) %>% head(n = n_terms) %$% id
+        }
+        plotdf <- rank_df %>%
+            filter(id %in% terms_to_plot) %>%
+            mutate(rank_p = if (paired) mean_padj else p_adjust) %>%
+            mutate(id = str_wrap(as.character(id) %>% gsub("_", " ", .), width = 40)) %>%
+            mutate(id = fct_reorder(id, -rank_p)) %>%
+            mutate(stars = p_stars(p_adjust))
+
+        p <- ggplot(plotdf, aes(x = id))
+        for (i in seq_along(types)) {
+            tp <- types[i]
+            if (i > 1) p <- p + new_scale_fill()
+            p <- p +
+                geom_col(data = plotdf %>% filter(type == tp), aes(y = fold_enrichment, fill = p_adjust, group = type), color = "black", position = position_nudge(x = nudges[[tp]]), width = bar_width) +
+                scale_fill_distiller(
+                    name = type_scale_names[[tp]],
+                    palette = type_palettes[[tp]],
+                    direction = -1,
+                    limits = c(0, 1),
+                    oob = scales::squish
+                )
+            if (stars) {
+                p <- p + geom_text(
+                    data = plotdf %>% filter(type == tp, stars != ""),
+                    aes(y = fold_enrichment / 2, label = stars), position = position_nudge(x = nudges[[tp]]),
+                    size = ifelse(paired, 3, 4), vjust = 0.75
+                )
+            }
+        }
+        p +
+            coord_flip() +
+            geom_vline(xintercept = 0, color = "black") +
+            labs(
+                x = "",
+                title = sprintf("%s", collection),
+                subtitle = sprintf("Direction: %s%s", ifelse(direction == "Dif", "Hypo|Hyper", direction), ifelse(paired, "", sprintf(" (%s)", types)))
+            ) +
+            mtclosedgridv +
+            anchorbar +
+            geom_hline(yintercept = 0, color = "black") +
+            theme(axis.text.y = element_text(family = "mono"))
+    }
+
     make_enrich_plots <- function(tempdirectory) {
         tsv_files <- list.files(
             path = tempdirectory,
@@ -351,83 +414,38 @@ for (contrast in contrasts) {
             hyper_df <- tbnames %>%
                 dplyr::select(id, fold_enrichment = fold_enrichment_hyper, p_adjust = p_adjust_hyper, mean_padj) %>%
                 mutate(type = "Hyper")
-            combined_df <- bind_rows(
-                binom_df,
-                hyper_df %>% mutate(fold_enrichment)
-            )
+            combined_df <- bind_rows(binom_df, hyper_df)
 
-            terms_to_plot <- tbnames %>%
-                arrange(mean_padj) %>%
-                head(n = 5) %$% id
-            p <- combined_df %>%
-                filter(id %in% terms_to_plot) %>%
-                mutate(id = str_wrap(as.character(id) %>% gsub("_", " ", .), width = 40)) %>%
-                mutate(id = fct_reorder(id, -mean_padj)) %>%
-                ggplot(aes(x = id)) +
-                geom_col(data = . %>% filter(type == "Binom"), aes(y = fold_enrichment, fill = p_adjust, group = type), color = "black", position = position_nudge(x = 0.45 / 2), width = 0.45) +
-                coord_flip() +
-                scale_fill_distiller(
-                    name = "BinomP",
-                    palette = "Blues",
-                    direction = -1,
-                    limits = c(0, 1),
-                    oob = scales::squish
-                ) +
-                new_scale_fill() +
-                geom_col(data = . %>% filter(type == "Hyper"), aes(y = fold_enrichment, fill = p_adjust, group = type), color = "black", position = position_nudge(x = -0.45 / 2), width = 0.45) +
-                scale_fill_distiller(
-                    name = "HyperP",
-                    palette = "Greens",
-                    direction = -1,
-                    limits = c(0, 1),
-                    oob = scales::squish
-                ) +
-                geom_vline(xintercept = 0, color = "black") +
-                labs(x = "", title = sprintf("%s", collection), subtitle = sprintf("Direction: %s", ifelse(direction == "Dif", "Hypo|Hyper", direction))) +
-                mtclosedgridv +
-                anchorbar +
-                geom_hline(yintercept = 0, color = "black") +
-                theme(axis.text.y = element_text(family = "mono"))
-            mysaveandstore(pl = p, fn = paste(outputdirplots, collection, paste0(direction, "lollipop5.pdf"), sep = "/"), 6, 4)
+            # top 5 / top 10 terms; paired binom + hyper bars, with and without significance stars, and single-test variants with stars
+            for (n_terms in c(5, 10)) {
+                fn_suffix <- ifelse(n_terms == 5, "lollipop5", "lollipop")
+                w <- ifelse(n_terms == 5, 6, 6.5)
+                h <- ifelse(n_terms == 5, 4, 6)
 
-            terms_to_plot <- tbnames %>%
-                arrange(mean_padj) %>%
-                head(n = 10) %$% id
-            p <- combined_df %>%
-                filter(id %in% terms_to_plot) %>%
-                mutate(id = str_wrap(as.character(id) %>% gsub("_", " ", .), width = 40)) %>%
-                mutate(id = fct_reorder(id, -mean_padj)) %>%
-                ggplot(aes(x = id)) +
-                geom_col(data = . %>% filter(type == "Binom"), aes(y = fold_enrichment, fill = p_adjust, group = type), color = "black", position = position_nudge(x = 0.45 / 2), width = 0.45) +
-                coord_flip() +
-                scale_fill_distiller(
-                    name = "BinomP",
-                    palette = "Blues",
-                    direction = -1,
-                    limits = c(0, 1),
-                    oob = scales::squish
-                ) +
-                new_scale_fill() +
-                geom_col(data = . %>% filter(type == "Hyper"), aes(y = fold_enrichment, fill = p_adjust, group = type), color = "black", position = position_nudge(x = -0.45 / 2), width = 0.45) +
-                scale_fill_distiller(
-                    name = "HyperP",
-                    palette = "Greens",
-                    direction = -1,
-                    limits = c(0, 1),
-                    oob = scales::squish
-                ) +
-                geom_vline(xintercept = 0, color = "black") +
-                labs(x = "", title = sprintf("%s", collection), subtitle = sprintf("Direction: %s", ifelse(direction == "Dif", "Hypo|Hyper", direction))) +
-                mtclosedgridv +
-                anchorbar +
-                geom_hline(yintercept = 0, color = "black") +
-                theme(axis.text.y = element_text(family = "mono"))
+                p <- plot_enrichment_bars(combined_df, n_terms, types = c("Binom", "Hyper"), stars = FALSE, collection = collection, direction = direction)
+                mysaveandstore(pl = p, fn = paste(outputdirplots, collection, paste0(direction, fn_suffix, ".pdf"), sep = "/"), w, h)
 
-            mysaveandstore(pl = p, fn = paste(outputdirplots, collection, paste0(direction, "lollipop.pdf"), sep = "/"), 6.5, 6)
+                p <- plot_enrichment_bars(combined_df, n_terms, types = c("Binom", "Hyper"), stars = TRUE, collection = collection, direction = direction)
+                mysaveandstore(pl = p, fn = paste(outputdirplots, collection, paste0(direction, fn_suffix, "_stars.pdf"), sep = "/"), w, h)
+
+                for (tp in c("Binom", "Hyper")) {
+                    p <- plot_enrichment_bars(combined_df, n_terms, types = tp, stars = TRUE, collection = collection, direction = direction)
+                    mysaveandstore(pl = p, fn = paste(outputdirplots, collection, paste0(direction, fn_suffix, "_", tolower(tp), "_stars.pdf"), sep = "/"), w, h)
+                }
+            }
         }
     }
 
-    #####
+    ##### promoters and enhancers background (shared by all contrasts)
+    chromHMMgr <- import(conf$chromHMM)
+    chromHMM_enhancers_grs <- chromHMMgr[grepl("Enh*", mcols(chromHMMgr)$name)]
+    prom_no_mcols <- promoters
+    mcols(prom_no_mcols) <- NULL
+    enh_no_mcols <- chromHMM_enhancers_grs
+    mcols(enh_no_mcols) <- NULL
+    background <- c(enh_no_mcols, prom_no_mcols)
+
+    ##### compute enrichments per contrast
     for (contrast in contrasts) {
         dmrs <- dmrs_per_contrast[[contrast]]
         dmls <- dmls_per_contrast[[contrast]]
@@ -521,14 +539,6 @@ for (contrast in contrasts) {
         ####
 
         ##### promoters and enhancers background
-        chromHMMgr <- import(conf$chromHMM)
-        chromHMM_enhancers_grs <- chromHMMgr[grepl("Enh*", mcols(chromHMMgr)$name)]
-        prom_no_mcols <- promoters
-        mcols(prom_no_mcols) <- NULL
-        enh_no_mcols <- chromHMM_enhancers_grs
-        mcols(enh_no_mcols) <- NULL
-        background <- c(enh_no_mcols, prom_no_mcols)
-
         mydir <- sprintf("ldna/results/%s/plots/great_prom_enh/%s", params$mod_code, contrast)
         mydirtables <- sprintf("ldna/results/%s/tables/great_prom_enh/%s", params$mod_code, contrast)
 
@@ -565,10 +575,6 @@ for (contrast in contrasts) {
                 error = function(e) {}
             )
         }
-
-        make_enrich_plots(sprintf("ldna/results/m/tables/great_prom_enh/%s", contrast))
-
-
 
         # ##### promoters and enhancers island background
         # chromHMMgr <- import(conf$chromHMM)
@@ -616,6 +622,11 @@ for (contrast in contrasts) {
         #     )
         # }
     }
+
+    ##### plot enrichments per contrast
+    for (contrast in contrasts) {
+        make_enrich_plots(sprintf("ldna/results/%s/tables/great_prom_enh/%s", params$mod_code, contrast))
+    }
 }
 
 ####
@@ -634,11 +645,15 @@ for (contrast in contrasts) {
         left_join(sample_table %>% mutate(age_z = as.numeric(scale(age))))
     genomewide_model_islandstatus <- glmmTMB(
         cbind(methylated_sites, cov - methylated_sites) ~
-            condition * islandStatus + sex + age_z + (1 | sample_name),
+            condition * islandStatus + sex + ancestry + Oligo_z + Astro_z + Micro_z + Inh_z + Exc_z + OPC_z + (1 | sample_name),
         data = dat_tmp,
         family = binomial()
     )
     stats <- broom::tidy(genomewide_model_islandstatus)
+    emmeans(genomewide_model_islandstatus, ~ condition) %>%
+        contrast(method = "pairwise") %>%
+        as.data.frame() %>%
+        write_mycsv(sprintf("ldna/results/%s/tables/genomewide/genomewide_model_islandstatus_pairwise.csv", params$mod_code))
 
     p <- grsdf_island_status %>%
         mutate(pctM = methylated_sites / cov) %>%
@@ -700,11 +715,15 @@ for (contrast in contrasts) {
 
         gene_model <- glmmTMB(
             cbind(methylated_sites, total_sites - methylated_sites) ~
-                condition + sex + age_z + (1 | sample_name) + (1 | gene_id),
+                condition + sex + ancestry + Oligo_z + Astro_z + Micro_z + Inh_z + Exc_z + OPC_z + (1 | sample_name) + (1 | gene_id),
             data = dat_tmp,
             family = binomial()
         )
         stats <- broom::tidy(gene_model)
+        emmeans(gene_model, ~ condition) %>%
+            contrast(method = "pairwise") %>%
+            as.data.frame() %>%
+            write_mycsv(sprintf("ldna/results/%s/tables/genes/gene_model_island_promoters_pairwise.csv", params$mod_code))
         mysaveandstore(fn = sprintf("ldna/results/%s/plots/genes/mean_meth_point_genomewide.pdf", params$mod_code), 5, 4, sf = stats)
     } else {
         mysaveandstore(fn = sprintf("ldna/results/%s/plots/genes/mean_meth_point_genomewide.pdf", params$mod_code), 5, 3.7)
@@ -747,11 +766,15 @@ for (contrast in contrasts) {
 
         gene_model <- glmmTMB(
             cbind(methylated_sites, total_sites - methylated_sites) ~
-                condition + sex + age_z + (1 | sample_name) + (1 | gene_id),
+                condition + sex + ancestry + Oligo_z + Astro_z + Micro_z + Inh_z + Exc_z + OPC_z + (1 | sample_name) + (1 | gene_id),
             data = dat_tmp,
             family = binomial()
         )
         stats <- broom::tidy(gene_model)
+        emmeans(gene_model, ~ condition) %>%
+            contrast(method = "pairwise") %>%
+            as.data.frame() %>%
+            write_mycsv(sprintf("ldna/results/%s/tables/genes/gene_model_island_promoters_noX_pairwise.csv", params$mod_code))
         mysaveandstore(fn = sprintf("ldna/results/%s/plots/genes/mean_meth_point_genomewide_noX.pdf", params$mod_code), 5, 4, sf = stats)
     } else {
         mysaveandstore(fn = sprintf("ldna/results/%s/plots/genes/mean_meth_point_genomewide_noX.pdf", params$mod_code), 5, 3.7)

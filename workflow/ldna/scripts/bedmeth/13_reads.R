@@ -4,13 +4,6 @@ confALL <- configr::read.config(file = "conf/config.yaml")
 source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 source("conf/sample_table_source.R")
-sample_table <- sample_table %>%
-    mutate(sample_name = factor(sample_name, levels = sample_table$sample_name)) %>%
-    mutate(condition = factor(condition, levels = conf$levels)) %>%
-    mutate(sample = sample_name)
-samples <- conf$samples
-sample_table <- sample_table[match(samples, sample_table$sample_name), ]
-
 cell_types_cols <- c("Astro", "Micro", "Endo", "Oligo", "OPC", "Inh", "Exc")
 
 cell_fractions <- read_delim("ldna/results/m/tables/scMD_cell_type_fractions_all.csv")
@@ -19,6 +12,12 @@ cell_fractions_scaled <- cell_fractions %>%
     mutate(across(all_of(c(cell_types_cols, "Neuron")), ~ as.numeric(scale(.)), .names = "{.col}_z"))
 
 sample_table <- sample_table %>% left_join(cell_fractions_scaled)
+sample_table <- sample_table %>%
+    mutate(sample_name = factor(sample_name, levels = sample_table$sample_name)) %>%
+    mutate(condition = factor(condition, levels = conf$levels)) %>%
+    mutate(sample = sample_name)
+samples <- conf$samples
+sample_table <- sample_table[match(samples, sample_table$sample_name), ]
 
 set.seed(123)
 
@@ -134,7 +133,7 @@ tryCatch(
         ), env = globalenv())
         assign("params", list(
             contrasts = conf$contrasts,
-            mod_code = "m"
+            mod_code = "u"
         ), env = globalenv())
         assign("outputs", list(
             promoters_bed = "ldna/Rintermediates/m/promoters_t05.bed",
@@ -361,7 +360,7 @@ read_analysis2 <- function(
     inputreaddf,
     cg_indices,
     mod_code_var = params$mod_code,
-    regions_of_interest = list(c(0, 328), c(0, 500), c(0, 909), c(400, 600)),
+    regions_of_interest = list(c(0, 150), c(0, 328), c(0, 500), c(0, 909), c(400, 600)),
     required_fraction_of_total_cg = 0.75,
     meth_bins = c(0.5, 0.75), # meth_bins = c(0.25, 0.5, 0.75) #need the 0,.5 bin for locus demeth analysis
     context = "CpG") {
@@ -502,6 +501,7 @@ read_analysis2 <- function(
         #     map(~ broom::tidy(summary(lm(formula(sprintf("%s ~ %s", "prop_in_bin", lm_right_hand_side)), .x)))) %>%
         #     imap_dfr(~ .x %>% mutate(subset = .y))
         stats_list <- list()
+        pairwise_list <- list()
         i <- 1
         for (subset in unique(by_read$subset)) {
             for (bin in unique(by_sample$meth_bin)) {
@@ -527,6 +527,15 @@ read_analysis2 <- function(
                     mutate(bin = !!bin) %>%
                     mutate(subset = !!subset)
                 stats_list[[i]] <- res_tmp
+                pairwise_list[[i]] <- tryCatch(
+                    {
+                        emmeans(model_tmp, ~condition) %>%
+                            contrast(method = "pairwise") %>%
+                            as.data.frame() %>%
+                            mutate(bin = !!bin, subset = !!subset)
+                    },
+                    error = function(e) NULL
+                )
                 i <- i + 1
             }
         }
@@ -536,6 +545,11 @@ read_analysis2 <- function(
             filter(subset != "400to600") %>%
             mutate(padj = p.adjust(p.value, method = "fdr"))
         statswpadj <- stats %>% left_join(stats_padj)
+        pairwise_results <- Filter(Negate(is.null), pairwise_list)
+        if (length(pairwise_results) > 0) {
+            bind_rows(pairwise_results) %>%
+                write_mycsv(sprintf("ldna/results/%s/tables/reads_new_withendfilter/%s_%s/pairwise.csv", mod_code_var, region, required_fraction_of_total_cg))
+        }
         mysaveandstore(sprintf("ldna/results/%s/plots/reads_new_withendfilter/%s_%s/barplot.pdf", mod_code_var, region, required_fraction_of_total_cg, context), 9, 4, pl = p, sf = statswpadj)
     } else {
         mysaveandstore(sprintf("ldna/results/%s/plots/reads_new_withendfilter/%s_%s/barplot.pdf", mod_code_var, region, required_fraction_of_total_cg, context), 9, 4, pl = p)
@@ -559,6 +573,22 @@ read_analysis2 <- function(
     p <- by_sample %>%
         filter(subset != "400to600") %>%
         mutate(meth_bin = as.character(meth_bin)) %>%
+        filter(meth_bin %in% tail(labels, 2)) %>%
+        ggplot(aes(x = meth_bin)) +
+        stat_summary(aes(y = prop_in_bin, group = condition, fill = condition), color = "black", fun = "mean", geom = "bar", position = position_dodge(width = 0.9)) +
+        geom_point(aes(y = prop_in_bin, group = condition), position = position_dodge(width = 0.9)) +
+        facet_wrap(vars(subset), nrow = 1) +
+        labs(x = "Methylation bin", y = sprintf("Reads Fraction < # methylated")) +
+        ggtitle(sprintf("Read Methylation")) +
+        mtclosedgridh +
+        scale_conditions +
+        anchorbar
+    mysaveandstore(sprintf("ldna/results/%s/plots/reads_new_withendfilter/%s_%s/barplot_last2bins.pdf", mod_code_var, region, required_fraction_of_total_cg, context), 8, 4, pl = p)
+
+
+    p <- by_sample %>%
+        filter(subset != "400to600") %>%
+        mutate(meth_bin = as.character(meth_bin)) %>%
         filter(meth_bin %in% labels[1:3]) %>%
         ggplot(aes(x = meth_bin)) +
         stat_summary(aes(y = prop_in_bin, group = condition, fill = condition), color = "black", fun = "mean", geom = "bar", position = position_dodge(width = 0.9)) +
@@ -570,6 +600,21 @@ read_analysis2 <- function(
         scale_conditions +
         anchorbar
     mysaveandstore(sprintf("ldna/results/%s/plots/reads_new_withendfilter/%s_%s/barplot_first3bins.pdf", mod_code_var, region, required_fraction_of_total_cg, context), 9, 4, pl = p)
+
+    p <- by_sample %>%
+        filter(subset != "400to600") %>%
+        mutate(meth_bin = as.character(meth_bin)) %>%
+        filter(meth_bin %in% tail(labels, 3)) %>%
+        ggplot(aes(x = meth_bin)) +
+        stat_summary(aes(y = prop_in_bin, group = condition, fill = condition), color = "black", fun = "mean", geom = "bar", position = position_dodge(width = 0.9)) +
+        geom_point(aes(y = prop_in_bin, group = condition), position = position_dodge(width = 0.9)) +
+        facet_wrap(vars(subset), nrow = 1) +
+        labs(x = "Methylation bin", y = sprintf("Reads Fraction < # methylated")) +
+        ggtitle(sprintf("Read Methylation")) +
+        mtclosedgridh +
+        scale_conditions +
+        anchorbar
+    mysaveandstore(sprintf("ldna/results/%s/plots/reads_new_withendfilter/%s_%s/barplot_last3bins.pdf", mod_code_var, region, required_fraction_of_total_cg, context), 9, 4, pl = p)
 
     # p <- by_sample %>%
     #     filter(subset == "400to600") %>%
@@ -1202,6 +1247,7 @@ read_analysis2 <- function(
 
         # Create an empty list to hold tidy model results
         stats_list <- list()
+        pairwise_list <- list()
         # Split data by group
         dat_groups <- named_group_split(dat_tmp, split_var)
         library(broom.mixed)
@@ -1222,22 +1268,29 @@ read_analysis2 <- function(
                     note = "No variation in unmeth"
                 )
             } else {
-                tryCatch({
-                    model <- glmmTMB(
-                        cbind(unmeth, total_read - unmeth) ~
-                            condition + sex + ancestry + Oligo_z + Astro_z + Micro_z + Inh_z + Exc_z + OPC_z + (1 | sample_name),
-                        data = group_data,
-                        family = binomial()
-                    )
-                    tidy_model <- broom::tidy(model) %>%
-                        mutate(subset = group_name)
-                }, error = function(e) {
-                    print(paste("Model failed for", group_name, ":", e$message))
-                    tidy_model <<- tibble(
-                        term = NA, estimate = NA, std.error = NA, statistic = NA, p.value = NA,
-                        subset = group_name, note = paste("Model error:", e$message)
-                    )
-                })
+                tryCatch(
+                    {
+                        model <- glmmTMB(
+                            cbind(unmeth, total_read - unmeth) ~
+                                condition + sex + ancestry + Oligo_z + Astro_z + Micro_z + Inh_z + Exc_z + OPC_z + (1 | sample_name),
+                            data = group_data,
+                            family = binomial()
+                        )
+                        tidy_model <- broom::tidy(model) %>%
+                            mutate(subset = group_name)
+                        pairwise_list[[i]] <<- emmeans(model, ~condition) %>%
+                            contrast(method = "pairwise") %>%
+                            as.data.frame() %>%
+                            mutate(subset = group_name)
+                    },
+                    error = function(e) {
+                        print(paste("Model failed for", group_name, ":", e$message))
+                        tidy_model <<- tibble(
+                            term = NA, estimate = NA, std.error = NA, statistic = NA, p.value = NA,
+                            subset = group_name, note = paste("Model error:", e$message)
+                        )
+                    }
+                )
             }
             stats_list[[i]] <- tidy_model
         }
@@ -1245,7 +1298,12 @@ read_analysis2 <- function(
         # Combine the results into a single data frame
         stats <- purrr::reduce(stats_list, bind_rows) %>%
             tidyr::separate(subset, into = c("gene_id", "subset", "meth_bin"), sep = "/", convert = TRUE)
-
+        pairwise_results <- Filter(Negate(is.null), pairwise_list)
+        if (length(pairwise_results) > 0) {
+            bind_rows(pairwise_results) %>%
+                tidyr::separate(subset, into = c("gene_id", "subset", "meth_bin"), sep = "/", convert = TRUE) %>%
+                write_csv(sprintf("ldna/results/%s/tables/reads_new_withendfilter/%s_%s/by_gene_pairwise.csv", mod_code_var, region, required_fraction_of_total_cg))
+        }
 
         write_csv(stats, sprintf("ldna/results/%s/tables/reads_new_withendfilter/%s_%s/by_gene_new.csv", mod_code_var, region, required_fraction_of_total_cg))
 
@@ -1421,8 +1479,11 @@ read_analysis2 <- function(
     }
 }
 
-
-read_analysis2(readscg_endfiltnew %>% filter(mod_code == params$mod_code), cg_indices)
+if (params$mod_code == "u") {
+    read_analysis2(readscg_endfiltnew %>% filter(mod_code == params$mod_code), cg_indices)
+} else {
+    read_analysis2(readscg_endfiltnew %>% filter(mod_code == params$mod_code), cg_indices)
+}
 # read_analysis2(readscg_endfiltnew %>% filter(mod_code == params$mod_code), cg_indices)
 
 
@@ -1704,6 +1765,7 @@ read_analysis1 <- function(
         #     map(~ broom::tidy(summary(lm(formula(sprintf("%s ~ %s", "propUnmeth", lm_right_hand_side)), .x)))) %>%
         #     imap_dfr(~ .x %>% mutate(subset = .y))
         stats_list <- list()
+        pairwise_list <- list()
         i <- 1
         for (subset in unique(by_cpg$subset)) {
             for (threshold in unique(by_sample$meth_threshold)) {
@@ -1726,6 +1788,15 @@ read_analysis1 <- function(
                     mutate(threshold = !!threshold) %>%
                     mutate(subset = !!subset)
                 stats_list[[i]] <- res_tmp
+                pairwise_list[[i]] <- tryCatch(
+                    {
+                        emmeans(model_tmp, ~condition) %>%
+                            contrast(method = "pairwise") %>%
+                            as.data.frame() %>%
+                            mutate(threshold = !!threshold, subset = !!subset)
+                    },
+                    error = function(e) NULL
+                )
                 i <- i + 1
             }
         }
@@ -1735,6 +1806,11 @@ read_analysis1 <- function(
             filter(subset != "400to600") %>%
             mutate(padj = p.adjust(p.value, method = "fdr"))
         statswpadj <- stats %>% left_join(stats_padj)
+        pairwise_results <- Filter(Negate(is.null), pairwise_list)
+        if (length(pairwise_results) > 0) {
+            bind_rows(pairwise_results) %>%
+                write_mycsv(sprintf("ldna/results/%s/tables/reads_new/%s_%s/pairwise.csv", params$mod_code, region, required_fraction_of_total_cg))
+        }
         mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/barplot.pdf", params$mod_code, region, required_fraction_of_total_cg, context), 9, 4, pl = p, sf = statswpadj)
     } else {
         mysaveandstore(sprintf("ldna/results/%s/plots/reads_new/%s_%s/barplot.pdf", params$mod_code, region, required_fraction_of_total_cg, context), 9, 4, pl = p)
@@ -2155,6 +2231,7 @@ read_analysis1 <- function(
 
         # Create an empty list to hold tidy model results
         stats_list <- list()
+        pairwise_list <- list()
 
         # Split data by group
         dat_groups <- named_group_split(dat_tmp, split_var)
@@ -2176,22 +2253,29 @@ read_analysis1 <- function(
                     note = "No variation in unmeth"
                 )
             } else {
-                tryCatch({
-                    model <- glmmTMB(
-                        cbind(unmeth, total_read - unmeth) ~
-                            condition + sex + ancestry + Oligo_z + Astro_z + Micro_z + Inh_z + Exc_z + OPC_z + (1 | sample_name),
-                        data = group_data,
-                        family = binomial()
-                    )
-                    tidy_model <- broom::tidy(model) %>%
-                        mutate(subset = group_name)
-                }, error = function(e) {
-                    print(paste("Model failed for", group_name, ":", e$message))
-                    tidy_model <<- tibble(
-                        term = NA, estimate = NA, std.error = NA, statistic = NA, p.value = NA,
-                        subset = group_name, note = paste("Model error:", e$message)
-                    )
-                })
+                tryCatch(
+                    {
+                        model <- glmmTMB(
+                            cbind(unmeth, total_read - unmeth) ~
+                                condition + sex + ancestry + Oligo_z + Astro_z + Micro_z + Inh_z + Exc_z + OPC_z + (1 | sample_name),
+                            data = group_data,
+                            family = binomial()
+                        )
+                        tidy_model <- broom::tidy(model) %>%
+                            mutate(subset = group_name)
+                        pairwise_list[[i]] <<- emmeans(model, ~condition) %>%
+                            contrast(method = "pairwise") %>%
+                            as.data.frame() %>%
+                            mutate(subset = group_name)
+                    },
+                    error = function(e) {
+                        print(paste("Model failed for", group_name, ":", e$message))
+                        tidy_model <<- tibble(
+                            term = NA, estimate = NA, std.error = NA, statistic = NA, p.value = NA,
+                            subset = group_name, note = paste("Model error:", e$message)
+                        )
+                    }
+                )
             }
             stats_list[[i]] <- tidy_model
         }
@@ -2199,7 +2283,12 @@ read_analysis1 <- function(
         # Combine the results into a single data frame
         stats <- purrr::reduce(stats_list, bind_rows) %>%
             tidyr::separate(subset, into = c("gene_id", "subset", "meth_threshold"), sep = "/", convert = TRUE)
-
+        pairwise_results <- Filter(Negate(is.null), pairwise_list)
+        if (length(pairwise_results) > 0) {
+            bind_rows(pairwise_results) %>%
+                tidyr::separate(subset, into = c("gene_id", "subset", "meth_threshold"), sep = "/", convert = TRUE) %>%
+                write_csv(sprintf("ldna/results/%s/tables/reads_new/%s_%s/by_gene_pairwise.csv", params$mod_code, region, required_fraction_of_total_cg))
+        }
 
         write_csv(stats, sprintf("ldna/results/%s/tables/reads_new/%s_%s/by_gene_new.csv", params$mod_code, region, required_fraction_of_total_cg))
 

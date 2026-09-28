@@ -4,13 +4,6 @@ confALL <- configr::read.config(file = "conf/config.yaml")
 source("workflow/scripts/defaults.R")
 source("workflow/scripts/generate_colors_to_source.R")
 source("conf/sample_table_source.R")
-sample_table <- sample_table %>%
-    mutate(sample_name = factor(sample_name, levels = sample_table$sample_name)) %>%
-    mutate(condition = factor(condition, levels = conf$levels)) %>%
-    mutate(sample = sample_name)
-samples <- conf$samples
-sample_table <- sample_table[match(samples, sample_table$sample_name), ]
-
 cell_types_cols <- c("Astro", "Micro", "Endo", "Oligo", "OPC", "Inh", "Exc")
 
 cell_fractions <- read_delim("ldna/results/m/tables/scMD_cell_type_fractions_all.csv")
@@ -19,6 +12,12 @@ cell_fractions_scaled <- cell_fractions %>%
     mutate(across(all_of(c(cell_types_cols, "Neuron")), ~ as.numeric(scale(.)), .names = "{.col}_z"))
 
 sample_table <- sample_table %>% left_join(cell_fractions_scaled)
+sample_table <- sample_table %>%
+    mutate(sample_name = factor(sample_name, levels = sample_table$sample_name)) %>%
+    mutate(condition = factor(condition, levels = conf$levels)) %>%
+    mutate(sample = sample_name)
+samples <- conf$samples
+sample_table <- sample_table[match(samples, sample_table$sample_name), ]
 
 set.seed(123)
 
@@ -369,6 +368,7 @@ for (contrast in contrasts) {
                 write_delim(RMdf[match(df %$% gene_id, RMdf$gene_id), ], sprintf("ldna/Rintermediates/%s/%s/l1hs/%s_full_elements.tsv", params$mod_code, contrast, element_type), col_names = TRUE, delim = "\t")
 
                 for (element in df$gene_id) {
+                    browser()
                     y_lim_lower <- 50
                     y_lim_upper <- 100
                     y_valmin <- y_lim_lower
@@ -688,3 +688,508 @@ for (contrast in contrasts) {
 
 
 file.create(sprintf("ldna/outfiles/bedmeth_%s_%s.done", "15", params$mod_code))
+
+
+
+{
+    # Per-element methylation: full-length L1HS, raw CpG methylation per sample
+    # X-axis in element-relative coordinates (0 = 5' end, ~6000 = 3' end)
+    # Each sample gets its own points + connecting line; no rolling mean
+
+    fl_l1hs_df <- rtedf %>%
+        filter(rte_subfamily == "L1HS") %>%
+        filter(rte_length_req == "FL") %>%
+        filter(cov > MINIMUMCOVERAGE) %>%
+        mutate(
+            elem_pos = if_else(rte_strand == "+", start - rte_start, rte_end - start)
+        ) %>%
+        filter(elem_pos >= 0, elem_pos <= 6500)
+
+    fl_l1hs_elements <- fl_l1hs_df %>%
+        pull(gene_id) %>%
+        unique() %>%
+        sort()
+
+    outdir <- sprintf("ldna/results/%s/plots/rte/l1hs_fl_persite", params$mod_code)
+    dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
+
+    for (element in fl_l1hs_elements) {
+        tryCatch(
+            {
+                pf <- fl_l1hs_df %>% filter(gene_id == element)
+                if (nrow(pf) < 5) next
+
+                # --- Heatmap: CpG index x-axis, magma palette scaled to data range ---
+                cpg_index_map <- pf %>%
+                    distinct(elem_pos) %>%
+                    arrange(elem_pos) %>%
+                    mutate(cpg_index = row_number())
+                last_utr_cpg_idx <- cpg_index_map %>%
+                    filter(elem_pos <= 909) %>%
+                    pull(cpg_index) %>%
+                    max(na.rm = TRUE)
+                obs_min <- min(pf$pctM, na.rm = TRUE)
+                obs_max <- max(pf$pctM, na.rm = TRUE)
+                BIN_SIZE <- 100
+                p_heatmap2 <- pf %>%
+                    left_join(cpg_index_map, by = "elem_pos") %>%
+                    mutate(
+                        sample = factor(sample, levels = rev(
+                            sample_table %>%
+                                arrange(factor(condition, levels = conf$levels)) %>%
+                                pull(sample_name)
+                        )),
+                        condition = factor(condition, levels = rev(conf$levels))
+                    ) %>%
+                    ggplot(aes(x = cpg_index, y = sample, fill = pctM)) +
+                    geom_tile() +
+                    geom_vline(xintercept = last_utr_cpg_idx, linetype = "dashed", color = "red", linewidth = 0.5) +
+                    facet_grid(condition ~ ., scales = "free_y", space = "free_y") +
+                    scale_fill_viridis_c(
+                        option = "magma", direction = -1,
+                        limits = c(obs_min, obs_max),
+                        na.value = "grey85",
+                        name = "Meth (%)"
+                    ) +
+                    scale_x_continuous(expand = expansion(mult = 0)) +
+                    labs(x = "CpG index (5'→3')", y = NULL) +
+                    mtclosed +
+                    theme(
+                        axis.text.y = element_blank(),
+                        axis.ticks.y = element_blank(),
+                        legend.key.height = unit(0.5, "cm"),
+                        legend.key.width = unit(0.3, "cm"),
+                        strip.text.y = element_text(size = 11, angle = 0, hjust = 0),
+                        panel.spacing.y = unit(0.5, "mm")
+                    )
+                # --- Spaghetti: per-sample lines colored by condition, bold condition mean on top ---
+                p_spaghetti <- pf %>%
+                    mutate(
+                        bin = floor(elem_pos / BIN_SIZE) * BIN_SIZE + BIN_SIZE / 2,
+                        condition = factor(condition, levels = conf$levels)
+                    ) %>%
+                    group_by(sample, condition, bin) %>%
+                    summarise(mean_meth = mean(pctM, na.rm = TRUE), .groups = "drop") %>%
+                    ggplot(aes(x = bin, y = mean_meth, color = condition, group = sample)) +
+                    # Individual sample lines: thin, transparent
+                    geom_line(alpha = 0.35, linewidth = 0.35) +
+                    # Bold condition mean on top, grouped explicitly
+                    stat_summary(
+                        aes(group = condition),
+                        fun = mean, geom = "line",
+                        linewidth = 1.4, alpha = 0.95
+                    ) +
+                    geom_vline(xintercept = 909, linetype = "dashed", color = "grey40", linewidth = 0.4) +
+                    annotate("text", x = 909, y = 103, label = "5'UTR", size = 2.5, color = "grey40", hjust = -0.1) +
+                    scale_y_continuous(limits = c(0, 105), breaks = c(0, 25, 50, 75, 100)) +
+                    scale_x_continuous(
+                        limits = c(0, 6000),
+                        breaks = c(0, 909, 2000, 4000, 6000),
+                        expand = expansion(mult = c(0.01, 0.02))
+                    ) +
+                    scale_conditions +
+                    labs(
+                        x = "Position in element (bp, 5'→3')",
+                        y = "CpG Methylation (%)"
+                    ) +
+                    mtclosed
+
+                p_combined3 <- p_heatmap2 / p_spaghetti +
+                    plot_layout(heights = c(0.5, 1)) +
+                    plot_annotation(
+                        title = element,
+                        theme = theme(plot.title = element_text(size = 11, face = "italic", hjust = 0.5))
+                    )
+                mysaveandstore(
+                    pl = p_combined3,
+                    sprintf("%s/%s_combined3.pdf", outdir, element),
+                    7, 6
+                )
+            },
+            error = function(e) {
+                message(sprintf("Skipping %s: %s", element, conditionMessage(e)))
+            }
+        )
+    }
+
+    # --- All FL L1HS elements: spaghetti faceted by gene_id ---
+    n_elements <- fl_l1hs_df %>%
+        pull(gene_id) %>%
+        n_distinct()
+    ncols <- 10
+    nrows <- ceiling(n_elements / ncols)
+
+    p_all_spaghetti <- fl_l1hs_df %>%
+        mutate(
+            bin = floor(elem_pos / BIN_SIZE) * BIN_SIZE + BIN_SIZE / 2,
+            condition = factor(condition, levels = conf$levels)
+        ) %>%
+        group_by(gene_id, sample, condition, bin) %>%
+        summarise(mean_meth = mean(pctM, na.rm = TRUE), .groups = "drop") %>%
+        ggplot(aes(x = bin, y = mean_meth, color = condition, group = sample)) +
+        geom_line(alpha = 0.35, linewidth = 0.35) +
+        stat_summary(
+            aes(group = condition),
+            fun = mean, geom = "line",
+            linewidth = 1.1, alpha = 0.95
+        ) +
+        geom_vline(xintercept = 909, linetype = "dashed", color = "grey40", linewidth = 0.3) +
+        facet_wrap(~gene_id, ncol = ncols) +
+        scale_y_continuous(limits = c(0, 100), breaks = c(0, 50, 100)) +
+        scale_x_continuous(
+            limits = c(0, 6000),
+            breaks = c(0, 3000, 6000),
+            labels = c("0", "3k", "6k")
+        ) +
+        scale_conditions +
+        labs(
+            x = "Position in element (bp, 5'→3')",
+            y = "CpG Methylation (%)"
+        ) +
+        mtclosed +
+        theme(
+            strip.text = element_text(size = 5.5, face = "italic"),
+            axis.text = element_text(size = 5),
+            axis.title = element_text(size = 7),
+            panel.spacing = unit(1, "mm"),
+            legend.position = "bottom"
+        )
+
+    png(
+        sprintf("%s/all_elements_spaghetti.png", outdir),
+        width = min(ncols * 2.5, 36), height = min(nrows * 1.8, 50),
+        units = "in", res = 175
+    )
+    print(p_all_spaghetti)
+    dev.off()
+
+    mysaveandstore(
+        pl = p_all_spaghetti,
+        sprintf("%s/all_elements_spaghetti_highres.pdf", outdir),
+        min(10), min(20),
+        raster = TRUE
+    )
+
+    # --- Heatmap: mean of first 8 CpGs per element, rows = samples, columns = elements ---
+    first8_avg <- fl_l1hs_df %>%
+        group_by(gene_id, sample, condition) %>%
+        arrange(elem_pos, .by_group = TRUE) %>%
+        slice_head(n = 8) %>%
+        summarise(mean_meth = mean(pctM, na.rm = TRUE), .groups = "drop")
+
+    # Order elements by mean methylation across all samples (low → high)
+    element_order <- first8_avg %>%
+        group_by(gene_id) %>%
+        summarise(overall_mean = mean(mean_meth, na.rm = TRUE), .groups = "drop") %>%
+        arrange(overall_mean) %>%
+        pull(gene_id)
+
+    sample_order <- sample_table %>%
+        arrange(factor(condition, levels = conf$levels)) %>%
+        pull(sample_name)
+
+    p_first8_heatmap <- first8_avg %>%
+        mutate(
+            gene_id = factor(gene_id, levels = rev(element_order)),
+            sample = factor(sample, levels = sample_order),
+            condition = factor(condition, levels = conf$levels)
+        ) %>%
+        ggplot(aes(x = sample, y = gene_id, fill = mean_meth)) +
+        geom_tile() +
+        facet_grid(. ~ condition, scales = "free_x", space = "free_x") +
+        scale_fill_viridis_c(
+            option = "magma", direction = -1,
+            limits = c(0, 100), na.value = "grey85",
+            name = "Meth (%)"
+        ) +
+        labs(
+            x = NULL, y = "Element (ordered by mean methylation)",
+            title = "Mean methylation: first 8 CpGs per element"
+        ) +
+        mtclosed +
+        theme(
+            axis.text.x = element_text(size = 7, angle = 90, hjust = 1, vjust = 0.5),
+            axis.text.y = element_text(size = 5, face = "italic"),
+            strip.text.x = element_text(size = 11),
+            panel.spacing.x = unit(0.5, "mm"),
+            plot.title = element_text(size = 9, hjust = 0.5)
+        )
+
+    n_el <- length(element_order)
+    n_samp <- length(sample_order)
+    mysaveandstore(
+        pl = p_first8_heatmap,
+        fn = sprintf("%s/all_elements_first8cpg_heatmap.pdf", outdir),
+        w = max(4, n_samp * 0.3), h = max(6, n_el * 0.15)
+    )
+
+    # --- Two-column version for slides: split elements into two side-by-side panels ---
+    half <- ceiling(n_el / 2)
+    el_left <- element_order[(half + 1):n_el] # higher methylation
+    el_right <- element_order[1:half] # lower methylation
+
+    make_half_hm <- function(els) {
+        first8_avg %>%
+            filter(gene_id %in% els) %>%
+            mutate(
+                gene_id = factor(gene_id, levels = rev(els)),
+                sample = factor(sample, levels = sample_order),
+                condition = factor(condition, levels = conf$levels)
+            ) %>%
+            ggplot(aes(x = sample, y = gene_id, fill = mean_meth)) +
+            geom_tile() +
+            facet_grid(. ~ condition, scales = "free_x", space = "free_x") +
+            scale_fill_viridis_c(
+                option = "magma", direction = -1,
+                limits = c(0, 100), na.value = "grey85",
+                name = "Meth (%)"
+            ) +
+            labs(x = NULL, y = NULL) +
+            mtclosed +
+            theme(
+                axis.text.x = element_text(size = 7, angle = 90, hjust = 1, vjust = 0.5),
+                axis.text.y = element_text(size = 5, face = "italic"),
+                strip.text.x = element_text(size = 11),
+                panel.spacing.x = unit(0.5, "mm")
+            )
+    }
+
+    p_first8_heatmap_2col <- (make_half_hm(el_left) | make_half_hm(el_right)) +
+        plot_layout(guides = "collect") +
+        plot_annotation(
+            title = "Mean methylation: first 8 CpGs per element",
+            theme = theme(plot.title = element_text(size = 9, hjust = 0.5))
+        )
+
+    mysaveandstore(
+        pl = p_first8_heatmap_2col,
+        fn = sprintf("%s/all_elements_first8cpg_heatmap_2col.pdf", outdir),
+        w = max(8, n_samp * 0.6), h = max(4, (n_el / 2) * 0.15)
+    )
+
+    # --- Heatmap: mean of first 25 CpGs per element ---
+    first25_avg <- fl_l1hs_df %>%
+        group_by(gene_id, sample, condition) %>%
+        arrange(elem_pos, .by_group = TRUE) %>%
+        slice_head(n = 25) %>%
+        summarise(mean_meth = mean(pctM, na.rm = TRUE), .groups = "drop")
+
+    element_order_25 <- first25_avg %>%
+        group_by(gene_id) %>%
+        summarise(overall_mean = mean(mean_meth, na.rm = TRUE), .groups = "drop") %>%
+        arrange(overall_mean) %>%
+        pull(gene_id)
+
+    p_first25_heatmap <- first25_avg %>%
+        mutate(
+            gene_id = factor(gene_id, levels = rev(element_order_25)),
+            sample = factor(sample, levels = sample_order),
+            condition = factor(condition, levels = conf$levels)
+        ) %>%
+        ggplot(aes(x = sample, y = gene_id, fill = mean_meth)) +
+        geom_tile() +
+        facet_grid(. ~ condition, scales = "free_x", space = "free_x") +
+        scale_fill_viridis_c(
+            option = "magma", direction = -1,
+            limits = c(0, 100), na.value = "grey85",
+            name = "Meth (%)"
+        ) +
+        labs(
+            x = NULL, y = "Element (ordered by mean methylation)",
+            title = "Mean methylation: first 25 CpGs per element"
+        ) +
+        mtclosed +
+        theme(
+            axis.text.x = element_text(size = 7, angle = 90, hjust = 1, vjust = 0.5),
+            axis.text.y = element_text(size = 5, face = "italic"),
+            strip.text.x = element_text(size = 11),
+            panel.spacing.x = unit(0.5, "mm"),
+            plot.title = element_text(size = 9, hjust = 0.5)
+        )
+
+    n_el_25 <- length(element_order_25)
+    mysaveandstore(
+        pl = p_first25_heatmap,
+        fn = sprintf("%s/all_elements_first25cpg_heatmap.pdf", outdir),
+        w = max(4, n_samp * 0.3), h = max(6, n_el_25 * 0.15)
+    )
+
+    # Two-column version: first 25 CpGs
+    half_25 <- ceiling(n_el_25 / 2)
+    el_left_25 <- element_order_25[(half_25 + 1):n_el_25]
+    el_right_25 <- element_order_25[1:half_25]
+
+    make_half_hm_25 <- function(els) {
+        first25_avg %>%
+            filter(gene_id %in% els) %>%
+            mutate(
+                gene_id = factor(gene_id, levels = rev(els)),
+                sample = factor(sample, levels = sample_order),
+                condition = factor(condition, levels = conf$levels)
+            ) %>%
+            ggplot(aes(x = sample, y = gene_id, fill = mean_meth)) +
+            geom_tile() +
+            facet_grid(. ~ condition, scales = "free_x", space = "free_x") +
+            scale_fill_viridis_c(
+                option = "magma", direction = -1,
+                limits = c(0, 100), na.value = "grey85",
+                name = "Meth (%)"
+            ) +
+            labs(x = NULL, y = NULL) +
+            mtclosed +
+            theme(
+                axis.text.x = element_text(size = 7, angle = 90, hjust = 1, vjust = 0.5),
+                axis.text.y = element_text(size = 5, face = "italic"),
+                strip.text.x = element_text(size = 11),
+                panel.spacing.x = unit(0.5, "mm")
+            )
+    }
+
+    p_first25_heatmap_2col <- (make_half_hm_25(el_left_25) | make_half_hm_25(el_right_25)) +
+        plot_layout(guides = "collect") +
+        plot_annotation(
+            title = "Mean methylation: first 25 CpGs per element",
+            theme = theme(plot.title = element_text(size = 9, hjust = 0.5))
+        )
+
+    mysaveandstore(
+        pl = p_first25_heatmap_2col,
+        fn = sprintf("%s/all_elements_first25cpg_heatmap_2col.pdf", outdir),
+        w = max(8, n_samp * 0.6), h = max(4, (n_el_25 / 2) * 0.15)
+    )
+
+    # --- Heatmap: first 8 CpGs, faceted by loc_superlowres_integrative_stranded_incl_pred ---
+    first8_avg_loc <- fl_l1hs_df %>%
+        group_by(gene_id, sample, condition, loc_superlowres_integrative_stranded_incl_pred) %>%
+        arrange(elem_pos, .by_group = TRUE) %>%
+        slice_head(n = 8) %>%
+        summarise(mean_meth = mean(pctM, na.rm = TRUE), .groups = "drop")
+
+    p_first8_heatmap_loc <- first8_avg_loc %>%
+        mutate(
+            gene_id = factor(gene_id, levels = rev(element_order)),
+            sample = factor(sample, levels = sample_order),
+            condition = factor(condition, levels = conf$levels)
+        ) %>%
+        ggplot(aes(x = sample, y = gene_id, fill = mean_meth)) +
+        geom_tile() +
+        facet_grid(loc_superlowres_integrative_stranded_incl_pred ~ condition, scales = "free", space = "free") +
+        scale_fill_viridis_c(
+            option = "magma", direction = -1,
+            limits = c(0, 100), na.value = "grey85",
+            name = "Meth (%)"
+        ) +
+        labs(
+            x = NULL, y = "Element (ordered by mean methylation)",
+            title = "Mean methylation: first 8 CpGs per element\n(faceted by genomic location)"
+        ) +
+        mtclosed +
+        theme(
+            axis.text.x = element_text(size = 7, angle = 90, hjust = 1, vjust = 0.5),
+            axis.text.y = element_text(size = 5, face = "italic"),
+            strip.text = element_text(size = 9),
+            panel.spacing = unit(0.5, "mm"),
+            plot.title = element_text(size = 9, hjust = 0.5)
+        )
+
+    n_locs <- length(unique(first8_avg_loc$loc_superlowres_integrative_stranded_incl_pred))
+    mysaveandstore(
+        pl = p_first8_heatmap_loc,
+        fn = sprintf("%s/all_elements_first8cpg_heatmap_byloc.pdf", outdir),
+        w = max(5, n_samp * 0.35), h = max(8, n_el * 0.15 * n_locs / 2)
+    )
+
+    # Two-column version: first 8 CpGs, faceted by loc
+    make_half_hm_loc <- function(els, avg_df) {
+        avg_df %>%
+            filter(gene_id %in% els) %>%
+            mutate(
+                gene_id = factor(gene_id, levels = rev(els)),
+                sample = factor(sample, levels = sample_order),
+                condition = factor(condition, levels = conf$levels)
+            ) %>%
+            ggplot(aes(x = sample, y = gene_id, fill = mean_meth)) +
+            geom_tile() +
+            facet_grid(loc_superlowres_integrative_stranded_incl_pred ~ condition, scales = "free", space = "free") +
+            scale_fill_viridis_c(
+                option = "magma", direction = -1,
+                limits = c(0, 100), na.value = "grey85",
+                name = "Meth (%)"
+            ) +
+            labs(x = NULL, y = NULL) +
+            mtclosed +
+            theme(
+                axis.text.x = element_text(size = 7, angle = 90, hjust = 1, vjust = 0.5),
+                axis.text.y = element_text(size = 5, face = "italic"),
+                strip.text = element_text(size = 9),
+                panel.spacing = unit(0.5, "mm")
+            )
+    }
+
+    p_first8_heatmap_2col_loc <- (make_half_hm_loc(el_left, first8_avg_loc) | make_half_hm_loc(el_right, first8_avg_loc)) +
+        plot_layout(guides = "collect") +
+        plot_annotation(
+            title = "Mean methylation: first 8 CpGs per element (by genomic location)",
+            theme = theme(plot.title = element_text(size = 9, hjust = 0.5))
+        )
+
+    mysaveandstore(
+        pl = p_first8_heatmap_2col_loc,
+        fn = sprintf("%s/all_elements_first8cpg_heatmap_2col_byloc.pdf", outdir),
+        w = max(8, n_samp * 0.6), h = max(6, (n_el / 2) * 0.15 * n_locs / 2)
+    )
+
+    # --- Heatmap: first 25 CpGs, faceted by loc_superlowres_integrative_stranded_incl_pred ---
+    first25_avg_loc <- fl_l1hs_df %>%
+        group_by(gene_id, sample, condition, loc_superlowres_integrative_stranded_incl_pred) %>%
+        arrange(elem_pos, .by_group = TRUE) %>%
+        slice_head(n = 25) %>%
+        summarise(mean_meth = mean(pctM, na.rm = TRUE), .groups = "drop")
+
+    p_first25_heatmap_loc <- first25_avg_loc %>%
+        mutate(
+            gene_id = factor(gene_id, levels = rev(element_order_25)),
+            sample = factor(sample, levels = sample_order),
+            condition = factor(condition, levels = conf$levels)
+        ) %>%
+        ggplot(aes(x = sample, y = gene_id, fill = mean_meth)) +
+        geom_tile() +
+        facet_grid(loc_superlowres_integrative_stranded_incl_pred ~ condition, scales = "free", space = "free") +
+        scale_fill_viridis_c(
+            option = "magma", direction = -1,
+            limits = c(0, 100), na.value = "grey85",
+            name = "Meth (%)"
+        ) +
+        labs(
+            x = NULL, y = "Element (ordered by mean methylation)",
+            title = "Mean methylation: first 25 CpGs per element\n(faceted by genomic location)"
+        ) +
+        mtclosed +
+        theme(
+            axis.text.x = element_text(size = 7, angle = 90, hjust = 1, vjust = 0.5),
+            axis.text.y = element_text(size = 5, face = "italic"),
+            strip.text = element_text(size = 9),
+            panel.spacing = unit(0.5, "mm"),
+            plot.title = element_text(size = 9, hjust = 0.5)
+        )
+
+    mysaveandstore(
+        pl = p_first25_heatmap_loc,
+        fn = sprintf("%s/all_elements_first25cpg_heatmap_byloc.pdf", outdir),
+        w = max(5, n_samp * 0.35), h = max(8, n_el_25 * 0.15 * n_locs / 2)
+    )
+
+    # Two-column version: first 25 CpGs, faceted by loc
+    p_first25_heatmap_2col_loc <- (make_half_hm_loc(el_left_25, first25_avg_loc) | make_half_hm_loc(el_right_25, first25_avg_loc)) +
+        plot_layout(guides = "collect") +
+        plot_annotation(
+            title = "Mean methylation: first 25 CpGs per element (by genomic location)",
+            theme = theme(plot.title = element_text(size = 9, hjust = 0.5))
+        )
+
+    mysaveandstore(
+        pl = p_first25_heatmap_2col_loc,
+        fn = sprintf("%s/all_elements_first25cpg_heatmap_2col_byloc.pdf", outdir),
+        w = max(8, n_samp * 0.6), h = max(6, (n_el_25 / 2) * 0.15 * n_locs / 2)
+    )
+}

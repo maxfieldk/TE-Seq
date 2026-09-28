@@ -254,26 +254,9 @@ for (subfam in subfams) {
             index_df <<- bind_rows(index_df, element_map)
         }
     }
-    for (seq_name in names(alnss)) {
-        print(seq_name)
-        ss <- alnss[seq_name]
-        element_map <- getIndexMap(ss)
-        if (!exists("index_df")) {
-            index_df <<- element_map
-        } else {
-            index_df <<- bind_rows(index_df, element_map)
-        }
-    }
 
     alignment_index_long <<- bind_rows(index_df, getIndexMap(consensus_ss_with_gaps))
-    alignment_index_long <<- bind_rows(index_df, getIndexMap(consensus_ss_with_gaps))
 
-    consensus_frame <- getIndexMap(consensus_ss_with_gaps) %>%
-        dplyr::rename(consensus_pos = sequence_pos, consensus_seq = seq) %>%
-        dplyr::select(-gene_id)
-    consensus_index_long <- index_df %>%
-        left_join(consensus_frame) %>%
-        filter(!(is.na(sequence_pos) & is.na(consensus_pos)))
     consensus_frame <- getIndexMap(consensus_ss_with_gaps) %>%
         dplyr::rename(consensus_pos = sequence_pos, consensus_seq = seq) %>%
         dplyr::select(-gene_id)
