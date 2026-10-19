@@ -30,12 +30,12 @@ get_repeat_annotations <- function(
             rmannnonref <- do.call(rbind, rmannSamples) %>% tibble()
             rmann <- bind_rows(rmannShared, rmannnonref)
             if (!keep_non_central) {
-                rmann <<- rmann %>% filter(refstatus != "NonCentral")
+                rmann <- rmann %>% filter(refstatus != "NonCentral")
             }
         } else if (confALL$aref$update_ref_with_tldr$per_sample == "no") {
             rmann <- rmannShared
             if (!keep_non_central) {
-                rmann <<- rmann %>% filter(refstatus != "NonCentral")
+                rmann <- rmann %>% filter(refstatus != "NonCentral")
             }
         }
     } else {
